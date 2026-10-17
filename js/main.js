@@ -2088,7 +2088,7 @@ function _showOrgChart() {
   if (!dlg) {
     dlg = document.createElement('dialog');
     dlg.id = 'dlg-org-chart';
-    dlg.style.cssText = 'border:none;border-radius:12px;padding:0;width:96vw;max-width:1400px;height:92vh;box-shadow:0 8px 40px rgba(0,0,0,0.3);overflow:hidden;position:fixed;top:4vh;left:max(0px,calc(50vw - 700px));margin:0';
+    dlg.style.cssText = 'border:none;border-radius:12px;padding:0;width:96vw;max-width:1400px;height:92vh;box-shadow:0 8px 40px rgba(0,0,0,0.3);overflow:hidden;position:fixed;top:4vh;left:max(0px,calc(50vw - 700px));margin:0;z-index:9000';
     dlg.innerHTML = `
       <div style="display:flex;flex-direction:column;height:100%;background:var(--clr-bg)">
         <div id="oc-dlg-hdr" style="display:flex;align-items:center;justify-content:space-between;padding:10px 16px;border-bottom:1px solid var(--clr-border);background:var(--clr-surface-2);flex-shrink:0;gap:8px;flex-wrap:wrap;cursor:move">
@@ -2804,7 +2804,7 @@ function _showCpmNetwork() {
 
   dlg = document.createElement('dialog');
   dlg.id = 'dlg-cpm-network';
-  dlg.style.cssText = 'border:none;border-radius:12px;padding:0;width:96vw;max-width:1400px;height:90vh;box-shadow:0 8px 40px rgba(0,0,0,0.3);overflow:hidden;position:fixed;top:5vh;left:max(0px,calc(50vw - 700px));margin:0';
+  dlg.style.cssText = 'border:none;border-radius:12px;padding:0;width:96vw;max-width:1400px;height:90vh;box-shadow:0 8px 40px rgba(0,0,0,0.3);overflow:hidden;position:fixed;top:5vh;left:max(0px,calc(50vw - 700px));margin:0;z-index:9000';
   dlg.innerHTML = `
     <div style="display:flex;flex-direction:column;height:100%">
       <div id="cpm-dlg-hdr" style="display:flex;align-items:center;justify-content:space-between;padding:10px 16px;border-bottom:1px solid var(--clr-border);background:var(--clr-surface-2);flex-shrink:0;cursor:move">
