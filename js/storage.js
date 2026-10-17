@@ -134,7 +134,14 @@ export async function loadProject(projectId) {
   ]);
   // Excluir registros borrados localmente (deleted_at)
   const tasks = allTasks.filter(t => !t.deleted_at);
-  const deps  = allDeps.filter(d => !d.deleted_at);
+  // Deduplicar deps: ante duplicados (pred_id+succ_id+type), conservar el más reciente
+  const _depsDedup = new Map();
+  for (const d of allDeps.filter(d => !d.deleted_at)) {
+    const k = `${d.pred_id}|${d.succ_id}|${d.type}`;
+    const prev = _depsDedup.get(k);
+    if (!prev || d.updated_at > prev.updated_at) _depsDedup.set(k, d);
+  }
+  const deps = [..._depsDedup.values()];
   const calId = project?.calendar_id;
   const calendar = calId ? calendars.find(c => c.id === calId) ?? null : null;
   const calEx = calId ? calExceptions.filter(ex => ex.calendar_id === calId && !ex.deleted_at) : [];

@@ -541,6 +541,7 @@ export class WbsTable {
     if (inputType === 'text') input.select();
 
     const commit = () => {
+      if (!this._editingCell) return; // guard: prevent double-commit from blur triggered by re-render
       const newVal = input.value.trim();
       this._commitEdit(rowId, col, newVal);
     };
@@ -601,7 +602,7 @@ export class WbsTable {
         } else if (currentLagDays !== p.lag) {
           // Lag cambió: reemplazar la dep para actualizar lag_days
           // Guardar la dep vieja con deleted_at antes de dispatch (onPersist la busca por ID)
-          const { put: dbPutSt } = await import('./storage.js?v=3');
+          const { put: dbPutSt } = await import('./storage.js?v=4');
           await dbPutSt('task_dependencies', { ...existing, deleted_at: new Date().toISOString() });
           appState.dispatch({ type: 'REMOVE_DEP', payload: { id: existing.id } });
           appState.dispatch({ type: 'ADD_DEP', payload: { dep: {
