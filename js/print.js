@@ -49,9 +49,13 @@ export function printWbsTable() {
     ).join(' ')} }`;
     document.head.appendChild(style);
   }
+  // Vaciar title temporalmente para que el browser no muestre "Cronogramas" en la cabecera de impresión
+  const origTitle = document.title;
+  document.title = '';
   document.body.classList.add('printing');
   window.print();
   setTimeout(() => {
+    document.title = origTitle;
     document.body.classList.remove('printing');
     document.getElementById('print-col-override')?.remove();
   }, 1000);
@@ -105,7 +109,7 @@ export function printGantt(rows) {
     const html    = `<!doctype html>
 <html lang="es"><head>
   <meta charset="UTF-8">
-  <title>${_esc(project.name)}</title>
+  <title></title>
   <style id="page-style">@page { size: landscape; margin: 10mm; }</style>
   <style>
     * { box-sizing: border-box; }

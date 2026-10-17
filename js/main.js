@@ -1819,6 +1819,7 @@ function _showOrgChart() {
             <button id="oc-add-proj" class="btn btn-ghost btn-sm">＋ Proyecto</button>
             <span style="width:1px;height:18px;background:var(--clr-border)"></span>
             <button id="oc-reset-layout" class="btn btn-ghost btn-sm" title="Restablecer posiciones">↺ Organizar</button>
+            <button id="oc-print" class="btn btn-ghost btn-sm">🖨 Imprimir</button>
             <button id="btn-orgchart-close" class="btn btn-ghost btn-sm">✕ Cerrar</button>
           </div>
         </div>
@@ -1842,9 +1843,123 @@ function _showOrgChart() {
       localStorage.removeItem('oc-pos');
       _renderOrgChart();
     });
+    dlg.querySelector('#oc-print')?.addEventListener('click', _printOrgChart);
   }
   _renderOrgChart();
   dlg.showModal();
+}
+
+function _printOrgChart() {
+  const canvas = document.getElementById('oc-canvas');
+  const { project } = appState.state;
+  if (!canvas) return;
+
+  // Compute bounding box of visible cards
+  const cards = [...canvas.querySelectorAll('.oc-card')];
+  let minX = Infinity, minY = Infinity, maxX = 0, maxY = 0;
+  cards.forEach(card => {
+    const x = parseInt(card.style.left) || 0;
+    const y = parseInt(card.style.top)  || 0;
+    const w = card.offsetWidth  || 160;
+    const h = card.offsetHeight || 110;
+    if (x < minX) minX = x; if (y < minY) minY = y;
+    if (x + w > maxX) maxX = x + w; if (y + h > maxY) maxY = y + h;
+  });
+  if (!isFinite(minX)) { minX = 0; minY = 0; maxX = 800; maxY = 600; }
+  const PAD = 40;
+  minX -= PAD; minY -= PAD; maxX += PAD; maxY += PAD;
+  const contentW = maxX - minX, contentH = maxY - minY;
+
+  // Clone canvas, remove interactive controls
+  const clone = canvas.cloneNode(true);
+  clone.querySelectorAll('.oc-btn-edit,.oc-btn-add,.oc-drag-handle').forEach(el => el.remove());
+  const canvasHtml = clone.outerHTML;
+
+  const today    = new Date().toLocaleDateString('es-PE');
+  const projName = project?.name ?? '';
+
+  const html = `<!doctype html>
+<html lang="es"><head>
+  <meta charset="UTF-8">
+  <title>Estructura de Proyectos</title>
+  <style id="page-style">@page { size: landscape; margin: 10mm; }</style>
+  <style>
+    :root { --clr-primary:#1976D2; --clr-bg:#f8f9fc; --clr-surface:#fff;
+            --clr-surface-2:#f5f7fa; --clr-text:#1a1d23; --clr-text-2:#4a5568;
+            --clr-border:#e2e8f0; }
+    * { box-sizing:border-box; }
+    body { margin:0; padding:0; font-family:'Segoe UI',system-ui,sans-serif; background:#fff; }
+    .header { display:flex; align-items:center; padding:0 0 6px;
+              border-bottom:2px solid #1976D2; margin-bottom:8px; }
+    .proj-name { font-size:16px; font-weight:700; color:#1976D2; }
+    .oc-frame { border:0.25px solid #546E7A; overflow:hidden; }
+    .controls { display:flex; align-items:center; gap:12px; padding:8px 0 10px;
+                font-size:12px; flex-wrap:wrap; }
+    .controls label { display:flex; align-items:center; gap:6px; color:#455A64; }
+    .controls input[type=range] { width:120px; accent-color:#1976D2; }
+    .btn-c { border:1px solid #90A4AE; border-radius:6px; padding:5px 13px;
+             font-size:12px; cursor:pointer; background:#fff; color:#455A64; }
+    .btn-c:hover,.btn-c.active { background:#1976D2; color:#fff; border-color:#1976D2; }
+    .btn-print { background:#1976D2; color:#fff; border:none; border-radius:6px;
+                 padding:6px 16px; font-size:13px; cursor:pointer; }
+    .btn-print:hover { background:#1565C0; }
+    .sep { width:1px; height:22px; background:#CFD8DC; }
+    @media print { .controls { display:none !important; } }
+  </style>
+</head><body>
+  <div class="controls">
+    <label>Zoom:
+      <input type="range" id="zoom" min="10" max="200" value="100" step="5">
+      <span id="zoom-val" style="min-width:40px">100%</span>
+    </label>
+    <div class="sep"></div>
+    <span style="color:#78909C">Orientación:</span>
+    <button class="btn-c active" id="btn-land" onclick="setOrient('landscape')">⬛ Horizontal</button>
+    <button class="btn-c" id="btn-port" onclick="setOrient('portrait')">🔲 Vertical</button>
+    <div class="sep"></div>
+    <button class="btn-print" onclick="window.print()">🖨 Imprimir</button>
+    <span style="color:#78909C;font-size:11px">${today}</span>
+  </div>
+  <div class="header">
+    <div class="proj-name">Estructura de Proyectos${projName ? ' — ' + projName : ''}</div>
+  </div>
+  <div class="oc-frame" id="oc-frame">
+    <div id="oc-inner" style="transform-origin:top left;position:relative">
+      ${canvasHtml}
+    </div>
+  </div>
+  <script>
+    const inner = document.getElementById('oc-inner');
+    const frame = document.getElementById('oc-frame');
+    const zoom  = document.getElementById('zoom');
+    const zoomVal = document.getElementById('zoom-val');
+    const MX = ${minX}, MY = ${minY}, CW = ${contentW}, CH = ${contentH};
+
+    function applyZoom(z) {
+      const s = z / 100;
+      inner.style.transform = 'translate(' + (-MX) + 'px,' + (-MY) + 'px) scale(' + s + ')';
+      frame.style.width  = Math.round(CW * s) + 'px';
+      frame.style.height = Math.round(CH * s) + 'px';
+    }
+    zoom.addEventListener('input', () => {
+      zoomVal.textContent = zoom.value + '%';
+      applyZoom(parseInt(zoom.value));
+    });
+    function setOrient(o) {
+      document.getElementById('page-style').textContent = '@page { size: ' + o + '; margin: 10mm; }';
+      document.getElementById('btn-land').classList.toggle('active', o === 'landscape');
+      document.getElementById('btn-port').classList.toggle('active', o === 'portrait');
+    }
+    const pageW = window.innerWidth - 32;
+    const autoZ = Math.max(10, Math.min(100, Math.floor(pageW / CW * 100)));
+    zoom.value = autoZ; zoomVal.textContent = autoZ + '%'; applyZoom(autoZ);
+  <\/script>
+</body></html>`;
+
+  const win = window.open('', '_blank', 'width=1200,height=800');
+  if (!win) { alert('El navegador bloqueó la ventana emergente. Permítala e intente de nuevo.'); return; }
+  win.document.write(html);
+  win.document.close();
 }
 
 // ---- Helpers del formulario inline ----
@@ -1863,7 +1978,13 @@ function _ocOpenForm(dlg, type, data) {
   const overlay = dlg.querySelector('#oc-edit-overlay');
   if (!overlay) return;
 
-  const icons  = { portfolio: '🗂', program: '📦', project: '📋' };
+  const _ocColors = { portfolio: '#1976D2', program: '#7B1FA2', project: '#2E7D32' };
+  const _ocIcons  = {
+    portfolio: `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" style="vertical-align:middle"><path d="M10 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z" fill="${_ocColors.portfolio}"/></svg>`,
+    program:   `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" style="vertical-align:middle"><path d="M11.99 18.54l-7.37-5.73L3 14.07l9 7 9-7-1.63-1.27-7.38 5.74zM12 16l7.36-5.73L21 9l-9-7-9 7 1.63 1.27L12 16z" fill="${_ocColors.program}"/></svg>`,
+    project:   `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" style="vertical-align:middle"><path d="M19 3h-4.18C14.4 1.84 13.3 1 12 1c-1.3 0-2.4.84-2.82 2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 0c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm2 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z" fill="${_ocColors.project}"/></svg>`,
+  };
+  const icons  = _ocIcons;
   const labels = { portfolio: 'Portafolio', program: 'Programa', project: 'Proyecto' };
   const isNew  = !data?.id;
 
@@ -2106,9 +2227,13 @@ async function _renderOrgChart() {
   });
 
   // ---- Crear tarjetas en el canvas ----
-  const icons  = { portfolio: '🗂', program: '📦', project: '📋' };
   const colors = { portfolio: '#1976D2', program: '#7B1FA2', project: '#2E7D32' };
   const bgCol  = { portfolio: 'rgba(25,118,210,0.06)', program: 'rgba(123,31,162,0.06)', project: 'rgba(46,125,50,0.06)' };
+  const icons  = {
+    portfolio: `<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24"><path d="M10 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z" fill="${colors.portfolio}"/></svg>`,
+    program:   `<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24"><path d="M11.99 18.54l-7.37-5.73L3 14.07l9 7 9-7-1.63-1.27-7.38 5.74zM12 16l7.36-5.73L21 9l-9-7-9 7 1.63 1.27L12 16z" fill="${colors.program}"/></svg>`,
+    project:   `<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24"><path d="M19 3h-4.18C14.4 1.84 13.3 1 12 1c-1.3 0-2.4.84-2.82 2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 0c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm2 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z" fill="${colors.project}"/></svg>`,
+  };
 
   cardList.forEach(({ type, data, pos }) => {
     const isActive = type === 'project' && data.id === currentId;
@@ -2130,7 +2255,7 @@ async function _renderOrgChart() {
       <div class="oc-drag-handle" style="position:absolute;top:4px;left:6px;font-size:12px;opacity:0.25;cursor:grab;line-height:1" title="Arrastrar">⠿</div>
       <button class="oc-btn-edit" title="Editar" style="position:absolute;top:4px;right:26px;background:none;border:none;cursor:pointer;font-size:12px;opacity:0.3;padding:0;line-height:1">✎</button>
       <button class="oc-btn-add" title="Agregar hijo" style="position:absolute;top:4px;right:6px;background:none;border:none;cursor:pointer;font-size:12px;opacity:0.3;padding:0;line-height:1;font-weight:700">＋</button>
-      <div style="font-size:20px;margin-top:2px">${icons[type]}</div>
+      <div style="width:22px;height:22px;margin-top:2px;display:flex;align-items:center;justify-content:center">${icons[type]}</div>
       <div style="font-size:11px;font-weight:700;word-break:break-word;text-align:center;line-height:1.3;color:${colors[type]};margin-top:2px">${_escHtml(data.name)}</div>
       ${data.code ? `<div style="font-size:9px;opacity:0.55;background:rgba(0,0,0,0.06);border-radius:4px;padding:1px 6px;margin-top:1px">${_escHtml(data.code)}</div>` : ''}
       ${type === 'project' && data.start_date ? `<div style="font-size:9px;opacity:0.4;margin-top:2px">📅 ${data.start_date}</div>` : ''}
@@ -2587,6 +2712,7 @@ function _exportCpmNetwork(fmt, dlg) {
   if (fmt === 'pdf') {
     const today = new Date().toLocaleDateString('es-PE');
     const projDisplayName = _escHtml(appState.state.project?.name ?? projName);
+
     // Leyenda con SVG inline para garantizar colores en impresión
     const legendItems = [
       { color: '#e74c3c', label: 'Crítica' },
@@ -2594,32 +2720,29 @@ function _exportCpmNetwork(fmt, dlg) {
       { color: '#2980b9', label: 'Normal' },
       { color: '#27ae60', label: 'Completa' },
     ];
-    const legendSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="${legendItems.length * 100}" height="20" style="display:block">
-      ${legendItems.map((it, i) => `
-        <rect x="${i * 100}" y="3" width="13" height="13" rx="2" fill="${it.color}"/>
-        <text x="${i * 100 + 18}" y="14" font-size="11" font-family="Segoe UI,Arial,sans-serif" fill="#444">${it.label}</text>`).join('')}
+    const legendSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="${legendItems.length * 110}" height="20" style="display:block">
+      ${legendItems.map((it, i) => `<rect x="${i*110}" y="3" width="13" height="13" rx="2" fill="${it.color}"/><text x="${i*110+18}" y="14" font-size="11" font-family="Segoe UI,Arial,sans-serif" fill="#444">${it.label}</text>`).join('')}
     </svg>`;
 
     // Quitar width/height fijos; dejar solo viewBox para que CSS controle el tamaño
     clone.removeAttribute('width');
     clone.removeAttribute('height');
-    // Asegurar preserveAspectRatio para que no se deforme al escalar
     clone.setAttribute('preserveAspectRatio', 'xMidYMid meet');
     const svgForPdf = serializer.serializeToString(clone);
 
     const html = `<!doctype html>
 <html lang="es"><head>
   <meta charset="UTF-8">
-  <title>${projDisplayName}</title>
+  <title></title>
   <style id="page-style">@page { size: landscape; margin: 10mm; }</style>
   <style>
-    * { box-sizing: border-box; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-    body { margin: 0; padding: 0; font-family: 'Segoe UI', system-ui, sans-serif; background: #fff; }
+    * { box-sizing: border-box; }
+    body  { margin: 0; padding: 0; font-family: 'Segoe UI', system-ui, sans-serif; }
     .header { display: flex; align-items: center; padding: 0 0 6px;
               border-bottom: 2px solid #1976D2; margin-bottom: 8px; }
     .proj-name { font-size: 16px; font-weight: 700; color: #1976D2; }
-    .gantt-frame { border: 0.25px solid #546E7A; display: inline-block; width: 100%; overflow: hidden; }
-    .gantt-frame svg { width: var(--net-zoom, 100%); max-width: none; height: auto; display: block; }
+    .gantt-frame { border: 0.25px solid #546E7A; display: inline-block; width: 100%; }
+    svg { width: var(--cpm-zoom, 100%); max-width: none; height: auto; display: block; }
     .controls { display: flex; align-items: center; gap: 12px; padding: 8px 0 10px;
                 font-family: 'Segoe UI', system-ui, sans-serif; font-size: 12px; flex-wrap: wrap; }
     .controls label { display: flex; align-items: center; gap: 6px; color: #455A64; }
