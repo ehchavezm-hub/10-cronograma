@@ -371,6 +371,30 @@ export class GanttCanvas {
     this.requestRender();
   }
 
+  /** Ampliar zoom un paso (~20%) centrado en el canvas */
+  zoomIn() {
+    const W = this._canvas.clientWidth;
+    const cx = W / 2 + this._scene.scrollX;
+    const newPpd = Math.min(80, this._scene.pixPerDay * 1.2);
+    const scale  = newPpd / this._scene.pixPerDay;
+    this._scene.pixPerDay = newPpd;
+    this._scene.scrollX   = cx * scale - W / 2;
+    this._scene.clampScrollX(W);
+    this.requestRender();
+  }
+
+  /** Reducir zoom un paso (~20%) centrado en el canvas */
+  zoomOut() {
+    const W = this._canvas.clientWidth;
+    const cx = W / 2 + this._scene.scrollX;
+    const newPpd = Math.max(2, this._scene.pixPerDay / 1.2);
+    const scale  = newPpd / this._scene.pixPerDay;
+    this._scene.pixPerDay = newPpd;
+    this._scene.scrollX   = Math.max(0, cx * scale - W / 2);
+    this._scene.clampScrollX(W);
+    this.requestRender();
+  }
+
   // ============================================================
   // Ciclo de dibujo principal
   // ============================================================
