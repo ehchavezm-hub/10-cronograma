@@ -52,7 +52,7 @@ export async function saveBaseline(name) {
     });
   }
 
-  for (const row of taskRows) await put('baseline_tasks', row);
+  await Promise.all(taskRows.map(row => put('baseline_tasks', row)));
 
   return baselineId;
 }
@@ -94,9 +94,8 @@ export async function deleteBaseline(baselineId) {
   await remove('baselines', baselineId);
   // Eliminar las tareas asociadas
   const all = await getAll('baseline_tasks');
-  for (const row of all) {
-    if (row.baseline_id === baselineId) await remove('baseline_tasks', row.id);
-  }
+  const toDelete = all.filter(row => row.baseline_id === baselineId);
+  await Promise.all(toDelete.map(row => remove('baseline_tasks', row.id)));
 }
 
 // ---- Línea base primaria (P6: Primary Baseline) ----

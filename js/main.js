@@ -22,7 +22,7 @@ import { SyncEngine }     from './sync.js';
 import { outboxAdd }      from './storage.js?v=4';
 import { EvmPanel }       from './evm.js';
 import { ChangeLogPanel, logCommand } from './change-log.js';
-import { saveBaseline, listBaselines, loadBaselineData, deleteBaseline, setPrimaryBaseline } from './baseline.js';
+import { saveBaseline, listBaselines, loadBaselineData, deleteBaseline, setPrimaryBaseline, getBaseline } from './baseline.js';
 
 // ============================================================
 // Detectar file://
@@ -340,7 +340,7 @@ async function _openTaskDetail(taskId) {
 
   // Cálculo de costo estimado por recurso (inspirado en MS Project / P6)
   const _hpd = _calState?.hours_per_day ?? 8;
-  const _taskDur = task.duration_days ?? cpmTask?.dur ?? 0;
+  const _taskDur = cpmTask?.dur ?? task.duration_days ?? 0;
   const _calcResCost = (units, res) => {
     if (!res || res.rate_per_hour == null) return null;
     const u = units ?? 100;
@@ -634,6 +634,33 @@ async function _saveTaskDetail() {
 }
 
 // ============================================================
+// WBS helper — computa códigos EDT desde la jerarquía de tareas
+// ============================================================
+
+/** @param {Map<string,any>} tasks @returns {Map<string,string>} */
+function _buildWbsMap(tasks) {
+  if (!tasks?.size) return new Map();
+  const byParent = /** @type {Map<string,any[]>} */ (new Map());
+  for (const t of tasks.values()) {
+    if (t.deleted_at) continue;
+    const pid = t.parent_id ?? '__root__';
+    if (!byParent.has(pid)) byParent.set(pid, []);
+    byParent.get(pid).push(t);
+  }
+  for (const arr of byParent.values()) arr.sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+  const result = new Map();
+  const walk = (parentId, prefix) => {
+    (byParent.get(parentId) ?? []).forEach((t, i) => {
+      const code = prefix ? `${prefix}.${i + 1}` : `${i + 1}`;
+      result.set(t.id, code);
+      walk(t.id, code);
+    });
+  };
+  walk('__root__', '');
+  return result;
+}
+
+// ============================================================
 // Gestor de Recursos (catálogo)
 // ============================================================
 
@@ -699,6 +726,7 @@ async function _openResourceManager() {
 
   // Build resource usage rows (P6: Resource Usage Sheet / MS Project: Resource Usage view)
   const _tasks = appState.state.tasks;
+  const _wbsMap = _buildWbsMap(_tasks);
   const _usageRows = resources.map(r => {
     const assignments = allTaskRes.filter(tr => tr.resource_id === r.id);
     if (!assignments.length) return `
@@ -715,7 +743,7 @@ async function _openResourceManager() {
         <td style="padding:4px 10px 4px 28px;font-size:12px;color:var(--clr-text)">${_escHtml(t?.name ?? tr.task_id)}</td>
         <td style="padding:4px 10px;font-size:12px;color:var(--clr-text-2)">${tr.units ?? 100} ${_escHtml(unitSufx)}</td>
         <td style="padding:4px 10px;font-size:12px;color:var(--clr-text-3)">${dur !== '—' ? dur+' días' : '—'}</td>
-        <td style="padding:4px 10px;font-size:12px;color:var(--clr-text-3)">${_escHtml(t?.wbs_code ?? '')}</td>
+        <td style="padding:4px 10px;font-size:12px;color:var(--clr-text-3)">${_escHtml(_wbsMap.get(tr.task_id) ?? '')}</td>
       </tr>`;
     }).join('');
     const totalU = assignments.reduce((s, tr) => s + (tr.units ?? 100), 0);
@@ -903,8 +931,11 @@ async function _openResourceManager() {
     if (btn) {
       const rid = btn.dataset.rid;
       if (confirm('¿Eliminar este recurso?')) {
-        const { remove: dbRemoveSt } = await import('./storage.js?v=4');
+        const { remove: dbRemoveSt, getAll: dbGetAllSt } = await import('./storage.js?v=4');
         await dbRemoveSt('resources', rid);
+        // Limpiar asignaciones huérfanas
+        const taskRes = await dbGetAllSt('task_resources').catch(() => []);
+        await Promise.all(taskRes.filter(tr => tr.resource_id === rid).map(tr => dbRemoveSt('task_resources', tr.id)));
         btn.closest('tr')?.remove();
         _showToast('Recurso eliminado', 'success');
       }
@@ -960,12 +991,11 @@ async function _openResourceAssign(preSelectedId = null) {
     </label>`;
   }).join('');
 
-  const wbsMap = {};
-  tasks.forEach(t => { wbsMap[t.id] = t; });
+  const _raWbsMap = _buildWbsMap(appState.state.tasks);
   const taskItems = tasks.map(t =>
     `<label class="ra-task-item" data-tid="${t.id}" style="display:flex;align-items:center;gap:8px;padding:5px 8px;cursor:pointer;border-radius:5px;margin-bottom:1px">
       <input type="checkbox" class="ra-task-cb" value="${t.id}" style="accent-color:#1976D2">
-      <span style="font-size:11px;color:var(--clr-text-3);min-width:32px">${_escHtml(t.wbs_code??'')}</span>
+      <span style="font-size:11px;color:var(--clr-text-3);min-width:32px">${_escHtml(_raWbsMap.get(t.id)??'')}</span>
       <span style="font-size:12px;flex:1">${_escHtml(t.name)}</span>
       <span class="ra-cur-badge" data-tid="${t.id}" style="display:none;font-size:10px;padding:1px 6px;border-radius:4px;background:#e0f2fe;color:#0369a1;white-space:nowrap"></span>
     </label>`).join('');
@@ -1430,6 +1460,25 @@ async function _loadProject(projectId) {
     _showToast('Sin fecha de inicio — edita el proyecto para configurarla', 'warn');
   }
 
+  // Resetear línea base activa al cambiar de proyecto
+  _activeBaselineId   = null;
+  _activeBaselineName = '';
+  appState.setBaselineData(null);
+  appState.setBaselineMeta(null);
+
+  // Auto-cargar línea base primaria si existe (P6: auto-load primary baseline)
+  try {
+    const baselines = await listBaselines(projectId);
+    const primary = baselines.find(b => b.is_primary);
+    if (primary) {
+      const blData = await loadBaselineData(primary.id);
+      appState.setBaselineData(blData);
+      appState.setBaselineMeta({ id: primary.id, name: primary.name, isPrimary: true });
+      _activeBaselineId   = primary.id;
+      _activeBaselineName = primary.name;
+    }
+  } catch (e) { console.warn('[baseline] Error al cargar línea base primaria:', e); }
+
   // Arrancar engine de sync para el nuevo proyecto (solo modo Supabase)
   if (!IS_LOCAL_MODE && data.project) {
     _syncEngine = new SyncEngine(data.project.id, data.project.org_id);
@@ -1741,6 +1790,8 @@ let _evmPanel       = null;
 let _changeLogPanel = null;
 let _syncEngine     = null;
 let _ganttFitPending = false; // true tras cargar proyecto → auto-ajusta al primer CPM
+let _activeBaselineId   = null;
+let _activeBaselineName = '';
 
 async function init() {
   try {
@@ -2012,8 +2063,6 @@ function _bindToolbar() {
 
   // ---- Línea base ----
   {
-    let _activeBaselineId = null;
-    let _activeBaselineName = '';
 
     const dlg         = /** @type {HTMLDialogElement} */ (document.getElementById('dlg-baseline'));
     const listEl      = document.getElementById('bl-list');

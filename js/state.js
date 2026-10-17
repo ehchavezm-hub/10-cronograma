@@ -32,6 +32,8 @@ const MAX_UNDO = 50;
  * @property {number}          outboxCount
  * @property {boolean}         autoCalc
  * @property {number}          nearThreshold
+ * @property {Map<string,{es:number,ef:number,dur:number}>|null} baselineData
+ * @property {{id:string,name:string,isPrimary:boolean}|null} baselineMeta
  */
 
 /** @typedef {import('./calendar.js').Calendar} Calendar_ */
@@ -213,6 +215,8 @@ export class AppStateManager {
     s.selectedTaskId = null;
     // Auto-expandir nivel 1
     s.expandedIds   = new Set(data.tasks.filter(t => !t.parent_id && !t.deleted_at).map(t => t.id));
+    s.baselineData  = null;
+    s.baselineMeta  = null;
     this._past   = [];
     this._future = [];
     this._notify(['all']);
