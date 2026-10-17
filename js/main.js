@@ -2610,54 +2610,64 @@ function _exportCpmNetwork(fmt, dlg) {
     const html = `<!doctype html>
 <html lang="es"><head>
   <meta charset="UTF-8">
-  <title>Red CPM — ${projDisplayName}</title>
+  <title>${projDisplayName}</title>
+  <style id="page-style">@page { size: landscape; margin: 0; }</style>
   <style>
-    @page { size: A3 landscape; margin: 12mm; }
-    * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; box-sizing:border-box; }
-    html, body { margin:0; padding:0; font-family:'Segoe UI',Arial,sans-serif; background:#fff; }
-    .controls { display:flex; align-items:center; gap:14px; padding:6px 0 8px;
-                font-size:12px; }
-    .controls label { display:flex; align-items:center; gap:6px; color:#455A64; }
-    .controls input[type=range] { width:130px; accent-color:#1976D2; }
-    .btn-print { background:#1976D2; color:#fff; border:none; border-radius:6px;
-                 padding:6px 18px; font-size:13px; cursor:pointer; }
-    .btn-print:hover { background:#1565C0; }
-    .hdr { display:flex; justify-content:space-between; align-items:flex-end;
-           border-bottom:2.5px solid #1976D2; padding-bottom:6px; margin-bottom:10px; }
-    .ttl { font-size:16px; font-weight:700; color:#1976D2; }
-    .meta { font-size:10px; color:#78909C; text-align:right; line-height:1.5; }
-    .net-wrap { width:100%; overflow:hidden; }
-    .net-wrap svg { width:var(--net-zoom, 100%); max-width:none; height:auto;
-                    display:block; transition:width .15s; }
-    .legend-wrap { margin-top:10px; padding-top:6px; border-top:1px solid #e0e0e0; }
-    @media print {
-      .controls { display:none !important; }
-      .net-wrap svg { width:100% !important; page-break-inside:avoid; }
-    }
+    * { box-sizing: border-box; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+    body { margin: 0; padding: 8mm 10mm; font-family: 'Segoe UI', system-ui, sans-serif; background: #fff; }
+    .header { display: flex; align-items: center; padding: 0 0 6px;
+              border-bottom: 2px solid #1976D2; margin-bottom: 8px; }
+    .proj-name { font-size: 16px; font-weight: 700; color: #1976D2; }
+    .gantt-frame { border: 1px solid #546E7A; display: inline-block; width: 100%; overflow: hidden; }
+    .gantt-frame svg { width: var(--net-zoom, 100%); max-width: none; height: auto; display: block; }
+    .controls { display: flex; align-items: center; gap: 12px; padding: 8px 0 10px;
+                font-family: 'Segoe UI', system-ui, sans-serif; font-size: 12px; flex-wrap: wrap; }
+    .controls label { display: flex; align-items: center; gap: 6px; color: #455A64; }
+    .controls input[type=range] { width: 120px; accent-color: #1976D2; }
+    .btn-c { border: 1px solid #90A4AE; border-radius: 6px; padding: 5px 13px;
+             font-size: 12px; cursor: pointer; background: #fff; color: #455A64; }
+    .btn-c:hover, .btn-c.active { background: #1976D2; color: #fff; border-color: #1976D2; }
+    .btn-print { background: #1976D2; color: #fff; border: none; border-radius: 6px;
+                 padding: 6px 16px; font-size: 13px; cursor: pointer; }
+    .btn-print:hover { background: #1565C0; }
+    .sep { width: 1px; height: 22px; background: #CFD8DC; }
+    .legend-wrap { margin-top: 6px; }
+    @media print { .controls { display: none !important; } }
   </style>
 </head><body>
   <div class="controls">
     <label>Zoom:
       <input type="range" id="zoom" min="30" max="300" value="100" step="5">
-      <span id="zoom-val" style="min-width:42px">100%</span>
+      <span id="zoom-val" style="min-width:40px">100%</span>
     </label>
-    <button class="btn-print" onclick="window.print()">🖨 Imprimir / PDF</button>
-    <span style="color:#78909C;font-size:11px">Generado: ${today}</span>
+    <div class="sep"></div>
+    <span style="color:#78909C">Orientación:</span>
+    <button class="btn-c active" id="btn-land" onclick="setOrient('landscape')">⬛ Horizontal</button>
+    <button class="btn-c" id="btn-port" onclick="setOrient('portrait')">🔲 Vertical</button>
+    <div class="sep"></div>
+    <button class="btn-print" onclick="window.print()">🖨 Imprimir</button>
+    <span style="color:#78909C;font-size:11px">${today}</span>
   </div>
-  <div class="hdr">
-    <div class="ttl">Red CPM &mdash; ${projDisplayName}</div>
-    <div class="meta">© Cronogramas v33</div>
+  <div class="header">
+    <div class="proj-name">${projDisplayName}</div>
   </div>
-  <div class="net-wrap">${svgForPdf}</div>
+  <div class="gantt-frame">
+    ${svgForPdf}
+  </div>
   <div class="legend-wrap">${legendSvg}</div>
   <script>
     const zoom = document.getElementById('zoom');
     const zoomVal = document.getElementById('zoom-val');
-    const svg = document.querySelector('.net-wrap svg');
+    const svg = document.querySelector('.gantt-frame svg');
     zoom.addEventListener('input', () => {
       zoomVal.textContent = zoom.value + '%';
       svg.style.width = zoom.value + '%';
     });
+    function setOrient(o) {
+      document.getElementById('page-style').textContent = '@page { size: ' + o + '; margin: 0; }';
+      document.getElementById('btn-land').classList.toggle('active', o === 'landscape');
+      document.getElementById('btn-port').classList.toggle('active', o === 'portrait');
+    }
   <\/script>
 </body></html>`;
 
