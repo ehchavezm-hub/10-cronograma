@@ -2088,10 +2088,10 @@ function _showOrgChart() {
   if (!dlg) {
     dlg = document.createElement('dialog');
     dlg.id = 'dlg-org-chart';
-    dlg.style.cssText = 'border:none;border-radius:12px;padding:0;width:96vw;max-width:1400px;height:92vh;box-shadow:0 8px 40px rgba(0,0,0,0.3);overflow:hidden;position:relative';
+    dlg.style.cssText = 'border:none;border-radius:12px;padding:0;width:96vw;max-width:1400px;height:92vh;box-shadow:0 8px 40px rgba(0,0,0,0.3);overflow:hidden;position:fixed;top:4vh;left:max(0px,calc(50vw - 700px));margin:0';
     dlg.innerHTML = `
       <div style="display:flex;flex-direction:column;height:100%;background:var(--clr-bg)">
-        <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 16px;border-bottom:1px solid var(--clr-border);background:var(--clr-surface-2);flex-shrink:0;gap:8px;flex-wrap:wrap">
+        <div id="oc-dlg-hdr" style="display:flex;align-items:center;justify-content:space-between;padding:10px 16px;border-bottom:1px solid var(--clr-border);background:var(--clr-surface-2);flex-shrink:0;gap:8px;flex-wrap:wrap;cursor:move">
           <span style="font-weight:700;font-size:15px">Estructura de Proyectos</span>
           <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
             <button id="oc-add-pf"   class="btn btn-primary btn-sm">＋ Portafolio</button>
@@ -2116,6 +2116,16 @@ function _showOrgChart() {
     dlg.querySelector('#btn-orgchart-close')?.addEventListener('click', () => dlg?.close());
     dlg.addEventListener('click', e => { if (e.target === dlg) dlg?.close(); });
 
+    // Drag-to-move ventana
+    { const hdr = dlg.querySelector('#oc-dlg-hdr');
+      let _ox=0,_oy=0,_d=false;
+      const onM=e=>{if(!_d)return;dlg.style.left=Math.max(0,e.clientX-_ox)+'px';dlg.style.top=Math.max(0,e.clientY-_oy)+'px';};
+      const onU=()=>{_d=false;if(hdr)/** @type {HTMLElement} */(hdr).style.cursor='move';};
+      hdr?.addEventListener('mousedown',e=>{if(/** @type {HTMLElement} */(e.target).closest('button'))return;const r=dlg.getBoundingClientRect();_ox=e.clientX-r.left;_oy=e.clientY-r.top;_d=true;/** @type {HTMLElement} */(hdr).style.cursor='grabbing';e.preventDefault();});
+      document.addEventListener('mousemove',onM);document.addEventListener('mouseup',onU);
+      dlg.addEventListener('close',()=>{document.removeEventListener('mousemove',onM);document.removeEventListener('mouseup',onU);},{once:true});
+    }
+
     dlg.querySelector('#oc-add-pf')  ?.addEventListener('click', () => _ocOpenForm(dlg, 'portfolio', null));
     dlg.querySelector('#oc-add-prog')?.addEventListener('click', () => _ocOpenForm(dlg, 'program', null));
     dlg.querySelector('#oc-add-proj')?.addEventListener('click', () => _ocOpenForm(dlg, 'project', null));
@@ -2126,7 +2136,7 @@ function _showOrgChart() {
     dlg.querySelector('#oc-print')?.addEventListener('click', _printOrgChart);
   }
   _renderOrgChart();
-  dlg.showModal();
+  if (!dlg.open) dlg.show();
 }
 
 function _printOrgChart() {
@@ -2790,14 +2800,14 @@ function _showCpmNetwork() {
   }
 
   let dlg = /** @type {HTMLDialogElement|null} */ (document.getElementById('dlg-cpm-network'));
-  if (dlg) { dlg.showModal(); _renderCpmNetwork(); setTimeout(() => dlg.querySelector('#btn-cpm-zoomfit')?.dispatchEvent(new Event('click')), 80); return; }
+  if (dlg) { if (!dlg.open) dlg.show(); _renderCpmNetwork(); setTimeout(() => dlg.querySelector('#btn-cpm-zoomfit')?.dispatchEvent(new Event('click')), 80); return; }
 
   dlg = document.createElement('dialog');
   dlg.id = 'dlg-cpm-network';
-  dlg.style.cssText = 'border:none;border-radius:12px;padding:0;width:96vw;max-width:1400px;height:90vh;box-shadow:0 8px 40px rgba(0,0,0,0.3);overflow:hidden';
+  dlg.style.cssText = 'border:none;border-radius:12px;padding:0;width:96vw;max-width:1400px;height:90vh;box-shadow:0 8px 40px rgba(0,0,0,0.3);overflow:hidden;position:fixed;top:5vh;left:max(0px,calc(50vw - 700px));margin:0';
   dlg.innerHTML = `
     <div style="display:flex;flex-direction:column;height:100%">
-      <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 16px;border-bottom:1px solid var(--clr-border);background:var(--clr-surface-2);flex-shrink:0">
+      <div id="cpm-dlg-hdr" style="display:flex;align-items:center;justify-content:space-between;padding:10px 16px;border-bottom:1px solid var(--clr-border);background:var(--clr-surface-2);flex-shrink:0;cursor:move">
         <span style="font-weight:700;font-size:15px">Red CPM</span>
         <div style="display:flex;gap:6px;align-items:center">
           <button id="btn-cpm-zoomfit" class="btn btn-ghost btn-sm" title="Zoom extendido — ver toda la red" style="font-size:16px;padding:2px 8px;line-height:1">⤢</button>
@@ -2828,6 +2838,16 @@ function _showCpmNetwork() {
 
   dlg.querySelector('#btn-cpm-net-close')?.addEventListener('click', () => dlg.close());
   dlg.addEventListener('click', e => { if (e.target === dlg) dlg.close(); });
+
+  // Drag-to-move ventana
+  { const hdr = dlg.querySelector('#cpm-dlg-hdr');
+    let _ox=0,_oy=0,_d=false;
+    const onM=e=>{if(!_d)return;dlg.style.left=Math.max(0,e.clientX-_ox)+'px';dlg.style.top=Math.max(0,e.clientY-_oy)+'px';};
+    const onU=()=>{_d=false;if(hdr)hdr.style.cursor='move';};
+    hdr?.addEventListener('mousedown',e=>{if(/** @type {HTMLElement} */(e.target).closest('button'))return;const r=dlg.getBoundingClientRect();_ox=e.clientX-r.left;_oy=e.clientY-r.top;_d=true;if(hdr)hdr.style.cursor='grabbing';e.preventDefault();});
+    document.addEventListener('mousemove',onM);document.addEventListener('mouseup',onU);
+    dlg.addEventListener('close',()=>{document.removeEventListener('mousemove',onM);document.removeEventListener('mouseup',onU);},{once:true});
+  }
 
   // Zoom + pan state (accessible to zoom-fit button after render)
   const vp = /** @type {HTMLElement} */ (dlg.querySelector('#cpm-net-viewport'));
@@ -2912,7 +2932,7 @@ function _showCpmNetwork() {
     });
   });
 
-  dlg.showModal();
+  if (!dlg.open) dlg.show();
   _renderCpmNetwork();
   // Auto fit after render (brief delay for SVG layout)
   setTimeout(zoomFit, 80);
