@@ -3059,8 +3059,11 @@ function _exportCpmNetwork(fmt, dlg) {
     .sep { width: 1px; height: 22px; background: #CFD8DC; }
     .legend-wrap { margin-top: 8px; display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
     .legend-item { display: flex; align-items: center; gap: 5px; font-size: 12px; color: #444; }
-    .legend-swatch { width: 13px; height: 13px; border-radius: 2px; flex-shrink: 0; }
-    @media print { .controls { display: none !important; } }
+    .legend-swatch { width: 13px; height: 13px; border-radius: 2px; flex-shrink: 0; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+    @media print { .controls { display: none !important; }
+      .legend-swatch { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+      * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    }
   </style>
 </head><body>
   <div class="controls">
