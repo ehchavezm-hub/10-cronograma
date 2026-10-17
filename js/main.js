@@ -619,13 +619,16 @@ async function _openResourceManager() {
     const priceCell = r.rate_per_hour != null ? `S/ ${r.rate_per_hour}${unitSuffix}` : '—';
     // Disponibilidad máxima solo para trabajo
     const dispMax = typ === 'work' ? `${r.max_units ?? 100}%` : (r.unit_label ? r.unit_label : '—');
-    return `<tr>
+    return `<tr style="border-bottom:1px solid var(--clr-border)">
       <td style="padding:6px 10px;font-size:13px;font-weight:500">${_escHtml(r.name)}</td>
       <td style="padding:6px 10px"><span style="font-size:10px;font-weight:600;padding:2px 6px;border-radius:4px;color:#fff;background:${typeBadgeColor[typ]??'#607D8B'}">${typeLabel[typ]??typ}</span></td>
       <td style="padding:6px 10px;font-size:12px;color:var(--clr-text-3)">${_escHtml(r.role ?? '—')}</td>
       <td style="padding:6px 10px;font-size:12px;color:var(--clr-text-3)">${priceCell}</td>
       <td style="padding:6px 10px;font-size:12px;color:var(--clr-text-3)">${dispMax}</td>
-      <td style="padding:6px 10px"><button class="btn btn-icon btn-sm rm-del" data-rid="${r.id}" title="Eliminar" style="color:var(--clr-danger,#e74c3c)">🗑</button></td>
+      <td style="padding:5px 8px;white-space:nowrap">
+        <button class="btn btn-sm rm-assign" data-rid="${r.id}" title="Asignar este recurso a actividades" style="font-size:11px;padding:3px 8px;background:#1976D2;color:#fff;border:none;border-radius:5px;cursor:pointer;margin-right:4px">▶ Asignar</button>
+        <button class="btn btn-icon btn-sm rm-del" data-rid="${r.id}" title="Eliminar" style="color:var(--clr-danger,#e74c3c)">🗑</button>
+      </td>
     </tr>`;
   }).join('') || '<tr><td colspan="6" style="padding:16px;text-align:center;color:var(--clr-text-3)">Sin recursos en el catálogo</td></tr>';
 
@@ -648,7 +651,7 @@ async function _openResourceManager() {
           <th style="padding:6px 10px;text-align:left;font-size:11px;color:var(--clr-text-3);font-weight:600">Rol</th>
           <th style="padding:6px 10px;text-align:left;font-size:11px;color:var(--clr-text-3);font-weight:600">Precio/Ud.</th>
           <th style="padding:6px 10px;text-align:left;font-size:11px;color:var(--clr-text-3);font-weight:600" title="Disponibilidad máxima (Trabajo) o Unidad de medida (Material/Equipo)">Unid./Disp.Máx</th>
-          <th style="width:40px"></th>
+          <th style="width:130px"></th>
         </tr></thead>
         <tbody id="rm-body">${rows}</tbody>
       </table>
@@ -760,6 +763,8 @@ async function _openResourceManager() {
     _openResourceManager(); // reabrir para mostrar la lista actualizada
   });
   dlg.addEventListener('click', async (e) => {
+    const assignBtn = /** @type {HTMLElement} */ (e.target).closest('.rm-assign');
+    if (assignBtn) { dlg.close(); _openResourceAssign(assignBtn.dataset.rid); return; }
     const btn = /** @type {HTMLElement} */ (e.target).closest('.rm-del');
     if (btn) {
       const rid = btn.dataset.rid;
@@ -779,7 +784,7 @@ async function _openResourceManager() {
 // Asignación masiva de recursos a actividades
 // ============================================================
 
-async function _openResourceAssign() {
+async function _openResourceAssign(preSelectedId = null) {
   const { getAll, getByIndex, put: dbPut, remove: dbRemove } = await import('./storage.js?v=4');
   const resources = await getAll('resources').then(r => r.filter(x => !x.deleted_at));
   if (!resources.length) {
@@ -888,13 +893,22 @@ async function _openResourceAssign() {
       dlg.querySelectorAll('.ra-res-item').forEach(el => el.style.background = '');
       const sel = dlg.querySelector('input[name="ra-res"]:checked');
       if (sel) sel.closest('.ra-res-item').style.background = 'rgba(25,118,210,0.08)';
-      // Actualizar sufijo de unidad
       const res = resources.find(r => r.id === sel?.value);
       dlg.querySelector('#ra-unit-suffix').textContent =
         res?.type === 'work' ? '%' : (res?.unit_label ?? 'und');
       _updateCount();
     });
   });
+
+  // Pre-seleccionar recurso si se abrió desde el botón "Asignar" de una fila
+  if (preSelectedId) {
+    const rb = /** @type {HTMLInputElement|null} */ (dlg.querySelector(`input[name="ra-res"][value="${preSelectedId}"]`));
+    if (rb) {
+      rb.checked = true;
+      rb.dispatchEvent(new Event('change'));
+      rb.closest('.ra-res-item')?.scrollIntoView({ block: 'nearest' });
+    }
+  }
 
   // Filtro de actividades
   dlg.querySelector('#ra-filter').addEventListener('input', e => {
@@ -2064,6 +2078,8 @@ function _bindResizer() {
 
 /** Lee posiciones guardadas del lienzo */
 function _ocGetPos() { try { return JSON.parse(localStorage.getItem('oc-pos') || '{}'); } catch { return {}; } }
+function _getCpmNodePos() { const k='cpm-pos-'+(appState.state.project?.id??'x'); try{return JSON.parse(localStorage.getItem(k)||'{}')}catch{return{}} }
+function _setCpmNodePos(m) { const k='cpm-pos-'+(appState.state.project?.id??'x'); try{localStorage.setItem(k,JSON.stringify(m))}catch{} }
 /** Guarda posiciones */
 function _ocSetPos(pos) { localStorage.setItem('oc-pos', JSON.stringify(pos)); }
 
@@ -2580,19 +2596,27 @@ async function _renderOrgChart() {
     card.addEventListener('mousedown', e => {
       if (e.target.closest('button')) return;
       dragging = true; moved = false;
-      dx = e.clientX - pos.x; dy = e.clientY - pos.y;
+      const vp = document.getElementById('oc-viewport');
+      const vpR = vp ? vp.getBoundingClientRect() : { left: 0, top: 0 };
+      const sl = vp ? vp.scrollLeft : 0, st = vp ? vp.scrollTop : 0;
+      dx = (e.clientX - vpR.left + sl) - pos.x;
+      dy = (e.clientY - vpR.top  + st) - pos.y;
       card.style.cursor = 'grabbing'; card.style.zIndex = '10';
       e.preventDefault();
     });
 
     const onMove = e => {
       if (!dragging) return;
-      if (!moved && Math.hypot(e.clientX - (pos.x + dx), e.clientY - (pos.y + dy)) > 5) {
+      const vp = document.getElementById('oc-viewport');
+      const vpR = vp ? vp.getBoundingClientRect() : { left: 0, top: 0 };
+      const sl = vp ? vp.scrollLeft : 0, st = vp ? vp.scrollTop : 0;
+      const newX = Math.max(0, (e.clientX - vpR.left + sl) - dx);
+      const newY = Math.max(0, (e.clientY - vpR.top  + st) - dy);
+      if (!moved && Math.hypot(newX - pos.x, newY - pos.y) > 5) {
         moved = true;
         setDropHighlight(true);
       }
-      pos.x = Math.max(0, e.clientX - dx);
-      pos.y = Math.max(0, e.clientY - dy);
+      pos.x = newX; pos.y = newY;
       card.style.left = pos.x + 'px';
       card.style.top  = pos.y + 'px';
       _ocDrawLines(canvas, cardList.map(c => ({ el: canvas.querySelector(`[data-oc-key="${keyOf(c)}"]`), parentKey: c.parentKey })));
@@ -2811,8 +2835,11 @@ function _showCpmNetwork() {
   let panning = false, px0 = 0, py0 = 0, tx0 = 0, ty0 = 0;
 
   function applyTransform() {
-    const svg = dlg.querySelector('#cpm-net-svg');
-    if (svg) /** @type {SVGElement} */ (svg).style.transform = `translate(${panX}px,${panY}px) scale(${zoom})`;
+    const svg = /** @type {SVGElement|null} */ (dlg.querySelector('#cpm-net-svg'));
+    if (svg) {
+      svg.style.transform = `translate(${panX}px,${panY}px) scale(${zoom})`;
+      svg.dataset.panX = String(panX); svg.dataset.panY = String(panY); svg.dataset.zoom = String(zoom);
+    }
     _drawCpmGrid(dlg, panX, panY, zoom);
   }
 
@@ -3189,6 +3216,12 @@ function _renderCpmNetwork() {
     });
   });
 
+  // Aplicar posiciones guardadas por el usuario (drag persistido)
+  const savedNodePos = _getCpmNodePos();
+  pos.forEach((p, id) => {
+    if (savedNodePos[id]) { p.x = savedNodePos[id].x; p.y = savedNodePos[id].y; p.cx = p.x + BW/2; p.cy = p.y + BH/2; }
+  });
+
   // Obtener fecha de inicio del proyecto para mostrar días reales
   const startDate = project?.start_date ? new Date(project.start_date) : null;
   const fmtDay = (/** @type {number} */ idx) => {
@@ -3238,6 +3271,8 @@ function _renderCpmNetwork() {
     line.setAttribute('stroke', color);
     line.setAttribute('stroke-width', isCrit ? '2' : '1.5');
     line.setAttribute('marker-end', `url(#${marker})`);
+    line.setAttribute('data-pred', d.pred_id);
+    line.setAttribute('data-succ', d.succ_id);
     if (d.lag) {
       const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
       text.setAttribute('x', String(mx)); text.setAttribute('y', String((y1 + y2) / 2 - 4));
@@ -3357,6 +3392,65 @@ function _renderCpmNetwork() {
     div4.setAttribute('x2', String(p.x + (2 * BW) / 3)); div4.setAttribute('y2', String(p.y + BH));
     div4.setAttribute('stroke', 'rgba(255,255,255,0.4)'); div4.setAttribute('stroke-width', '0.5');
     g.appendChild(div4);
+
+    // ---- Drag de nodo CPM ----
+    g.setAttribute('data-task-id', t.id);
+    g.style.cursor = 'grab';
+    let _dd = false, _dSx = 0, _dSy = 0, _dPx = p.x, _dPy = p.y;
+    g.addEventListener('mousedown', ev => {
+      if (ev.button !== 0) return;
+      ev.stopPropagation(); // evitar pan del viewport
+      _dd = true; _dPx = p.x; _dPy = p.y;
+      const vpEl = /** @type {HTMLElement|null} */ (svg.closest('#cpm-net-viewport'));
+      const vpR  = vpEl ? vpEl.getBoundingClientRect() : { left: 0, top: 0 };
+      const cPX  = parseFloat(svg.dataset.panX ?? '40');
+      const cPY  = parseFloat(svg.dataset.panY ?? '40');
+      const cZ   = parseFloat(svg.dataset.zoom ?? '1');
+      _dSx = (ev.clientX - vpR.left - cPX) / cZ;
+      _dSy = (ev.clientY - vpR.top  - cPY) / cZ;
+      g.style.cursor = 'grabbing';
+      ev.preventDefault();
+    });
+    const _dMove = ev => {
+      if (!_dd) return;
+      const vpEl = /** @type {HTMLElement|null} */ (svg.closest('#cpm-net-viewport'));
+      const vpR  = vpEl ? vpEl.getBoundingClientRect() : { left: 0, top: 0 };
+      const cPX  = parseFloat(svg.dataset.panX ?? '40');
+      const cPY  = parseFloat(svg.dataset.panY ?? '40');
+      const cZ   = parseFloat(svg.dataset.zoom ?? '1');
+      const sx   = (ev.clientX - vpR.left - cPX) / cZ;
+      const sy   = (ev.clientY - vpR.top  - cPY) / cZ;
+      p.x = Math.max(0, _dPx + (sx - _dSx));
+      p.y = Math.max(0, _dPy + (sy - _dSy));
+      p.cx = p.x + BW / 2; p.cy = p.y + BH / 2;
+      g.setAttribute('transform', `translate(${p.x - _dPx},${p.y - _dPy})`);
+      // Actualizar flechas conectadas a este nodo
+      svg.querySelectorAll(`[data-pred="${t.id}"],[data-succ="${t.id}"]`).forEach(arrow => {
+        const pred = arrow.getAttribute('data-pred'), succ = arrow.getAttribute('data-succ');
+        const p1 = pos.get(pred), p2 = pos.get(succ);
+        if (!p1 || !p2) return;
+        const x1=p1.x+BW, y1=p1.cy, x2=p2.x, y2=p2.cy, mx=(x1+x2)/2;
+        arrow.setAttribute('d', `M${x1},${y1} C${mx},${y1} ${mx},${y2} ${x2},${y2}`);
+      });
+    };
+    const _dUp = () => {
+      if (!_dd) return;
+      _dd = false; g.style.cursor = 'grab';
+      // Ajustar coordenadas base al nuevo origen absoluto
+      g.removeAttribute('transform');
+      // Redibujar todos los elementos internos del grupo con la posición final
+      // (simplificación: guardar y re-renderizar en el próximo render)
+      const nm = _getCpmNodePos();
+      nm[t.id] = { x: p.x, y: p.y };
+      _setCpmNodePos(nm);
+    };
+    document.addEventListener('mousemove', _dMove);
+    document.addEventListener('mouseup', _dUp);
+    const _dlgEl = svg.closest('dialog');
+    if (_dlgEl) _dlgEl.addEventListener('close', () => {
+      document.removeEventListener('mousemove', _dMove);
+      document.removeEventListener('mouseup', _dUp);
+    }, { once: true });
 
     svg.appendChild(g);
   }
