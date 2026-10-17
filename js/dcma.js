@@ -11,8 +11,9 @@
  *   - Float neg: 0%  - Duración alta: ≤ 5%  - Restr. duras: ≤ 5%
  */
 
-import { appState } from './state.js';
-import { t }        from './i18n.js';
+import { appState }  from './state.js';
+import { t }         from './i18n.js';
+import { calcEvm }   from './evm.js';
 
 // ============================================================
 // Umbrales DCMA (configurables vía proyecto en Fase 5)
@@ -71,12 +72,13 @@ const TH = {
  *   tasks: Map<string,any>,
  *   deps: Map<string,any>,
  *   cpmResult: import('./cpm.js').CpmResult|null,
+ *   taskResources?: any[],
  *   nearThreshold?: number,
  *   dataDate?: string|null,
  * }} opts
  * @returns {DcmaReport}
  */
-export function runDcmaChecks({ tasks, deps, cpmResult, nearThreshold = 5, dataDate = null }) {
+export function runDcmaChecks({ tasks, deps, cpmResult, taskResources = [], nearThreshold = 5, dataDate = null }) {
   const activeTasks = [...tasks.values()].filter(t => !t.deleted_at);
   const activeDeps  = [...deps.values()].filter(d => !d.deleted_at);
 
@@ -234,15 +236,27 @@ export function runDcmaChecks({ tasks, deps, cpmResult, nearThreshold = 5, dataD
   }
 
   // ---- 11. Recursos no asignados ----
-  // (N/A en Fase 3 — la gestión de recursos es Fase 5)
-  checks.push({
-    id: 'resources', point: 11,
-    name: 'Recursos asignados',
-    description: 'Tareas sin recursos asignados. Disponible en Fase 5.',
-    metric: '% tareas sin recurso', value: 0, target: 0,
-    pass: true, count: 0, total: 0, taskIds: [], na: true,
-    naReason: 'Requiere módulo de recursos (Fase 5)',
-  });
+  {
+    const assignedTaskIds = new Set(taskResources.filter(tr => !tr.deleted_at).map(tr => tr.task_id));
+    if (assignedTaskIds.size > 0 || taskResources.length > 0) {
+      const unassigned = leafTasks.filter(t => t.type !== 'milestone' && !assignedTaskIds.has(t.id));
+      checks.push(_check(11,
+        'Recursos asignados',
+        'Tareas hoja sin ningún recurso asignado',
+        '% tareas sin recurso', '%',
+        unassigned.length, leafTasks.filter(t => t.type !== 'milestone').length, 0,
+        unassigned.map(t => t.id)));
+    } else {
+      checks.push({
+        id: 'check-11', point: 11,
+        name: 'Recursos asignados',
+        description: 'No hay asignaciones de recursos en el proyecto.',
+        metric: '% tareas sin recurso', value: 0, target: 0,
+        pass: true, count: 0, total: 0, taskIds: [], na: true,
+        naReason: 'Sin asignaciones de recursos',
+      });
+    }
+  }
 
   // ---- 12. Tareas retrasadas (vs. fecha de corte) ----
   if (dataDate && cpmResult) {
@@ -306,15 +320,32 @@ export function runDcmaChecks({ tasks, deps, cpmResult, nearThreshold = 5, dataD
   }
 
   // ---- 14. SPI (Schedule Performance Index) ----
-  // N/A en Fase 3 — requiere EVM (Fase 6)
-  checks.push({
-    id: 'spi', point: 14,
-    name: 'SPI (Índice de Desempeño del Cronograma)',
-    description: 'Ratio EVM del desempeño del cronograma. Disponible en Fase 6.',
-    metric: 'SPI', value: 0, target: 1,
-    pass: true, count: 0, total: 0, taskIds: [], na: true,
-    naReason: 'Requiere módulo de valor ganado (Fase 6)',
-  });
+  {
+    const evm = calcEvm();
+    if (evm && evm.bac > 0) {
+      const spi = evm.spi;
+      checks.push({
+        id: 'spi', point: 14,
+        name: 'SPI (Índice de Desempeño del Cronograma)',
+        description: 'Ratio EVM del desempeño del cronograma. SPI ≥ 1 = adelantado; < 1 = retrasado.',
+        metric: 'SPI', value: Math.round(spi * 1000) / 1000, target: 1,
+        pass: spi >= 1,
+        count: evm.evmTasks?.filter(t => t.spi < 1).length ?? 0,
+        total: evm.evmTasks?.length ?? 0,
+        taskIds: evm.evmTasks?.filter(t => t.spi < 1).map(t => t.id) ?? [],
+        na: false,
+      });
+    } else {
+      checks.push({
+        id: 'spi', point: 14,
+        name: 'SPI (Índice de Desempeño del Cronograma)',
+        description: 'Requiere costos planificados (BAC > 0) y resultados CPM.',
+        metric: 'SPI', value: 0, target: 1,
+        pass: true, count: 0, total: 0, taskIds: [], na: true,
+        naReason: 'Sin costos planificados o CPM pendiente',
+      });
+    }
+  }
 
   // ---- Puntuación general ----
   const applicable = checks.filter(c => !c.na);
@@ -410,12 +441,18 @@ export class DcmaPanel {
     this.refresh();
   }
 
-  refresh() {
+  async refresh() {
     const { tasks, deps, cpmResult, project } = appState.state;
     if (!project) return;
 
+    let taskResources = [];
+    try {
+      const { getByIndex } = await import('./storage.js?v=4');
+      taskResources = await getByIndex('task_resources', 'project_id', project.id);
+    } catch { /* sin recursos */ }
+
     this._report = runDcmaChecks({
-      tasks, deps, cpmResult,
+      tasks, deps, cpmResult, taskResources,
       nearThreshold: appState.state.nearThreshold,
       dataDate: project.data_date ?? null,
     });
@@ -442,8 +479,9 @@ export class DcmaPanel {
       const badge   = c.na ? '<span class="dcma-badge dcma-badge-na">N/A</span>'
                     : c.pass ? '<span class="dcma-badge dcma-badge-pass">✓</span>'
                     : '<span class="dcma-badge dcma-badge-fail">✗</span>';
-      const metric  = c.na ? '—' : (c.id === 'cpli' ? c.value.toFixed(3) : `${c.value.toFixed(1)}%`);
-      const target  = c.na ? '—' : (c.id === 'cpli' ? `≥ ${c.target}` : `≤ ${c.target === 0 ? '0' : c.target + '%'}`);
+      const isIndex = c.id === 'cpli' || c.id === 'spi';
+      const metric  = c.na ? '—' : (isIndex ? c.value.toFixed(3) : `${c.value.toFixed(1)}%`);
+      const target  = c.na ? '—' : (isIndex ? `≥ ${c.target}` : `≤ ${c.target === 0 ? '0' : c.target + '%'}`);
       const cnt     = c.na ? '—' : (c.count > 0 ? `<span class="dcma-count">${c.count}</span>` : '0');
       return `<tr data-check-id="${c.id}" class="${cls} ${this._selected === c.id ? 'selected' : ''}" title="${_esc(c.description)}">
         <td class="dcma-point">${c.point}</td>

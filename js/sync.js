@@ -196,7 +196,7 @@ export class SyncEngine {
           if (project) await _mergeRemote('calendars', [calendar].filter(Boolean));
 
           // Actualizar estado con las filas remotas más nuevas
-          _applyRemoteToState({ tasks, deps, project, calExceptions });
+          _applyRemoteToState({ tasks, deps, project, calExceptions, calendars: calendar ? [calendar] : [] });
         }
       }
 
@@ -311,7 +311,7 @@ async function _mergeRemote(storeName, rows) {
 }
 
 /** Aplica filas remotas al estado en memoria. */
-function _applyRemoteToState({ tasks, deps, project, calExceptions } = {}) {
+function _applyRemoteToState({ tasks, deps, project, calExceptions, calendars } = {}) {
   const state = appState.state;
 
   if (tasks?.length) {
@@ -337,6 +337,11 @@ function _applyRemoteToState({ tasks, deps, project, calExceptions } = {}) {
     }
     appState._applyRemote({ calExceptions: existing });
   }
+  if (calendars?.length) {
+    const currentCalId = state.calendar?.id;
+    const updated = calendars.find(c => c.id === currentCalId);
+    if (updated) appState._applyRemote({ calendar: updated });
+  }
 }
 
 function _tableToStateKey(tabla) {
@@ -345,6 +350,7 @@ function _tableToStateKey(tabla) {
     task_dependencies:  'deps',
     projects:           'project',
     calendar_exceptions:'calExceptions',
+    calendars:          'calendars',
   };
   return map[tabla] ?? tabla;
 }

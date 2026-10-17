@@ -285,19 +285,22 @@ export async function loadHierarchy() {
 export async function deleteProject(projectId) {
   const db = await openDB();
   const tx = db.transaction(
-    ['projects', 'tasks', 'task_dependencies'],
+    ['projects', 'tasks', 'task_dependencies', 'task_resources'],
     'readwrite'
   );
   tx.objectStore('projects').delete(projectId);
 
   const taskStore = tx.objectStore('tasks');
   const depStore  = tx.objectStore('task_dependencies');
+  const trStore   = tx.objectStore('task_resources');
   const taskReq   = taskStore.index('project_id').getAllKeys(projectId);
   const depReq    = depStore.index('project_id').getAllKeys(projectId);
+  const trReq     = trStore.index('project_id').getAllKeys(projectId);
 
   await Promise.all([
     new Promise((res, rej) => { taskReq.onsuccess = () => { taskReq.result.forEach(k => taskStore.delete(k)); res(null); }; taskReq.onerror = () => rej(taskReq.error); }),
     new Promise((res, rej) => { depReq.onsuccess = () => { depReq.result.forEach(k => depStore.delete(k)); res(null); }; depReq.onerror = () => rej(depReq.error); }),
+    new Promise((res, rej) => { trReq.onsuccess = () => { trReq.result.forEach(k => trStore.delete(k)); res(null); }; trReq.onerror = () => rej(trReq.error); }),
   ]);
 
   return new Promise((res, rej) => { tx.oncomplete = () => res(undefined); tx.onerror = () => rej(tx.error); });

@@ -214,8 +214,7 @@ export class WbsTable {
 
     // Renderizar filas
     const html = rows.map(({ task, depth, isSummary }) => {
-      const cpm   = cpmResult?.tasks?.find?.(r => r.id === task.id) ??
-                    (cpmResult?.tasks instanceof Map ? cpmResult.tasks.get(task.id) : null);
+      const cpm   = cpmResult?.tasks instanceof Map ? cpmResult.tasks.get(task.id) : null;
       const wbs   = wbsCodes.get(task.id) ?? '';
       const isSelected = task.id === selectedTaskId;
       const isDeleted  = !!task.deleted_at;

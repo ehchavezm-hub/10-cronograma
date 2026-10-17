@@ -99,6 +99,7 @@ function _cmdLabel(cmd) {
     case 'ADD_TASK':     return `Nueva tarea: "${name}"`;
     case 'UPDATE_TASK':  return `Editada: "${name || (cmd.payload?.id ?? '?')}"`;
     case 'REMOVE_TASK':  return `Eliminada: "${name || (cmd.payload?.id ?? '?')}"`;
+    case 'RESTORE_TASK': return `Restaurada: "${name || (cmd.payload?.id ?? '?')}"`;
     case 'MOVE_TASK':    return `Movida: "${name || (cmd.payload?.id ?? '?')}"`;
     case 'ADD_DEP':      return `Dependencia añadida`;
     case 'REMOVE_DEP':   return `Dependencia eliminada`;
@@ -110,14 +111,14 @@ function _cmdLabel(cmd) {
 function _shortCmd(type) {
   const map = {
     ADD_TASK: 'Nueva', UPDATE_TASK: 'Edición', REMOVE_TASK: 'Eliminar',
-    MOVE_TASK: 'Mover', ADD_DEP: 'Enlace+', REMOVE_DEP: 'Enlace−',
+    RESTORE_TASK: 'Restaurar', MOVE_TASK: 'Mover', ADD_DEP: 'Enlace+', REMOVE_DEP: 'Enlace−',
     UPDATE_PROJECT: 'Proyecto',
   };
   return map[type] ?? type;
 }
 
 function _badgeClass(type) {
-  if (type === 'ADD_TASK' || type === 'ADD_DEP') return 'add';
+  if (type === 'ADD_TASK' || type === 'ADD_DEP' || type === 'RESTORE_TASK') return 'add';
   if (type === 'REMOVE_TASK' || type === 'REMOVE_DEP') return 'remove';
   if (type === 'UPDATE_TASK' || type === 'UPDATE_PROJECT') return 'update';
   return 'other';

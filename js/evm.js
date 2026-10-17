@@ -146,45 +146,6 @@ function _buildCurve(leafTasks, cpmTasks, cal, startDate, bac) {
   }
 
   const endDate = cal.finishDate(maxEf + 5, startDate);
-  const points  = [];
-
-  // Muestrear semanalmente (cada 7 días calendario)
-  let d = new Date(startDate);
-  let cumPv = 0, cumEv = 0, cumAc = 0;
-
-  while (d <= endDate) {
-    for (const task of leafTasks) {
-      const cpm    = cpmTasks.get(task.id);
-      const taskBac = task.planned_cost ?? 0;
-      if (!cpm || cpm.es == null || cpm.ef == null || taskBac === 0) continue;
-
-      const taskStart  = cal.idxToDate(cpm.es, startDate);
-      const taskFinish = cal.finishDate(cpm.ef, startDate);
-      const dur        = Math.max(1, taskFinish - taskStart);
-      const elapsed    = _clamp((d - taskStart) / dur, 0, 1);
-      cumPv += taskBac * elapsed;
-    }
-
-    // EV y AC: proporcional a percent_complete pero fijo a la data date
-    // Solo acumular hasta dataDate para EV/AC
-    const { tasks: stateTasks } = appState.state;
-    for (const task of leafTasks) {
-      const cpm     = cpmTasks.get(task.id);
-      const taskBac = task.planned_cost ?? 0;
-      if (!cpm || taskBac === 0) continue;
-      const taskFinish = cpm.ef != null ? cal.finishDate(cpm.ef, startDate) : null;
-      if (!taskFinish || d > taskFinish) {
-        cumEv += taskBac * (task.percent_complete ?? 0) / 100;
-        cumAc += task.actual_cost ?? 0;
-      }
-    }
-
-    points.push({ date: new Date(d), pv: cumPv, ev: cumEv, ac: cumAc });
-    cumPv = 0; cumEv = 0; cumAc = 0;   // reset — recalculamos acumulado completo cada punto
-    d = new Date(d.getTime() + 7 * 86400000);
-  }
-
-  // Acumular correctamente (recalcular sin reset)
   return _rebuildCurve(leafTasks, cpmTasks, cal, startDate, endDate);
 }
 

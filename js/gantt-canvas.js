@@ -109,18 +109,25 @@ export class GanttCanvas {
     c.addEventListener('click',      e => this._onClick(e));
 
     // Cancelar modo enlace con Escape
-    document.addEventListener('keydown', e => {
+    this._onKeyDown = (e) => {
       if (e.key === 'Escape' && this._linkMode) {
         this._pendingPred = null;
         this.requestRender();
       }
-    });
+    };
+    document.addEventListener('keydown', this._onKeyDown);
 
     // Sincronizar scrollY desde la tabla WBS
-    document.addEventListener('wbs-scroll-y', /** @type {any} */ (e) => {
+    this._onWbsScrollY = /** @type {any} */ ((e) => {
       this._scene.scrollY = e.detail.scrollY;
       this.requestRender();
     });
+    document.addEventListener('wbs-scroll-y', this._onWbsScrollY);
+  }
+
+  destroy() {
+    document.removeEventListener('keydown', this._onKeyDown);
+    document.removeEventListener('wbs-scroll-y', this._onWbsScrollY);
   }
 
   _onDown(e) {

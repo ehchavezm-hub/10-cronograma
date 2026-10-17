@@ -1402,10 +1402,14 @@ async function _renderProjectList() {
 }
 
 async function _deleteProject(projectId) {
-  const tasks = await getByIndex('tasks', 'project_id', projectId);
-  const deps  = await getByIndex('task_dependencies', 'project_id', projectId);
-  for (const t of tasks) await dbRemove('tasks', t.id);
-  for (const d of deps)  await dbRemove('task_dependencies', d.id);
+  const [tasks, deps, taskResources] = await Promise.all([
+    getByIndex('tasks', 'project_id', projectId),
+    getByIndex('task_dependencies', 'project_id', projectId),
+    getByIndex('task_resources', 'project_id', projectId),
+  ]);
+  for (const t of tasks)        await dbRemove('tasks', t.id);
+  for (const d of deps)         await dbRemove('task_dependencies', d.id);
+  for (const tr of taskResources) await dbRemove('task_resources', tr.id);
   await dbRemove('projects', projectId);
 }
 
