@@ -776,6 +776,30 @@ export class GanttCanvas {
       const color    = this._barColor(task, cpm);
       const selected = task.id === selectedId;
 
+      // ---- Línea base (si está activa) ----
+      const baselineData = state.baselineData;
+      if (baselineData && !row.isSummary && task.type !== 'milestone') {
+        const bl = baselineData.get(row.id);
+        if (bl != null) {
+          const blStart = calendar.idxToDate(bl.es, projectStart);
+          const blEnd   = calendar.finishDate(bl.ef, projectStart);
+          const bx1 = scene._dateToXAbs(blStart) - scene.scrollX;
+          const bx2 = scene._dateToXAbs(blEnd)   - scene.scrollX + scene.pixPerDay;
+          if (bx2 > 0 && bx1 < W) {
+            const blH  = 4;
+            const blY  = y0 + rowHeight - blH - 2;
+            const blW  = Math.max(bx2 - bx1, 2);
+            ctx.save();
+            ctx.globalAlpha = 0.55;
+            ctx.fillStyle   = '#f59e0b';  // ámbar para la línea base
+            ctx.beginPath();
+            ctx.roundRect(bx1, blY, blW, blH, 2);
+            ctx.fill();
+            ctx.restore();
+          }
+        }
+      }
+
       if (task.type === 'milestone') {
         this._drawMilestone(ctx, cpm.es, y0, rowHeight, color, selected, scene);
         return;

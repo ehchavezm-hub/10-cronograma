@@ -65,6 +65,8 @@ export class AppStateManager {
       outboxCount:   0,
       autoCalc:      true,
       nearThreshold: 5,
+      /** @type {Map<string,{es:number,ef:number,dur:number}>|null} */
+      baselineData:  null,
     };
 
     /** @type {Array<{cmd:Command, inverse:Command}>} */
@@ -171,6 +173,12 @@ export class AppStateManager {
   setSyncStatus(status) {
     this._state.syncStatus = status;
     this._notify(['syncStatus']);
+  }
+
+  /** @param {Map<string,{es:number,ef:number,dur:number}>|null} data */
+  setBaselineData(data) {
+    this._state.baselineData = data;
+    this._notify(['baselineData']);
   }
 
   /** @param {boolean} v */

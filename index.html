@@ -108,6 +108,10 @@
       ⤢ Ajustar
     </button>
     <button id="btn-gantt-zoom-in" class="btn btn-ghost btn-sm btn-icon" title="Acercar (zoom +)" aria-label="Acercar Gantt">+</button>
+    <div class="toolbar-sep"></div>
+    <button id="btn-baseline" class="btn btn-ghost btn-sm" title="Línea base del proyecto" aria-label="Gestionar línea base">
+      📐 Línea base
+    </button>
     <button id="btn-evm" class="btn btn-ghost btn-sm" title="Panel de Valor Ganado (EVM)" aria-label="Abrir panel EVM" aria-pressed="false">
       📈 EVM
     </button>
@@ -322,6 +326,35 @@
           <button type="submit" id="btn-ni-submit" class="btn btn-primary btn-sm" style="padding:8px 18px">Crear proyecto</button>
         </div>
       </form>
+    </dialog>
+
+    <!-- Diálogo: Línea base -->
+    <dialog id="dlg-baseline" aria-labelledby="dlg-bl-title" style="
+      border:none;border-radius:12px;padding:0;
+      box-shadow:0 8px 40px rgba(0,0,0,0.25);
+      min-width:340px;max-width:480px;width:90vw;
+      font-family:var(--font-ui);">
+      <div style="display:flex;align-items:center;gap:8px;padding:16px 20px;border-bottom:1px solid var(--clr-border);">
+        <span style="font-size:20px">📐</span>
+        <h2 id="dlg-bl-title" style="font-size:var(--text-md);font-weight:var(--fw-semi);flex:1;margin:0">Línea base</h2>
+        <button class="btn btn-ghost btn-icon btn-sm" id="dlg-bl-close" aria-label="Cerrar">✕</button>
+      </div>
+      <div style="padding:16px 20px;display:flex;flex-direction:column;gap:14px;">
+        <div style="display:flex;gap:8px;">
+          <input id="bl-name-input" type="text" class="input-sm" placeholder="Nombre de la línea base…"
+            style="flex:1;border:1px solid var(--clr-border);border-radius:6px;padding:6px 10px;font-size:var(--text-sm)">
+          <button id="btn-bl-save" class="btn btn-primary btn-sm">Guardar</button>
+        </div>
+        <div id="bl-list" style="display:flex;flex-direction:column;gap:6px;max-height:220px;overflow-y:auto;"></div>
+        <p id="bl-empty-msg" style="font-size:var(--text-xs);color:var(--clr-text-3);text-align:center;display:none">
+          No hay líneas base guardadas para este proyecto.
+        </p>
+        <div id="bl-active-indicator" style="display:none;padding:6px 10px;border-radius:6px;
+          background:var(--clr-surface-2);font-size:var(--text-xs);color:var(--clr-text-2);">
+          📐 <span id="bl-active-name"></span>
+          <button id="btn-bl-clear" class="btn btn-ghost btn-sm" style="margin-left:8px;font-size:10px">Limpiar</button>
+        </div>
+      </div>
     </dialog>
 
     <!-- Panel WBS (tabla EDT) -->

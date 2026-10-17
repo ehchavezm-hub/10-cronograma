@@ -22,6 +22,7 @@ import { SyncEngine }     from './sync.js';
 import { outboxAdd }      from './storage.js?v=4';
 import { EvmPanel }       from './evm.js';
 import { ChangeLogPanel, logCommand } from './change-log.js';
+import { saveBaseline, listBaselines, loadBaselineData, deleteBaseline } from './baseline.js';
 
 // ============================================================
 // Detectar file://
@@ -1847,6 +1848,88 @@ function _bindToolbar() {
   document.getElementById('btn-gantt-fit')?.addEventListener('click',      () => _ganttCanvas?.fitToView());
   document.getElementById('btn-gantt-zoom-in')?.addEventListener('click',  () => _ganttCanvas?.zoomIn());
   document.getElementById('btn-gantt-zoom-out')?.addEventListener('click', () => _ganttCanvas?.zoomOut());
+
+  // ---- Línea base ----
+  {
+    let _activeBaselineId = null;
+    let _activeBaselineName = '';
+
+    const dlg         = /** @type {HTMLDialogElement} */ (document.getElementById('dlg-baseline'));
+    const listEl      = document.getElementById('bl-list');
+    const emptyMsg    = document.getElementById('bl-empty-msg');
+    const activeInd   = document.getElementById('bl-active-indicator');
+    const activeName  = document.getElementById('bl-active-name');
+    const nameInput   = /** @type {HTMLInputElement} */ (document.getElementById('bl-name-input'));
+
+    async function _refreshBaselineList() {
+      const pid = appState.state.project?.id;
+      if (!pid || !listEl) return;
+      const rows = await listBaselines(pid);
+      if (emptyMsg) emptyMsg.style.display = rows.length ? 'none' : 'block';
+      listEl.innerHTML = rows.map(b => `
+        <div class="bl-row" style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--clr-border-2)">
+          <span style="flex:1;font-size:var(--text-sm);color:var(--clr-text)">${_escHtml(b.name)}</span>
+          <span style="font-size:var(--text-xs);color:var(--clr-text-3)">${b.created_at.slice(0,10)}</span>
+          <button class="btn btn-ghost btn-sm" data-bl-apply="${b.id}" data-bl-name="${_escAttr(b.name)}" title="Aplicar como referencia">📌</button>
+          <button class="btn btn-ghost btn-sm" data-bl-delete="${b.id}" title="Eliminar">🗑</button>
+        </div>`).join('');
+
+      listEl.querySelectorAll('[data-bl-apply]').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const id   = /** @type {HTMLElement} */ (btn).dataset.blApply;
+          const name = /** @type {HTMLElement} */ (btn).dataset.blName;
+          _activeBaselineId   = id;
+          _activeBaselineName = name;
+          const data = await loadBaselineData(id);
+          appState.setBaselineData(data);
+          if (activeInd) activeInd.style.display = 'block';
+          if (activeName) activeName.textContent = name;
+          dlg?.close();
+          _showToast('Línea base aplicada', 'success');
+        });
+      });
+      listEl.querySelectorAll('[data-bl-delete]').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const id = /** @type {HTMLElement} */ (btn).dataset.blDelete;
+          await deleteBaseline(id);
+          if (id === _activeBaselineId) {
+            _activeBaselineId = null;
+            appState.setBaselineData(null);
+            if (activeInd) activeInd.style.display = 'none';
+          }
+          await _refreshBaselineList();
+        });
+      });
+    }
+
+    document.getElementById('btn-baseline')?.addEventListener('click', async () => {
+      await _refreshBaselineList();
+      if (activeInd) activeInd.style.display = _activeBaselineId ? 'block' : 'none';
+      if (activeName) activeName.textContent = _activeBaselineName;
+      dlg?.showModal();
+    });
+    document.getElementById('dlg-bl-close')?.addEventListener('click', () => dlg?.close());
+    document.getElementById('btn-bl-save')?.addEventListener('click', async () => {
+      const name = nameInput?.value.trim() || '';
+      if (!appState.state.project) { _showToast('Abre un proyecto primero', 'warn'); return; }
+      if (!appState.state.cpmResult) { _showToast('CPM aún calculando…', 'warn'); return; }
+      try {
+        await saveBaseline(name || `Línea base ${new Date().toISOString().slice(0,10)}`);
+        if (nameInput) nameInput.value = '';
+        await _refreshBaselineList();
+        _showToast('Línea base guardada', 'success');
+      } catch (err) {
+        _showToast('Error al guardar: ' + err.message, 'error');
+      }
+    });
+    document.getElementById('btn-bl-clear')?.addEventListener('click', () => {
+      _activeBaselineId = null;
+      _activeBaselineName = '';
+      appState.setBaselineData(null);
+      if (activeInd) activeInd.style.display = 'none';
+      _showToast('Línea base limpiada', 'success');
+    });
+  }
 
   // ---- Menú etiquetas de barras Gantt ----
   const _barLabelsBtn  = document.getElementById('btn-bar-labels');
