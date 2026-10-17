@@ -2953,7 +2953,8 @@ function _exportCpmNetwork(fmt, dlg) {
   // ---- Clonar SVG y ajustar viewBox ----
   const clone = /** @type {SVGSVGElement} */ (svgEl.cloneNode(true));
   clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
-  clone.style.transform = '';
+  // Limpiar estilos posicionales del diálogo para que el SVG fluya normalmente en el documento
+  clone.style.cssText = '';
   clone.setAttribute('viewBox', `${vbX} ${vbY} ${vbW} ${vbH}`);
   clone.setAttribute('width',  String(vbW));
   clone.setAttribute('height', String(vbH));
