@@ -598,21 +598,36 @@ export class GanttCanvas {
         this._drawTaskBar(ctx, x1, barW, barY, barH, color, task.percent_complete ?? 0, selected);
       }
 
-      // Etiqueta dentro de la barra
-      if (barW > 32) {
+      // Etiqueta: dentro de la barra si cabe, o a la derecha si es angosta
+      {
         const lbl = this._buildBarLabel(task, cpm, startDate, endDate);
         if (lbl) {
-          ctx.save();
-          ctx.beginPath();
-          ctx.rect(Math.max(0, x1 + 3), barY + 1, Math.min(barW - 6, W - Math.max(0, x1)), barH - 2);
-          ctx.clip();
-          ctx.font         = '500 10px "IBM Plex Sans", monospace';
-          ctx.fillStyle    = '#fff';
-          ctx.textBaseline = 'middle';
-          ctx.shadowColor  = 'rgba(0,0,0,0.35)';
-          ctx.shadowBlur   = 2;
-          ctx.fillText(lbl, Math.max(x1 + 4, 4), barY + barH / 2, barW - 8);
-          ctx.restore();
+          if (barW > 32) {
+            // Etiqueta dentro de la barra
+            ctx.save();
+            ctx.beginPath();
+            ctx.rect(Math.max(0, x1 + 3), barY + 1, Math.min(barW - 6, W - Math.max(0, x1)), barH - 2);
+            ctx.clip();
+            ctx.font         = '500 10px "IBM Plex Sans", monospace';
+            ctx.fillStyle    = '#fff';
+            ctx.textBaseline = 'middle';
+            ctx.shadowColor  = 'rgba(0,0,0,0.35)';
+            ctx.shadowBlur   = 2;
+            ctx.fillText(lbl, Math.max(x1 + 4, 4), barY + barH / 2, barW - 8);
+            ctx.restore();
+          } else {
+            // Etiqueta a la derecha de la barra
+            const labelX = x1 + barW + 4;
+            if (labelX < W && labelX > 0) {
+              ctx.save();
+              ctx.font         = '500 10px "IBM Plex Sans", monospace';
+              ctx.fillStyle    = C.text;
+              ctx.textBaseline = 'middle';
+              ctx.shadowBlur   = 0;
+              ctx.fillText(lbl, labelX, barY + barH / 2, W - labelX - 4);
+              ctx.restore();
+            }
+          }
         }
       }
     });

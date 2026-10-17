@@ -583,7 +583,8 @@ export class WbsTable {
       // Add or update deps
       for (const p of newPreds) {
         const existing = currentDeps.find(d => d.pred_id === p.predId && d.type === p.type);
-        const existingLag = existing ? (existing.lag_days ?? existing.lag ?? 0) : null;
+        // Comparar lag_days directamente (no el fallback a 'lag')
+        const currentLagDays = existing ? (existing.lag_days ?? 0) : null;
         if (!existing) {
           appState.dispatch({ type: 'ADD_DEP', payload: { dep: {
             id: crypto.randomUUID(),
@@ -594,8 +595,11 @@ export class WbsTable {
             updated_at: new Date().toISOString(),
             deleted_at: null,
           }}});
-        } else if (existingLag !== p.lag) {
+        } else if (currentLagDays !== p.lag) {
           // Lag cambió: reemplazar la dep para actualizar lag_days
+          // Guardar la dep vieja con deleted_at antes de dispatch (onPersist la busca por ID)
+          const { put: dbPutSt } = await import('./storage.js?v=2');
+          await dbPutSt('task_dependencies', { ...existing, deleted_at: new Date().toISOString() });
           appState.dispatch({ type: 'REMOVE_DEP', payload: { id: existing.id } });
           appState.dispatch({ type: 'ADD_DEP', payload: { dep: {
             id: crypto.randomUUID(),

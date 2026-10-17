@@ -125,13 +125,16 @@ export async function listProjects() {
 
 /** @param {string} projectId */
 export async function loadProject(projectId) {
-  const [project, tasks, deps, calendars, calExceptions] = await Promise.all([
+  const [project, allTasks, allDeps, calendars, calExceptions] = await Promise.all([
     getById('projects', projectId),
     getByIndex('tasks', 'project_id', projectId),
     getByIndex('task_dependencies', 'project_id', projectId),
     getAll('calendars'),
     getAll('calendar_exceptions'),
   ]);
+  // Excluir registros borrados localmente (deleted_at)
+  const tasks = allTasks.filter(t => !t.deleted_at);
+  const deps  = allDeps.filter(d => !d.deleted_at);
   const calId = project?.calendar_id;
   const calendar = calId ? calendars.find(c => c.id === calId) ?? null : null;
   const calEx = calId ? calExceptions.filter(ex => ex.calendar_id === calId && !ex.deleted_at) : [];

@@ -1,13 +1,13 @@
-// @ts-check
+﻿// @ts-check
 /**
- * main.js — Punto de entrada de la aplicación.
- * Detecta file://, inicializa módulos, carga datos demo en modo local.
+ * main.js â€” Punto de entrada de la aplicaciÃ³n.
+ * Detecta file://, inicializa mÃ³dulos, carga datos demo en modo local.
  */
 
 import { IS_LOCAL_MODE } from './config.js';
 import { appState }      from './state.js';
-import { WbsTable }      from './wbs-table.js?v=6';
-import { GanttCanvas }   from './gantt-canvas.js?v=25';
+import { WbsTable }      from './wbs-table.js?v=7';
+import { GanttCanvas }   from './gantt-canvas.js?v=26';
 import { GanttScene }    from './scene.js';
 import { DcmaPanel }     from './dcma.js';
 import { Calendar, isoToDate } from './calendar.js';
@@ -48,7 +48,7 @@ function _initWorker() {
         result.tasks = new Map(result.tasks.map(t => [t.id, t]));
         appState.setCpmResult(result);
         _updateStatus();
-        // Si el estado cambió mientras el worker procesaba, re-calcular
+        // Si el estado cambiÃ³ mientras el worker procesaba, re-calcular
         if (appState.state.cpmDirty) _requestCpm();
       } else {
         console.error('[CPM worker]', e.data.error);
@@ -123,7 +123,7 @@ function _runCpmSync() {
 // ============================================================
 
 appState.onPersist = async ({ cmd, isUndo }) => {
-  // Registrar en historial de sesión (no registrar los undos)
+  // Registrar en historial de sesiÃ³n (no registrar los undos)
   if (!isUndo) logCommand(cmd);
   const { project, tasks, deps } = appState.state;
   if (!project) return;
@@ -231,7 +231,7 @@ function _initTaskDetailPanel() {
   panel.innerHTML = `
     <div id="tdp-header" style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid var(--clr-border);background:var(--clr-surface-2);flex-shrink:0">
       <span style="font-weight:700;font-size:14px">Detalle de actividad</span>
-      <button id="tdp-close" class="btn btn-icon btn-sm" title="Cerrar">✕</button>
+      <button id="tdp-close" class="btn btn-icon btn-sm" title="Cerrar">âœ•</button>
     </div>
     <div id="tdp-body" style="flex:1;overflow-y:auto;padding:16px"></div>
     <div id="tdp-footer" style="padding:12px 16px;border-top:1px solid var(--clr-border);display:flex;gap:8px;justify-content:flex-end;background:var(--clr-surface-2);flex-shrink:0">
@@ -261,7 +261,7 @@ async function _openTaskDetail(taskId) {
   const startIso = project?.start_date || new Date().toISOString().slice(0, 10);
 
   const idxToDate = (idx) => {
-    if (idx == null) return '—';
+    if (idx == null) return 'â€”';
     const cal = appState.state.calendar;
     const calDef = cal
       ? { work_week: cal.work_week, exceptions: (appState.state.calExceptions || []).filter(e => !e.deleted_at).map(e => ({ on_date: e.on_date, is_working: e.is_working })) }
@@ -276,10 +276,10 @@ async function _openTaskDetail(taskId) {
     } catch { return String(idx) + 'd'; }
   };
 
-  // Calcular fechas desde índice de días
+  // Calcular fechas desde Ã­ndice de dÃ­as
   const startDate = new Date(startIso + 'T00:00:00');
   const addDays = (n) => {
-    if (n == null) return '—';
+    if (n == null) return 'â€”';
     const d = new Date(startDate);
     d.setDate(d.getDate() + n);
     return d.toLocaleDateString('es-PE', { day:'2-digit', month:'2-digit', year:'numeric' });
@@ -297,9 +297,9 @@ async function _openTaskDetail(taskId) {
   } catch (e) { /* sin recursos */ }
 
   const constraintTypes = ['ASAP','ALAP','MSO','MFO','SNET','SNLT','FNET','FNLT'];
-  const constraintLabels = { ASAP:'Lo antes posible', ALAP:'Lo más tarde posible',
+  const constraintLabels = { ASAP:'Lo antes posible', ALAP:'Lo mÃ¡s tarde posible',
     MSO:'Inicio no antes de', MFO:'Fin no antes de', SNET:'Inicio no antes de (SNET)',
-    SNLT:'Inicio no después de', FNET:'Fin no antes de (FNET)', FNLT:'Fin no después de' };
+    SNLT:'Inicio no despuÃ©s de', FNET:'Fin no antes de (FNET)', FNLT:'Fin no despuÃ©s de' };
 
   const resOpts = allResources.map(r =>
     `<option value="${r.id}">${_escHtml(r.name)}${r.role ? ' ('+_escHtml(r.role)+')' : ''}</option>`).join('');
@@ -307,10 +307,10 @@ async function _openTaskDetail(taskId) {
   const resRows = taskResources.map(tr => {
     const res = allResources.find(r => r.id === tr.resource_id);
     return `<tr data-trid="${tr.id}">
-      <td style="padding:4px 8px;font-size:12px">${_escHtml(res?.name ?? '—')}</td>
+      <td style="padding:4px 8px;font-size:12px">${_escHtml(res?.name ?? 'â€”')}</td>
       <td style="padding:4px 8px;font-size:12px">${_escHtml(res?.role ?? '')}</td>
       <td style="padding:4px 8px;font-size:12px"><input type="number" class="tdp-res-units" data-trid="${tr.id}" value="${tr.units ?? 100}" min="1" max="100000" style="width:64px;padding:2px 6px;border:1px solid var(--clr-border);border-radius:4px;font-size:11px;background:var(--clr-surface);color:var(--clr-text)"> %</td>
-      <td style="padding:4px 8px"><button class="btn btn-icon btn-sm tdp-res-remove" data-trid="${tr.id}" title="Quitar" style="color:var(--clr-danger,#e74c3c);padding:0 6px">✕</button></td>
+      <td style="padding:4px 8px"><button class="btn btn-icon btn-sm tdp-res-remove" data-trid="${tr.id}" title="Quitar" style="color:var(--clr-danger,#e74c3c);padding:0 6px">âœ•</button></td>
     </tr>`;
   }).join('');
 
@@ -323,7 +323,7 @@ async function _openTaskDetail(taskId) {
         <input id="tdp-name" type="text" value="${_escAttr(task.name)}" style="margin-top:4px;width:100%;padding:7px 10px;border:1px solid var(--clr-border);border-radius:7px;font-size:13px;background:var(--clr-surface-2);color:var(--clr-text);box-sizing:border-box">
       </label>
 
-      <!-- Tipo + Duración -->
+      <!-- Tipo + DuraciÃ³n -->
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
         <label style="font-size:12px;font-weight:600;color:var(--clr-text-2)">Tipo
           <select id="tdp-type" style="margin-top:4px;width:100%;padding:7px 10px;border:1px solid var(--clr-border);border-radius:7px;font-size:12px;background:var(--clr-surface-2);color:var(--clr-text)">
@@ -331,7 +331,7 @@ async function _openTaskDetail(taskId) {
             <option value="milestone" ${task.type==='milestone'?'selected':''}>Hito</option>
           </select>
         </label>
-        <label style="font-size:12px;font-weight:600;color:var(--clr-text-2)">Duración (días)
+        <label style="font-size:12px;font-weight:600;color:var(--clr-text-2)">DuraciÃ³n (dÃ­as)
           <input id="tdp-dur" type="number" min="0" value="${task.duration_days ?? 0}" style="margin-top:4px;width:100%;padding:7px 10px;border:1px solid var(--clr-border);border-radius:7px;font-size:12px;background:var(--clr-surface-2);color:var(--clr-text);box-sizing:border-box">
         </label>
       </div>
@@ -353,12 +353,12 @@ async function _openTaskDetail(taskId) {
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:12px">
           <div><span style="color:var(--clr-text-3)">Inicio temprano:</span><br><strong>${addDays(cpmTask.es)}</strong></div>
           <div><span style="color:var(--clr-text-3)">Fin temprano:</span><br><strong>${addDays(cpmTask.ef)}</strong></div>
-          <div><span style="color:var(--clr-text-3)">Inicio tardío:</span><br><strong>${addDays(cpmTask.ls)}</strong></div>
-          <div><span style="color:var(--clr-text-3)">Fin tardío:</span><br><strong>${addDays(cpmTask.lf)}</strong></div>
+          <div><span style="color:var(--clr-text-3)">Inicio tardÃ­o:</span><br><strong>${addDays(cpmTask.ls)}</strong></div>
+          <div><span style="color:var(--clr-text-3)">Fin tardÃ­o:</span><br><strong>${addDays(cpmTask.lf)}</strong></div>
           <div><span style="color:var(--clr-text-3)">Holgura total:</span><br><strong style="color:${(cpmTask.tf??0)===0?'var(--clr-danger,#e74c3c)':'var(--clr-text)'}">${cpmTask.tf ?? 0} d</strong></div>
           <div><span style="color:var(--clr-text-3)">Holgura libre:</span><br><strong>${cpmTask.ff ?? 0} d</strong></div>
         </div>
-      </div>` : '<div style="font-size:12px;color:var(--clr-text-3)">CPM no calculado aún</div>'}
+      </div>` : '<div style="font-size:12px;color:var(--clr-text-3)">CPM no calculado aÃºn</div>'}
 
       <!-- Costos -->
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
@@ -370,14 +370,14 @@ async function _openTaskDetail(taskId) {
         </label>
       </div>
 
-      <!-- Restricción -->
+      <!-- RestricciÃ³n -->
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-        <label style="font-size:12px;font-weight:600;color:var(--clr-text-2)">Restricción
+        <label style="font-size:12px;font-weight:600;color:var(--clr-text-2)">RestricciÃ³n
           <select id="tdp-constraint" style="margin-top:4px;width:100%;padding:7px 10px;border:1px solid var(--clr-border);border-radius:7px;font-size:11px;background:var(--clr-surface-2);color:var(--clr-text)">
             ${constraintTypes.map(c => `<option value="${c}" ${task.constraint_type===c?'selected':''}>${constraintLabels[c]??c}</option>`).join('')}
           </select>
         </label>
-        <label style="font-size:12px;font-weight:600;color:var(--clr-text-2)">Fecha restricción
+        <label style="font-size:12px;font-weight:600;color:var(--clr-text-2)">Fecha restricciÃ³n
           <input id="tdp-constraint-date" type="date" value="${task.constraint_date ?? ''}" style="margin-top:4px;width:100%;padding:7px 10px;border:1px solid var(--clr-border);border-radius:7px;font-size:12px;background:var(--clr-surface-2);color:var(--clr-text);box-sizing:border-box">
         </label>
       </div>
@@ -414,10 +414,10 @@ async function _openTaskDetail(taskId) {
         ${allResources.length ? `
         <div style="display:flex;gap:6px;margin-top:8px;align-items:center">
           <select id="tdp-res-select" style="flex:1;padding:6px 10px;border:1px solid var(--clr-border);border-radius:6px;font-size:12px;background:var(--clr-surface-2);color:var(--clr-text)">
-            <option value="">— Seleccionar recurso —</option>
+            <option value="">â€” Seleccionar recurso â€”</option>
             ${resOpts}
           </select>
-          <button id="tdp-res-add" class="btn btn-ghost btn-sm">＋ Asignar</button>
+          <button id="tdp-res-add" class="btn btn-ghost btn-sm">ï¼‹ Asignar</button>
         </div>` : `
         <div style="margin-top:8px;font-size:12px;color:var(--clr-text-3)">
           No hay recursos definidos. <a href="#" id="tdp-open-resources" style="color:var(--clr-primary)">Gestionar recursos</a>
@@ -449,10 +449,10 @@ async function _tdpAddResource(taskId) {
   const res = allRes.find(r => r.id === resId);
   if (!res) return;
 
-  // Verificar que no esté ya asignado
+  // Verificar que no estÃ© ya asignado
   const tbody = document.getElementById('tdp-res-body');
   const existing = tbody?.querySelector(`[data-trid]`);
-  // Simplemente añadimos fila nueva (se persiste al guardar)
+  // Simplemente aÃ±adimos fila nueva (se persiste al guardar)
   const trid = crypto.randomUUID();
   const tr = document.createElement('tr');
   tr.dataset.trid = trid;
@@ -461,7 +461,7 @@ async function _tdpAddResource(taskId) {
     <td style="padding:4px 8px;font-size:12px">${_escHtml(res.name)}</td>
     <td style="padding:4px 8px;font-size:12px">${_escHtml(res.role ?? '')}</td>
     <td style="padding:4px 8px;font-size:12px"><input type="number" class="tdp-res-units" data-trid="${trid}" value="100" min="1" max="100000" style="width:64px;padding:2px 6px;border:1px solid var(--clr-border);border-radius:4px;font-size:11px;background:var(--clr-surface);color:var(--clr-text)"> %</td>
-    <td style="padding:4px 8px"><button class="btn btn-icon btn-sm tdp-res-remove" data-trid="${trid}" title="Quitar" style="color:var(--clr-danger,#e74c3c);padding:0 6px">✕</button></td>`;
+    <td style="padding:4px 8px"><button class="btn btn-icon btn-sm tdp-res-remove" data-trid="${trid}" title="Quitar" style="color:var(--clr-danger,#e74c3c);padding:0 6px">âœ•</button></td>`;
   if (tbody) {
     const empty = tbody.querySelector('td[colspan]');
     if (empty) empty.closest('tr')?.remove();
@@ -489,7 +489,7 @@ async function _saveTaskDetail() {
   const actualFinish = /** @type {HTMLInputElement} */ (document.getElementById('tdp-actual-finish'))?.value || null;
   const notes  = /** @type {HTMLTextAreaElement} */ (document.getElementById('tdp-notes'))?.value || null;
 
-  if (!name) { _showToast('El nombre no puede estar vacío', 'warn'); return; }
+  if (!name) { _showToast('El nombre no puede estar vacÃ­o', 'warn'); return; }
 
   appState.dispatch({ type: 'UPDATE_TASK', payload: { id: taskId, fields: {
     name, type, duration_days: isNaN(dur) ? 0 : dur,
@@ -545,7 +545,7 @@ async function _saveTaskDetail() {
 }
 
 // ============================================================
-// Gestor de Recursos (catálogo)
+// Gestor de Recursos (catÃ¡logo)
 // ============================================================
 
 async function _openResourceManager() {
@@ -565,15 +565,15 @@ async function _openResourceManager() {
     <tr>
       <td style="padding:6px 10px;font-size:13px">${_escHtml(r.name)}</td>
       <td style="padding:6px 10px;font-size:12px;color:var(--clr-text-3)">${_escHtml(r.role ?? '')}</td>
-      <td style="padding:6px 10px;font-size:12px;color:var(--clr-text-3)">${r.rate_per_hour ? 'S/ '+r.rate_per_hour+'/h' : '—'}</td>
+      <td style="padding:6px 10px;font-size:12px;color:var(--clr-text-3)">${r.rate_per_hour ? 'S/ '+r.rate_per_hour+'/h' : 'â€”'}</td>
       <td style="padding:6px 10px;font-size:12px;color:var(--clr-text-3)">${_escHtml(r.type ?? 'work')}</td>
-      <td style="padding:6px 10px"><button class="btn btn-icon btn-sm rm-del" data-rid="${r.id}" title="Eliminar" style="color:var(--clr-danger,#e74c3c)">🗑</button></td>
+      <td style="padding:6px 10px"><button class="btn btn-icon btn-sm rm-del" data-rid="${r.id}" title="Eliminar" style="color:var(--clr-danger,#e74c3c)">ðŸ—‘</button></td>
     </tr>`).join('') || '<tr><td colspan="5" style="padding:16px;text-align:center;color:var(--clr-text-3)">Sin recursos</td></tr>';
 
   dlg.innerHTML = `
     <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid var(--clr-border);background:var(--clr-surface-2)">
-      <span style="font-weight:700;font-size:15px">Gestión de Recursos</span>
-      <button id="dlg-res-close" class="btn btn-icon btn-sm">✕</button>
+      <span style="font-weight:700;font-size:15px">GestiÃ³n de Recursos</span>
+      <button id="dlg-res-close" class="btn btn-icon btn-sm">âœ•</button>
     </div>
     <div style="padding:16px;max-height:50vh;overflow-y:auto">
       <table style="width:100%;border-collapse:collapse">
@@ -601,7 +601,7 @@ async function _openResourceManager() {
           <option value="cost">Costo fijo</option>
           <option value="equipment">Equipo</option>
         </select>
-        <button id="rm-add" class="btn btn-primary btn-sm">＋ Agregar</button>
+        <button id="rm-add" class="btn btn-primary btn-sm">ï¼‹ Agregar</button>
       </div>
     </div>`;
 
@@ -623,7 +623,7 @@ async function _openResourceManager() {
     const btn = /** @type {HTMLElement} */ (e.target).closest('.rm-del');
     if (btn) {
       const rid = btn.dataset.rid;
-      if (confirm('¿Eliminar este recurso?')) {
+      if (confirm('Â¿Eliminar este recurso?')) {
         const { remove: dbRemoveSt } = await import('./storage.js?v=2');
         await dbRemoveSt('resources', rid);
         btn.closest('tr')?.remove();
@@ -650,7 +650,7 @@ function _updateStatus() {
     };
     text.textContent = labels[syncStatus] ?? syncStatus;
   }
-  // Duración del proyecto
+  // DuraciÃ³n del proyecto
   const durEl = document.getElementById('project-duration');
   if (durEl && cpmResult) {
     durEl.textContent = `${cpmResult.projectDuration ?? 0} d`;
@@ -690,7 +690,7 @@ async function _loadProject(projectId) {
   appState.loadProject(data);
   _renderProjectList();
   if (!data.project.start_date) {
-    _showToast('Sin fecha de inicio — edita el proyecto para configurarla', 'warn');
+    _showToast('Sin fecha de inicio â€” edita el proyecto para configurarla', 'warn');
   }
 
   // Arrancar engine de sync para el nuevo proyecto (solo modo Supabase)
@@ -714,30 +714,30 @@ async function _renderProjectList() {
 
   const rows = [];
 
-  // Proyectos sin portafolio ni programa (nivel raíz)
+  // Proyectos sin portafolio ni programa (nivel raÃ­z)
   const rootProjects  = projects.filter(p => !p.settings?.portfolio_id && !p.settings?.program_id);
-  // Programas sin portafolio (nivel raíz)
+  // Programas sin portafolio (nivel raÃ­z)
   const rootPrograms  = programs.filter(p => !p.portfolio_id);
 
   function _projItem(p, indent = 0) {
     return `<div class="explorer-item ${p.id === currentId ? 'active' : ''}" data-project-id="${p.id}"
       title="${_escAttr(p.name)}" style="padding-left:${8 + indent * 16}px">
-      <span class="item-icon">📋</span>
+      <span class="item-icon">ðŸ“‹</span>
       <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px">${_escHtml(p.name)}</span>
       ${p.id !== currentId ? `<button class="btn btn-ghost" data-del-project="${p.id}" title="Eliminar"
-        style="padding:0 4px;font-size:10px;line-height:1;opacity:0.5;flex-shrink:0">✕</button>` : ''}
+        style="padding:0 4px;font-size:10px;line-height:1;opacity:0.5;flex-shrink:0">âœ•</button>` : ''}
     </div>`;
   }
 
   function _progItem(prog, indent = 0) {
     const progProjects = projects.filter(p => p.settings?.program_id === prog.id);
     return `<div class="explorer-section-title" style="padding-left:${8 + indent * 16}px;display:flex;align-items:center;gap:4px">
-        <span>📦</span><span>${_escHtml(prog.name)}</span>
+        <span>ðŸ“¦</span><span>${_escHtml(prog.name)}</span>
         ${prog.code ? `<span style="font-size:10px;opacity:0.6">${_escHtml(prog.code)}</span>` : ''}
         <button class="btn btn-ghost" data-add-to-program="${prog.id}" data-prog-code="${_escAttr(prog.code||'')}" title="Nuevo proyecto en este programa"
-          style="padding:0 5px;font-size:11px;line-height:1;color:var(--clr-primary);margin-left:auto" tabindex="0">＋</button>
+          style="padding:0 5px;font-size:11px;line-height:1;color:var(--clr-primary);margin-left:auto" tabindex="0">ï¼‹</button>
         <button class="btn btn-ghost" data-del-program="${prog.id}" title="Eliminar programa"
-          style="padding:0 4px;font-size:10px;line-height:1;opacity:0.4">✕</button>
+          style="padding:0 4px;font-size:10px;line-height:1;opacity:0.4">âœ•</button>
       </div>
       ${progProjects.map(p => _projItem(p, indent + 1)).join('')}`;
   }
@@ -747,21 +747,21 @@ async function _renderProjectList() {
     const pfPrograms  = programs.filter(p => p.portfolio_id === pf.id);
     const pfProjects  = projects.filter(p => p.settings?.portfolio_id === pf.id && !p.settings?.program_id);
     rows.push(`<div class="explorer-section-title" style="display:flex;align-items:center;gap:4px">
-        <span>🗂</span><span>${_escHtml(pf.name)}</span>
+        <span>ðŸ—‚</span><span>${_escHtml(pf.name)}</span>
         ${pf.code ? `<span style="font-size:10px;opacity:0.6">${_escHtml(pf.code)}</span>` : ''}
         <button class="btn btn-ghost" data-add-to-portfolio="${pf.id}" data-pf-code="${_escAttr(pf.code||'')}" title="Nuevo programa/proyecto en este portafolio"
-          style="padding:0 5px;font-size:11px;line-height:1;color:var(--clr-primary);margin-left:auto" tabindex="0">＋</button>
+          style="padding:0 5px;font-size:11px;line-height:1;color:var(--clr-primary);margin-left:auto" tabindex="0">ï¼‹</button>
         <button class="btn btn-ghost" data-del-portfolio="${pf.id}" title="Eliminar portafolio"
-          style="padding:0 4px;font-size:10px;line-height:1;opacity:0.4">✕</button>
+          style="padding:0 4px;font-size:10px;line-height:1;opacity:0.4">âœ•</button>
       </div>`);
     pfPrograms.forEach(prog => rows.push(_progItem(prog, 1)));
     pfProjects.forEach(p   => rows.push(_projItem(p, 1)));
   });
 
-  // Programas raíz (sin portafolio)
+  // Programas raÃ­z (sin portafolio)
   rootPrograms.forEach(prog => rows.push(_progItem(prog, 0)));
 
-  // Proyectos raíz
+  // Proyectos raÃ­z
   rootProjects.forEach(p => rows.push(_projItem(p, 0)));
 
   list.innerHTML = rows.join('');
@@ -788,7 +788,7 @@ async function _renderProjectList() {
       const { projects: projs } = await loadHierarchy();
       const proj = projs.find(p => p.id === pid);
       if (!proj) return;
-      if (!confirm(`¿Eliminar el proyecto "${proj.name}"?\nEsta acción no se puede deshacer.`)) return;
+      if (!confirm(`Â¿Eliminar el proyecto "${proj.name}"?\nEsta acciÃ³n no se puede deshacer.`)) return;
       try {
         await _deleteProject(pid);
         _showToast('Proyecto eliminado', 'success');
@@ -803,7 +803,7 @@ async function _renderProjectList() {
     delBtn.addEventListener('click', async (e) => {
       e.stopPropagation();
       const id = /** @type {HTMLElement} */ (delBtn).dataset.delPortfolio;
-      if (!confirm('¿Eliminar este portafolio? Los proyectos y programas dentro quedarán sin asignar.')) return;
+      if (!confirm('Â¿Eliminar este portafolio? Los proyectos y programas dentro quedarÃ¡n sin asignar.')) return;
       try { await deletePortfolio(id); _showToast('Portafolio eliminado', 'success'); _renderProjectList(); }
       catch (err) { _showToast('Error: ' + err.message, 'error'); }
     });
@@ -813,13 +813,13 @@ async function _renderProjectList() {
     delBtn.addEventListener('click', async (e) => {
       e.stopPropagation();
       const id = /** @type {HTMLElement} */ (delBtn).dataset.delProgram;
-      if (!confirm('¿Eliminar este programa? Los proyectos dentro quedarán sin asignar.')) return;
+      if (!confirm('Â¿Eliminar este programa? Los proyectos dentro quedarÃ¡n sin asignar.')) return;
       try { await deleteProgram(id); _showToast('Programa eliminado', 'success'); _renderProjectList(); }
       catch (err) { _showToast('Error: ' + err.message, 'error'); }
     });
   });
 
-  // "+" junto a programa → nuevo proyecto heredando código
+  // "+" junto a programa â†’ nuevo proyecto heredando cÃ³digo
   list.querySelectorAll('[data-add-to-program]').forEach(btn => {
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -829,7 +829,7 @@ async function _renderProjectList() {
     });
   });
 
-  // "+" junto a portafolio → nuevo programa o proyecto directo
+  // "+" junto a portafolio â†’ nuevo programa o proyecto directo
   list.querySelectorAll('[data-add-to-portfolio]').forEach(btn => {
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -894,14 +894,14 @@ function _bindNewProject() {
   async function _loadParentOptions(type) {
     const sel = /** @type {HTMLSelectElement|null} */ (document.getElementById('ni-parent'));
     if (!sel) return;
-    sel.innerHTML = '<option value="">— Sin asignar (nivel raíz) —</option>';
+    sel.innerHTML = '<option value="">â€” Sin asignar (nivel raÃ­z) â€”</option>';
     if (type === 'portfolio') return;
     const { portfolios, programs } = await loadHierarchy();
     if (type === 'program') {
       portfolios.forEach(p => {
         const opt = document.createElement('option');
         opt.value = 'portfolio:' + p.id;
-        opt.textContent = '🗂 ' + p.name;
+        opt.textContent = 'ðŸ—‚ ' + p.name;
         sel.appendChild(opt);
       });
     } else {
@@ -909,13 +909,13 @@ function _bindNewProject() {
       portfolios.forEach(p => {
         const opt = document.createElement('option');
         opt.value = 'portfolio:' + p.id;
-        opt.textContent = '🗂 ' + p.name;
+        opt.textContent = 'ðŸ—‚ ' + p.name;
         sel.appendChild(opt);
       });
       programs.forEach(p => {
         const opt = document.createElement('option');
         opt.value = 'program:' + p.id;
-        opt.textContent = '📦 ' + p.name;
+        opt.textContent = 'ðŸ“¦ ' + p.name;
         sel.appendChild(opt);
       });
     }
@@ -989,7 +989,7 @@ function _clearNewItemForm() {
 }
 
 // ============================================================
-// Inicialización
+// InicializaciÃ³n
 // ============================================================
 
 let _wbsTable       = null;
@@ -1055,12 +1055,12 @@ async function init() {
         _ganttCanvas?.updateRows(e.detail.rows);
       });
 
-      // Fila fantasma → crear tarea nueva
+      // Fila fantasma â†’ crear tarea nueva
       document.addEventListener('wbs-add-task', /** @type {any} */ (e) => {
         _wbsTable?.addTaskAfterSelected(e.detail?.type ?? 'task');
       });
 
-      // Sincronizar scroll: Gantt → tabla WBS
+      // Sincronizar scroll: Gantt â†’ tabla WBS
       document.addEventListener('gantt-scroll-y', /** @type {any} */ (e) => {
         const scroll = document.getElementById('wbs-scroll');
         if (scroll) scroll.scrollTop = e.detail.scrollY;
@@ -1094,7 +1094,7 @@ async function init() {
       _dcmaPanel = new DcmaPanel(dcmaEl);
     }
 
-    // Escuchar selección de tarea desde el panel DCMA
+    // Escuchar selecciÃ³n de tarea desde el panel DCMA
     document.addEventListener('dcma-select-task', /** @type {any} */ (e) => {
       appState.selectTask(e.detail.id);
     });
@@ -1115,7 +1115,7 @@ async function init() {
           _evmPanel.refresh();
         }
       });
-      // Botón cerrar dentro del panel
+      // BotÃ³n cerrar dentro del panel
       evmEl.addEventListener('click', (e) => {
         if (/** @type {HTMLElement} */ (e.target).id === 'btn-evm-close') {
           evmEl.classList.remove('open');
@@ -1138,7 +1138,7 @@ async function init() {
 
     // El motor de sync ya fue iniciado dentro de _loadProject.
 
-    console.log('[Cronogramas] v25b completo — modo', IS_LOCAL_MODE ? 'local' : 'Supabase');
+    console.log('[Cronogramas] v25b completo â€” modo', IS_LOCAL_MODE ? 'local' : 'Supabase');
   } catch (err) {
     console.error('[init]', err);
     _showToast('Error al iniciar: ' + err.message, 'error');
@@ -1146,7 +1146,7 @@ async function init() {
 }
 
 // ============================================================
-// Sincronización de la escena Gantt
+// SincronizaciÃ³n de la escena Gantt
 // ============================================================
 
 function _syncGanttScene() {
@@ -1217,7 +1217,7 @@ function _bindToolbar() {
 
   document.getElementById('btn-resources')?.addEventListener('click', () => _openResourceManager());
 
-  // ---- Menú etiquetas de barras Gantt ----
+  // ---- MenÃº etiquetas de barras Gantt ----
   const _barLabelsBtn  = document.getElementById('btn-bar-labels');
   const _barLabelsMenu = document.getElementById('bar-labels-menu');
   _barLabelsBtn?.addEventListener('click', (e) => {
@@ -1281,7 +1281,7 @@ function _bindToolbar() {
     document.getElementById('drawer-overlay')?.classList.remove('visible');
   });
 
-  // ---- Menú Exportar ----
+  // ---- MenÃº Exportar ----
   const exportBtn  = document.getElementById('btn-export');
   const exportMenu = document.getElementById('export-menu');
 
@@ -1292,7 +1292,7 @@ function _bindToolbar() {
     exportBtn.setAttribute('aria-expanded', String(!isOpen));
   });
 
-  // Cerrar menú al hacer clic fuera
+  // Cerrar menÃº al hacer clic fuera
   document.addEventListener('click', () => {
     if (exportMenu && !exportMenu.hidden) {
       exportMenu.hidden = true;
@@ -1335,12 +1335,12 @@ function _bindToolbar() {
     /** @type {HTMLInputElement} */ (e.target).value = '';
   });
 
-  // Establecer título de impresión en el elemento #app
+  // Establecer tÃ­tulo de impresiÃ³n en el elemento #app
   const updatePrintTitle = () => {
     const { project } = appState.state;
     if (project) {
       document.getElementById('app')?.setAttribute('data-print-title',
-        `${project.name} — Cronograma EDT — ${new Date().toLocaleDateString('es-PE')}`);
+        `${project.name} â€” Cronograma EDT â€” ${new Date().toLocaleDateString('es-PE')}`);
     }
   };
   appState.subscribe((_state, keys) => {
@@ -1429,7 +1429,7 @@ function _bindResizer() {
 
   document.addEventListener('mousemove', e => {
     if (!dragging) return;
-    const dx = startX - e.clientX; // mover derecha → gantt se hace más pequeño
+    const dx = startX - e.clientX; // mover derecha â†’ gantt se hace mÃ¡s pequeÃ±o
     const minW = 180;
     const maxW = window.innerWidth - 280;
     const newW = Math.max(minW, Math.min(maxW, startW + dx));
@@ -1444,17 +1444,17 @@ function _bindResizer() {
     document.body.style.cursor = '';
     document.body.style.userSelect = '';
     localStorage.setItem('gantt-panel-width', ganttPanel.style.width);
-    // Forzar redibujado con el nuevo tamaño del canvas
+    // Forzar redibujado con el nuevo tamaÃ±o del canvas
     setTimeout(() => _ganttCanvas?.requestRender(), 50);
   });
 }
 
 // ============================================================
-// Organigrama de jerarquía (portafolio→programa→proyecto)
+// Organigrama de jerarquÃ­a (portafolioâ†’programaâ†’proyecto)
 // ============================================================
 
 // ============================================================
-// Estructura de Proyectos — canvas libre
+// Estructura de Proyectos â€” canvas libre
 // ============================================================
 
 /** Lee posiciones guardadas del lienzo */
@@ -1473,12 +1473,12 @@ function _showOrgChart() {
         <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 16px;border-bottom:1px solid var(--clr-border);background:var(--clr-surface-2);flex-shrink:0;gap:8px;flex-wrap:wrap">
           <span style="font-weight:700;font-size:15px">Estructura de Proyectos</span>
           <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
-            <button id="oc-add-pf"   class="btn btn-primary btn-sm">＋ Portafolio</button>
-            <button id="oc-add-prog" class="btn btn-ghost btn-sm">＋ Programa</button>
-            <button id="oc-add-proj" class="btn btn-ghost btn-sm">＋ Proyecto</button>
+            <button id="oc-add-pf"   class="btn btn-primary btn-sm">ï¼‹ Portafolio</button>
+            <button id="oc-add-prog" class="btn btn-ghost btn-sm">ï¼‹ Programa</button>
+            <button id="oc-add-proj" class="btn btn-ghost btn-sm">ï¼‹ Proyecto</button>
             <span style="width:1px;height:18px;background:var(--clr-border)"></span>
-            <button id="oc-reset-layout" class="btn btn-ghost btn-sm" title="Restablecer posiciones">↺ Organizar</button>
-            <button id="btn-orgchart-close" class="btn btn-ghost btn-sm">✕ Cerrar</button>
+            <button id="oc-reset-layout" class="btn btn-ghost btn-sm" title="Restablecer posiciones">â†º Organizar</button>
+            <button id="btn-orgchart-close" class="btn btn-ghost btn-sm">âœ• Cerrar</button>
           </div>
         </div>
         <div id="oc-viewport" style="flex:1;overflow:auto;position:relative">
@@ -1522,7 +1522,7 @@ function _ocOpenForm(dlg, type, data) {
   const overlay = dlg.querySelector('#oc-edit-overlay');
   if (!overlay) return;
 
-  const icons  = { portfolio: '🗂', program: '📦', project: '📋' };
+  const icons  = { portfolio: 'ðŸ—‚', program: 'ðŸ“¦', project: 'ðŸ“‹' };
   const labels = { portfolio: 'Portafolio', program: 'Programa', project: 'Proyecto' };
   const isNew  = !data?.id;
 
@@ -1553,16 +1553,16 @@ function _ocOpenForm(dlg, type, data) {
   box.innerHTML = `
     <h3 style="margin:0 0 16px;font-size:15px;font-weight:700">${icons[type]} ${isNew ? 'Nuevo' : 'Editar'} ${labels[type]}</h3>
     ${inp('name', 'Nombre *', data?.name ?? '', 'Nombre del ' + labels[type])}
-    ${inp('code', 'Código', data?.code ?? '', 'Ej: PF-001')}
-    ${inp('desc', 'Descripción', data?.description ?? '', 'Opcional')}
+    ${inp('code', 'CÃ³digo', data?.code ?? '', 'Ej: PF-001')}
+    ${inp('desc', 'DescripciÃ³n', data?.description ?? '', 'Opcional')}
     ${extraHtml}
     ${!isNew ? `<div id="oc-del-zone" style="display:none;background:rgba(231,76,60,0.08);border:1px solid rgba(231,76,60,0.3);border-radius:8px;padding:12px;margin-bottom:12px">
-      <div style="font-size:12px;font-weight:600;color:#c0392b;margin-bottom:6px">⚠ Esta acción no se puede deshacer</div>
+      <div style="font-size:12px;font-weight:600;color:#c0392b;margin-bottom:6px">âš  Esta acciÃ³n no se puede deshacer</div>
       <button id="ocf-del-confirm" style="background:#e74c3c;color:#fff;border:none;border-radius:6px;padding:6px 14px;cursor:pointer;font-size:12px;font-weight:600">Eliminar definitivamente</button>
       <button id="ocf-del-cancel" style="margin-left:8px;background:none;border:1px solid var(--clr-border);border-radius:6px;padding:6px 14px;cursor:pointer;font-size:12px">Cancelar</button>
     </div>` : ''}
     <div style="display:flex;gap:8px;justify-content:space-between;align-items:center;margin-top:16px">
-      <div>${!isNew ? `<button id="ocf-del-init" style="background:none;border:1px solid #e74c3c;color:#e74c3c;border-radius:6px;padding:5px 12px;cursor:pointer;font-size:12px">🗑 Eliminar</button>` : ''}</div>
+      <div>${!isNew ? `<button id="ocf-del-init" style="background:none;border:1px solid #e74c3c;color:#e74c3c;border-radius:6px;padding:5px 12px;cursor:pointer;font-size:12px">ðŸ—‘ Eliminar</button>` : ''}</div>
       <div style="display:flex;gap:8px">
         <button id="ocf-cancel" class="btn btn-ghost btn-sm">Cancelar</button>
         <button id="ocf-save" class="btn btn-primary btn-sm">Guardar</button>
@@ -1574,7 +1574,7 @@ function _ocOpenForm(dlg, type, data) {
     const pfSel = box.querySelector('#ocf-pfid');
     if (pfSel) {
       portfolios.forEach(pf => {
-        const opt = new Option(`${pf.code ? pf.code + ' — ' : ''}${pf.name}`, pf.id);
+        const opt = new Option(`${pf.code ? pf.code + ' â€” ' : ''}${pf.name}`, pf.id);
         const curPf = data?.portfolio_id ?? data?.settings?.portfolio_id;
         if (curPf === pf.id) opt.selected = true;
         pfSel.appendChild(opt);
@@ -1583,7 +1583,7 @@ function _ocOpenForm(dlg, type, data) {
     const progSel = box.querySelector('#ocf-progid');
     if (progSel) {
       programs.forEach(prog => {
-        const opt = new Option(`${prog.code ? prog.code + ' — ' : ''}${prog.name}`, prog.id);
+        const opt = new Option(`${prog.code ? prog.code + ' â€” ' : ''}${prog.name}`, prog.id);
         if (data?.settings?.program_id === prog.id) opt.selected = true;
         progSel.appendChild(opt);
       });
@@ -1669,7 +1669,7 @@ function _ocOpenForm(dlg, type, data) {
   overlay.style.display = 'flex';
 }
 
-// ---- Dibujar líneas de conexión SVG ----
+// ---- Dibujar lÃ­neas de conexiÃ³n SVG ----
 function _ocDrawLines(canvas, cards) {
   const svg = canvas.querySelector('#oc-svg-lines');
   if (!svg) return;
@@ -1720,7 +1720,7 @@ async function _renderOrgChart() {
     return { x: 60 + col * (CARD_W + COL_GAP), y: 60 + row * (CARD_H + ROW_GAP) };
   }
 
-  // Layout automático: asignar columnas/filas
+  // Layout automÃ¡tico: asignar columnas/filas
   const pfPositions = portfolios.map((pf, i) => ({ id: pf.id, col: i }));
   let cardList = []; // { type, data, pos, parentKey }
 
@@ -1765,7 +1765,7 @@ async function _renderOrgChart() {
   });
 
   // ---- Crear tarjetas en el canvas ----
-  const icons  = { portfolio: '🗂', program: '📦', project: '📋' };
+  const icons  = { portfolio: 'ðŸ—‚', program: 'ðŸ“¦', project: 'ðŸ“‹' };
   const colors = { portfolio: '#1976D2', program: '#7B1FA2', project: '#2E7D32' };
   const bgCol  = { portfolio: 'rgba(25,118,210,0.06)', program: 'rgba(123,31,162,0.06)', project: 'rgba(46,125,50,0.06)' };
 
@@ -1786,14 +1786,14 @@ async function _renderOrgChart() {
       transition:box-shadow .15s;`;
 
     card.innerHTML = `
-      <div class="oc-drag-handle" style="position:absolute;top:4px;left:6px;font-size:12px;opacity:0.25;cursor:grab;line-height:1" title="Arrastrar">⠿</div>
-      <button class="oc-btn-edit" title="Editar" style="position:absolute;top:4px;right:26px;background:none;border:none;cursor:pointer;font-size:12px;opacity:0.3;padding:0;line-height:1">✎</button>
-      <button class="oc-btn-add" title="Agregar hijo" style="position:absolute;top:4px;right:6px;background:none;border:none;cursor:pointer;font-size:12px;opacity:0.3;padding:0;line-height:1;font-weight:700">＋</button>
+      <div class="oc-drag-handle" style="position:absolute;top:4px;left:6px;font-size:12px;opacity:0.25;cursor:grab;line-height:1" title="Arrastrar">â ¿</div>
+      <button class="oc-btn-edit" title="Editar" style="position:absolute;top:4px;right:26px;background:none;border:none;cursor:pointer;font-size:12px;opacity:0.3;padding:0;line-height:1">âœŽ</button>
+      <button class="oc-btn-add" title="Agregar hijo" style="position:absolute;top:4px;right:6px;background:none;border:none;cursor:pointer;font-size:12px;opacity:0.3;padding:0;line-height:1;font-weight:700">ï¼‹</button>
       <div style="font-size:20px;margin-top:2px">${icons[type]}</div>
       <div style="font-size:11px;font-weight:700;word-break:break-word;text-align:center;line-height:1.3;color:${colors[type]};margin-top:2px">${_escHtml(data.name)}</div>
       ${data.code ? `<div style="font-size:9px;opacity:0.55;background:rgba(0,0,0,0.06);border-radius:4px;padding:1px 6px;margin-top:1px">${_escHtml(data.code)}</div>` : ''}
-      ${type === 'project' && data.start_date ? `<div style="font-size:9px;opacity:0.4;margin-top:2px">📅 ${data.start_date}</div>` : ''}
-      ${type === 'project' && data.percent_complete ? `<div style="font-size:9px;color:${colors[type]};margin-top:1px">▓ ${data.percent_complete}%</div>` : ''}`;
+      ${type === 'project' && data.start_date ? `<div style="font-size:9px;opacity:0.4;margin-top:2px">ðŸ“… ${data.start_date}</div>` : ''}
+      ${type === 'project' && data.percent_complete ? `<div style="font-size:9px;color:${colors[type]};margin-top:1px">â–“ ${data.percent_complete}%</div>` : ''}`;
 
     // Hover reveal buttons
     const editBtn = card.querySelector('.oc-btn-edit');
@@ -1807,7 +1807,7 @@ async function _renderOrgChart() {
       card.style.boxShadow = '0 2px 8px rgba(0,0,0,0.10)';
     });
 
-    // Edit button → open form
+    // Edit button â†’ open form
     editBtn.addEventListener('click', e => {
       e.stopPropagation();
       if (dlg) _ocOpenForm(dlg, type, data);
@@ -1874,12 +1874,12 @@ async function _renderOrgChart() {
       setDropHighlight(false);
 
       if (moved) {
-        // Guardar posición
+        // Guardar posiciÃ³n
         const posMap = _ocGetPos();
         posMap[ocKey] = { x: pos.x, y: pos.y };
         _ocSetPos(posMap);
 
-        // Detectar si soltó sobre una tarjeta compatible para reasignar padre
+        // Detectar si soltÃ³ sobre una tarjeta compatible para reasignar padre
         const vp = document.getElementById('oc-viewport');
         const vpRect = vp?.getBoundingClientRect();
         const scrollLeft = vp?.scrollLeft ?? 0;
@@ -1897,7 +1897,7 @@ async function _renderOrgChart() {
             const [tPrefix, tId] = targetKey.split(':');
 
             if (type === 'project' && tPrefix === 'prog') {
-              // Reasignar proyecto → programa
+              // Reasignar proyecto â†’ programa
               const proj = projects.find(p => p.id === data.id);
               const prog = programs.find(p => p.id === tId);
               if (proj && prog) {
@@ -1907,7 +1907,7 @@ async function _renderOrgChart() {
                 dropped = true;
               }
             } else if (type === 'project' && tPrefix === 'pf') {
-              // Reasignar proyecto → portafolio (sin programa)
+              // Reasignar proyecto â†’ portafolio (sin programa)
               const proj = projects.find(p => p.id === data.id);
               const pf = portfolios.find(p => p.id === tId);
               if (proj && pf) {
@@ -1917,7 +1917,7 @@ async function _renderOrgChart() {
                 dropped = true;
               }
             } else if (type === 'program' && tPrefix === 'pf') {
-              // Reasignar programa → portafolio
+              // Reasignar programa â†’ portafolio
               const prog = programs.find(p => p.id === data.id);
               const pf = portfolios.find(p => p.id === tId);
               if (prog && pf) {
@@ -1941,7 +1941,7 @@ async function _renderOrgChart() {
     canvas.appendChild(card);
   });
 
-  // ---- Dibujar líneas ----
+  // ---- Dibujar lÃ­neas ----
   _ocDrawLines(canvas, cardList.map(c => ({
     el: canvas.querySelector(`[data-oc-key="${c.type === 'portfolio' ? 'pf' : c.type === 'program' ? 'prog' : 'proj'}:${c.data.id}"]`),
     parentKey: c.parentKey,
@@ -1949,19 +1949,19 @@ async function _renderOrgChart() {
 }
 
 // ============================================================
-// Configurador de columnas de exportación / impresión
+// Configurador de columnas de exportaciÃ³n / impresiÃ³n
 // ============================================================
 
 const PRINT_COL_OPTS = [
-  { id: 'wbs',    label: 'EDT (código WBS)',       group: 'tabla' },
+  { id: 'wbs',    label: 'EDT (cÃ³digo WBS)',       group: 'tabla' },
   { id: 'name',   label: 'Nombre de actividad',    group: 'tabla' },
-  { id: 'type',   label: 'Tipo (Tarea/Hito…)',     group: 'tabla' },
-  { id: 'dur',    label: 'Duración (días)',         group: 'ambos' },
+  { id: 'type',   label: 'Tipo (Tarea/Hitoâ€¦)',     group: 'tabla' },
+  { id: 'dur',    label: 'DuraciÃ³n (dÃ­as)',         group: 'ambos' },
   { id: 'start',  label: 'Inicio',                 group: 'ambos' },
   { id: 'finish', label: 'Fin',                    group: 'ambos' },
   { id: 'pct',    label: '% Avance',               group: 'ambos' },
-  { id: 'tf',     label: 'HT — Holgura Total',     group: 'ambos' },
-  { id: 'ff',     label: 'HL — Holgura Libre',     group: 'tabla' },
+  { id: 'tf',     label: 'HT â€” Holgura Total',     group: 'ambos' },
+  { id: 'ff',     label: 'HL â€” Holgura Libre',     group: 'tabla' },
   { id: 'pred',   label: 'Predecesoras (PRED)',    group: 'tabla' },
 ];
 
@@ -1973,7 +1973,7 @@ function _showPrintColConfig() {
     dlg.style.cssText = 'border:none;border-radius:12px;padding:0;width:440px;max-width:95vw;box-shadow:0 8px 40px rgba(0,0,0,0.25);overflow:hidden';
     dlg.innerHTML = `
       <div style="background:var(--clr-surface-2);padding:16px 20px;border-bottom:1px solid var(--clr-border)">
-        <div style="font-weight:700;font-size:15px">⚙ Columnas de exportación</div>
+        <div style="font-weight:700;font-size:15px">âš™ Columnas de exportaciÃ³n</div>
         <div style="font-size:11px;opacity:0.6;margin-top:2px">Selecciona las columnas que aparecen al imprimir o exportar SVG.</div>
       </div>
       <div style="padding:16px 20px">
@@ -1996,10 +1996,10 @@ function _showPrintColConfig() {
       const checked = [...dlg.querySelectorAll('input[type=checkbox]:checked')].map(el => /** @type {HTMLInputElement} */ (el).value);
       setPrintCols(checked);
       dlg.close();
-      // Mostrar confirmación
+      // Mostrar confirmaciÃ³n
       const toast = document.createElement('div');
       toast.className = 'toast toast-success';
-      toast.textContent = '✓ Columnas guardadas';
+      toast.textContent = 'âœ“ Columnas guardadas';
       document.body.appendChild(toast);
       setTimeout(() => toast.remove(), 2500);
     });
@@ -2031,7 +2031,7 @@ function _showPrintColConfig() {
 function _showCpmNetwork() {
   const { cpmResult, tasks: taskMap, deps: depMap } = appState.state;
   if (!cpmResult) {
-    alert('El CPM aún no ha calculado. Espera un momento y vuelve a intentarlo.');
+    alert('El CPM aÃºn no ha calculado. Espera un momento y vuelve a intentarlo.');
     return;
   }
 
@@ -2046,23 +2046,23 @@ function _showCpmNetwork() {
       <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 16px;border-bottom:1px solid var(--clr-border);background:var(--clr-surface-2);flex-shrink:0">
         <span style="font-weight:700;font-size:15px">Red CPM</span>
         <div style="display:flex;gap:6px;align-items:center">
-          <button id="btn-cpm-zoomfit" class="btn btn-ghost btn-sm" title="Zoom extendido — ver toda la red" style="font-size:16px;padding:2px 8px;line-height:1">⤢</button>
-          <button id="btn-cpm-zoomin"  class="btn btn-ghost btn-sm" title="Acercar" style="font-size:16px;padding:2px 8px;line-height:1">＋</button>
-          <button id="btn-cpm-zoomout" class="btn btn-ghost btn-sm" title="Alejar"  style="font-size:16px;padding:2px 8px;line-height:1">－</button>
+          <button id="btn-cpm-zoomfit" class="btn btn-ghost btn-sm" title="Zoom extendido â€” ver toda la red" style="font-size:16px;padding:2px 8px;line-height:1">â¤¢</button>
+          <button id="btn-cpm-zoomin"  class="btn btn-ghost btn-sm" title="Acercar" style="font-size:16px;padding:2px 8px;line-height:1">ï¼‹</button>
+          <button id="btn-cpm-zoomout" class="btn btn-ghost btn-sm" title="Alejar"  style="font-size:16px;padding:2px 8px;line-height:1">ï¼</button>
           <span style="width:1px;height:18px;background:var(--clr-border);margin:0 4px;display:inline-block"></span>
-          <span style="display:inline-block;width:11px;height:11px;background:#e74c3c;border-radius:2px"></span><span style="font-size:11px">Crítica</span>
-          <span style="display:inline-block;width:11px;height:11px;background:#f39c12;border-radius:2px;margin-left:5px"></span><span style="font-size:11px">Casi crítica</span>
+          <span style="display:inline-block;width:11px;height:11px;background:#e74c3c;border-radius:2px"></span><span style="font-size:11px">CrÃ­tica</span>
+          <span style="display:inline-block;width:11px;height:11px;background:#f39c12;border-radius:2px;margin-left:5px"></span><span style="font-size:11px">Casi crÃ­tica</span>
           <span style="display:inline-block;width:11px;height:11px;background:#2980b9;border-radius:2px;margin-left:5px"></span><span style="font-size:11px">Normal</span>
           <span style="display:inline-block;width:11px;height:11px;background:#27ae60;border-radius:2px;margin-left:5px"></span><span style="font-size:11px">Completa</span>
           <div style="position:relative;margin-left:10px" id="cpm-export-wrap">
-            <button id="btn-cpm-export" class="btn btn-ghost btn-sm" title="Exportar red CPM" style="display:flex;align-items:center;gap:4px">🖨 Exportar ▾</button>
+            <button id="btn-cpm-export" class="btn btn-ghost btn-sm" title="Exportar red CPM" style="display:flex;align-items:center;gap:4px">ðŸ–¨ Exportar â–¾</button>
             <div id="cpm-export-menu" style="display:none;position:absolute;right:0;top:calc(100% + 4px);background:var(--clr-surface);border:1px solid var(--clr-border);border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,0.15);z-index:9999;min-width:200px;overflow:hidden">
-              <button class="cpm-exp-item" data-fmt="pdf" style="display:block;width:100%;text-align:left;padding:10px 16px;background:none;border:none;cursor:pointer;font-size:13px">📄 PDF (imprimir)</button>
-              <button class="cpm-exp-item" data-fmt="png" style="display:block;width:100%;text-align:left;padding:10px 16px;background:none;border:none;cursor:pointer;font-size:13px">🖼 PNG (imagen)</button>
-              <button class="cpm-exp-item" data-fmt="svg" style="display:block;width:100%;text-align:left;padding:10px 16px;background:none;border:none;cursor:pointer;font-size:13px">📐 SVG (vectorial)</button>
+              <button class="cpm-exp-item" data-fmt="pdf" style="display:block;width:100%;text-align:left;padding:10px 16px;background:none;border:none;cursor:pointer;font-size:13px">ðŸ“„ PDF (imprimir)</button>
+              <button class="cpm-exp-item" data-fmt="png" style="display:block;width:100%;text-align:left;padding:10px 16px;background:none;border:none;cursor:pointer;font-size:13px">ðŸ–¼ PNG (imagen)</button>
+              <button class="cpm-exp-item" data-fmt="svg" style="display:block;width:100%;text-align:left;padding:10px 16px;background:none;border:none;cursor:pointer;font-size:13px">ðŸ“ SVG (vectorial)</button>
             </div>
           </div>
-          <button id="btn-cpm-net-close" class="btn btn-ghost btn-sm" style="margin-left:4px">✕ Cerrar</button>
+          <button id="btn-cpm-net-close" class="btn btn-ghost btn-sm" style="margin-left:4px">âœ• Cerrar</button>
         </div>
       </div>
       <div id="cpm-net-viewport" style="flex:1;overflow:hidden;position:relative;background:var(--clr-bg);cursor:grab">
@@ -2167,7 +2167,7 @@ function _exportCpmNetwork(fmt, dlg) {
   if (!svgEl) return;
 
   const bb = svgEl.getBBox();
-  if (!bb.width || !bb.height) { alert('La red está vacía.'); return; }
+  if (!bb.width || !bb.height) { alert('La red estÃ¡ vacÃ­a.'); return; }
   const PAD = 40;
   const vbX = bb.x - PAD, vbY = bb.y - PAD;
   const vbW = bb.width  + PAD * 2;
@@ -2186,11 +2186,11 @@ function _exportCpmNetwork(fmt, dlg) {
   styleEl.textContent = `text { font-family: 'Segoe UI', Arial, sans-serif; } rect { stroke-width: 1.5; }`;
   clone.prepend(styleEl);
 
-  // ---- Guías minimalistas (fondo, detrás del contenido) ----
+  // ---- GuÃ­as minimalistas (fondo, detrÃ¡s del contenido) ----
   const GRID = 60;
   const gridG = document.createElementNS('http://www.w3.org/2000/svg', 'g');
   gridG.setAttribute('opacity', '0.25');
-  // líneas verticales
+  // lÃ­neas verticales
   const x0 = Math.floor(vbX / GRID) * GRID;
   for (let x = x0; x <= vbX + vbW; x += GRID) {
     const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
@@ -2200,7 +2200,7 @@ function _exportCpmNetwork(fmt, dlg) {
     line.setAttribute('stroke-dasharray', '3 6');
     gridG.appendChild(line);
   }
-  // líneas horizontales
+  // lÃ­neas horizontales
   const y0 = Math.floor(vbY / GRID) * GRID;
   for (let y = y0; y <= vbY + vbH; y += GRID) {
     const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
@@ -2222,7 +2222,7 @@ function _exportCpmNetwork(fmt, dlg) {
     return;
   }
 
-  // ---- PNG: rasterizar a 3× para alta resolución ----
+  // ---- PNG: rasterizar a 3Ã— para alta resoluciÃ³n ----
   if (fmt === 'png') {
     const scale = 3;
     const imgW = Math.round(vbW * scale), imgH = Math.round(vbH * scale);
@@ -2242,14 +2242,14 @@ function _exportCpmNetwork(fmt, dlg) {
     return;
   }
 
-  // ---- PDF: SVG vectorial inline en ventana de impresión ----
+  // ---- PDF: SVG vectorial inline en ventana de impresiÃ³n ----
   if (fmt === 'pdf') {
     const today = new Date().toLocaleDateString('es-PE');
     const projDisplayName = _escHtml(appState.state.project?.name ?? projName);
-    // Leyenda con SVG inline para garantizar colores en impresión
+    // Leyenda con SVG inline para garantizar colores en impresiÃ³n
     const legendItems = [
-      { color: '#e74c3c', label: 'Crítica' },
-      { color: '#f39c12', label: 'Casi crítica' },
+      { color: '#e74c3c', label: 'CrÃ­tica' },
+      { color: '#f39c12', label: 'Casi crÃ­tica' },
       { color: '#2980b9', label: 'Normal' },
       { color: '#27ae60', label: 'Completa' },
     ];
@@ -2259,7 +2259,7 @@ function _exportCpmNetwork(fmt, dlg) {
         <text x="${i * 100 + 18}" y="14" font-size="11" font-family="Segoe UI,Arial,sans-serif" fill="#444">${it.label}</text>`).join('')}
     </svg>`;
 
-    // Redimensionar clone para que quepa en A3 landscape (420mm × 297mm ≈ 1587×1123px at 96dpi)
+    // Redimensionar clone para que quepa en A3 landscape (420mm Ã— 297mm â‰ˆ 1587Ã—1123px at 96dpi)
     const aspect = vbW / vbH;
     const maxW = 1400, maxH = 900;
     const fitW = Math.min(maxW, maxH * aspect);
@@ -2271,7 +2271,7 @@ function _exportCpmNetwork(fmt, dlg) {
     const html = `<!doctype html>
 <html lang="es"><head>
   <meta charset="UTF-8">
-  <title>Red CPM — ${projDisplayName}</title>
+  <title>Red CPM â€” ${projDisplayName}</title>
   <style>
     @page { size: A3 landscape; margin: 12mm; }
     * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
@@ -2287,7 +2287,7 @@ function _exportCpmNetwork(fmt, dlg) {
 </head><body>
   <div class="hdr">
     <div class="ttl">Red CPM &mdash; ${projDisplayName}</div>
-    <div class="meta">Generado: ${today}<br>© Cronogramas v16</div>
+    <div class="meta">Generado: ${today}<br>Â© Cronogramas v16</div>
   </div>
   <div class="net-wrap">${svgForPdf}</div>
   <div class="legend-wrap">${legendSvg}</div>
@@ -2295,7 +2295,7 @@ function _exportCpmNetwork(fmt, dlg) {
 </body></html>`;
 
     const win = window.open('', '_blank', 'width=1300,height=900');
-    if (!win) { alert('El navegador bloqueó la ventana emergente. Permítala e intente de nuevo.'); return; }
+    if (!win) { alert('El navegador bloqueÃ³ la ventana emergente. PermÃ­tala e intente de nuevo.'); return; }
     win.document.write(html);
     win.document.close();
   }
@@ -2308,7 +2308,7 @@ function _dlUrl(blob, filename) {
   setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 1000);
 }
 
-/** Dibuja la grilla de guías sobre el canvas de fondo del viewport CPM. */
+/** Dibuja la grilla de guÃ­as sobre el canvas de fondo del viewport CPM. */
 function _drawCpmGrid(dlg, panX, panY, zoom) {
   const canvas = /** @type {HTMLCanvasElement|null} */ (dlg.querySelector('#cpm-net-grid'));
   const vp     = dlg.querySelector('#cpm-net-viewport');
@@ -2320,11 +2320,11 @@ function _drawCpmGrid(dlg, panX, panY, zoom) {
   if (!ctx) return;
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-  // Tamaño lógico de celda de grilla (en coordenadas de escena)
+  // TamaÃ±o lÃ³gico de celda de grilla (en coordenadas de escena)
   const CELL = 100;
   // En pantalla
   const step = CELL * zoom;
-  if (step < 8) return; // Grilla muy densa → omitir
+  if (step < 8) return; // Grilla muy densa â†’ omitir
 
   ctx.strokeStyle = 'rgba(180,180,210,0.22)';
   ctx.lineWidth   = 1;
@@ -2338,7 +2338,7 @@ function _drawCpmGrid(dlg, panX, panY, zoom) {
   for (let y = startY; y <= canvas.height; y += step) { ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); }
   ctx.stroke();
 
-  // Ejes de nivel (líneas más gruesas cada 5 celdas)
+  // Ejes de nivel (lÃ­neas mÃ¡s gruesas cada 5 celdas)
   const stepMajor = step * 5;
   const startXM = ((panX % stepMajor) + stepMajor) % stepMajor;
   const startYM = ((panY % stepMajor) + stepMajor) % stepMajor;
@@ -2369,7 +2369,7 @@ function _renderCpmNetwork() {
   const leafSet = new Set(leafTasks.map(t => t.id));
   const activeDeps = [...depMap.values()].filter(d => !d.deleted_at && leafSet.has(d.pred_id) && leafSet.has(d.succ_id));
 
-  // Calcular niveles topológicos (BFS: nivel = max(nivel de predecesores) + 1)
+  // Calcular niveles topolÃ³gicos (BFS: nivel = max(nivel de predecesores) + 1)
   const predCount = new Map(leafTasks.map(t => [t.id, 0]));
   const succOf = new Map(leafTasks.map(t => [t.id, []]));
   for (const d of activeDeps) {
@@ -2391,7 +2391,7 @@ function _renderCpmNetwork() {
       if ((remaining.get(succId) ?? 1) <= 0) queue.push(succId);
     }
   }
-  // Tasks sin nivel (en ciclos) → nivel máximo + 1
+  // Tasks sin nivel (en ciclos) â†’ nivel mÃ¡ximo + 1
   const maxLv = Math.max(0, ...level.values());
   leafTasks.forEach(t => { if (!level.has(t.id)) level.set(t.id, maxLv + 1); });
 
@@ -2410,8 +2410,8 @@ function _renderCpmNetwork() {
   const STRIDE_X = BW + GAP_X;
   const STRIDE_Y = BH + GAP_Y;
 
-  // Calcular posición de cada tarea
-  const pos = new Map(); // id → {x, y, cx, cy}
+  // Calcular posiciÃ³n de cada tarea
+  const pos = new Map(); // id â†’ {x, y, cx, cy}
   byLevel.forEach((tasks, lv) => {
     tasks.forEach((t, row) => {
       const x = lv * STRIDE_X;
@@ -2420,7 +2420,7 @@ function _renderCpmNetwork() {
     });
   });
 
-  // Obtener fecha de inicio del proyecto para mostrar días reales
+  // Obtener fecha de inicio del proyecto para mostrar dÃ­as reales
   const startDate = project?.start_date ? new Date(project.start_date) : null;
   const fmtDay = (/** @type {number} */ idx) => {
     if (!startDate) return String(idx);
@@ -2526,7 +2526,7 @@ function _renderCpmNetwork() {
       return el;
     };
 
-    // Líneas divisoras verticales en franjas
+    // LÃ­neas divisoras verticales en franjas
     const div1 = document.createElementNS('http://www.w3.org/2000/svg', 'line');
     div1.setAttribute('x1', String(p.x + BW / 3)); div1.setAttribute('y1', String(p.y));
     div1.setAttribute('x2', String(p.x + BW / 3)); div1.setAttribute('y2', String(p.y + 20));
@@ -2540,7 +2540,7 @@ function _renderCpmNetwork() {
 
     const W3 = BW / 3;
     const es = r?.es ?? 0, ef = r?.ef ?? 0, ls = r?.ls ?? 0, lf = r?.lf ?? 0;
-    const tf = r?.tf != null ? String(r.tf) : '—';
+    const tf = r?.tf != null ? String(r.tf) : 'â€”';
     const dur = t.duration_days ?? 0;
 
     // Franja superior: ES | DUR | EF
@@ -2548,9 +2548,9 @@ function _renderCpmNetwork() {
     g.appendChild(mkTxt(String(dur) + 'd', p.x + W3 * 1.5, p.y + 10, 'middle', '9', true));
     g.appendChild(mkTxt(fmtDay(ef), p.x + W3 * 2.5, p.y + 10, 'middle', '9'));
 
-    // Nombre (máx. 2 líneas)
+    // Nombre (mÃ¡x. 2 lÃ­neas)
     const name = t.name ?? '';
-    const line1 = name.length > 22 ? name.substring(0, 22) + '…' : name;
+    const line1 = name.length > 22 ? name.substring(0, 22) + 'â€¦' : name;
     g.appendChild(mkTxt(line1, p.cx, p.y + 33, 'middle', '10', false, isCrit || isNear ? fillColor : '#1a2533'));
 
     // WBS code (derive inline: count position among siblings)
@@ -2593,7 +2593,7 @@ function _renderCpmNetwork() {
   }
 }
 
-// Abre el diálogo de nuevo elemento pre-configurado con el padre dado
+// Abre el diÃ¡logo de nuevo elemento pre-configurado con el padre dado
 function _openNewItemWithParent(type, parentType, parentId, parentCode) {
   const dlg    = /** @type {HTMLDialogElement|null} */ (document.getElementById('dlg-new-item'));
   if (!dlg) return;
@@ -2602,7 +2602,7 @@ function _openNewItemWithParent(type, parentType, parentId, parentCode) {
   const typeInput = document.getElementById('ni-type-' + type);
   if (typeInput) /** @type {HTMLInputElement} */ (typeInput).click();
 
-  // Abrir diálogo (necesita estar abierto para poder actualizar el select)
+  // Abrir diÃ¡logo (necesita estar abierto para poder actualizar el select)
   dlg.showModal();
 
   // Esperar a que se carguen las opciones del select
@@ -2611,7 +2611,7 @@ function _openNewItemWithParent(type, parentType, parentId, parentCode) {
       const sel = /** @type {HTMLSelectElement|null} */ (document.getElementById('ni-parent'));
       if (sel) {
         const val = parentType + ':' + parentId;
-        // Si la opción no existe aún, esperar a que _loadParentOptions termine
+        // Si la opciÃ³n no existe aÃºn, esperar a que _loadParentOptions termine
         let attempts = 0;
         while (![...sel.options].some(o => o.value === val) && attempts++ < 20) {
           await new Promise(r => setTimeout(r, 50));
@@ -2619,7 +2619,7 @@ function _openNewItemWithParent(type, parentType, parentId, parentCode) {
         sel.value = val;
       }
 
-      // Auto-sugerir código si el padre tiene uno
+      // Auto-sugerir cÃ³digo si el padre tiene uno
       if (parentCode) {
         const { projects: projs, programs: progs } = await loadHierarchy();
         let count = 0;
