@@ -6,7 +6,7 @@
 
 import { IS_LOCAL_MODE } from './config.js';
 import { appState }      from './state.js';
-import { WbsTable }      from './wbs-table.js?v=9';
+import { WbsTable }      from './wbs-table.js?v=10';
 import { GanttCanvas }   from './gantt-canvas.js?v=28';
 import { GanttScene }    from './scene.js';
 import { DcmaPanel }     from './dcma.js';
@@ -1250,6 +1250,20 @@ async function _loadProject(projectId) {
   try { localStorage.setItem('last-project-id', projectId); } catch { /* ignore */ }
   history.replaceState(null, '', location.pathname + '?p=' + encodeURIComponent(projectId));
   _renderProjectList();
+
+  // Mostrar barra de filtros al tener proyecto cargado
+  const filterBar = document.getElementById('gantt-filter-bar');
+  if (filterBar) filterBar.style.display = 'flex';
+
+  // Resetear filtro al cambiar de proyecto
+  if (_wbsTable) {
+    _wbsTable.setFilter('all');
+    document.querySelectorAll('#gantt-filter-bar .filter-btn').forEach(b => {
+      const isAll = /** @type {HTMLElement} */ (b).dataset.filter === 'all';
+      b.classList.toggle('active', isAll);
+      b.setAttribute('aria-pressed', String(isAll));
+    });
+  }
   if (!data.project.start_date) {
     _showToast('Sin fecha de inicio — edita el proyecto para configurarla', 'warn');
   }
@@ -1593,6 +1607,18 @@ async function init() {
     if (wbsPanel) {
       _wbsTable = new WbsTable(wbsPanel);
     }
+
+    // ---- Filtros del Gantt ----
+    document.querySelectorAll('#gantt-filter-bar .filter-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const filter = /** @type {HTMLElement} */ (btn).dataset.filter ?? 'all';
+        _wbsTable?.setFilter(filter);
+        document.querySelectorAll('#gantt-filter-bar .filter-btn').forEach(b => {
+          b.classList.toggle('active', b === btn);
+          b.setAttribute('aria-pressed', String(b === btn));
+        });
+      });
+    });
 
     // ---- Inicializar Gantt Canvas ----
     const ganttCanvas = /** @type {HTMLCanvasElement|null} */ (document.getElementById('gantt-canvas'));

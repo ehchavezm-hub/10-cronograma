@@ -17,7 +17,7 @@ html, body {
 /* ---- Raíz de la app ---- */
 #app {
   display: grid;
-  grid-template-rows: auto auto 1fr auto;
+  grid-template-rows: auto auto auto 1fr auto;
   height: 100vh;
   height: 100dvh;
   overflow: hidden;

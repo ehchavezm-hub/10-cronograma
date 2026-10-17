@@ -44,6 +44,8 @@ export class WbsTable {
     this._editingCell = null;  // {rowId, col}
     this._ctxMenu = null;
     this._colWidths = this._loadColWidths();
+    /** @type {'all'|'critical'|'progress'} */
+    this._filter = 'all';
 
     this._buildDOM();
     this._attachEvents();
@@ -193,6 +195,77 @@ export class WbsTable {
     });
   }
 
+  // ---- Filtros ----
+
+  /**
+   * Cambia el filtro activo y re-renderiza.
+   * @param {'all'|'critical'|'progress'} filter
+   */
+  setFilter(filter) {
+    this._filter = filter;
+    this.render();
+  }
+
+  /**
+   * Aplica el filtro activo a una lista de rows ya construida.
+   * Para `critical`, también retiene los ancestros de tareas críticas
+   * para que el árbol sea coherente.
+   * @param {Array<{task:any, depth:number, isSummary:boolean}>} rows
+   * @returns {Array<{task:any, depth:number, isSummary:boolean}>}
+   */
+  _applyFilter(rows) {
+    if (this._filter === 'all') return rows;
+
+    const { cpmResult } = appState.state;
+
+    if (this._filter === 'critical') {
+      if (!cpmResult) return rows;  // CPM aún no disponible → mostrar todas
+      const cpmTasks = cpmResult.tasks;
+
+      // IDs de tareas hoja críticas
+      const criticalIds = new Set(
+        rows.filter(r => !r.isSummary && cpmTasks.get(r.task.id)?.is_critical).map(r => r.task.id)
+      );
+      if (criticalIds.size === 0) return rows;
+
+      // Para cada tarea crítica, incluir todos sus ancestros
+      const keepIds = new Set(criticalIds);
+      const idToTask = new Map(rows.map(r => [r.task.id, r.task]));
+      for (const id of criticalIds) {
+        let parentId = idToTask.get(id)?.parent_id;
+        while (parentId) {
+          keepIds.add(parentId);
+          parentId = idToTask.get(parentId)?.parent_id;
+        }
+      }
+      return rows.filter(r => keepIds.has(r.task.id));
+    }
+
+    if (this._filter === 'progress') {
+      // Tareas en progreso: pct > 0 y pct < 100, más sus ancestros
+      const inProgressIds = new Set(
+        rows.filter(r => {
+          const pct = r.task.percent_complete ?? 0;
+          return !r.isSummary && pct > 0 && pct < 100;
+        }).map(r => r.task.id)
+      );
+      if (inProgressIds.size === 0) return rows;
+
+      const keepIds = new Set(inProgressIds);
+      const idToTask = new Map(rows.map(r => [r.task.id, r.task]));
+      for (const id of inProgressIds) {
+        let parentId = idToTask.get(id)?.parent_id;
+        while (parentId) {
+          keepIds.add(parentId);
+          parentId = idToTask.get(parentId)?.parent_id;
+        }
+      }
+      return rows.filter(r => keepIds.has(r.task.id));
+    }
+
+    return rows;
+  }
+
   // ---- Renderizado ----
 
   render() {
@@ -203,8 +276,21 @@ export class WbsTable {
     const cal = this._getCalendar();
     const startDate = project.start_date ? isoToDate(project.start_date) : new Date();
 
-    // Construir árbol ordenado
-    const rows = this._buildRows(tasks, expandedIds);
+    // Construir árbol ordenado y aplicar filtro activo
+    const allRows = this._buildRows(tasks, expandedIds);
+    const rows    = this._applyFilter(allRows);
+
+    // Actualizar contador del filtro
+    const countEl = document.getElementById('filter-bar-count');
+    if (countEl) {
+      if (this._filter === 'all') {
+        countEl.textContent = '';
+      } else {
+        const leaf = rows.filter(r => !r.isSummary).length;
+        const total = allRows.filter(r => !r.isSummary).length;
+        countEl.textContent = `${leaf} de ${total} tareas`;
+      }
+    }
 
     // Calcular códigos WBS
     const wbsCodes = _calcWbsCodes(tasks);

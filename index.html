@@ -201,6 +201,15 @@
     </div>
   </div>
 
+  <!-- ---- Barra de filtros Gantt ---- -->
+  <div id="gantt-filter-bar" role="toolbar" aria-label="Filtros de vista" style="display:none">
+    <span class="filter-bar-label">Filtrar:</span>
+    <button class="filter-btn active" data-filter="all"      aria-pressed="true">Todas las tareas</button>
+    <button class="filter-btn"        data-filter="critical" aria-pressed="false">⚠ Ruta crítica</button>
+    <button class="filter-btn"        data-filter="progress" aria-pressed="false">📋 En progreso</button>
+    <span id="filter-bar-count" class="filter-bar-count"></span>
+  </div>
+
   <!-- ---- Área principal ---- -->
   <main id="main-area" role="main">
 

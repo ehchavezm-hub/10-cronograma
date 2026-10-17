@@ -984,3 +984,57 @@
 
 /* ---- Región aria-live ---- */
 #aria-live { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); }
+
+/* ============================================================
+   Barra de filtros Gantt (B1)
+   ============================================================ */
+#gantt-filter-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1, 4px);
+  padding: 4px var(--sp-4, 16px);
+  background: var(--clr-surface-2, #f8f9fa);
+  border-bottom: 1px solid var(--clr-border-2, #e5e7eb);
+  min-height: 34px;
+  flex-wrap: wrap;
+}
+.filter-bar-label {
+  font-size: var(--text-xs, 11px);
+  font-family: var(--font-ui, system-ui);
+  color: var(--clr-text-3, #6b7280);
+  font-weight: var(--fw-medium, 500);
+  margin-right: 4px;
+  white-space: nowrap;
+}
+.filter-btn {
+  font-size: var(--text-xs, 11px);
+  font-family: var(--font-ui, system-ui);
+  padding: 3px 10px;
+  border-radius: 12px;
+  border: 1px solid var(--clr-border, #d1d5db);
+  background: var(--clr-surface, #fff);
+  color: var(--clr-text-2, #374151);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background .12s, color .12s, border-color .12s;
+}
+.filter-btn:hover {
+  background: var(--clr-surface-3, #f3f4f6);
+  border-color: var(--clr-primary, #4f46e5);
+}
+.filter-btn.active,
+.filter-btn[aria-pressed="true"] {
+  background: var(--clr-primary, #4f46e5);
+  color: #fff;
+  border-color: var(--clr-primary, #4f46e5);
+  font-weight: var(--fw-semi, 600);
+}
+.filter-bar-count {
+  font-size: var(--text-xs, 11px);
+  font-family: var(--font-ui, system-ui);
+  color: var(--clr-text-3, #6b7280);
+  margin-left: 6px;
+}
+@media (max-width: 599px) {
+  #gantt-filter-bar { display: none !important; }
+}
