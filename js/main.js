@@ -2600,13 +2600,11 @@ function _exportCpmNetwork(fmt, dlg) {
         <text x="${i * 100 + 18}" y="14" font-size="11" font-family="Segoe UI,Arial,sans-serif" fill="#444">${it.label}</text>`).join('')}
     </svg>`;
 
-    // Redimensionar clone para que quepa en A3 landscape (420mm × 297mm ≈ 1587×1123px at 96dpi)
-    const aspect = vbW / vbH;
-    const maxW = 1400, maxH = 900;
-    const fitW = Math.min(maxW, maxH * aspect);
-    const fitH = fitW / aspect;
-    clone.setAttribute('width',  String(Math.round(fitW)));
-    clone.setAttribute('height', String(Math.round(fitH)));
+    // Quitar width/height fijos; dejar solo viewBox para que CSS controle el tamaño
+    clone.removeAttribute('width');
+    clone.removeAttribute('height');
+    // Asegurar preserveAspectRatio para que no se deforme al escalar
+    clone.setAttribute('preserveAspectRatio', 'xMidYMid meet');
     const svgForPdf = serializer.serializeToString(clone);
 
     const html = `<!doctype html>
@@ -2615,24 +2613,52 @@ function _exportCpmNetwork(fmt, dlg) {
   <title>Red CPM — ${projDisplayName}</title>
   <style>
     @page { size: A3 landscape; margin: 12mm; }
-    * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-    body { margin:0; font-family:'Segoe UI',Arial,sans-serif; background:#fff; }
+    * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; box-sizing:border-box; }
+    html, body { margin:0; padding:0; font-family:'Segoe UI',Arial,sans-serif; background:#fff; }
+    .controls { display:flex; align-items:center; gap:14px; padding:6px 0 8px;
+                font-size:12px; }
+    .controls label { display:flex; align-items:center; gap:6px; color:#455A64; }
+    .controls input[type=range] { width:130px; accent-color:#1976D2; }
+    .btn-print { background:#1976D2; color:#fff; border:none; border-radius:6px;
+                 padding:6px 18px; font-size:13px; cursor:pointer; }
+    .btn-print:hover { background:#1565C0; }
     .hdr { display:flex; justify-content:space-between; align-items:flex-end;
-           border-bottom:2.5px solid #1976D2; padding-bottom:6px; margin-bottom:12px; }
-    .ttl { font-size:18px; font-weight:700; color:#1976D2; }
+           border-bottom:2.5px solid #1976D2; padding-bottom:6px; margin-bottom:10px; }
+    .ttl { font-size:16px; font-weight:700; color:#1976D2; }
     .meta { font-size:10px; color:#78909C; text-align:right; line-height:1.5; }
-    .net-wrap { width:100%; }
-    .net-wrap svg { max-width:100%; height:auto; display:block; }
-    .legend-wrap { margin-top:10px; }
+    .net-wrap { width:100%; overflow:hidden; }
+    .net-wrap svg { width:var(--net-zoom, 100%); max-width:none; height:auto;
+                    display:block; transition:width .15s; }
+    .legend-wrap { margin-top:10px; padding-top:6px; border-top:1px solid #e0e0e0; }
+    @media print {
+      .controls { display:none !important; }
+      .net-wrap svg { width:100% !important; page-break-inside:avoid; }
+    }
   </style>
 </head><body>
+  <div class="controls">
+    <label>Zoom:
+      <input type="range" id="zoom" min="30" max="300" value="100" step="5">
+      <span id="zoom-val" style="min-width:42px">100%</span>
+    </label>
+    <button class="btn-print" onclick="window.print()">🖨 Imprimir / PDF</button>
+    <span style="color:#78909C;font-size:11px">Generado: ${today}</span>
+  </div>
   <div class="hdr">
     <div class="ttl">Red CPM &mdash; ${projDisplayName}</div>
-    <div class="meta">Generado: ${today}<br>© Cronogramas v16</div>
+    <div class="meta">© Cronogramas v33</div>
   </div>
   <div class="net-wrap">${svgForPdf}</div>
   <div class="legend-wrap">${legendSvg}</div>
-  <script>window.onload = () => { setTimeout(() => window.print(), 300); }<\/script>
+  <script>
+    const zoom = document.getElementById('zoom');
+    const zoomVal = document.getElementById('zoom-val');
+    const svg = document.querySelector('.net-wrap svg');
+    zoom.addEventListener('input', () => {
+      zoomVal.textContent = zoom.value + '%';
+      svg.style.width = zoom.value + '%';
+    });
+  <\/script>
 </body></html>`;
 
     const win = window.open('', '_blank', 'width=1300,height=900');
