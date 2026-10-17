@@ -25,10 +25,9 @@ export function getPrintCols() {
   try {
     const saved = localStorage.getItem('wbs-col-visibility');
     if (saved) return JSON.parse(saved);
-    // fallback a clave legacy
-    const leg = localStorage.getItem('print-cols');
-    if (leg) return JSON.parse(leg);
   } catch { /* ignore */ }
+  // Primera vez: guardar el default para que futuras lecturas lo encuentren
+  try { localStorage.setItem('wbs-col-visibility', JSON.stringify(_DEFAULT_COLS)); } catch { /* ignore */ }
   return _DEFAULT_COLS;
 }
 
@@ -81,7 +80,7 @@ export function printGantt(rows) {
 
   const { renderGanttSvg } = /** @type {any} */ ({ renderGanttSvg: null });
 
-  import('./gantt-svg.js?v=4').then(({ renderGanttSvg }) => {
+  import('./gantt-svg.js?v=5').then(({ renderGanttSvg }) => {
     const cal       = new Calendar(calDef);
     const startDate = isoToDate(project.start_date);
 

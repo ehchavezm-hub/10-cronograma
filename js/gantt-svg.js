@@ -230,7 +230,7 @@ export function renderGanttSvg({ tasks, deps, cpmResult, calendar, projectStart,
       out.push(`<polygon points="${cx},${midY - s} ${cx + s},${midY} ${cx},${midY + s} ${cx - s},${midY}"
         fill="${color}" stroke="white" stroke-width="1"/>`);
       // Etiqueta
-      out.push(`<text x="${cx + s + 4}" y="${midY + 4}" fill="${color}" font-weight="600">${_esc(task.name)}</text>`);
+      out.push(`<text x="${cx + s + 9}" y="${midY - 1}" fill="${color}" font-weight="600">${_esc(task.name)}</text>`);
       return;
     }
 
@@ -261,8 +261,8 @@ export function renderGanttSvg({ tasks, deps, cpmResult, calendar, projectStart,
 
     // ---- Etiqueta de la barra ----
     const labelText = _esc(task.name);
-    const labelX    = x1 + bw + 5;              // siempre a la derecha de la barra
-    const labelY    = midY + 4;
+    const labelX    = x1 + bw + 10;             // margen mayor para separar del bar
+    const labelY    = midY - 1;                  // ligeramente arriba del centro
     out.push(`<text x="${labelX}" y="${labelY}" fill="${isSummary ? '#263238' : '#37474F'}"
       font-weight="${isSummary ? '600' : '400'}" font-size="10">${labelText}</text>`);
   });
@@ -295,23 +295,31 @@ export function renderGanttSvg({ tasks, deps, cpmResult, calendar, projectStart,
     const y1 = HDR_H + pi * ROW_H + ROW_H / 2;
     const y2 = HDR_H + si * ROW_H + ROW_H / 2;
 
-    // Flecha FS: salir por la derecha del predecesor → entrar por la izquierda del sucesor
-    // El último segmento SIEMPRE va hacia la derecha (→) para que orient="auto" apunte →
+    // Flecha FS con curvas bezier suaves (igual que el canvas)
     const OFF = 10;
-    let pts;
+    const R   = 6;  // radio de esquinas redondeadas
+    let d;
     if (x2 >= x1 + OFF * 2) {
-      // Caso normal: pred_fin ≤ succ_start con margen
-      const mx = x1 + (x2 - x1) / 2;
-      pts = `${x1},${y1} ${mx},${y1} ${mx},${y2} ${x2},${y2}`;
+      // Caso normal: S-curve bezier suave
+      const mx = (x1 + x2) / 2;
+      d = `M ${x1},${y1} C ${mx},${y1} ${mx},${y2} ${x2},${y2}`;
     } else {
-      // Caso overlap / sin margen: rodear por el lado con un U-turn que entra de izquierda
-      const rx = x1 + OFF;                // desvío a la derecha del pred
-      const lx = Math.min(x2 - OFF, x1 - OFF); // desvío a la izquierda del succ
+      // Caso overlap: U-turn con esquinas redondeadas (Q quadratic bezier)
+      const rx  = x1 + OFF;
+      const lx  = Math.min(x2 - OFF, x1 - OFF);
       const mid = (y1 + y2) / 2;
-      pts = `${x1},${y1} ${rx},${y1} ${rx},${mid} ${lx},${mid} ${lx},${y2} ${x2},${y2}`;
+      const dir = y2 >= y1 ? 1 : -1;
+      const clampR = v => Math.min(R, Math.abs(v) / 2);
+      const r1 = clampR(mid - y1);
+      const r2 = clampR(y2 - mid);
+      d = `M ${x1},${y1} ` +
+          `L ${rx - R},${y1} Q ${rx},${y1} ${rx},${y1 + dir * r1} ` +
+          `L ${rx},${mid - dir * r1} Q ${rx},${mid} ${rx - R},${mid} ` +
+          `L ${lx + R},${mid} Q ${lx},${mid} ${lx},${mid + dir * r2} ` +
+          `L ${lx},${y2 - dir * r2} Q ${lx},${y2} ${lx + R},${y2} ` +
+          `L ${x2},${y2}`;
     }
-    out.push(`<polyline points="${pts}"
-      fill="none" stroke="${arrowClr}" stroke-width="1.5"
+    out.push(`<path d="${d}" fill="none" stroke="${arrowClr}" stroke-width="1.5"
       marker-end="url(#${marker})" stroke-linecap="round" stroke-linejoin="round"/>`);
   });
   out.push('</g>');
