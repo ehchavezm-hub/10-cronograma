@@ -49,6 +49,9 @@ export class WbsTable {
     this._attachEvents();
     this._attachColResizers();
     appState.subscribe((state, keys) => this._onStateChange(state, keys));
+    // Render inmediato con el estado actual (evita quedarse en placeholder si
+    // loadProject() disparó ['all'] antes de que WbsTable existiera)
+    this._onStateChange(appState.state, ['all']);
   }
 
   _loadColWidths() {
@@ -598,7 +601,7 @@ export class WbsTable {
         } else if (currentLagDays !== p.lag) {
           // Lag cambió: reemplazar la dep para actualizar lag_days
           // Guardar la dep vieja con deleted_at antes de dispatch (onPersist la busca por ID)
-          const { put: dbPutSt } = await import('./storage.js?v=2');
+          const { put: dbPutSt } = await import('./storage.js?v=3');
           await dbPutSt('task_dependencies', { ...existing, deleted_at: new Date().toISOString() });
           appState.dispatch({ type: 'REMOVE_DEP', payload: { id: existing.id } });
           appState.dispatch({ type: 'ADD_DEP', payload: { dep: {

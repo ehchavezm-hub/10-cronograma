@@ -18,7 +18,7 @@ import { appState }      from './state.js';
 import {
   outboxGetAll, outboxRemove, outboxCount,
   saveProjectSnapshot, getMeta, setMeta, putMany, put as dbPut,
-} from './storage.js?v=2';
+} from './storage.js?v=3';
 import { IS_LOCAL_MODE } from './config.js';
 
 // ============================================================
