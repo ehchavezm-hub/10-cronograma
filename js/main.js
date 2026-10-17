@@ -679,12 +679,26 @@ async function _ensureDemoData() {
 }
 
 async function _loadProject(projectId) {
+  // Parar el engine anterior para que no sobreescriba la vista del nuevo proyecto
+  if (_syncEngine) {
+    _syncEngine.stop();
+    _syncEngine = null;
+  }
+
   const data = await loadProject(projectId);
   if (!data.project) throw new Error(t('projectNotFound'));
   appState.loadProject(data);
   _renderProjectList();
   if (!data.project.start_date) {
     _showToast('Sin fecha de inicio — edita el proyecto para configurarla', 'warn');
+  }
+
+  // Arrancar engine de sync para el nuevo proyecto (solo modo Supabase)
+  if (!IS_LOCAL_MODE && data.project) {
+    _syncEngine = new SyncEngine(data.project.id, data.project.org_id);
+    _syncEngine.start().catch(err => {
+      console.warn('[Sync] No se pudo iniciar:', err.message);
+    });
   }
 }
 
@@ -1122,14 +1136,7 @@ async function init() {
       });
     }
 
-    // ---- Iniciar motor de sync (solo si hay credenciales Supabase) ----
-    if (!IS_LOCAL_MODE && appState.state.project) {
-      const { project } = appState.state;
-      _syncEngine = new SyncEngine(project.id, project.org_id);
-      _syncEngine.start().catch(err => {
-        console.warn('[Sync] No se pudo iniciar:', err.message);
-      });
-    }
+    // El motor de sync ya fue iniciado dentro de _loadProject.
 
     console.log('[Cronogramas] v25b completo — modo', IS_LOCAL_MODE ? 'local' : 'Supabase');
   } catch (err) {

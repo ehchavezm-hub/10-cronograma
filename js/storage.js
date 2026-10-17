@@ -187,6 +187,8 @@ export async function getMeta(key) {
 
 /**
  * Guarda todos los datos de un proyecto en IndexedDB de forma atómica.
+ * Cuando se pasa un array de tareas/deps, primero borra los registros
+ * anteriores de ese proyecto para evitar duplicados de sesiones pasadas.
  */
 export async function saveProjectSnapshot({ project, tasks, deps, calendar, calExceptions }) {
   const db = await openDB();
@@ -194,7 +196,26 @@ export async function saveProjectSnapshot({ project, tasks, deps, calendar, calE
     ['projects', 'tasks', 'task_dependencies', 'calendars', 'calendar_exceptions'],
     'readwrite'
   );
-  if (project)  tx.objectStore('projects').put(project);
+
+  if (project) {
+    tx.objectStore('projects').put(project);
+
+    // Borrar tareas y deps anteriores del proyecto para evitar duplicados
+    const tasksStore = tx.objectStore('tasks');
+    const depsStore  = tx.objectStore('task_dependencies');
+    const projId = project.id;
+
+    // Eliminar por índice project_id
+    const taskReq = tasksStore.index('project_id').getAllKeys(projId);
+    taskReq.onsuccess = () => {
+      for (const k of taskReq.result) tasksStore.delete(k);
+    };
+    const depReq = depsStore.index('project_id').getAllKeys(projId);
+    depReq.onsuccess = () => {
+      for (const k of depReq.result) depsStore.delete(k);
+    };
+  }
+
   if (calendar) tx.objectStore('calendars').put(calendar);
   for (const t of tasks)  tx.objectStore('tasks').put(t);
   for (const d of deps)   tx.objectStore('task_dependencies').put(d);

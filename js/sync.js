@@ -143,18 +143,31 @@ export class SyncEngine {
         // Pull completo: guardar snapshot y recargar estado
         if (project) {
           await saveProjectSnapshot({ project, tasks, deps, calendar, calExceptions });
-          appState.loadProject({ project, tasks, deps, calendar, calExceptions });
+          // Solo recargar la vista si el usuario sigue en este proyecto
+          if (appState.state.project?.id === project.id) {
+            appState.loadProject({ project, tasks, deps, calendar, calExceptions });
+          }
         }
       } else {
         // Pull incremental: fusionar solo lo que cambió
-        await _mergeRemote('projects',            project ? [project] : []);
-        await _mergeRemote('tasks',               tasks);
-        await _mergeRemote('task_dependencies',   deps);
-        await _mergeRemote('calendar_exceptions', calExceptions);
-        if (project) await _mergeRemote('calendars', [calendar].filter(Boolean));
+        // Solo aplicar al estado si el usuario sigue en este proyecto
+        if (appState.state.project?.id !== this._projectId) {
+          // El usuario cambió de proyecto; solo actualizar IndexedDB, no el estado en memoria
+          await _mergeRemote('projects',            project ? [project] : []);
+          await _mergeRemote('tasks',               tasks);
+          await _mergeRemote('task_dependencies',   deps);
+          await _mergeRemote('calendar_exceptions', calExceptions);
+          if (project) await _mergeRemote('calendars', [calendar].filter(Boolean));
+        } else {
+          await _mergeRemote('projects',            project ? [project] : []);
+          await _mergeRemote('tasks',               tasks);
+          await _mergeRemote('task_dependencies',   deps);
+          await _mergeRemote('calendar_exceptions', calExceptions);
+          if (project) await _mergeRemote('calendars', [calendar].filter(Boolean));
 
-        // Actualizar estado con las filas remotas más nuevas
-        _applyRemoteToState({ tasks, deps, project, calExceptions });
+          // Actualizar estado con las filas remotas más nuevas
+          _applyRemoteToState({ tasks, deps, project, calExceptions });
+        }
       }
 
       const now = new Date().toISOString();
