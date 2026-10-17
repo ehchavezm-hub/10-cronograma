@@ -553,7 +553,7 @@ export class WbsTable {
     this._editingCell = { rowId, col, cell };
   }
 
-  _commitEdit(rowId, col, rawVal) {
+  async _commitEdit(rowId, col, rawVal) {
     this._editingCell = null;
     const task = appState.state.tasks.get(rowId);
     if (!task) { this.render(); return; }
