@@ -80,7 +80,7 @@ export function printGantt(rows) {
 
   const { renderGanttSvg } = /** @type {any} */ ({ renderGanttSvg: null });
 
-  import('./gantt-svg.js?v=5').then(({ renderGanttSvg }) => {
+  import('./gantt-svg.js?v=6').then(({ renderGanttSvg }) => {
     const cal       = new Calendar(calDef);
     const startDate = isoToDate(project.start_date);
 
@@ -88,11 +88,17 @@ export function printGantt(rows) {
     // Todas las columnas extra soportadas por gantt-svg (en orden de aparición)
     const ALL_EXTRA = ['wbs','type','dur','start','finish','pct','tf','ff','pred'];
     const ganttExtraCols = ALL_EXTRA.filter(c => savedCols.includes(c));
+
+    // Etiquetas de barras: leer la misma selección que usa el canvas
+    let barLabels = ['name'];
+    try { barLabels = JSON.parse(localStorage.getItem('gantt-bar-labels') || '["name"]'); } catch { /* ignore */ }
+
     const svgStr = renderGanttSvg({
       tasks, deps, cpmResult, calendar: cal,
       projectStart: startDate, rows,
       nearThreshold: appState.state.nearThreshold ?? 5,
       extraCols: ganttExtraCols,
+      barLabels,
     });
 
     const today   = new Date().toLocaleDateString('es-PE');

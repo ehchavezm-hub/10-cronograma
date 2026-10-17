@@ -62,16 +62,22 @@ function _fmtDate(date) {
  * }} opts
  * @returns {string}
  */
-export function renderGanttSvg({ tasks, deps, cpmResult, calendar, projectStart, rows, nearThreshold = 5, extraCols = [] }) {
-  const activeCols = extraCols.map(id => ({ id, ...(EXTRA_COL_DEFS[id] ?? null) })).filter(c => c.label);
+export function renderGanttSvg({ tasks, deps, cpmResult, calendar, projectStart, rows, nearThreshold = 5, extraCols = [], barLabels = ['name'] }) {
+  const allCols   = extraCols.map(id => ({ id, ...(EXTRA_COL_DEFS[id] ?? null) })).filter(c => c.label);
+
+  // wbs column goes BEFORE the name column (like the web table)
+  const wbsColDef  = allCols.find(c => c.id === 'wbs');
+  const rightCols  = allCols.filter(c => c.id !== 'wbs');
+
+  const WBS_W      = wbsColDef ? (wbsColDef.w ?? 48) : 0;
+  const rightExtraW = rightCols.reduce((s, c) => s + c.w, 0);
+  const NAME_W     = WBS_W + BASE_NAME_W + rightExtraW;
 
   // Pre-compute WBS codes and pred map if needed
-  const needWbs  = activeCols.some(c => c.id === 'wbs' || c.id === 'pred');
-  const needPred = activeCols.some(c => c.id === 'pred');
+  const needWbs  = !!wbsColDef || rightCols.some(c => c.id === 'pred');
+  const needPred = rightCols.some(c => c.id === 'pred');
   const wbsCodes = needWbs  ? _calcWbsCodes(tasks) : null;
   const predMap  = needPred ? _buildPredMap(deps)  : null;
-  const extraW  = activeCols.reduce((s, c) => s + c.w, 0);
-  const NAME_W  = BASE_NAME_W + extraW;
 
   // Compute actual bar extent (left and right) across all visible rows
   let maxCalDay = cpmResult.projectDuration ?? 100;
@@ -126,37 +132,50 @@ export function renderGanttSvg({ tasks, deps, cpmResult, calendar, projectStart,
   // ---- Columna de nombres ----
   out.push(`<rect x="0" y="${HDR_H}" width="${NAME_W}" height="${totalH - HDR_H}" fill="#F8F9FA"/>`);
   out.push(`<rect x="0" y="0" width="${NAME_W}" height="${HDR_H}" fill="#F0F2F5"/>`);
-  // Encabezado columna nombre
-  out.push(`<text x="8" y="${HDR_H / 2 + 5}" fill="#455A64" font-weight="700" font-size="11">ACTIVIDAD</text>`);
 
-  // Encabezados columnas extra
-  let hx = BASE_NAME_W;
-  for (const col of activeCols) {
+  // Encabezado columna EDT (si existe) — primera columna antes de ACTIVIDAD
+  if (wbsColDef) {
+    out.push(`<text x="${WBS_W / 2}" y="${HDR_H / 2 + 5}" text-anchor="middle" fill="#455A64" font-weight="700" font-size="10">EDT</text>`);
+    out.push(`<line x1="${WBS_W}" y1="0" x2="${WBS_W}" y2="${totalH}" stroke="#CFD8DC" stroke-width="0.5"/>`);
+  }
+
+  // Encabezado columna ACTIVIDAD
+  out.push(`<text x="${WBS_W + 8}" y="${HDR_H / 2 + 5}" fill="#455A64" font-weight="700" font-size="11">ACTIVIDAD</text>`);
+
+  // Encabezados columnas a la derecha del nombre
+  let hx = WBS_W + BASE_NAME_W;
+  for (const col of rightCols) {
     out.push(`<line x1="${hx}" y1="0" x2="${hx}" y2="${totalH}" stroke="#CFD8DC" stroke-width="0.5"/>`);
     out.push(`<text x="${hx + col.w / 2}" y="${HDR_H / 2 + 5}" text-anchor="middle" fill="#455A64" font-weight="700" font-size="10">${col.label}</text>`);
     hx += col.w;
   }
   out.push(`<line x1="${NAME_W}" y1="0" x2="${NAME_W}" y2="${totalH}" stroke="#CFD8DC" stroke-width="1"/>`);
 
-  // Filas de nombres + datos extra
+  // Filas de nombres + datos
   out.push(`<g clip-path="url(#gc-names)">`);
   rows.forEach(({ id, depth, isSummary }, i) => {
     const task = tasks.get(id);
     if (!task) return;
     const y   = HDR_H + i * ROW_H;
-    const ind = 8 + depth * 14;
     if (i % 2 === 0) out.push(`<rect x="0" y="${y}" width="${NAME_W}" height="${ROW_H}" fill="rgba(0,0,0,0.02)"/>`);
     out.push(`<line x1="0" y1="${y + ROW_H}" x2="${NAME_W}" y2="${y + ROW_H}" stroke="#E8EAED" stroke-width="0.5"/>`);
+
+    // Celda EDT (primera columna)
+    if (wbsColDef) {
+      out.push(`<text x="${WBS_W / 2}" y="${y + ROW_H / 2 + 4}" text-anchor="middle" fill="#607D8B" font-size="10">${_esc(wbsCodes?.get(id) ?? '')}</text>`);
+    }
+
+    // Celda nombre (con indentación)
+    const ind  = WBS_W + 8 + depth * 14;
     const fill = isSummary ? '#263238' : '#37474F';
     const fw   = isSummary ? '600' : '400';
     out.push(`<text x="${ind}" y="${y + ROW_H / 2 + 4}" fill="${fill}" font-weight="${fw}" font-size="11">${_esc(task.name)}</text>`);
 
-    // Celdas de columnas extra
+    // Celdas columnas a la derecha del nombre
     const cpm = cpmResult.tasks.get(id);
-    let cx = BASE_NAME_W;
-    for (const col of activeCols) {
+    let cx = WBS_W + BASE_NAME_W;
+    for (const col of rightCols) {
       let val = '';
-      if (col.id === 'wbs')   val = wbsCodes?.get(id) ?? '';
       if (col.id === 'type')  val = isSummary ? 'Resumen' : (task.type === 'milestone' ? 'Hito' : 'Tarea');
       if (col.id === 'dur')   val = task.type === 'milestone' ? '0 d' : (task.duration_days ?? '') + ' d';
       if (col.id === 'start'  && cpm?.es != null) val = _fmtDate(calendar.idxToDate(cpm.es, projectStart));
@@ -165,8 +184,7 @@ export function renderGanttSvg({ tasks, deps, cpmResult, calendar, projectStart,
       if (col.id === 'tf'     && cpm?.tf != null) val = String(cpm.tf);
       if (col.id === 'ff'     && cpm?.ff != null) val = String(cpm.ff);
       if (col.id === 'pred') {
-        const predDeps = predMap?.get(id) ?? [];
-        val = predDeps.slice(0, 3).map(d => {
+        val = (predMap?.get(id) ?? []).slice(0, 4).map(d => {
           const wbs = wbsCodes?.get(d.pred_id) ?? '?';
           const lag = d.lag ?? d.lag_days ?? 0;
           return `${wbs}${d.type}${lag !== 0 ? (lag > 0 ? '+' + lag : lag) : ''}`;
@@ -178,7 +196,7 @@ export function renderGanttSvg({ tasks, deps, cpmResult, calendar, projectStart,
                : cx + col.w / 2;
       const clr = col.id === 'tf' && cpm?.is_critical ? '#D32F2F'
                 : col.id === 'tf' && (cpm?.tf ?? 99) <= 5 ? '#FB8C00'
-                : col.id === 'wbs' || col.id === 'type' ? '#607D8B'
+                : col.id === 'type' ? '#607D8B'
                 : '#546E7A';
       out.push(`<text x="${tx}" y="${y + ROW_H / 2 + 4}" text-anchor="${anchor}" fill="${clr}" font-size="10">${_esc(val)}</text>`);
       cx += col.w;
@@ -229,8 +247,14 @@ export function renderGanttSvg({ tasks, deps, cpmResult, calendar, projectStart,
       const s  = BAR_H * 0.5;
       out.push(`<polygon points="${cx},${midY - s} ${cx + s},${midY} ${cx},${midY + s} ${cx - s},${midY}"
         fill="${color}" stroke="white" stroke-width="1"/>`);
-      // Etiqueta
-      out.push(`<text x="${cx + s + 9}" y="${midY - 1}" fill="${color}" font-weight="600">${_esc(task.name)}</text>`);
+      // Etiqueta (hito)
+      const mlParts = [];
+      if (barLabels.includes('name'))     mlParts.push(_esc(task.name));
+      if (barLabels.includes('start')  && cpm?.es != null) mlParts.push(_fmtDate(calendar.idxToDate(cpm.es, projectStart)));
+      if (barLabels.includes('finish') && cpm?.ef != null) mlParts.push(_fmtDate(calendar.finishDate(cpm.ef, projectStart)));
+      if (barLabels.includes('duration')) mlParts.push('0 d');
+      if (barLabels.includes('pct'))      mlParts.push((task.percent_complete ?? 0) + '%');
+      out.push(`<text x="${cx + s + 9}" y="${midY - 1}" fill="${color}" font-weight="600">${mlParts.join(' · ')}</text>`);
       return;
     }
 
@@ -259,12 +283,22 @@ export function renderGanttSvg({ tasks, deps, cpmResult, calendar, projectStart,
       out.push(`<rect x="${x1}" y="${barY}" width="${bw}" height="${BAR_H}" rx="3" fill="none" stroke="${color}" stroke-width="1.5"/>`);
     }
 
-    // ---- Etiqueta de la barra ----
-    const labelText = _esc(task.name);
-    const labelX    = x1 + bw + 10;             // margen mayor para separar del bar
-    const labelY    = midY - 1;                  // ligeramente arriba del centro
-    out.push(`<text x="${labelX}" y="${labelY}" fill="${isSummary ? '#263238' : '#37474F'}"
-      font-weight="${isSummary ? '600' : '400'}" font-size="10">${labelText}</text>`);
+    // ---- Etiqueta de la barra (según selección barLabels) ----
+    const cpmForLabel = cpmResult.tasks.get(id);
+    const lblParts = [];
+    if (barLabels.includes('name'))     lblParts.push(_esc(task.name));
+    if (barLabels.includes('duration')) lblParts.push((task.duration_days ?? 0) + ' d');
+    if (barLabels.includes('pct'))      lblParts.push((task.percent_complete ?? 0) + '%');
+    if (barLabels.includes('start')  && cpmForLabel?.es != null) lblParts.push(_fmtDate(calendar.idxToDate(cpmForLabel.es, projectStart)));
+    if (barLabels.includes('finish') && cpmForLabel?.ef != null) lblParts.push(_fmtDate(calendar.finishDate(cpmForLabel.ef, projectStart)));
+    if (barLabels.includes('tf')     && cpmForLabel?.tf != null) lblParts.push('HT:' + cpmForLabel.tf);
+    const labelText = lblParts.join(' · ') || '';
+    if (labelText) {
+      const labelX = x1 + bw + 10;
+      const labelY = midY - 1;
+      out.push(`<text x="${labelX}" y="${labelY}" fill="${isSummary ? '#263238' : '#37474F'}"
+        font-weight="${isSummary ? '600' : '400'}" font-size="10">${labelText}</text>`);
+    }
   });
 
   // ---- Flechas de dependencia ----
