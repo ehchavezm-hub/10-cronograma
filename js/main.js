@@ -7,7 +7,7 @@
 import { IS_LOCAL_MODE } from './config.js';
 import { appState }      from './state.js';
 import { WbsTable }      from './wbs-table.js?v=7';
-import { GanttCanvas }   from './gantt-canvas.js?v=26';
+import { GanttCanvas }   from './gantt-canvas.js?v=27';
 import { GanttScene }    from './scene.js';
 import { DcmaPanel }     from './dcma.js';
 import { Calendar, isoToDate } from './calendar.js';
@@ -635,6 +635,217 @@ async function _openResourceManager() {
   dlg.showModal();
 }
 
+// ============================================================
+// Editor de Calendario del proyecto
+// ============================================================
+
+async function _openCalendarEditor() {
+  const proj = appState.state.project;
+  if (!proj) { _showToast('No hay proyecto activo', 'warn'); return; }
+
+  let dlg = /** @type {HTMLDialogElement|null} */ (document.getElementById('dlg-calendar'));
+  if (!dlg) {
+    dlg = document.createElement('dialog');
+    dlg.id = 'dlg-calendar';
+    dlg.style.cssText = 'border:none;border-radius:12px;padding:0;width:600px;max-width:96vw;box-shadow:0 8px 40px rgba(0,0,0,0.3);overflow:hidden';
+    document.body.appendChild(dlg);
+    dlg.addEventListener('click', e => { if (e.target === dlg) dlg.close(); });
+  }
+
+  const cal    = appState.state.calendar;
+  const calEx  = (appState.state.calExceptions ?? []).filter(e => !e.deleted_at);
+  const ww     = cal?.work_week ?? [1, 2, 3, 4, 5];
+  const hpd    = cal?.hours_per_day ?? 8;
+
+  const dayNames = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+  const dayCbs   = dayNames.map((n, i) =>
+    `<label style="display:flex;align-items:center;gap:5px;font-size:12px;cursor:pointer;padding:4px 8px;border:1px solid var(--clr-border);border-radius:6px;background:${ww.includes(i)?'rgba(25,118,210,0.08)':''}">
+      <input type="checkbox" class="cal-day-cb" value="${i}" ${ww.includes(i) ? 'checked' : ''} style="accent-color:var(--clr-primary)">
+      ${n}
+    </label>`).join('');
+
+  const exRows = calEx.map(ex =>
+    `<tr data-exid="${_escAttr(ex.id)}">
+      <td style="padding:4px 8px;font-size:12px">${_escHtml(ex.on_date)}</td>
+      <td style="padding:4px 8px;font-size:12px">${_escHtml(ex.name || '—')}</td>
+      <td style="padding:4px 8px;font-size:12px">${ex.is_working ? 'Laborable' : 'No laborable'}</td>
+      <td style="padding:4px 8px"><button class="btn btn-icon btn-sm cal-del-ex" data-exid="${_escAttr(ex.id)}" title="Eliminar" style="color:var(--clr-danger,#e74c3c);padding:0 6px">✕</button></td>
+    </tr>`).join('') || '<tr id="cal-ex-empty"><td colspan="4" style="padding:8px;text-align:center;color:var(--clr-text-3);font-size:12px">Sin excepciones registradas</td></tr>';
+
+  dlg.innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid var(--clr-border);background:var(--clr-surface-2)">
+      <span style="font-weight:700;font-size:15px">🗓 Calendario del proyecto</span>
+      <button id="dlg-cal-close" class="btn btn-icon btn-sm">✕</button>
+    </div>
+    <div style="padding:16px;display:flex;flex-direction:column;gap:14px;max-height:68vh;overflow-y:auto">
+      <label style="font-size:12px;font-weight:600;color:var(--clr-text-2)">Nombre del calendario
+        <input id="cal-name" type="text" value="${_escAttr(cal?.name ?? 'Calendario del proyecto')}"
+          style="margin-top:4px;width:100%;padding:7px 10px;border:1px solid var(--clr-border);border-radius:7px;font-size:13px;background:var(--clr-surface-2);color:var(--clr-text);box-sizing:border-box">
+      </label>
+      <div>
+        <div style="font-size:12px;font-weight:600;color:var(--clr-text-2);margin-bottom:8px">Días laborables</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">${dayCbs}</div>
+      </div>
+      <label style="font-size:12px;font-weight:600;color:var(--clr-text-2)">Horas por día laborable
+        <input id="cal-hours" type="number" min="1" max="24" value="${hpd}"
+          style="margin-top:4px;width:100px;padding:7px 10px;border:1px solid var(--clr-border);border-radius:7px;font-size:13px;background:var(--clr-surface-2);color:var(--clr-text)">
+      </label>
+      <div>
+        <div style="font-size:12px;font-weight:600;color:var(--clr-text-2);margin-bottom:8px">Excepciones (festivos / días especiales)</div>
+        <table style="width:100%;border-collapse:collapse">
+          <thead><tr style="background:var(--clr-surface-2)">
+            <th style="padding:4px 8px;text-align:left;font-size:11px;color:var(--clr-text-3);font-weight:600">Fecha</th>
+            <th style="padding:4px 8px;text-align:left;font-size:11px;color:var(--clr-text-3);font-weight:600">Descripción</th>
+            <th style="padding:4px 8px;text-align:left;font-size:11px;color:var(--clr-text-3);font-weight:600">Tipo</th>
+            <th style="width:36px"></th>
+          </tr></thead>
+          <tbody id="cal-ex-body">${exRows}</tbody>
+        </table>
+        <div style="display:flex;gap:8px;margin-top:10px;align-items:center;flex-wrap:wrap">
+          <input id="cal-ex-date" type="date" style="padding:6px 10px;border:1px solid var(--clr-border);border-radius:6px;font-size:12px;background:var(--clr-surface-2);color:var(--clr-text)">
+          <input id="cal-ex-name" type="text" placeholder="Descripción (ej: Año Nuevo)" style="flex:1;min-width:120px;padding:6px 10px;border:1px solid var(--clr-border);border-radius:6px;font-size:12px;background:var(--clr-surface-2);color:var(--clr-text)">
+          <select id="cal-ex-type" style="padding:6px 10px;border:1px solid var(--clr-border);border-radius:6px;font-size:12px;background:var(--clr-surface-2);color:var(--clr-text)">
+            <option value="false">No laborable</option>
+            <option value="true">Laborable</option>
+          </select>
+          <button id="cal-add-ex" class="btn btn-ghost btn-sm">＋ Agregar</button>
+        </div>
+      </div>
+    </div>
+    <div style="padding:12px 16px;border-top:1px solid var(--clr-border);background:var(--clr-surface-2);display:flex;gap:8px;justify-content:flex-end">
+      <button id="dlg-cal-cancel" class="btn btn-ghost btn-sm">Cancelar</button>
+      <button id="dlg-cal-save" class="btn btn-primary btn-sm">Guardar calendario</button>
+    </div>`;
+
+  const body       = /** @type {HTMLElement} */ (dlg.querySelector('#cal-ex-body'));
+  const _newExIds  = new Set(); // IDs de excepciones nuevas (no guardadas aún)
+  const _delExIds  = new Set(); // IDs de excepciones existentes a borrar
+
+  dlg.querySelector('#dlg-cal-close')?.addEventListener('click', () => dlg.close());
+  dlg.querySelector('#dlg-cal-cancel')?.addEventListener('click', () => dlg.close());
+
+  // Eliminar excepción del listado
+  body.addEventListener('click', e => {
+    const btn = /** @type {HTMLElement} */ (e.target).closest('.cal-del-ex');
+    if (!btn) return;
+    const exid = /** @type {HTMLElement} */ (btn).dataset.exid;
+    if (_newExIds.has(exid)) {
+      _newExIds.delete(exid);
+    } else {
+      _delExIds.add(exid);
+    }
+    /** @type {HTMLElement} */ (btn).closest('tr')?.remove();
+    if (!body.querySelector('tr')) {
+      body.innerHTML = '<tr id="cal-ex-empty"><td colspan="4" style="padding:8px;text-align:center;color:var(--clr-text-3);font-size:12px">Sin excepciones registradas</td></tr>';
+    }
+  });
+
+  // Agregar excepción al listado
+  dlg.querySelector('#cal-add-ex')?.addEventListener('click', () => {
+    const dateEl = /** @type {HTMLInputElement} */ (dlg.querySelector('#cal-ex-date'));
+    const nameEl = /** @type {HTMLInputElement} */ (dlg.querySelector('#cal-ex-name'));
+    const typeEl = /** @type {HTMLSelectElement} */ (dlg.querySelector('#cal-ex-type'));
+    const date   = dateEl.value;
+    if (!date) { _showToast('Selecciona una fecha', 'warn'); return; }
+    const name      = nameEl.value.trim() || null;
+    const isWorking = typeEl.value === 'true';
+    const newId     = crypto.randomUUID();
+    _newExIds.add(newId);
+
+    const emptyRow = body.querySelector('#cal-ex-empty');
+    if (emptyRow) emptyRow.remove();
+    const tr = document.createElement('tr');
+    tr.dataset.exid      = newId;
+    tr.dataset.date      = date;
+    tr.dataset.name      = name ?? '';
+    tr.dataset.isWorking = String(isWorking);
+    tr.innerHTML = `
+      <td style="padding:4px 8px;font-size:12px">${date}</td>
+      <td style="padding:4px 8px;font-size:12px">${_escHtml(name || '—')}</td>
+      <td style="padding:4px 8px;font-size:12px">${isWorking ? 'Laborable' : 'No laborable'}</td>
+      <td style="padding:4px 8px"><button class="btn btn-icon btn-sm cal-del-ex" data-exid="${newId}" title="Eliminar" style="color:var(--clr-danger,#e74c3c);padding:0 6px">✕</button></td>`;
+    body.appendChild(tr);
+    dateEl.value = '';
+    nameEl.value = '';
+  });
+
+  // Guardar cambios
+  dlg.querySelector('#dlg-cal-save')?.addEventListener('click', async () => {
+    const nameVal  = /** @type {HTMLInputElement} */ (dlg.querySelector('#cal-name'))?.value.trim() || 'Calendario';
+    const hours    = parseFloat(/** @type {HTMLInputElement} */ (dlg.querySelector('#cal-hours'))?.value ?? '8') || 8;
+    const workDays = [.../** @type {NodeListOf<HTMLInputElement>} */ (dlg.querySelectorAll('.cal-day-cb:checked'))].map(cb => parseInt(cb.value));
+    if (!workDays.length) { _showToast('Selecciona al menos un día laborable', 'warn'); return; }
+
+    const now    = new Date().toISOString();
+    const orgId  = proj.org_id ?? null;
+    const isNew  = !cal?.id;
+    const calId  = cal?.id ?? crypto.randomUUID();
+
+    const updatedCal = {
+      id: calId, org_id: orgId, project_id: proj.id,
+      name: nameVal, work_week: workDays, hours_per_day: hours,
+      created_at: cal?.created_at ?? now, updated_at: now, deleted_at: null,
+    };
+
+    const { put: dbPutSt } = await import('./storage.js?v=2');
+
+    // Guardar calendario
+    await dbPutSt('calendars', updatedCal);
+    if (!IS_LOCAL_MODE) {
+      await outboxAdd({ id: crypto.randomUUID(), tabla: 'calendars', fila: calId,
+        tipo: isNew ? 'INSERT' : 'UPDATE', campos: updatedCal, baseUpdatedAt: cal?.updated_at ?? null });
+    }
+
+    // Eliminar excepciones marcadas
+    let updatedCalExceptions = [...(appState.state.calExceptions ?? [])];
+    for (const exid of _delExIds) {
+      const ex = updatedCalExceptions.find(e => e.id === exid);
+      if (ex) {
+        const del = { ...ex, deleted_at: now };
+        await dbPutSt('calendar_exceptions', del);
+        if (!IS_LOCAL_MODE) {
+          await outboxAdd({ id: crypto.randomUUID(), tabla: 'calendar_exceptions', fila: exid,
+            tipo: 'DELETE', campos: del, baseUpdatedAt: ex.updated_at ?? null });
+        }
+        updatedCalExceptions = updatedCalExceptions.map(e => e.id === exid ? del : e);
+      }
+    }
+
+    // Agregar excepciones nuevas
+    const newExceptions = [];
+    for (const exid of _newExIds) {
+      const tr = /** @type {HTMLElement|null} */ (body.querySelector(`tr[data-exid="${exid}"]`));
+      if (!tr) continue;
+      const newEx = {
+        id: exid, org_id: orgId, calendar_id: calId,
+        on_date: tr.dataset.date ?? '', is_working: tr.dataset.isWorking === 'true',
+        name: tr.dataset.name || null,
+        created_at: now, updated_at: now, deleted_at: null,
+      };
+      await dbPutSt('calendar_exceptions', newEx);
+      newExceptions.push(newEx);
+      if (!IS_LOCAL_MODE) {
+        await outboxAdd({ id: crypto.randomUUID(), tabla: 'calendar_exceptions', fila: exid,
+          tipo: 'INSERT', campos: newEx, baseUpdatedAt: null });
+      }
+    }
+
+    // Si el proyecto no tenía calendario, actualizar calendar_id
+    if (!proj.calendar_id || proj.calendar_id !== calId) {
+      appState.dispatch({ type: 'UPDATE_PROJECT', payload: { fields: { calendar_id: calId } } });
+    }
+
+    // Actualizar estado en memoria
+    const finalExceptions = [...updatedCalExceptions.filter(e => !e.deleted_at), ...newExceptions];
+    appState._applyRemote({ calendar: updatedCal, calExceptions: finalExceptions });
+
+    _showToast('Calendario guardado', 'success');
+    dlg.close();
+  });
+
+  dlg.showModal();
+}
+
 function _updateStatus() {
   const dot  = document.querySelector('#statusbar .status-dot');
   const text = document.querySelector('#statusbar .status-text');
@@ -688,6 +899,7 @@ async function _loadProject(projectId) {
   const data = await loadProject(projectId);
   if (!data.project) throw new Error(t('projectNotFound'));
   appState.loadProject(data);
+  _ganttFitPending = true;
   _renderProjectList();
   if (!data.project.start_date) {
     _showToast('Sin fecha de inicio â€” edita el proyecto para configurarla', 'warn');
@@ -999,6 +1211,7 @@ let _dcmaPanel      = null;
 let _evmPanel       = null;
 let _changeLogPanel = null;
 let _syncEngine     = null;
+let _ganttFitPending = false; // true tras cargar proyecto → auto-ajusta al primer CPM
 
 async function init() {
   try {
@@ -1046,7 +1259,13 @@ async function init() {
         }
         if (!keys || keys.includes('all') || keys.some(k =>
           ['cpmResult','tasks','deps','selectedTaskId'].includes(k))) {
-          _ganttCanvas?.requestRender();
+          // Auto-ajustar al primer resultado CPM tras cargar proyecto
+          if (_ganttFitPending && (keys?.includes('cpmResult') || keys?.includes('all'))) {
+            _ganttFitPending = false;
+            requestAnimationFrame(() => _ganttCanvas?.fitToView());
+          } else {
+            _ganttCanvas?.requestRender();
+          }
         }
       });
 
@@ -1138,7 +1357,7 @@ async function init() {
 
     // El motor de sync ya fue iniciado dentro de _loadProject.
 
-    console.log('[Cronogramas] v25b completo â€” modo', IS_LOCAL_MODE ? 'local' : 'Supabase');
+    console.log('[Cronogramas] v27 completo â€” modo', IS_LOCAL_MODE ? 'local' : 'Supabase');
   } catch (err) {
     console.error('[init]', err);
     _showToast('Error al iniciar: ' + err.message, 'error');
@@ -1216,6 +1435,9 @@ function _bindToolbar() {
   });
 
   document.getElementById('btn-resources')?.addEventListener('click', () => _openResourceManager());
+
+  document.getElementById('btn-calendar')?.addEventListener('click', () => _openCalendarEditor());
+  document.getElementById('btn-gantt-fit')?.addEventListener('click', () => _ganttCanvas?.fitToView());
 
   // ---- MenÃº etiquetas de barras Gantt ----
   const _barLabelsBtn  = document.getElementById('btn-bar-labels');

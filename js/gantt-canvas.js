@@ -316,6 +316,17 @@ export class GanttCanvas {
     this.requestRender();
   }
 
+  /** Ajustar zoom para que toda la duración del proyecto quepa en el canvas */
+  fitToView() {
+    const W = this._canvas.clientWidth;
+    if (W === 0) return;
+    const days = this._scene.totalCalendarDays;
+    if (days <= 0) return;
+    this._scene.pixPerDay = Math.max(2, Math.min(80, W / days));
+    this._scene.scrollX   = 0;
+    this.requestRender();
+  }
+
   // ============================================================
   // Ciclo de dibujo principal
   // ============================================================

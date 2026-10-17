@@ -200,29 +200,34 @@ export async function saveProjectSnapshot({ project, tasks, deps, calendar, calE
     'readwrite'
   );
 
+  if (calendar) tx.objectStore('calendars').put(calendar);
+  for (const e of (calExceptions ?? [])) tx.objectStore('calendar_exceptions').put(e);
+
   if (project) {
     tx.objectStore('projects').put(project);
 
-    // Borrar tareas y deps anteriores del proyecto para evitar duplicados
+    // Borrar tareas/deps antiguas PRIMERO, luego insertar nuevas.
+    // Los puts deben quedar dentro del onsuccess para que IDB los encole
+    // DESPUÉS de los deletes (evita el patrón put→delete del mismo id).
     const tasksStore = tx.objectStore('tasks');
     const depsStore  = tx.objectStore('task_dependencies');
     const projId = project.id;
 
-    // Eliminar por índice project_id
     const taskReq = tasksStore.index('project_id').getAllKeys(projId);
     taskReq.onsuccess = () => {
       for (const k of taskReq.result) tasksStore.delete(k);
+      for (const t of tasks) tasksStore.put(t);
     };
     const depReq = depsStore.index('project_id').getAllKeys(projId);
     depReq.onsuccess = () => {
       for (const k of depReq.result) depsStore.delete(k);
+      for (const d of deps) depsStore.put(d);
     };
+  } else {
+    for (const t of tasks) tx.objectStore('tasks').put(t);
+    for (const d of deps)  tx.objectStore('task_dependencies').put(d);
   }
 
-  if (calendar) tx.objectStore('calendars').put(calendar);
-  for (const t of tasks)  tx.objectStore('tasks').put(t);
-  for (const d of deps)   tx.objectStore('task_dependencies').put(d);
-  for (const e of (calExceptions ?? [])) tx.objectStore('calendar_exceptions').put(e);
   return new Promise((res, rej) => { tx.oncomplete = res; tx.onerror = () => rej(tx.error); });
 }
 
