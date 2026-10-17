@@ -18,18 +18,23 @@ import { exportSvg }     from './io.js';
 /** Columnas disponibles para la tabla EDT */
 const ALL_PRINT_COLS = ['wbs','name','type','dur','start','finish','pct','tf','ff','pred'];
 
-/** Lee la selección de columnas guardada (para tabla EDT y SVG Gantt). */
+const _DEFAULT_COLS = ['wbs','name','type','dur','start','finish','pct','tf','pred','alerts'];
+
+/** Lee la selección de columnas guardada (comparte clave con el menú Columnas web). */
 export function getPrintCols() {
   try {
-    const saved = localStorage.getItem('print-cols');
+    const saved = localStorage.getItem('wbs-col-visibility');
     if (saved) return JSON.parse(saved);
+    // fallback a clave legacy
+    const leg = localStorage.getItem('print-cols');
+    if (leg) return JSON.parse(leg);
   } catch { /* ignore */ }
-  return ['wbs', 'name', 'dur', 'start', 'finish', 'pct', 'tf'];
+  return _DEFAULT_COLS;
 }
 
 /** Guarda la selección de columnas. */
 export function setPrintCols(cols) {
-  localStorage.setItem('print-cols', JSON.stringify(cols));
+  localStorage.setItem('wbs-col-visibility', JSON.stringify(cols));
 }
 
 /** Imprime la tabla EDT completa mostrando solo las columnas seleccionadas. */
@@ -76,7 +81,7 @@ export function printGantt(rows) {
 
   const { renderGanttSvg } = /** @type {any} */ ({ renderGanttSvg: null });
 
-  import('./gantt-svg.js?v=3').then(({ renderGanttSvg }) => {
+  import('./gantt-svg.js?v=4').then(({ renderGanttSvg }) => {
     const cal       = new Calendar(calDef);
     const startDate = isoToDate(project.start_date);
 
@@ -95,21 +100,45 @@ export function printGantt(rows) {
   <meta charset="UTF-8">
   <title>Gantt — ${_esc(project.name)}</title>
   <style>
-    @page { size: A3 landscape; margin: 15mm; }
+    @page { size: A3 landscape; margin: 10mm; }
     body  { margin: 0; font-family: 'Segoe UI', system-ui, sans-serif; }
     .header { display: flex; justify-content: space-between; align-items: center;
-              padding: 0 0 8px; border-bottom: 2px solid #1976D2; margin-bottom: 12px; }
+              padding: 0 0 8px; border-bottom: 2px solid #1976D2; margin-bottom: 10px; }
     .proj-name { font-size: 16px; font-weight: 700; color: #1976D2; }
     .meta      { font-size: 11px; color: #78909C; }
-    svg { max-width: 100%; height: auto; }
+    svg { width: var(--gantt-zoom, 100%); max-width: none; height: auto; display: block; }
+    .controls { display: flex; align-items: center; gap: 14px; padding: 8px 0 12px;
+                font-family: 'Segoe UI', system-ui, sans-serif; font-size: 12px; }
+    .controls label { display: flex; align-items: center; gap: 6px; color: #455A64; }
+    .controls input[type=range] { width: 120px; accent-color: #1976D2; }
+    .btn-print { background: #1976D2; color: #fff; border: none; border-radius: 6px;
+                 padding: 6px 16px; font-size: 13px; cursor: pointer; }
+    .btn-print:hover { background: #1565C0; }
+    @media print { .controls { display: none !important; } }
   </style>
 </head><body>
+  <div class="controls">
+    <label>Zoom:
+      <input type="range" id="zoom" min="30" max="250" value="100" step="5">
+      <span id="zoom-val" style="min-width:40px">100%</span>
+    </label>
+    <button class="btn-print" onclick="window.print()">🖨 Imprimir</button>
+    <span style="color:#78909C;font-size:11px">Generado: ${today}</span>
+  </div>
   <div class="header">
     <div class="proj-name">${_esc(project.name)}</div>
-    <div class="meta">Generado: ${today} · v7 Gantt</div>
+    <div class="meta">v8 Gantt — autoajuste izq/der</div>
   </div>
   ${svgStr}
-  <script>window.onload = () => { window.print(); }<\/script>
+  <script>
+    const zoom = document.getElementById('zoom');
+    const zoomVal = document.getElementById('zoom-val');
+    const svg = document.querySelector('svg');
+    zoom.addEventListener('input', () => {
+      zoomVal.textContent = zoom.value + '%';
+      svg.style.width = zoom.value + '%';
+    });
+  <\/script>
 </body></html>`;
 
     const win = window.open('', '_blank', 'width=1200,height=800');

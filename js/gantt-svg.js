@@ -63,17 +63,28 @@ export function renderGanttSvg({ tasks, deps, cpmResult, calendar, projectStart,
   const extraW  = activeCols.reduce((s, c) => s + c.w, 0);
   const NAME_W  = BASE_NAME_W + extraW;
 
-  // Compute actual rightmost calendar day across all visible rows
+  // Compute actual bar extent (left and right) across all visible rows
   let maxCalDay = cpmResult.projectDuration ?? 100;
+  let minBarCalDay = Infinity;
   for (const { id } of rows) {
     const cpm = cpmResult.tasks.get(id);
-    if (!cpm || cpm.ef == null) continue;
-    const endD = calendar.finishDate(cpm.ef, projectStart);
-    const d = _daysFrom(endD, projectStart) + 1;
-    if (d > maxCalDay) maxCalDay = d;
+    if (!cpm || cpm.ef == null || cpm.es == null) continue;
+    const endD   = calendar.finishDate(cpm.ef, projectStart);
+    const startD = calendar.idxToDate(cpm.es, projectStart);
+    const endDay   = _daysFrom(endD, projectStart) + 1;
+    const startDay = _daysFrom(startD, projectStart);
+    if (endDay   > maxCalDay)    maxCalDay    = endDay;
+    if (startDay < minBarCalDay) minBarCalDay = startDay;
   }
-  const totalDays = maxCalDay + 20; // 20-day padding for labels
-  const totalW    = NAME_W + totalDays * PPD;
+  if (!isFinite(minBarCalDay)) minBarCalDay = 0;
+
+  const LEFT_PAD  = 5;  // días de margen antes de la primera barra
+  const cropDays  = Math.max(0, minBarCalDay - LEFT_PAD);
+  const cropOffset = cropDays * PPD;           // px a recortar por la izquierda
+
+  const totalDays  = maxCalDay + 20;           // 20-day padding right
+  const visibleDays = totalDays - cropDays;
+  const totalW    = NAME_W + visibleDays * PPD;
   const totalH    = HDR_H + rows.length * ROW_H;
 
   // Mapa rowIndex por taskId para dibujar flechas
@@ -153,12 +164,12 @@ export function renderGanttSvg({ tasks, deps, cpmResult, calendar, projectStart,
   // Encabezado (meses y semanas)
   out.push(`<rect x="${NAME_W}" y="0" width="${totalW - NAME_W}" height="${HDR_H}" fill="#F0F2F5"/>`);
   out.push(`<line x1="${NAME_W}" y1="${HDR_H}" x2="${totalW}" y2="${HDR_H}" stroke="#B0BEC5" stroke-width="1"/>`);
-  out.push(`<g clip-path="url(#gc-hdr)">`);
+  out.push(`<g clip-path="url(#gc-hdr)"><g transform="translate(${-cropOffset}, 0)">`);
   _drawHeader(out, NAME_W, HDR_H, PPD, projectStart, totalDays);
-  out.push('</g>');
+  out.push('</g></g>');
 
-  // Grupo clippeado para todo el cuerpo
-  out.push(`<g clip-path="url(#gc-body)">`);
+  // Grupo clippeado para todo el cuerpo — translate recorta el espacio vacío izquierdo
+  out.push(`<g clip-path="url(#gc-body)"><g transform="translate(${-cropOffset}, 0)">`);
 
   // Bandas alternadas de fila
   rows.forEach((_, i) => {
@@ -288,7 +299,7 @@ export function renderGanttSvg({ tasks, deps, cpmResult, calendar, projectStart,
     out.push(`<text x="${todayX + 3}" y="${HDR_H - 4}" fill="#1565C0" font-size="9" font-weight="600">HOY</text>`);
   }
 
-  out.push('</g>'); // fin gc-body
+  out.push('</g></g>'); // fin transform + fin gc-body
 
   out.push('</svg>');
   return out.join('\n');

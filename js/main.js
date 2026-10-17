@@ -200,6 +200,45 @@ function _syncBarLabelsUI(labels) {
   });
 }
 
+const ALL_WBS_COLS = ['wbs','name','type','dur','start','finish','pct','tf','ff','pred','alerts'];
+const DEFAULT_WBS_COLS = ['wbs','name','type','dur','start','finish','pct','tf','pred','alerts'];
+
+/** Lee visibilidad de columnas WBS guardada. */
+function _getWbsColVisibility() {
+  try {
+    const saved = JSON.parse(localStorage.getItem('wbs-col-visibility') || 'null');
+    if (Array.isArray(saved)) return saved;
+  } catch { /* ignore */ }
+  return DEFAULT_WBS_COLS;
+}
+
+/**
+ * Aplica visibilidad de columnas WBS inyectando una regla CSS.
+ * @param {string[]} [visible]
+ */
+function _applyWbsColVisibility(visible) {
+  if (!visible) visible = _getWbsColVisibility();
+  const visSet = new Set(visible);
+  const hidden = ALL_WBS_COLS.filter(c => c !== 'name' && !visSet.has(c));
+  let style = document.getElementById('wbs-col-vis-style');
+  if (!style) {
+    style = document.createElement('style');
+    style.id = 'wbs-col-vis-style';
+    document.head.appendChild(style);
+  }
+  style.textContent = hidden.length
+    ? hidden.map(c => `.wbs-table th[data-col="${c}"], .wbs-table td[data-col="${c}"] { display: none !important; }
+@media print { .wbs-table th[data-col="${c}"], .wbs-table td[data-col="${c}"] { display: none !important; } }`).join('\n')
+    : '';
+  // Sincronizar checkboxes del menú
+  const menu = document.getElementById('wbs-cols-menu');
+  if (menu) {
+    menu.querySelectorAll('input[type=checkbox]:not([disabled])').forEach(/** @type {HTMLInputElement} */ (cb) => {
+      cb.checked = visSet.has(cb.value);
+    });
+  }
+}
+
 /** @param {string} msg @param {'success'|'error'|'warn'|''} type */
 function _showToast(msg, type = '') {
   const container = document.getElementById('toast-container');
@@ -1283,6 +1322,9 @@ async function init() {
         _syncBarLabelsUI(saved);
       } catch (_) { /* ignore */ }
 
+      // Restaurar columnas visibles de la tabla EDT desde localStorage
+      _applyWbsColVisibility();
+
       // Alimentar la escena con los datos del proyecto
       _syncGanttScene();
 
@@ -1513,6 +1555,29 @@ function _bindToolbar() {
     if (_barLabelsMenu && !_barLabelsMenu.hidden && !document.getElementById('bar-labels-wrap')?.contains(/** @type {Node} */ (e.target))) {
       _barLabelsMenu.hidden = true;
       _barLabelsBtn?.setAttribute('aria-expanded', 'false');
+    }
+  });
+
+  // ---- Menú columnas tabla EDT ----
+  const _wbsColsBtn  = document.getElementById('btn-wbs-cols');
+  const _wbsColsMenu = document.getElementById('wbs-cols-menu');
+  _wbsColsBtn?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const open = _wbsColsMenu?.hidden === false;
+    _wbsColsMenu && (_wbsColsMenu.hidden = open);
+    _wbsColsBtn.setAttribute('aria-expanded', String(!open));
+  });
+  _wbsColsMenu?.addEventListener('change', () => {
+    const checked = [..._wbsColsMenu.querySelectorAll('input:checked')].map(/** @type {HTMLInputElement} */ (i) => i.value);
+    const visible = checked.length ? checked : ['name'];
+    if (!visible.includes('name')) visible.push('name');
+    localStorage.setItem('wbs-col-visibility', JSON.stringify(visible));
+    _applyWbsColVisibility(visible);
+  });
+  document.addEventListener('click', (e) => {
+    if (_wbsColsMenu && !_wbsColsMenu.hidden && !document.getElementById('wbs-cols-wrap')?.contains(/** @type {Node} */ (e.target))) {
+      _wbsColsMenu.hidden = true;
+      _wbsColsBtn?.setAttribute('aria-expanded', 'false');
     }
   });
 

@@ -316,14 +316,51 @@ export class GanttCanvas {
     this.requestRender();
   }
 
-  /** Ajustar zoom para que toda la duración del proyecto quepa en el canvas */
+  /** Ajustar zoom para que las barras ocupen el 95% del canvas */
   fitToView() {
     const W = this._canvas.clientWidth;
     if (W === 0) return;
-    const days = this._scene.totalCalendarDays;
-    if (days <= 0) return;
-    this._scene.pixPerDay = Math.max(2, Math.min(80, W / days));
-    this._scene.scrollX   = 0;
+
+    const { rows, cpmResult, calendar, projectStart } = this._scene;
+
+    if (!cpmResult || !calendar || !projectStart || !rows.length) {
+      const days = this._scene.totalCalendarDays;
+      if (days <= 0) return;
+      this._scene.pixPerDay = Math.max(2, Math.min(80, W / days));
+      this._scene.scrollX   = 0;
+      this.requestRender();
+      return;
+    }
+
+    // Calcular extensión real de las barras en días calendario
+    let minCalDay = Infinity, maxCalDay = -Infinity;
+    for (const { id } of rows) {
+      const cpm = cpmResult.tasks.get(id);
+      if (!cpm || cpm.es == null || cpm.ef == null) continue;
+      const startDate = calendar.idxToDate(cpm.es, projectStart);
+      const endDate   = calendar.finishDate(cpm.ef, projectStart);
+      const s = (startDate.getTime() - projectStart.getTime()) / 86400000;
+      const e = (endDate.getTime()   - projectStart.getTime()) / 86400000 + 1;
+      if (s < minCalDay) minCalDay = s;
+      if (e > maxCalDay) maxCalDay = e;
+    }
+
+    if (!isFinite(minCalDay) || maxCalDay <= minCalDay) {
+      const days = this._scene.totalCalendarDays;
+      if (days <= 0) return;
+      this._scene.pixPerDay = Math.max(2, Math.min(80, W / days));
+      this._scene.scrollX   = 0;
+      this.requestRender();
+      return;
+    }
+
+    const barSpan   = maxCalDay - minCalDay;
+    const MARGIN    = 0.025;          // 2.5% margen a cada lado → 95% para barras
+    const pixPerDay = Math.max(2, Math.min(80, (W * (1 - 2 * MARGIN)) / barSpan));
+    const scrollX   = minCalDay * pixPerDay - W * MARGIN;
+
+    this._scene.pixPerDay = pixPerDay;
+    this._scene.scrollX   = Math.max(0, scrollX);
     this.requestRender();
   }
 

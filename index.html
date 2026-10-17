@@ -137,6 +137,47 @@
       </div>
     </div>
     <div class="toolbar-sep"></div>
+    <!-- Menú columnas tabla EDT -->
+    <div class="dropdown" id="wbs-cols-wrap" style="position:relative">
+      <button id="btn-wbs-cols" class="btn btn-ghost btn-sm" aria-haspopup="true" aria-expanded="false"
+              title="Columnas visibles en la tabla EDT">🗂 Columnas ▾</button>
+      <div id="wbs-cols-menu" class="dropdown-menu" hidden style="min-width:180px;padding:6px 0">
+        <label class="wbs-col-opt" style="display:flex;align-items:center;gap:8px;padding:4px 12px;cursor:pointer;font-size:var(--text-xs)">
+          <input type="checkbox" value="wbs" checked> EDT
+        </label>
+        <label class="wbs-col-opt" style="display:flex;align-items:center;gap:8px;padding:4px 12px;cursor:default;font-size:var(--text-xs);opacity:.7">
+          <input type="checkbox" value="name" checked disabled> Nombre (siempre)
+        </label>
+        <label class="wbs-col-opt" style="display:flex;align-items:center;gap:8px;padding:4px 12px;cursor:pointer;font-size:var(--text-xs)">
+          <input type="checkbox" value="type" checked> Tipo
+        </label>
+        <label class="wbs-col-opt" style="display:flex;align-items:center;gap:8px;padding:4px 12px;cursor:pointer;font-size:var(--text-xs)">
+          <input type="checkbox" value="dur" checked> Duración
+        </label>
+        <label class="wbs-col-opt" style="display:flex;align-items:center;gap:8px;padding:4px 12px;cursor:pointer;font-size:var(--text-xs)">
+          <input type="checkbox" value="start" checked> Inicio
+        </label>
+        <label class="wbs-col-opt" style="display:flex;align-items:center;gap:8px;padding:4px 12px;cursor:pointer;font-size:var(--text-xs)">
+          <input type="checkbox" value="finish" checked> Fin
+        </label>
+        <label class="wbs-col-opt" style="display:flex;align-items:center;gap:8px;padding:4px 12px;cursor:pointer;font-size:var(--text-xs)">
+          <input type="checkbox" value="pct" checked> % Avance
+        </label>
+        <label class="wbs-col-opt" style="display:flex;align-items:center;gap:8px;padding:4px 12px;cursor:pointer;font-size:var(--text-xs)">
+          <input type="checkbox" value="tf" checked> HT (Holgura Total)
+        </label>
+        <label class="wbs-col-opt" style="display:flex;align-items:center;gap:8px;padding:4px 12px;cursor:pointer;font-size:var(--text-xs)">
+          <input type="checkbox" value="ff"> HL (Holgura Libre)
+        </label>
+        <label class="wbs-col-opt" style="display:flex;align-items:center;gap:8px;padding:4px 12px;cursor:pointer;font-size:var(--text-xs)">
+          <input type="checkbox" value="pred" checked> Pred.
+        </label>
+        <label class="wbs-col-opt" style="display:flex;align-items:center;gap:8px;padding:4px 12px;cursor:pointer;font-size:var(--text-xs)">
+          <input type="checkbox" value="alerts" checked> Alertas
+        </label>
+      </div>
+    </div>
+    <div class="toolbar-sep"></div>
     <!-- Menú Exportar / Importar -->
     <div class="dropdown" id="export-menu-wrap">
       <button id="btn-export" class="btn btn-ghost btn-sm" aria-haspopup="true" aria-expanded="false"
@@ -308,7 +349,7 @@
     </div>
     <span style="flex:1"></span>
     <span id="status-warnings" style="font-size:var(--text-xs);color:var(--clr-text-3)"></span>
-    <span>v32 — Fix recursos por actividad + catálogo + campos P6/MSP ✓</span>
+    <span>v33 — Ajustar Gantt + print zoom + menú Columnas EDT ✓</span>
   </footer>
 
   <!-- Pestañas inferiores (solo móvil) -->
@@ -339,7 +380,7 @@
 <!-- ============================================================
      Módulo principal (ES Module)
      ============================================================ -->
-<script type="module" src="js/main.js?v=32"></script>
+<script type="module" src="js/main.js?v=33"></script>
 
 <!-- Atajos de teclado globales -->
 <script type="module">
