@@ -580,10 +580,23 @@ export class WbsTable {
         const kept = newPreds.some(p => p.predId === dep.pred_id && p.type === dep.type);
         if (!kept) appState.dispatch({ type: 'REMOVE_DEP', payload: { id: dep.id } });
       }
-      // Add new deps
+      // Add or update deps
       for (const p of newPreds) {
-        const exists = currentDeps.some(d => d.pred_id === p.predId && d.type === p.type);
-        if (!exists) {
+        const existing = currentDeps.find(d => d.pred_id === p.predId && d.type === p.type);
+        const existingLag = existing ? (existing.lag_days ?? existing.lag ?? 0) : null;
+        if (!existing) {
+          appState.dispatch({ type: 'ADD_DEP', payload: { dep: {
+            id: crypto.randomUUID(),
+            project_id: appState.state.project?.id ?? '',
+            pred_id: p.predId, succ_id: rowId,
+            type: p.type, lag_days: p.lag,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+            deleted_at: null,
+          }}});
+        } else if (existingLag !== p.lag) {
+          // Lag cambió: reemplazar la dep para actualizar lag_days
+          appState.dispatch({ type: 'REMOVE_DEP', payload: { id: existing.id } });
           appState.dispatch({ type: 'ADD_DEP', payload: { dep: {
             id: crypto.randomUUID(),
             project_id: appState.state.project?.id ?? '',
