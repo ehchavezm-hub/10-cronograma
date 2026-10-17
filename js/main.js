@@ -7,7 +7,7 @@
 import { IS_LOCAL_MODE } from './config.js';
 import { appState }      from './state.js';
 import { WbsTable }      from './wbs-table.js?v=8';
-import { GanttCanvas }   from './gantt-canvas.js?v=27';
+import { GanttCanvas }   from './gantt-canvas.js?v=28';
 import { GanttScene }    from './scene.js';
 import { DcmaPanel }     from './dcma.js';
 import { Calendar, isoToDate } from './calendar.js';
@@ -1357,7 +1357,7 @@ async function init() {
 
     // El motor de sync ya fue iniciado dentro de _loadProject.
 
-    console.log('[Cronogramas] v27 completo â€” modo', IS_LOCAL_MODE ? 'local' : 'Supabase');
+    console.log('[Cronogramas] v28 completo â€” modo', IS_LOCAL_MODE ? 'local' : 'Supabase');
   } catch (err) {
     console.error('[init]', err);
     _showToast('Error al iniciar: ' + err.message, 'error');
