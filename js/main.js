@@ -306,10 +306,14 @@ async function _openTaskDetail(taskId) {
 
   const resRows = taskResources.map(tr => {
     const res = allResources.find(r => r.id === tr.resource_id);
+    const unitSuffix = res?.type === 'material' || res?.type === 'equipment'
+      ? (res.unit_label ? ' ' + _escHtml(res.unit_label) : ' und')
+      : ' %';
+    const typeTag = { work: 'trabajo', material: 'material', equipment: 'equipo', cost: 'costo' };
     return `<tr data-trid="${tr.id}">
-      <td style="padding:4px 8px;font-size:12px">${_escHtml(res?.name ?? '—')}</td>
+      <td style="padding:4px 8px;font-size:12px">${_escHtml(res?.name ?? '—')}<br><span style="font-size:10px;color:var(--clr-text-3)">${typeTag[res?.type ?? 'work'] ?? ''}</span></td>
       <td style="padding:4px 8px;font-size:12px">${_escHtml(res?.role ?? '')}</td>
-      <td style="padding:4px 8px;font-size:12px"><input type="number" class="tdp-res-units" data-trid="${tr.id}" value="${tr.units ?? 100}" min="1" max="100000" style="width:64px;padding:2px 6px;border:1px solid var(--clr-border);border-radius:4px;font-size:11px;background:var(--clr-surface);color:var(--clr-text)"> %</td>
+      <td style="padding:4px 8px;font-size:12px"><input type="number" class="tdp-res-units" data-trid="${tr.id}" value="${tr.units ?? 100}" min="1" max="100000" style="width:64px;padding:2px 6px;border:1px solid var(--clr-border);border-radius:4px;font-size:11px;background:var(--clr-surface);color:var(--clr-text)">${unitSuffix}</td>
       <td style="padding:4px 8px"><button class="btn btn-icon btn-sm tdp-res-remove" data-trid="${tr.id}" title="Quitar" style="color:var(--clr-danger,#e74c3c);padding:0 6px">✕</button></td>
     </tr>`;
   }).join('');
@@ -398,8 +402,11 @@ async function _openTaskDetail(taskId) {
       </label>
 
       <!-- Recursos asignados -->
-      <div>
-        <div style="font-size:12px;font-weight:700;color:var(--clr-text-2);margin-bottom:8px">Recursos asignados</div>
+      <div id="tdp-resources-section">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+          <span style="font-size:12px;font-weight:700;color:var(--clr-text-2)">Recursos asignados</span>
+          <button id="tdp-open-catalog" class="btn btn-ghost btn-sm" title="Gestionar catálogo global de recursos" style="font-size:11px;padding:3px 8px">📚 Catálogo</button>
+        </div>
         <table id="tdp-res-table" style="width:100%;border-collapse:collapse;font-size:12px">
           <thead>
             <tr style="background:var(--clr-surface-2)">
@@ -429,6 +436,7 @@ async function _openTaskDetail(taskId) {
   // Listeners para recursos
   body.querySelector('#tdp-res-add')?.addEventListener('click', () => _tdpAddResource(taskId));
   body.querySelector('#tdp-open-resources')?.addEventListener('click', (e) => { e.preventDefault(); _openResourceManager(); });
+  body.querySelector('#tdp-open-catalog')?.addEventListener('click', () => _openResourceManager());
   body.addEventListener('click', (e) => {
     if (/** @type {HTMLElement} */ (e.target).classList.contains('tdp-res-remove')) {
       const trid = /** @type {HTMLElement} */ (e.target).dataset.trid;
@@ -457,10 +465,13 @@ async function _tdpAddResource(taskId) {
   const tr = document.createElement('tr');
   tr.dataset.trid = trid;
   tr.dataset.newRes = resId;
+  const newUnitSuffix = res.type === 'material' || res.type === 'equipment'
+    ? (res.unit_label ? ' ' + res.unit_label : ' und') : ' %';
+  const newTypeTag = { work: 'trabajo', material: 'material', equipment: 'equipo', cost: 'costo' };
   tr.innerHTML = `
-    <td style="padding:4px 8px;font-size:12px">${_escHtml(res.name)}</td>
+    <td style="padding:4px 8px;font-size:12px">${_escHtml(res.name)}<br><span style="font-size:10px;color:var(--clr-text-3)">${newTypeTag[res.type ?? 'work'] ?? ''}</span></td>
     <td style="padding:4px 8px;font-size:12px">${_escHtml(res.role ?? '')}</td>
-    <td style="padding:4px 8px;font-size:12px"><input type="number" class="tdp-res-units" data-trid="${trid}" value="100" min="1" max="100000" style="width:64px;padding:2px 6px;border:1px solid var(--clr-border);border-radius:4px;font-size:11px;background:var(--clr-surface);color:var(--clr-text)"> %</td>
+    <td style="padding:4px 8px;font-size:12px"><input type="number" class="tdp-res-units" data-trid="${trid}" value="100" min="1" max="100000" style="width:64px;padding:2px 6px;border:1px solid var(--clr-border);border-radius:4px;font-size:11px;background:var(--clr-surface);color:var(--clr-text)">${_escHtml(newUnitSuffix)}</td>
     <td style="padding:4px 8px"><button class="btn btn-icon btn-sm tdp-res-remove" data-trid="${trid}" title="Quitar" style="color:var(--clr-danger,#e74c3c);padding:0 6px">✕</button></td>`;
   if (tbody) {
     const empty = tbody.querySelector('td[colspan]');
@@ -561,47 +572,63 @@ async function _openResourceManager() {
   const { getAll } = await import('./storage.js?v=4');
   const resources = await getAll('resources').then(r => r.filter(x => !x.deleted_at));
 
-  const rows = resources.map(r => `
-    <tr>
+  const typeLabel = { work: 'Trabajo', material: 'Material', equipment: 'Equipo', cost: 'Costo fijo' };
+  const rows = resources.map(r => {
+    const extra = r.type === 'work'
+      ? `${r.max_units != null ? r.max_units + '%' : '100%'} máx`
+      : r.type === 'material' || r.type === 'equipment'
+        ? _escHtml(r.unit_label ?? '')
+        : '';
+    return `<tr>
       <td style="padding:6px 10px;font-size:13px">${_escHtml(r.name)}</td>
       <td style="padding:6px 10px;font-size:12px;color:var(--clr-text-3)">${_escHtml(r.role ?? '')}</td>
       <td style="padding:6px 10px;font-size:12px;color:var(--clr-text-3)">${r.rate_per_hour ? 'S/ '+r.rate_per_hour+'/h' : '—'}</td>
-      <td style="padding:6px 10px;font-size:12px;color:var(--clr-text-3)">${_escHtml(r.type ?? 'work')}</td>
+      <td style="padding:6px 10px;font-size:12px;color:var(--clr-text-3)">${typeLabel[r.type ?? 'work'] ?? r.type}</td>
+      <td style="padding:6px 10px;font-size:11px;color:var(--clr-text-3)">${extra}</td>
       <td style="padding:6px 10px"><button class="btn btn-icon btn-sm rm-del" data-rid="${r.id}" title="Eliminar" style="color:var(--clr-danger,#e74c3c)">🗑</button></td>
-    </tr>`).join('') || '<tr><td colspan="5" style="padding:16px;text-align:center;color:var(--clr-text-3)">Sin recursos</td></tr>';
+    </tr>`;
+  }).join('') || '<tr><td colspan="6" style="padding:16px;text-align:center;color:var(--clr-text-3)">Sin recursos en el catálogo</td></tr>';
 
   dlg.innerHTML = `
     <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid var(--clr-border);background:var(--clr-surface-2)">
-      <span style="font-weight:700;font-size:15px">Gestión de Recursos</span>
+      <div>
+        <div style="font-weight:700;font-size:15px">Catálogo de Recursos</div>
+        <div style="font-size:11px;color:var(--clr-text-3);margin-top:2px">Recursos disponibles para asignar a actividades</div>
+      </div>
       <button id="dlg-res-close" class="btn btn-icon btn-sm">✕</button>
     </div>
-    <div style="padding:16px;max-height:50vh;overflow-y:auto">
+    <div style="padding:16px;max-height:45vh;overflow-y:auto">
       <table style="width:100%;border-collapse:collapse">
         <thead><tr style="background:var(--clr-surface-2)">
           <th style="padding:6px 10px;text-align:left;font-size:11px;color:var(--clr-text-3);font-weight:600">Nombre</th>
           <th style="padding:6px 10px;text-align:left;font-size:11px;color:var(--clr-text-3);font-weight:600">Rol / Cargo</th>
           <th style="padding:6px 10px;text-align:left;font-size:11px;color:var(--clr-text-3);font-weight:600">Tarifa</th>
           <th style="padding:6px 10px;text-align:left;font-size:11px;color:var(--clr-text-3);font-weight:600">Tipo</th>
+          <th style="padding:6px 10px;text-align:left;font-size:11px;color:var(--clr-text-3);font-weight:600">Unidad/Máx</th>
           <th style="width:40px"></th>
         </tr></thead>
         <tbody id="rm-body">${rows}</tbody>
       </table>
     </div>
     <div style="padding:14px 16px;border-top:1px solid var(--clr-border);background:var(--clr-surface-2)">
-      <div style="font-size:12px;font-weight:700;color:var(--clr-text-2);margin-bottom:10px">Agregar recurso</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:10px">
+      <div style="font-size:12px;font-weight:700;color:var(--clr-text-2);margin-bottom:10px">Agregar recurso al catálogo</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:8px">
         <input id="rm-name" type="text" placeholder="Nombre *" style="padding:7px 10px;border:1px solid var(--clr-border);border-radius:7px;font-size:12px;background:var(--clr-surface);color:var(--clr-text)">
         <input id="rm-role" type="text" placeholder="Rol / Cargo" style="padding:7px 10px;border:1px solid var(--clr-border);border-radius:7px;font-size:12px;background:var(--clr-surface);color:var(--clr-text)">
         <input id="rm-rate" type="number" min="0" step="0.01" placeholder="Tarifa/hora (S/)" style="padding:7px 10px;border:1px solid var(--clr-border);border-radius:7px;font-size:12px;background:var(--clr-surface);color:var(--clr-text)">
       </div>
-      <div style="display:flex;gap:8px;align-items:center">
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:10px">
         <select id="rm-type" style="padding:7px 10px;border:1px solid var(--clr-border);border-radius:7px;font-size:12px;background:var(--clr-surface);color:var(--clr-text)">
           <option value="work">Trabajo (persona)</option>
           <option value="material">Material</option>
-          <option value="cost">Costo fijo</option>
           <option value="equipment">Equipo</option>
+          <option value="cost">Costo fijo</option>
         </select>
-        <button id="rm-add" class="btn btn-primary btn-sm">＋ Agregar</button>
+        <input id="rm-unit-label" type="text" placeholder="Unidad (m³, kg, und…)" title="Unidad de medida para material/equipo" style="padding:7px 10px;border:1px solid var(--clr-border);border-radius:7px;font-size:12px;background:var(--clr-surface);color:var(--clr-text)">
+        <input id="rm-max-units" type="number" min="1" max="100000" step="1" placeholder="Unid. máx % (trabajo)" title="Disponibilidad máxima para recursos de trabajo (%)" style="padding:7px 10px;border:1px solid var(--clr-border);border-radius:7px;font-size:12px;background:var(--clr-surface);color:var(--clr-text)">
+      </div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button id="rm-add" class="btn btn-primary btn-sm">＋ Agregar al catálogo</button>
       </div>
     </div>`;
 
@@ -609,13 +636,21 @@ async function _openResourceManager() {
   dlg.querySelector('#rm-add').addEventListener('click', async () => {
     const name = /** @type {HTMLInputElement} */ (dlg.querySelector('#rm-name')).value.trim();
     if (!name) { _showToast('Nombre requerido', 'warn'); return; }
-    const role = /** @type {HTMLInputElement} */ (dlg.querySelector('#rm-role')).value.trim() || null;
-    const rate = parseFloat(/** @type {HTMLInputElement} */ (dlg.querySelector('#rm-rate')).value) || null;
-    const type = /** @type {HTMLSelectElement} */ (dlg.querySelector('#rm-type')).value;
+    const role       = /** @type {HTMLInputElement} */ (dlg.querySelector('#rm-role')).value.trim() || null;
+    const rate       = parseFloat(/** @type {HTMLInputElement} */ (dlg.querySelector('#rm-rate')).value) || null;
+    const type       = /** @type {HTMLSelectElement} */ (dlg.querySelector('#rm-type')).value;
+    const unitLabel  = /** @type {HTMLInputElement} */ (dlg.querySelector('#rm-unit-label')).value.trim() || null;
+    const maxUnitsRaw = /** @type {HTMLInputElement} */ (dlg.querySelector('#rm-max-units')).value;
+    const maxUnits   = maxUnitsRaw ? parseFloat(maxUnitsRaw) : (type === 'work' ? 100 : null);
     const { put: dbPutSt } = await import('./storage.js?v=4');
-    const rec = { id: crypto.randomUUID(), name, role, rate_per_hour: rate, type, org_id: null, deleted_at: null };
+    const rec = {
+      id: crypto.randomUUID(), name, role, rate_per_hour: rate, type,
+      unit_label: (type === 'material' || type === 'equipment') ? unitLabel : null,
+      max_units:  type === 'work' ? (maxUnits ?? 100) : null,
+      org_id: null, deleted_at: null,
+    };
     await dbPutSt('resources', rec);
-    _showToast('Recurso agregado: ' + name, 'success');
+    _showToast('Recurso agregado al catálogo: ' + name, 'success');
     dlg.close();
     _openResourceManager(); // reabrir para mostrar la lista actualizada
   });
@@ -1441,7 +1476,19 @@ function _bindToolbar() {
     }
   });
 
-  document.getElementById('btn-resources')?.addEventListener('click', () => _openResourceManager());
+  document.getElementById('btn-resources')?.addEventListener('click', () => {
+    const selectedId = appState.state.selectedTaskId;
+    if (selectedId) {
+      // Abrir detalle de actividad y desplazarse a la sección de recursos
+      _openTaskDetailPanel(selectedId).then(() => {
+        setTimeout(() => {
+          document.getElementById('tdp-resources-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }, 120);
+      });
+    } else {
+      _openResourceManager();
+    }
+  });
 
   document.getElementById('btn-calendar')?.addEventListener('click', () => _openCalendarEditor());
   document.getElementById('btn-gantt-fit')?.addEventListener('click', () => _ganttCanvas?.fitToView());
