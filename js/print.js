@@ -106,14 +106,14 @@ export function printGantt(rows) {
 <html lang="es"><head>
   <meta charset="UTF-8">
   <title>${_esc(project.name)}</title>
-  <style id="page-style">@page { size: landscape; margin: 0; }</style>
+  <style id="page-style">@page { size: landscape; margin: 10mm; }</style>
   <style>
     * { box-sizing: border-box; }
-    body  { margin: 0; padding: 8mm 10mm; font-family: 'Segoe UI', system-ui, sans-serif; }
+    body  { margin: 0; padding: 0; font-family: 'Segoe UI', system-ui, sans-serif; }
     .header { display: flex; align-items: center; padding: 0 0 6px;
               border-bottom: 2px solid #1976D2; margin-bottom: 8px; }
     .proj-name { font-size: 16px; font-weight: 700; color: #1976D2; }
-    .gantt-frame { border: 1px solid #546E7A; display: inline-block; width: 100%; }
+    .gantt-frame { border: 0.25px solid #546E7A; display: inline-block; width: 100%; }
     svg { width: var(--gantt-zoom, 100%); max-width: none; height: auto; display: block; }
     .controls { display: flex; align-items: center; gap: 12px; padding: 8px 0 10px;
                 font-family: 'Segoe UI', system-ui, sans-serif; font-size: 12px; flex-wrap: wrap; }
@@ -157,7 +157,7 @@ export function printGantt(rows) {
       svg.style.width = zoom.value + '%';
     });
     function setOrient(o) {
-      document.getElementById('page-style').textContent = '@page { size: ' + o + '; margin: 0; }';
+      document.getElementById('page-style').textContent = '@page { size: ' + o + '; margin: 10mm; }';
       document.getElementById('btn-land').classList.toggle('active', o === 'landscape');
       document.getElementById('btn-port').classList.toggle('active', o === 'portrait');
     }
