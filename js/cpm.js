@@ -279,9 +279,11 @@ export function computeCPM(allTasks, allDeps, calendar, projectStart, dataDateId
       switch (dep.type) {
         case 'FS':
           requiredES = pred.ef + lag;
+          if (requiredES < 0) wouldBeNeg = true;
           break;
         case 'SS':
           requiredES = pred.es + lag;
+          if (requiredES < 0) wouldBeNeg = true;
           break;
         case 'FF':
           requiredEF = pred.ef + lag;
