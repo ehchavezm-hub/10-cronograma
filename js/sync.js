@@ -207,7 +207,7 @@ export class SyncEngine {
       appState.setSyncStatus('synced');
     } catch (err) {
       console.warn('[Sync] Pull falló:', err.message);
-      appState.setSyncStatus(navigator.onLine ? 'offline' : 'offline');
+      appState.setSyncStatus(navigator.onLine ? 'conflict' : 'offline');
     }
   }
 

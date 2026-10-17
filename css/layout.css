@@ -234,10 +234,18 @@ html, body {
   #bottom-tabs .tab-btn.active { color: var(--clr-primary); }
   #bottom-tabs .tab-icon { font-size: 20px; }
 
-  /* En móvil las vistas son exclusivas */
-  #explorer-panel, #gantt-panel { display: none !important; }
+  /* En móvil las vistas son exclusivas — default: mostrar EDT */
+  #explorer-panel, #gantt-panel, #evm-panel { display: none !important; }
   #wbs-panel { overflow-y: auto; }
   :root { --row-h: var(--row-h-touch); }
+
+  /* Vista Gantt activa en móvil */
+  #app.mobile-view-gantt #gantt-panel { display: block !important; }
+  #app.mobile-view-gantt #wbs-panel   { display: none !important; }
+
+  /* Vista KPIs activa en móvil */
+  #app.mobile-view-kpi #evm-panel  { display: block !important; }
+  #app.mobile-view-kpi #wbs-panel  { display: none !important; }
 }
 @media (min-width: 600px) {
   #bottom-tabs { display: none; }

@@ -299,30 +299,24 @@ async function _openTaskDetail(taskId) {
   const project = appState.state.project;
   const startIso = project?.start_date || new Date().toISOString().slice(0, 10);
 
+  // Convertir índice de días laborables CPM a fecha usando el calendario del proyecto
+  const _calState = appState.state.calendar;
+  const _calDef = _calState
+    ? { work_week: _calState.work_week, exceptions: (appState.state.calExceptions || []).filter(e => !e.deleted_at).map(e => ({ on_date: e.on_date, is_working: e.is_working })) }
+    : { work_week: [1,2,3,4,5], exceptions: [] };
+  const _calObj = new Calendar(_calDef);
+  const _startDate = isoToDate(startIso);
+
   const idxToDate = (idx) => {
     if (idx == null) return '—';
-    const cal = appState.state.calendar;
-    const calDef = cal
-      ? { work_week: cal.work_week, exceptions: (appState.state.calExceptions || []).filter(e => !e.deleted_at).map(e => ({ on_date: e.on_date, is_working: e.is_working })) }
-      : { work_week: [1,2,3,4,5], exceptions: [] };
-    const calObj = new (/** @type {any} */ (window).__Calendar || Object)(calDef);
-    // Usamos isoToDate + calendar.idxToDate si disponible, sino calculamos directo
     try {
-      const { Calendar: Cal } = /** @type {any} */ ({});
-      const start = new Date(startIso + 'T00:00:00');
-      start.setDate(start.getDate() + idx);
-      return start.toLocaleDateString('es-PE', { day:'2-digit', month:'2-digit', year:'numeric' });
+      const d = _calObj.idxToDate(idx, _startDate);
+      return d.toLocaleDateString('es-PE', { day:'2-digit', month:'2-digit', year:'numeric' });
     } catch { return String(idx) + 'd'; }
   };
 
-  // Calcular fechas desde índice de días
-  const startDate = new Date(startIso + 'T00:00:00');
-  const addDays = (n) => {
-    if (n == null) return '—';
-    const d = new Date(startDate);
-    d.setDate(d.getDate() + n);
-    return d.toLocaleDateString('es-PE', { day:'2-digit', month:'2-digit', year:'numeric' });
-  };
+  // addDays usa el mismo calendario
+  const addDays = (n) => idxToDate(n);
 
   // Cargar recursos asignados
   let taskResources = [];
@@ -472,17 +466,21 @@ async function _openTaskDetail(taskId) {
 
     </div>`;
 
-  // Listeners para recursos
-  body.querySelector('#tdp-res-add')?.addEventListener('click', () => _tdpAddResource(taskId));
-  body.querySelector('#tdp-open-resources')?.addEventListener('click', (e) => { e.preventDefault(); _openResourceManager(); });
-  body.querySelector('#tdp-open-catalog')?.addEventListener('click', () => _openResourceManager());
+  // Listeners para recursos — usar AbortController para limpiar en cada apertura
+  if (_taskDetailPanel.__bodyAC) _taskDetailPanel.__bodyAC.abort();
+  const _bodyAC = new AbortController();
+  _taskDetailPanel.__bodyAC = _bodyAC;
+  const _bSig = { signal: _bodyAC.signal };
+  body.querySelector('#tdp-res-add')?.addEventListener('click', () => _tdpAddResource(taskId), _bSig);
+  body.querySelector('#tdp-open-resources')?.addEventListener('click', (e) => { e.preventDefault(); _openResourceManager(); }, _bSig);
+  body.querySelector('#tdp-open-catalog')?.addEventListener('click', () => _openResourceManager(), _bSig);
   body.addEventListener('click', (e) => {
     if (/** @type {HTMLElement} */ (e.target).classList.contains('tdp-res-remove')) {
       const trid = /** @type {HTMLElement} */ (e.target).dataset.trid;
       /** @type {HTMLElement} */ (e.target).closest('tr')?.remove();
       _taskDetailPanel.dataset['removeRes'] = (_taskDetailPanel.dataset['removeRes'] || '') + trid + ',';
     }
-  });
+  }, _bSig);
 
   _taskDetailPanel.style.transform = 'translateX(0)';
 }
@@ -498,8 +496,10 @@ async function _tdpAddResource(taskId) {
 
   // Verificar que no esté ya asignado
   const tbody = document.getElementById('tdp-res-body');
-  const existing = tbody?.querySelector(`[data-trid]`);
-  // Simplemente añadimos fila nueva (se persiste al guardar)
+  if (tbody?.querySelector(`tr[data-new-res="${resId}"]`) ||
+      taskResources.some(tr => tr.resource_id === resId)) {
+    _showToast('Este recurso ya está asignado a la actividad', 'warn'); return;
+  }
   const trid = crypto.randomUUID();
   const tr = document.createElement('tr');
   tr.dataset.trid = trid;
@@ -740,6 +740,7 @@ async function _openResourceManager() {
     document.addEventListener('mousemove', onMove);
     document.addEventListener('mouseup', onUp);
     dlg.__rmClean = () => { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); };
+    dlg.addEventListener('close', () => dlg.__rmClean?.(), { once: true });
   }
   dlg.querySelector('#rm-add').addEventListener('click', async () => {
     const name = /** @type {HTMLInputElement} */ (dlg.querySelector('#rm-name')).value.trim();
@@ -792,14 +793,14 @@ async function _openResourceAssign(preSelectedId = null) {
     _openResourceManager();
     return;
   }
-  const tasks = appState.state.tasks?.filter(t => !t.deleted_at && t.type !== 'milestone') ?? [];
+  const tasks = [...(appState.state.tasks?.values() ?? [])].filter(t => !t.deleted_at && t.type !== 'milestone');
   if (!tasks.length) { _showToast('No hay actividades en el proyecto', 'warn'); return; }
 
   let dlg = document.getElementById('dlg-res-assign');
   if (!dlg) {
     dlg = document.createElement('dialog');
     dlg.id = 'dlg-res-assign';
-    dlg.style.cssText = 'border:none;border-radius:12px;padding:0;width:860px;max-width:98vw;box-shadow:0 8px 40px rgba(0,0,0,0.3);overflow:hidden;position:fixed;margin:0;top:60px;left:max(8px,calc(50vw - 430px));z-index:1100';
+    dlg.style.cssText = 'border:none;border-radius:12px;padding:0;width:min(860px,98vw);max-width:98vw;box-shadow:0 8px 40px rgba(0,0,0,0.3);overflow:hidden;position:fixed;margin:0;top:60px;left:clamp(4px,calc(50vw - 430px),calc(100vw - min(860px,98vw) - 4px));z-index:1100';
     document.body.appendChild(dlg);
   }
 
@@ -1174,14 +1175,16 @@ async function _openCalendarEditor() {
       }
     }
 
-    // Si el proyecto no tenía calendario, actualizar calendar_id
+    // Actualizar estado en memoria — deshabilitar auto-calc temporalmente para
+    // evitar doble ejecución CPM (una por dispatch y otra por _applyRemote)
+    const finalExceptions = [...updatedCalExceptions.filter(e => !e.deleted_at), ...newExceptions];
+    const _prevAutoCalc = appState.state.autoCalc;
+    appState.setAutoCalc(false);
     if (!proj.calendar_id || proj.calendar_id !== calId) {
       appState.dispatch({ type: 'UPDATE_PROJECT', payload: { fields: { calendar_id: calId } } });
     }
-
-    // Actualizar estado en memoria
-    const finalExceptions = [...updatedCalExceptions.filter(e => !e.deleted_at), ...newExceptions];
     appState._applyRemote({ calendar: updatedCal, calExceptions: finalExceptions });
+    appState.setAutoCalc(_prevAutoCalc); // dispara CPM una sola vez si autoCalc estaba activo
 
     _showToast('Calendario guardado', 'success');
     dlg.close();
@@ -1225,7 +1228,7 @@ function _updateUndoRedoBtns() {
 
 async function _ensureDemoData() {
   const projects = await listProjects();
-  if (projects.some(p => p.is_template === false || !p.is_template)) {
+  if (projects.some(p => p.is_template !== true)) {
     return projects[0]; // ya existe
   }
   // Guardar datos demo en IndexedDB
@@ -1410,7 +1413,7 @@ function _escHtml(s) {
   return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 function _escAttr(s) {
-  return String(s ?? '').replace(/"/g,'&quot;');
+  return String(s ?? '').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
 
 // ============================================================
@@ -1835,6 +1838,13 @@ function _bindToolbar() {
       _barLabelsBtn?.setAttribute('aria-expanded', 'false');
     }
   });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && _barLabelsMenu && !_barLabelsMenu.hidden) {
+      _barLabelsMenu.hidden = true;
+      _barLabelsBtn?.setAttribute('aria-expanded', 'false');
+      _barLabelsBtn?.focus();
+    }
+  });
 
   // ---- Menú columnas tabla EDT ----
   const _wbsColsBtn  = document.getElementById('btn-wbs-cols');
@@ -1856,6 +1866,13 @@ function _bindToolbar() {
     if (_wbsColsMenu && !_wbsColsMenu.hidden && !document.getElementById('wbs-cols-wrap')?.contains(/** @type {Node} */ (e.target))) {
       _wbsColsMenu.hidden = true;
       _wbsColsBtn?.setAttribute('aria-expanded', 'false');
+    }
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && _wbsColsMenu && !_wbsColsMenu.hidden) {
+      _wbsColsMenu.hidden = true;
+      _wbsColsBtn?.setAttribute('aria-expanded', 'false');
+      _wbsColsBtn?.focus();
     }
   });
 
@@ -1900,6 +1917,47 @@ function _bindToolbar() {
     document.getElementById('drawer-overlay')?.classList.remove('visible');
   });
 
+  // ---- Pestañas inferiores (móvil ≤599 px) ----
+  (function () {
+    const tabs = document.querySelectorAll('#bottom-tabs .tab-btn');
+    if (!tabs.length) return;
+    const appEl    = document.getElementById('app');
+    const explorer = document.getElementById('explorer-panel');
+    const overlay  = document.getElementById('drawer-overlay');
+
+    function _activateTab(idx) {
+      tabs.forEach((b, i) => b.classList.toggle('active', i === idx));
+      // Limpiar clases de vista
+      appEl?.classList.remove('mobile-view-gantt', 'mobile-view-kpi');
+      // Cerrar drawer del explorador si estaba abierto
+      explorer?.classList.remove('open');
+      overlay?.classList.remove('visible');
+      switch (idx) {
+        case 0: // Proyectos — abrir drawer lateral
+          explorer?.classList.add('open');
+          overlay?.classList.add('visible');
+          break;
+        case 1: // EDT — vista por defecto (sin clases extra)
+          break;
+        case 2: // Gantt
+          appEl?.classList.add('mobile-view-gantt');
+          break;
+        case 3: // KPIs
+          appEl?.classList.add('mobile-view-kpi');
+          // Abrir panel EVM si aún no tiene contenido
+          document.getElementById('btn-evm-view')?.click();
+          break;
+      }
+    }
+
+    tabs.forEach((btn, i) => btn.addEventListener('click', () => _activateTab(i)));
+
+    // Al cerrar el drawer (overlay click o selección de proyecto), volver a tab EDT
+    document.getElementById('drawer-overlay')?.addEventListener('click', () => {
+      tabs.forEach((b, i) => b.classList.toggle('active', i === 1));
+    });
+  })();
+
   // ---- Menú Exportar ----
   const exportBtn  = document.getElementById('btn-export');
   const exportMenu = document.getElementById('export-menu');
@@ -1911,11 +1969,18 @@ function _bindToolbar() {
     exportBtn.setAttribute('aria-expanded', String(!isOpen));
   });
 
-  // Cerrar menú al hacer clic fuera
+  // Cerrar menú al hacer clic fuera o con Escape
   document.addEventListener('click', () => {
     if (exportMenu && !exportMenu.hidden) {
       exportMenu.hidden = true;
       exportBtn?.setAttribute('aria-expanded', 'false');
+    }
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && exportMenu && !exportMenu.hidden) {
+      exportMenu.hidden = true;
+      exportBtn?.setAttribute('aria-expanded', 'false');
+      exportBtn?.focus();
     }
   });
 

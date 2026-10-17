@@ -50,7 +50,8 @@ export function calcEvm() {
     : { work_week: [1,2,3,4,5], exceptions: [] };
   const cal       = new Calendar(calDef);
   const startDate = isoToDate(project.start_date);
-  const dataDate  = project.data_date ? isoToDate(project.data_date) : new Date();
+  const _hasDataDate = !!project.data_date;
+  const dataDate  = _hasDataDate ? isoToDate(project.data_date) : new Date();
 
   const cpmTasks  = cpmResult.tasks;
   const allTasks  = [...tasks.values()].filter(t => !t.deleted_at && t.type !== 'milestone');
@@ -122,7 +123,7 @@ export function calcEvm() {
   // Curva S
   const curve = _buildCurve(leafTasks, cpmTasks, cal, startDate, bac);
 
-  return { bac, pv, ev, ac, sv, cv, spi, cpi, eac, etc, tcpi, vac, pctComplete, tasks: evmTasks, curve };
+  return { bac, pv, ev, ac, sv, cv, spi, cpi, eac, etc, tcpi, vac, pctComplete, tasks: evmTasks, curve, hasDataDate: _hasDataDate };
 }
 
 /**
@@ -248,6 +249,8 @@ export class EvmPanel {
     }
     this._container.querySelector('#evm-no-data').style.display = 'none';
     this._container.querySelector('#evm-content').style.display = '';
+    const warnEl = this._container.querySelector('#evm-no-date-warn');
+    if (warnEl) warnEl.style.display = r.hasDataDate ? 'none' : '';
 
     // KPIs
     _setKpi(this._container, 'bac',  r.bac,  'currency');
@@ -382,7 +385,7 @@ function _setKpi(container, key, val, fmt, cls = '') {
   const el = container.querySelector(`[data-kpi="${key}"]`);
   if (!el) return;
   el.textContent = fmt === 'currency' ? _fmtC(val)
-    : fmt === 'index'  ? val.toFixed(2)
+    : fmt === 'index'  ? (isFinite(val) ? val.toFixed(2) : 'N/A')
     : fmt === 'pct'    ? val.toFixed(1) + '%'
     : String(val);
   el.className = 'kpi-value ' + cls;
@@ -411,6 +414,9 @@ function _buildPanelHtml() {
 </div>
 <div id="evm-no-data" style="display:none;padding:32px;text-align:center;color:var(--clr-text-3)">
   No hay datos de CPM disponibles. Espere que se complete el cálculo.
+</div>
+<div id="evm-no-date-warn" style="display:none;padding:6px 16px;background:var(--clr-warn-bg,#fff3cd);color:var(--clr-warn-text,#856404);font-size:12px;border-bottom:1px solid var(--clr-warn-border,#ffc107)">
+  ⚠️ El proyecto no tiene <strong>Fecha de datos</strong> configurada. PV se calcula con la fecha actual. Configure la fecha de datos en la pestaña del proyecto.
 </div>
 <div id="evm-content">
   <!-- KPIs principales -->

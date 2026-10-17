@@ -225,12 +225,13 @@ export class AppStateManager {
   /** @param {Command} cmd @returns {{ok:boolean, inverse:Command, changed:string[], error?:string}} */
   _exec(cmd) {
     switch (cmd.type) {
-      case 'ADD_TASK':    return this._addTask(cmd);
-      case 'UPDATE_TASK': return this._updateTask(cmd);
-      case 'REMOVE_TASK': return this._removeTask(cmd);
-      case 'MOVE_TASK':   return this._moveTask(cmd);
-      case 'ADD_DEP':     return this._addDep(cmd);
-      case 'REMOVE_DEP':  return this._removeDep(cmd);
+      case 'ADD_TASK':      return this._addTask(cmd);
+      case 'UPDATE_TASK':   return this._updateTask(cmd);
+      case 'REMOVE_TASK':   return this._removeTask(cmd);
+      case 'RESTORE_TASK':  return this._restoreTask(cmd);
+      case 'MOVE_TASK':     return this._moveTask(cmd);
+      case 'ADD_DEP':       return this._addDep(cmd);
+      case 'REMOVE_DEP':    return this._removeDep(cmd);
       case 'UPDATE_PROJECT': return this._updateProject(cmd);
       default:
         return { ok: false, inverse: cmd, changed: [], error: `Unknown command: ${cmd.type}` };
@@ -306,6 +307,25 @@ export class AppStateManager {
         type: 'RESTORE_TASK',
         payload: { id, prevDeleted, affectedDeps }
       },
+      changed: ['tasks', 'deps'],
+    };
+  }
+
+  // ---- RESTORE_TASK (inverso de REMOVE_TASK, usado por undo) ----
+  _restoreTask(cmd) {
+    const { id, prevDeleted, affectedDeps } = cmd.payload;
+    const existing = this._state.tasks.get(id);
+    if (!existing) return { ok: false, inverse: cmd, changed: [], error: 'Task not found' };
+    const now = new Date().toISOString();
+    this._state.tasks.set(id, { ...existing, deleted_at: prevDeleted ?? null, updated_at: now });
+    // Restaurar dependencias que fueron borradas junto con la tarea
+    for (const did of (affectedDeps ?? [])) {
+      const dep = this._state.deps.get(did);
+      if (dep) this._state.deps.set(did, { ...dep, deleted_at: null, updated_at: now });
+    }
+    return {
+      ok: true,
+      inverse: { type: 'REMOVE_TASK', payload: { id } },
       changed: ['tasks', 'deps'],
     };
   }
