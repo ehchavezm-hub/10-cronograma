@@ -12,6 +12,8 @@ import { appState }   from './state.js';
 import { GanttScene } from './scene.js';
 import { fmtDate }    from './calendar.js';
 
+const _esc = (s) => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+
 // ---- Paleta de colores (coincide con css/tokens.css) ----
 const C = {
   critical:   '#D32F2F',
@@ -61,6 +63,9 @@ export class GanttCanvas {
     this._pendingPred = null;  // {id, x, y} — primer clic (fin de barra)
     this._hoverHandle = null;  // {id, side:'end'|'start', x, y} — handle bajo el mouse
     this._mousePos    = { x: 0, y: 0 }; // posición actual del mouse
+
+    // Tooltip flotante
+    this._tooltip = this._createTooltip();
 
     this._bindEvents();
     this._initResizeObserver();
@@ -155,15 +160,45 @@ export class GanttCanvas {
       return;
     }
 
-    if (!this._panning) return;
-    const dx = e.clientX - this._panStart.x;
-    const dy = e.clientY - this._panStart.y;
-    this._scene.scrollX = this._panStart.sx - dx;
-    this._scene.scrollY = this._panStart.sy - dy;
-    this._scene.clampScrollX(this._canvas.clientWidth);
-    this._scene.clampScrollY(this._canvas.clientHeight);
-    document.dispatchEvent(new CustomEvent('gantt-scroll-y', { detail: { scrollY: this._scene.scrollY } }));
-    this.requestRender();
+    if (this._panning) {
+      const dx = e.clientX - this._panStart.x;
+      const dy = e.clientY - this._panStart.y;
+      this._scene.scrollX = this._panStart.sx - dx;
+      this._scene.scrollY = this._panStart.sy - dy;
+      this._scene.clampScrollX(this._canvas.clientWidth);
+      this._scene.clampScrollY(this._canvas.clientHeight);
+      document.dispatchEvent(new CustomEvent('gantt-scroll-y', { detail: { scrollY: this._scene.scrollY } }));
+      this._hideTooltip();
+      this.requestRender();
+      return;
+    }
+
+    // Tooltip al pasar sobre una barra
+    const barId = this._getBarAt(cx, cy);
+    if (barId) {
+      const state = appState.state;
+      const task  = state.tasks.get(barId);
+      const cpm   = this._scene.cpmResult?.tasks.get(barId);
+      const cal   = this._scene.calendar;
+      const ps    = this._scene.projectStart;
+      if (task && cpm && cal && ps) {
+        const fmt = (/** @type {Date} */ d) => d.toLocaleDateString('es-PE', { day:'2-digit', month:'short', year:'numeric' });
+        let lines = `<strong>${_esc(task.name)}</strong>`;
+        if (task.type === 'milestone') {
+          const d = cal.idxToDate(cpm.es, ps);
+          lines += `\nFecha: ${fmt(d)}`;
+        } else {
+          if (cpm.es != null) lines += `\nInicio: ${fmt(cal.idxToDate(cpm.es, ps))}`;
+          if (cpm.ef != null) lines += `\nFin: ${fmt(cal.finishDate(cpm.ef, ps))}`;
+          if (cpm.dur != null) lines += `\nDuración: ${cpm.dur} d`;
+          if (cpm.tf != null) lines += `\nFloat: ${cpm.tf} d`;
+          if (task.percent_complete != null) lines += `\nAvance: ${task.percent_complete}%`;
+        }
+        this._showTooltip(lines, e.clientX, e.clientY);
+      }
+    } else {
+      this._hideTooltip();
+    }
   }
 
   _onUp(_e) {
@@ -176,6 +211,93 @@ export class GanttCanvas {
     this._hoverHandle = null;
     if (this._linkMode) this.requestRender();
     this._canvas.style.cursor = 'grab';
+    this._hideTooltip();
+  }
+
+  // ---- Tooltip flotante ----
+
+  _createTooltip() {
+    const el = document.createElement('div');
+    el.id = 'gantt-bar-tooltip';
+    el.setAttribute('role', 'tooltip');
+    el.style.cssText = [
+      'position:fixed',
+      'z-index:200',
+      'display:none',
+      'pointer-events:none',
+      'background:var(--clr-surface,#fff)',
+      'border:1px solid var(--clr-border,#e5e7eb)',
+      'border-radius:var(--radius-sm,4px)',
+      'box-shadow:var(--shadow-md,0 4px 12px rgba(0,0,0,.15))',
+      'padding:6px 10px',
+      'font-family:var(--font-ui,sans-serif)',
+      'font-size:var(--text-xs,11px)',
+      'color:var(--clr-text,#111)',
+      'max-width:260px',
+      'line-height:1.5',
+      'white-space:pre-wrap',
+      'word-break:break-word',
+    ].join(';');
+    document.body.appendChild(el);
+    return el;
+  }
+
+  _showTooltip(html, clientX, clientY) {
+    const el = this._tooltip;
+    el.innerHTML = html;
+    el.style.display = 'block';
+    // Position near cursor, flipping if near right/bottom edge
+    const margin = 12;
+    const W = window.innerWidth, H = window.innerHeight;
+    let left = clientX + margin;
+    let top  = clientY + margin;
+    requestAnimationFrame(() => {
+      const tw = el.offsetWidth, th = el.offsetHeight;
+      if (left + tw > W - 8) left = clientX - tw - margin;
+      if (top  + th > H - 8) top  = clientY - th - margin;
+      el.style.left = Math.max(4, left) + 'px';
+      el.style.top  = Math.max(4, top)  + 'px';
+    });
+  }
+
+  _hideTooltip() {
+    this._tooltip.style.display = 'none';
+  }
+
+  /** Hit-test: devuelve el task.id de la barra bajo (cx,cy) en coordenadas canvas, o null */
+  _getBarAt(cx, cy) {
+    const scene = this._scene;
+    const { rows, headerHeight, rowHeight, scrollY, cpmResult, calendar, projectStart } = scene;
+    if (!cpmResult || !calendar || !projectStart || cy < headerHeight) return null;
+    const state = appState.state;
+    const W = this._canvas.clientWidth;
+
+    for (let i = 0; i < rows.length; i++) {
+      const rowY = headerHeight + i * rowHeight - scrollY;
+      if (cy < rowY || cy > rowY + rowHeight) continue;
+
+      const row  = rows[i];
+      const task = state.tasks.get(row.id);
+      const cpm  = cpmResult.tasks.get(row.id);
+      if (!task || !cpm || cpm.es == null) continue;
+
+      if (task.type === 'milestone') {
+        const d  = calendar.idxToDate(cpm.es, projectStart);
+        const mx = scene._dateToXAbs(d) - scene.scrollX;
+        const half = rowHeight * 0.4;
+        if (Math.abs(cx - mx) <= half && Math.abs(cy - (rowY + rowHeight / 2)) <= half) return row.id;
+        continue;
+      }
+
+      const startD = calendar.idxToDate(cpm.es, projectStart);
+      const endD   = calendar.finishDate(cpm.ef, projectStart);
+      const x1 = scene._dateToXAbs(startD) - scene.scrollX;
+      const x2 = scene._dateToXAbs(endD)   - scene.scrollX + scene.pixPerDay;
+      const cx1 = Math.max(0, Math.min(W, x1));
+      const cx2 = Math.max(0, Math.min(W, x2));
+      if (cx >= cx1 - 2 && cx <= cx2 + 2) return row.id;
+    }
+    return null;
   }
 
   _onWheel(e) {
