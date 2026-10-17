@@ -2713,23 +2713,15 @@ function _exportCpmNetwork(fmt, dlg) {
     const today = new Date().toLocaleDateString('es-PE');
     const projDisplayName = _escHtml(appState.state.project?.name ?? projName);
 
-    // Leyenda con SVG inline para garantizar colores en impresión
-    const legendItems = [
-      { color: '#e74c3c', label: 'Crítica' },
-      { color: '#f39c12', label: 'Casi crítica' },
-      { color: '#2980b9', label: 'Normal' },
-      { color: '#27ae60', label: 'Completa' },
-    ];
-    const legendSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="${legendItems.length * 110}" height="20" style="display:block">
-      ${legendItems.map((it, i) => `<rect x="${i*110}" y="3" width="13" height="13" rx="2" fill="${it.color}"/><text x="${i*110+18}" y="14" font-size="11" font-family="Segoe UI,Arial,sans-serif" fill="#444">${it.label}</text>`).join('')}
-    </svg>`;
-
     // Quitar width/height fijos; dejar solo viewBox para que CSS controle el tamaño
     clone.removeAttribute('width');
     clone.removeAttribute('height');
     clone.setAttribute('preserveAspectRatio', 'xMidYMid meet');
-    const svgForPdf = serializer.serializeToString(clone);
 
+    const win = window.open('', '_blank', 'width=1300,height=900');
+    if (!win) { alert('El navegador bloqueó la ventana emergente. Permítala e intente de nuevo.'); return; }
+
+    // Escribir HTML shell SIN el SVG (evita que document.write reordene el DOM al parsear SVG)
     const html = `<!doctype html>
 <html lang="es"><head>
   <meta charset="UTF-8">
@@ -2741,8 +2733,8 @@ function _exportCpmNetwork(fmt, dlg) {
     .header { display: flex; align-items: center; padding: 0 0 6px;
               border-bottom: 2px solid #1976D2; margin-bottom: 8px; }
     .proj-name { font-size: 16px; font-weight: 700; color: #1976D2; }
-    .gantt-frame { border: 0.25px solid #546E7A; display: inline-block; width: 100%; }
-    svg { width: var(--cpm-zoom, 100%); max-width: none; height: auto; display: block; }
+    .gantt-frame { border: 0.25px solid #546E7A; display: block; width: 100%; overflow: hidden; }
+    .gantt-frame svg { width: 100%; height: auto; display: block; }
     .controls { display: flex; align-items: center; gap: 12px; padding: 8px 0 10px;
                 font-family: 'Segoe UI', system-ui, sans-serif; font-size: 12px; flex-wrap: wrap; }
     .controls label { display: flex; align-items: center; gap: 6px; color: #455A64; }
@@ -2754,7 +2746,9 @@ function _exportCpmNetwork(fmt, dlg) {
                  padding: 6px 16px; font-size: 13px; cursor: pointer; }
     .btn-print:hover { background: #1565C0; }
     .sep { width: 1px; height: 22px; background: #CFD8DC; }
-    .legend-wrap { margin-top: 6px; }
+    .legend-wrap { margin-top: 8px; display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
+    .legend-item { display: flex; align-items: center; gap: 5px; font-size: 12px; color: #444; }
+    .legend-swatch { width: 13px; height: 13px; border-radius: 2px; flex-shrink: 0; }
     @media print { .controls { display: none !important; } }
   </style>
 </head><body>
@@ -2765,26 +2759,29 @@ function _exportCpmNetwork(fmt, dlg) {
     </label>
     <div class="sep"></div>
     <span style="color:#78909C">Orientación:</span>
-    <button class="btn-c active" id="btn-land" onclick="setOrient('landscape')">⬛ Horizontal</button>
-    <button class="btn-c" id="btn-port" onclick="setOrient('portrait')">🔲 Vertical</button>
+    <button class="btn-c active" id="btn-land" onclick="setOrient('landscape')">&#x2B1B; Horizontal</button>
+    <button class="btn-c" id="btn-port" onclick="setOrient('portrait')">&#x1F532; Vertical</button>
     <div class="sep"></div>
-    <button class="btn-print" onclick="window.print()">🖨 Imprimir</button>
+    <button class="btn-print" onclick="window.print()">Imprimir</button>
     <span style="color:#78909C;font-size:11px">${today}</span>
   </div>
   <div class="header">
     <div class="proj-name">${projDisplayName}</div>
   </div>
-  <div class="gantt-frame">
-    ${svgForPdf}
+  <div class="gantt-frame" id="cpm-frame"></div>
+  <div class="legend-wrap">
+    <div class="legend-item"><div class="legend-swatch" style="background:#e74c3c"></div>Cr&#237;tica</div>
+    <div class="legend-item"><div class="legend-swatch" style="background:#f39c12"></div>Casi cr&#237;tica</div>
+    <div class="legend-item"><div class="legend-swatch" style="background:#2980b9"></div>Normal</div>
+    <div class="legend-item"><div class="legend-swatch" style="background:#27ae60"></div>Completa</div>
   </div>
-  <div class="legend-wrap">${legendSvg}</div>
   <script>
     const zoom = document.getElementById('zoom');
     const zoomVal = document.getElementById('zoom-val');
-    const svg = document.querySelector('.gantt-frame svg');
     zoom.addEventListener('input', () => {
       zoomVal.textContent = zoom.value + '%';
-      svg.style.width = zoom.value + '%';
+      const s = document.querySelector('.gantt-frame svg');
+      if (s) s.style.width = zoom.value + '%';
     });
     function setOrient(o) {
       document.getElementById('page-style').textContent = '@page { size: ' + o + '; margin: 10mm; }';
@@ -2794,10 +2791,24 @@ function _exportCpmNetwork(fmt, dlg) {
   <\/script>
 </body></html>`;
 
-    const win = window.open('', '_blank', 'width=1300,height=900');
-    if (!win) { alert('El navegador bloqueó la ventana emergente. Permítala e intente de nuevo.'); return; }
     win.document.write(html);
     win.document.close();
+
+    // Inyectar el SVG vía DOM (evita el problema del parser HTML con SVG inline en document.write)
+    try {
+      const frame = win.document.getElementById('cpm-frame');
+      if (frame) {
+        const imported = win.document.importNode(clone, true);
+        imported.style.width = '100%';
+        imported.style.height = 'auto';
+        imported.style.display = 'block';
+        frame.appendChild(imported);
+      }
+    } catch (e) {
+      // fallback: serializar e inyectar vía innerHTML
+      const frame = win.document.getElementById('cpm-frame');
+      if (frame) frame.innerHTML = serializer.serializeToString(clone);
+    }
   }
 }
 
