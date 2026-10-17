@@ -33,11 +33,15 @@ const BAR_H      = ROW_H - BAR_PAD * 2;
 
 /** Definiciones de columnas extra disponibles */
 const EXTRA_COL_DEFS = {
+  wbs:    { label: 'EDT',    w: 48,  align: 'center' },
+  type:   { label: 'Tipo',   w: 52,  align: 'center' },
   dur:    { label: 'Dur',    w: 44,  align: 'right'  },
   start:  { label: 'Inicio', w: 68,  align: 'center' },
   finish: { label: 'Fin',    w: 68,  align: 'center' },
   pct:    { label: '%',      w: 38,  align: 'right'  },
   tf:     { label: 'HT',     w: 38,  align: 'right'  },
+  ff:     { label: 'HL',     w: 38,  align: 'right'  },
+  pred:   { label: 'Pred.',  w: 72,  align: 'left'   },
 };
 
 function _fmtDate(date) {
@@ -60,6 +64,12 @@ function _fmtDate(date) {
  */
 export function renderGanttSvg({ tasks, deps, cpmResult, calendar, projectStart, rows, nearThreshold = 5, extraCols = [] }) {
   const activeCols = extraCols.map(id => ({ id, ...(EXTRA_COL_DEFS[id] ?? null) })).filter(c => c.label);
+
+  // Pre-compute WBS codes and pred map if needed
+  const needWbs  = activeCols.some(c => c.id === 'wbs' || c.id === 'pred');
+  const needPred = activeCols.some(c => c.id === 'pred');
+  const wbsCodes = needWbs  ? _calcWbsCodes(tasks) : null;
+  const predMap  = needPred ? _buildPredMap(deps)  : null;
   const extraW  = activeCols.reduce((s, c) => s + c.w, 0);
   const NAME_W  = BASE_NAME_W + extraW;
 
@@ -146,14 +156,30 @@ export function renderGanttSvg({ tasks, deps, cpmResult, calendar, projectStart,
     let cx = BASE_NAME_W;
     for (const col of activeCols) {
       let val = '';
-      if (col.id === 'dur')    val = task.type === 'milestone' ? '0' : String(task.duration_days ?? '');
+      if (col.id === 'wbs')   val = wbsCodes?.get(id) ?? '';
+      if (col.id === 'type')  val = isSummary ? 'Resumen' : (task.type === 'milestone' ? 'Hito' : 'Tarea');
+      if (col.id === 'dur')   val = task.type === 'milestone' ? '0 d' : (task.duration_days ?? '') + ' d';
       if (col.id === 'start'  && cpm?.es != null) val = _fmtDate(calendar.idxToDate(cpm.es, projectStart));
       if (col.id === 'finish' && cpm?.ef != null) val = _fmtDate(calendar.finishDate(cpm.ef, projectStart));
       if (col.id === 'pct')   val = `${task.percent_complete ?? 0}%`;
       if (col.id === 'tf'     && cpm?.tf != null) val = String(cpm.tf);
+      if (col.id === 'ff'     && cpm?.ff != null) val = String(cpm.ff);
+      if (col.id === 'pred') {
+        const predDeps = predMap?.get(id) ?? [];
+        val = predDeps.slice(0, 3).map(d => {
+          const wbs = wbsCodes?.get(d.pred_id) ?? '?';
+          const lag = d.lag ?? d.lag_days ?? 0;
+          return `${wbs}${d.type}${lag !== 0 ? (lag > 0 ? '+' + lag : lag) : ''}`;
+        }).join(', ');
+      }
       const anchor = col.align === 'right' ? 'end' : col.align === 'center' ? 'middle' : 'start';
-      const tx = col.align === 'right' ? cx + col.w - 4 : cx + col.w / 2;
-      const clr = col.id === 'tf' && cpm?.is_critical ? '#D32F2F' : (col.id === 'tf' && (cpm?.tf ?? 99) <= 5 ? '#FB8C00' : '#546E7A');
+      const tx = col.align === 'right' ? cx + col.w - 4
+               : col.align === 'left'  ? cx + 4
+               : cx + col.w / 2;
+      const clr = col.id === 'tf' && cpm?.is_critical ? '#D32F2F'
+                : col.id === 'tf' && (cpm?.tf ?? 99) <= 5 ? '#FB8C00'
+                : col.id === 'wbs' || col.id === 'type' ? '#607D8B'
+                : '#546E7A';
       out.push(`<text x="${tx}" y="${y + ROW_H / 2 + 4}" text-anchor="${anchor}" fill="${clr}" font-size="10">${_esc(val)}</text>`);
       cx += col.w;
     }
@@ -308,6 +334,30 @@ export function renderGanttSvg({ tasks, deps, cpmResult, calendar, projectStart,
 // ============================================================
 // Helpers
 // ============================================================
+
+function _calcWbsCodes(tasks) {
+  const active = [...tasks.values()].filter(t => !t.deleted_at);
+  const ch = new Map(active.map(t => [t.id, []]));
+  const roots = [];
+  for (const t of active) { if (!t.parent_id) roots.push(t); else ch.get(t.parent_id)?.push(t); }
+  for (const [, c] of ch) c.sort((a, b) => a.sort_order - b.sort_order);
+  roots.sort((a, b) => a.sort_order - b.sort_order);
+  const codes = new Map();
+  const assign = (t, p) => { codes.set(t.id, p); (ch.get(t.id) ?? []).forEach((c, i) => assign(c, p + '.' + (i + 1))); };
+  roots.forEach((r, i) => assign(r, String(i + 1)));
+  return codes;
+}
+
+function _buildPredMap(deps) {
+  const map = new Map();
+  if (!deps) return map;
+  for (const d of (deps.values?.() ?? deps)) {
+    if (d.deleted_at) continue;
+    if (!map.has(d.succ_id)) map.set(d.succ_id, []);
+    map.get(d.succ_id).push(d);
+  }
+  return map;
+}
 
 function _esc(s) {
   return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');

@@ -86,7 +86,9 @@ export function printGantt(rows) {
     const startDate = isoToDate(project.start_date);
 
     const savedCols = getPrintCols();
-    const ganttExtraCols = ['dur','start','finish','pct','tf'].filter(c => savedCols.includes(c));
+    // Todas las columnas extra soportadas por gantt-svg (en orden de aparición)
+    const ALL_EXTRA = ['wbs','type','dur','start','finish','pct','tf','ff','pred'];
+    const ganttExtraCols = ALL_EXTRA.filter(c => savedCols.includes(c));
     const svgStr = renderGanttSvg({
       tasks, deps, cpmResult, calendar: cal,
       projectStart: startDate, rows,
@@ -99,35 +101,45 @@ export function printGantt(rows) {
 <html lang="es"><head>
   <meta charset="UTF-8">
   <title>Gantt — ${_esc(project.name)}</title>
+  <style id="page-style">@page { size: landscape; margin: 10mm; }</style>
   <style>
-    @page { size: A3 landscape; margin: 10mm; }
+    * { box-sizing: border-box; }
     body  { margin: 0; font-family: 'Segoe UI', system-ui, sans-serif; }
     .header { display: flex; justify-content: space-between; align-items: center;
               padding: 0 0 8px; border-bottom: 2px solid #1976D2; margin-bottom: 10px; }
     .proj-name { font-size: 16px; font-weight: 700; color: #1976D2; }
     .meta      { font-size: 11px; color: #78909C; }
     svg { width: var(--gantt-zoom, 100%); max-width: none; height: auto; display: block; }
-    .controls { display: flex; align-items: center; gap: 14px; padding: 8px 0 12px;
-                font-family: 'Segoe UI', system-ui, sans-serif; font-size: 12px; }
+    .controls { display: flex; align-items: center; gap: 12px; padding: 8px 0 10px;
+                font-family: 'Segoe UI', system-ui, sans-serif; font-size: 12px; flex-wrap: wrap; }
     .controls label { display: flex; align-items: center; gap: 6px; color: #455A64; }
     .controls input[type=range] { width: 120px; accent-color: #1976D2; }
+    .btn-c { border: 1px solid #90A4AE; border-radius: 6px; padding: 5px 13px;
+             font-size: 12px; cursor: pointer; background: #fff; color: #455A64; }
+    .btn-c:hover, .btn-c.active { background: #1976D2; color: #fff; border-color: #1976D2; }
     .btn-print { background: #1976D2; color: #fff; border: none; border-radius: 6px;
                  padding: 6px 16px; font-size: 13px; cursor: pointer; }
     .btn-print:hover { background: #1565C0; }
+    .sep { width: 1px; height: 22px; background: #CFD8DC; }
     @media print { .controls { display: none !important; } }
   </style>
 </head><body>
   <div class="controls">
     <label>Zoom:
-      <input type="range" id="zoom" min="30" max="250" value="100" step="5">
+      <input type="range" id="zoom" min="30" max="300" value="100" step="5">
       <span id="zoom-val" style="min-width:40px">100%</span>
     </label>
+    <div class="sep"></div>
+    <span style="color:#78909C">Orientación:</span>
+    <button class="btn-c active" id="btn-land" onclick="setOrient('landscape')">⬛ Horizontal</button>
+    <button class="btn-c" id="btn-port" onclick="setOrient('portrait')">🔲 Vertical</button>
+    <div class="sep"></div>
     <button class="btn-print" onclick="window.print()">🖨 Imprimir</button>
-    <span style="color:#78909C;font-size:11px">Generado: ${today}</span>
+    <span style="color:#78909C;font-size:11px">${today}</span>
   </div>
   <div class="header">
     <div class="proj-name">${_esc(project.name)}</div>
-    <div class="meta">v8 Gantt — autoajuste izq/der</div>
+    <div class="meta">v9 Gantt — autoajuste + columnas configurables</div>
   </div>
   ${svgStr}
   <script>
@@ -138,6 +150,11 @@ export function printGantt(rows) {
       zoomVal.textContent = zoom.value + '%';
       svg.style.width = zoom.value + '%';
     });
+    function setOrient(o) {
+      document.getElementById('page-style').textContent = '@page { size: ' + o + '; margin: 10mm; }';
+      document.getElementById('btn-land').classList.toggle('active', o === 'landscape');
+      document.getElementById('btn-port').classList.toggle('active', o === 'portrait');
+    }
   <\/script>
 </body></html>`;
 
