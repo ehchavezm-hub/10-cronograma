@@ -588,7 +588,7 @@ export class WbsTable {
             id: crypto.randomUUID(),
             project_id: appState.state.project?.id ?? '',
             pred_id: p.predId, succ_id: rowId,
-            type: p.type, lag: p.lag,
+            type: p.type, lag_days: p.lag,
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
             deleted_at: null,

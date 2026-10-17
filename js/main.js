@@ -6,7 +6,7 @@
 
 import { IS_LOCAL_MODE } from './config.js';
 import { appState }      from './state.js';
-import { WbsTable }      from './wbs-table.js?v=5';
+import { WbsTable }      from './wbs-table.js?v=6';
 import { GanttCanvas }   from './gantt-canvas.js?v=25';
 import { GanttScene }    from './scene.js';
 import { DcmaPanel }     from './dcma.js';
