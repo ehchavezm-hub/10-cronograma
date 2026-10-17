@@ -349,7 +349,7 @@
     </div>
     <span style="flex:1"></span>
     <span id="status-warnings" style="font-size:var(--text-xs);color:var(--clr-text-3)"></span>
-    <span>v42 — Cat. Recursos arrastrable + CPM PDF controles correctos ✓</span>
+    <span>v43 — Persist proyecto activo + cabecera correcta + catálogo MS/P6 + asignación masiva</span>
   </footer>
 
   <!-- Pestañas inferiores (solo móvil) -->
@@ -380,7 +380,7 @@
 <!-- ============================================================
      Módulo principal (ES Module)
      ============================================================ -->
-<script type="module" src="js/main.js?v=42"></script>
+<script type="module" src="js/main.js?v=43"></script>
 
 <!-- Atajos de teclado globales -->
 <script type="module">
@@ -395,10 +395,12 @@ document.addEventListener('keydown', e => {
     appState.redo();
   }
 });
-// Actualizar nombre en explorador
+// Actualizar nombre en explorador y en cabecera
 appState.subscribe((state) => {
   const el = document.getElementById('explorer-project-name');
   if (el && state.project) el.textContent = state.project.name;
+  const hdrEl = document.getElementById('project-name-display');
+  if (hdrEl) hdrEl.textContent = state.project ? state.project.name : '—';
   // Mostrar número de warnings en statusbar
   const warnEl = document.getElementById('status-warnings');
   if (warnEl && state.cpmResult?.warnings?.length) {

@@ -611,18 +611,20 @@ async function _openResourceManager() {
   const resources = await getAll('resources').then(r => r.filter(x => !x.deleted_at));
 
   const typeLabel = { work: 'Trabajo', material: 'Material', equipment: 'Equipo', cost: 'Costo fijo' };
+  const typeBadgeColor = { work:'#1976D2', material:'#7B1FA2', equipment:'#E65100', cost:'#2E7D32' };
   const rows = resources.map(r => {
-    const extra = r.type === 'work'
-      ? `${r.max_units != null ? r.max_units + '%' : '100%'} máx`
-      : r.type === 'material' || r.type === 'equipment'
-        ? _escHtml(r.unit_label ?? '')
-        : '';
+    const typ = r.type ?? 'work';
+    // Precio/Unidad: para trabajo → S/XX/h; material/equipo → S/XX/<unidad>; costo → S/XX
+    const unitSuffix = typ === 'work' ? '/h' : (r.unit_label ? '/'+r.unit_label : '');
+    const priceCell = r.rate_per_hour != null ? `S/ ${r.rate_per_hour}${unitSuffix}` : '—';
+    // Disponibilidad máxima solo para trabajo
+    const dispMax = typ === 'work' ? `${r.max_units ?? 100}%` : (r.unit_label ? r.unit_label : '—');
     return `<tr>
-      <td style="padding:6px 10px;font-size:13px">${_escHtml(r.name)}</td>
-      <td style="padding:6px 10px;font-size:12px;color:var(--clr-text-3)">${_escHtml(r.role ?? '')}</td>
-      <td style="padding:6px 10px;font-size:12px;color:var(--clr-text-3)">${r.rate_per_hour ? 'S/ '+r.rate_per_hour+'/h' : '—'}</td>
-      <td style="padding:6px 10px;font-size:12px;color:var(--clr-text-3)">${typeLabel[r.type ?? 'work'] ?? r.type}</td>
-      <td style="padding:6px 10px;font-size:11px;color:var(--clr-text-3)">${extra}</td>
+      <td style="padding:6px 10px;font-size:13px;font-weight:500">${_escHtml(r.name)}</td>
+      <td style="padding:6px 10px"><span style="font-size:10px;font-weight:600;padding:2px 6px;border-radius:4px;color:#fff;background:${typeBadgeColor[typ]??'#607D8B'}">${typeLabel[typ]??typ}</span></td>
+      <td style="padding:6px 10px;font-size:12px;color:var(--clr-text-3)">${_escHtml(r.role ?? '—')}</td>
+      <td style="padding:6px 10px;font-size:12px;color:var(--clr-text-3)">${priceCell}</td>
+      <td style="padding:6px 10px;font-size:12px;color:var(--clr-text-3)">${dispMax}</td>
       <td style="padding:6px 10px"><button class="btn btn-icon btn-sm rm-del" data-rid="${r.id}" title="Eliminar" style="color:var(--clr-danger,#e74c3c)">🗑</button></td>
     </tr>`;
   }).join('') || '<tr><td colspan="6" style="padding:16px;text-align:center;color:var(--clr-text-3)">Sin recursos en el catálogo</td></tr>';
@@ -633,16 +635,19 @@ async function _openResourceManager() {
         <div style="font-weight:700;font-size:15px">Catálogo de Recursos</div>
         <div style="font-size:11px;color:var(--clr-text-3);margin-top:2px">Recursos disponibles para asignar a actividades</div>
       </div>
-      <button id="dlg-res-close" class="btn btn-icon btn-sm" style="cursor:default">✕</button>
+      <div style="display:flex;gap:6px;align-items:center">
+        <button id="dlg-res-assign" class="btn btn-primary btn-sm" title="Asignar recursos a actividades (masivo)" style="cursor:pointer">📌 Asignar Recursos</button>
+        <button id="dlg-res-close" class="btn btn-icon btn-sm" style="cursor:default">✕</button>
+      </div>
     </div>
     <div style="padding:16px;max-height:45vh;overflow-y:auto">
       <table style="width:100%;border-collapse:collapse">
         <thead><tr style="background:var(--clr-surface-2)">
           <th style="padding:6px 10px;text-align:left;font-size:11px;color:var(--clr-text-3);font-weight:600">Nombre</th>
-          <th style="padding:6px 10px;text-align:left;font-size:11px;color:var(--clr-text-3);font-weight:600">Rol / Cargo</th>
-          <th style="padding:6px 10px;text-align:left;font-size:11px;color:var(--clr-text-3);font-weight:600">Tarifa</th>
           <th style="padding:6px 10px;text-align:left;font-size:11px;color:var(--clr-text-3);font-weight:600">Tipo</th>
-          <th style="padding:6px 10px;text-align:left;font-size:11px;color:var(--clr-text-3);font-weight:600">Unidad/Máx</th>
+          <th style="padding:6px 10px;text-align:left;font-size:11px;color:var(--clr-text-3);font-weight:600">Rol</th>
+          <th style="padding:6px 10px;text-align:left;font-size:11px;color:var(--clr-text-3);font-weight:600">Precio/Ud.</th>
+          <th style="padding:6px 10px;text-align:left;font-size:11px;color:var(--clr-text-3);font-weight:600" title="Disponibilidad máxima (Trabajo) o Unidad de medida (Material/Equipo)">Unid./Disp.Máx</th>
           <th style="width:40px"></th>
         </tr></thead>
         <tbody id="rm-body">${rows}</tbody>
@@ -650,27 +655,68 @@ async function _openResourceManager() {
     </div>
     <div style="padding:14px 16px;border-top:1px solid var(--clr-border);background:var(--clr-surface-2)">
       <div style="font-size:12px;font-weight:700;color:var(--clr-text-2);margin-bottom:10px">Agregar recurso al catálogo</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:8px">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
         <input id="rm-name" type="text" placeholder="Nombre *" style="padding:7px 10px;border:1px solid var(--clr-border);border-radius:7px;font-size:12px;background:var(--clr-surface);color:var(--clr-text)">
-        <input id="rm-role" type="text" placeholder="Rol / Cargo" style="padding:7px 10px;border:1px solid var(--clr-border);border-radius:7px;font-size:12px;background:var(--clr-surface);color:var(--clr-text)">
-        <input id="rm-rate" type="number" min="0" step="0.01" placeholder="Tarifa/hora (S/)" style="padding:7px 10px;border:1px solid var(--clr-border);border-radius:7px;font-size:12px;background:var(--clr-surface);color:var(--clr-text)">
-      </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:10px">
         <select id="rm-type" style="padding:7px 10px;border:1px solid var(--clr-border);border-radius:7px;font-size:12px;background:var(--clr-surface);color:var(--clr-text)">
-          <option value="work">Trabajo (persona)</option>
+          <option value="work">Trabajo (mano de obra)</option>
           <option value="material">Material</option>
-          <option value="equipment">Equipo</option>
+          <option value="equipment">Equipo / Maquinaria</option>
           <option value="cost">Costo fijo</option>
         </select>
-        <input id="rm-unit-label" type="text" placeholder="Unidad (m³, kg, und…)" title="Unidad de medida para material/equipo" style="padding:7px 10px;border:1px solid var(--clr-border);border-radius:7px;font-size:12px;background:var(--clr-surface);color:var(--clr-text)">
-        <input id="rm-max-units" type="number" min="1" max="100000" step="1" placeholder="Unid. máx % (trabajo)" title="Disponibilidad máxima para recursos de trabajo (%)" style="padding:7px 10px;border:1px solid var(--clr-border);border-radius:7px;font-size:12px;background:var(--clr-surface);color:var(--clr-text)">
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:10px">
+        <input id="rm-role" type="text" placeholder="Rol / Especialidad" title="Ej: Ing. Civil, Operario, Albañil" style="padding:7px 10px;border:1px solid var(--clr-border);border-radius:7px;font-size:12px;background:var(--clr-surface);color:var(--clr-text)">
+        <input id="rm-rate" type="number" min="0" step="0.01" placeholder="Precio/Unidad (S/)" title="Tasa estándar. Para trabajo: S/h. Para material: S/unidad." style="padding:7px 10px;border:1px solid var(--clr-border);border-radius:7px;font-size:12px;background:var(--clr-surface);color:var(--clr-text)">
+        <span id="rm-fields-extra" style="display:contents">
+          <input id="rm-unit-label" type="text" placeholder="Unidad (m³, kg, und…)" title="Unidad de medida — para material y equipo" style="padding:7px 10px;border:1px solid var(--clr-border);border-radius:7px;font-size:12px;background:var(--clr-surface);color:var(--clr-text)">
+          <input id="rm-max-units" type="number" min="1" max="100000" step="1" placeholder="Disponib. máx (%)" title="Disponibilidad máxima para recursos de trabajo (%). Ej: 100 = jornada completa, 50 = medio tiempo." style="padding:7px 10px;border:1px solid var(--clr-border);border-radius:7px;font-size:12px;background:var(--clr-surface);color:var(--clr-text);display:none">
+        </span>
       </div>
       <div style="display:flex;gap:8px;align-items:center">
         <button id="rm-add" class="btn btn-primary btn-sm">＋ Agregar al catálogo</button>
+        <span id="rm-type-hint" style="font-size:11px;color:var(--clr-text-3)">Tipo Trabajo: define rol y disponibilidad máxima (%)</span>
       </div>
     </div>`;
 
   dlg.querySelector('#dlg-res-close').addEventListener('click', () => dlg.close());
+  dlg.querySelector('#dlg-res-assign').addEventListener('click', () => { dlg.close(); _openResourceAssign(); });
+
+  // ---- Mostrar/ocultar campos según tipo ----
+  const _rmTypeChange = () => {
+    const t = dlg.querySelector('#rm-type').value;
+    const unitEl  = dlg.querySelector('#rm-unit-label');
+    const maxEl   = dlg.querySelector('#rm-max-units');
+    const roleEl  = dlg.querySelector('#rm-role');
+    const hintEl  = dlg.querySelector('#rm-type-hint');
+    const rateEl  = dlg.querySelector('#rm-rate');
+    if (t === 'work') {
+      unitEl.style.display = 'none';
+      maxEl.style.display  = '';
+      roleEl.placeholder   = 'Rol / Especialidad (Ej: Ing. Civil)';
+      rateEl.placeholder   = 'Tasa estándar (S/h)';
+      hintEl.textContent   = 'Tipo Trabajo: define rol y disponibilidad máxima (%)';
+    } else if (t === 'material') {
+      unitEl.style.display = '';
+      maxEl.style.display  = 'none';
+      roleEl.placeholder   = 'Proveedor / Marca (opcional)';
+      rateEl.placeholder   = 'Precio/Unidad (S/)';
+      hintEl.textContent   = 'Tipo Material: define unidad de medida (m³, kg, m², und…)';
+    } else if (t === 'equipment') {
+      unitEl.style.display = '';
+      maxEl.style.display  = 'none';
+      roleEl.placeholder   = 'Modelo / Marca (opcional)';
+      rateEl.placeholder   = 'Tarifa (S/h o S/día)';
+      hintEl.textContent   = 'Tipo Equipo: define unidad de alquiler (h, día, mes…)';
+    } else {
+      unitEl.style.display = 'none';
+      maxEl.style.display  = 'none';
+      roleEl.placeholder   = 'Categoría (opcional)';
+      rateEl.placeholder   = 'Costo fijo (S/)';
+      hintEl.textContent   = 'Tipo Costo fijo: monto total sin unidad de medida';
+    }
+  };
+  dlg.querySelector('#rm-type').addEventListener('change', _rmTypeChange);
+  _rmTypeChange(); // inicializar
 
   // ---- Drag-to-move ----
   { const hdr = dlg.querySelector('#dlg-res-hdr');
@@ -724,6 +770,196 @@ async function _openResourceManager() {
         _showToast('Recurso eliminado', 'success');
       }
     }
+  });
+
+  if (!dlg.open) dlg.show();
+}
+
+// ============================================================
+// Asignación masiva de recursos a actividades
+// ============================================================
+
+async function _openResourceAssign() {
+  const { getAll, getByIndex, put: dbPut, remove: dbRemove } = await import('./storage.js?v=4');
+  const resources = await getAll('resources').then(r => r.filter(x => !x.deleted_at));
+  if (!resources.length) {
+    _showToast('Agrega recursos al catálogo primero', 'warn');
+    _openResourceManager();
+    return;
+  }
+  const tasks = appState.state.tasks?.filter(t => !t.deleted_at && t.type !== 'milestone') ?? [];
+  if (!tasks.length) { _showToast('No hay actividades en el proyecto', 'warn'); return; }
+
+  let dlg = document.getElementById('dlg-res-assign');
+  if (!dlg) {
+    dlg = document.createElement('dialog');
+    dlg.id = 'dlg-res-assign';
+    dlg.style.cssText = 'border:none;border-radius:12px;padding:0;width:860px;max-width:98vw;box-shadow:0 8px 40px rgba(0,0,0,0.3);overflow:hidden;position:fixed;margin:0;top:60px;left:max(8px,calc(50vw - 430px));z-index:1100';
+    document.body.appendChild(dlg);
+  }
+
+  const typeLabel = { work:'Trabajo', material:'Material', equipment:'Equipo', cost:'Costo' };
+  const typeBadge = { work:'#1976D2', material:'#7B1FA2', equipment:'#E65100', cost:'#2E7D32' };
+
+  const resItems = resources.map(r =>
+    `<label class="ra-res-item" data-rid="${r.id}" style="display:flex;align-items:center;gap:8px;padding:7px 10px;cursor:pointer;border-radius:6px;margin-bottom:2px;border:1px solid transparent">
+      <input type="radio" name="ra-res" value="${r.id}" style="accent-color:#1976D2">
+      <span style="flex:1;font-size:12px;font-weight:500">${_escHtml(r.name)}</span>
+      <span style="font-size:10px;font-weight:600;padding:1px 6px;border-radius:4px;color:#fff;background:${typeBadge[r.type??'work']??'#607D8B'}">${typeLabel[r.type??'work']??r.type}</span>
+    </label>`).join('');
+
+  const wbsMap = {};
+  tasks.forEach(t => { wbsMap[t.id] = t; });
+  const taskItems = tasks.map(t =>
+    `<label class="ra-task-item" data-tid="${t.id}" style="display:flex;align-items:center;gap:8px;padding:5px 8px;cursor:pointer;border-radius:5px;margin-bottom:1px">
+      <input type="checkbox" class="ra-task-cb" value="${t.id}" style="accent-color:#1976D2">
+      <span style="font-size:11px;color:var(--clr-text-3);min-width:32px">${_escHtml(t.wbs_code??'')}</span>
+      <span style="font-size:12px;flex:1">${_escHtml(t.name)}</span>
+    </label>`).join('');
+
+  dlg.innerHTML = `
+    <div id="dlg-ra-hdr" style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--clr-border);background:var(--clr-surface-2);cursor:move;user-select:none">
+      <div>
+        <div style="font-weight:700;font-size:15px">📌 Asignar Recursos a Actividades</div>
+        <div style="font-size:11px;color:var(--clr-text-3);margin-top:2px">Selecciona un recurso y las actividades. Puedes filtrar y seleccionar todo.</div>
+      </div>
+      <button id="dlg-ra-close" class="btn btn-icon btn-sm">✕</button>
+    </div>
+    <div style="display:grid;grid-template-columns:260px 1fr;gap:0;height:420px;overflow:hidden">
+      <!-- Panel izquierdo: Recursos -->
+      <div style="border-right:1px solid var(--clr-border);display:flex;flex-direction:column;overflow:hidden">
+        <div style="padding:8px 10px;font-size:11px;font-weight:700;color:var(--clr-text-3);background:var(--clr-surface-2);border-bottom:1px solid var(--clr-border)">
+          RECURSOS — elige uno
+        </div>
+        <div style="overflow-y:auto;padding:6px 8px;flex:1">${resItems}</div>
+      </div>
+      <!-- Panel derecho: Actividades -->
+      <div style="display:flex;flex-direction:column;overflow:hidden">
+        <div style="padding:8px 10px;background:var(--clr-surface-2);border-bottom:1px solid var(--clr-border);display:flex;align-items:center;gap:8px">
+          <span style="font-size:11px;font-weight:700;color:var(--clr-text-3)">ACTIVIDADES</span>
+          <input id="ra-filter" type="text" placeholder="Filtrar por nombre…" style="flex:1;padding:4px 8px;border:1px solid var(--clr-border);border-radius:6px;font-size:11px;background:var(--clr-surface);color:var(--clr-text)">
+          <label style="font-size:11px;display:flex;align-items:center;gap:4px;cursor:pointer;white-space:nowrap">
+            <input type="checkbox" id="ra-sel-all" style="accent-color:#1976D2"> Sel. todo
+          </label>
+          <span id="ra-count" style="font-size:11px;color:var(--clr-text-3);white-space:nowrap">0 sel.</span>
+        </div>
+        <div id="ra-task-list" style="overflow-y:auto;padding:6px 8px;flex:1">${taskItems}</div>
+      </div>
+    </div>
+    <!-- Barra de acción -->
+    <div style="padding:12px 16px;border-top:1px solid var(--clr-border);background:var(--clr-surface-2);display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+      <label style="font-size:12px;display:flex;align-items:center;gap:6px">
+        Unidades/Disponib.:
+        <input id="ra-units" type="number" min="1" max="100000" step="1" value="100" style="width:70px;padding:5px 8px;border:1px solid var(--clr-border);border-radius:6px;font-size:12px;background:var(--clr-surface);color:var(--clr-text)">
+        <span id="ra-unit-suffix" style="color:var(--clr-text-3);font-size:11px">%</span>
+      </label>
+      <button id="ra-btn-assign" class="btn btn-primary btn-sm" disabled>✓ Asignar a seleccionadas</button>
+      <button id="ra-btn-remove" class="btn btn-secondary btn-sm" disabled>✕ Quitar de seleccionadas</button>
+      <span style="flex:1"></span>
+      <span id="ra-status" style="font-size:11px;color:var(--clr-text-3)"></span>
+    </div>`;
+
+  dlg.querySelector('#dlg-ra-close').addEventListener('click', () => dlg.close());
+
+  // Drag-to-move
+  { const hdr = dlg.querySelector('#dlg-ra-hdr');
+    let _ox=0,_oy=0,_d=false;
+    const onM=e=>{if(!_d)return;dlg.style.left=Math.max(0,e.clientX-_ox)+'px';dlg.style.top=Math.max(0,e.clientY-_oy)+'px';};
+    const onU=()=>{_d=false;hdr.style.cursor='move';};
+    hdr.addEventListener('mousedown',e=>{if(e.target.closest('button'))return;const r=dlg.getBoundingClientRect();_ox=e.clientX-r.left;_oy=e.clientY-r.top;_d=true;hdr.style.cursor='grabbing';e.preventDefault();});
+    if(dlg.__raClean)dlg.__raClean();
+    document.addEventListener('mousemove',onM);document.addEventListener('mouseup',onU);
+    dlg.__raClean=()=>{document.removeEventListener('mousemove',onM);document.removeEventListener('mouseup',onU);};
+  }
+
+  const _getSelectedRes = () => dlg.querySelector('input[name="ra-res"]:checked')?.value ?? null;
+  const _getSelectedTasks = () => [...dlg.querySelectorAll('.ra-task-cb:checked')].map(cb => cb.value);
+  const _updateCount = () => {
+    const n = _getSelectedTasks().length;
+    dlg.querySelector('#ra-count').textContent = n + ' sel.';
+    const hasRes = !!_getSelectedRes();
+    dlg.querySelector('#ra-btn-assign').disabled = !(hasRes && n > 0);
+    dlg.querySelector('#ra-btn-remove').disabled = !(hasRes && n > 0);
+  };
+
+  // Resaltar recurso seleccionado
+  dlg.querySelectorAll('input[name="ra-res"]').forEach(rb => {
+    rb.addEventListener('change', () => {
+      dlg.querySelectorAll('.ra-res-item').forEach(el => el.style.background = '');
+      const sel = dlg.querySelector('input[name="ra-res"]:checked');
+      if (sel) sel.closest('.ra-res-item').style.background = 'rgba(25,118,210,0.08)';
+      // Actualizar sufijo de unidad
+      const res = resources.find(r => r.id === sel?.value);
+      dlg.querySelector('#ra-unit-suffix').textContent =
+        res?.type === 'work' ? '%' : (res?.unit_label ?? 'und');
+      _updateCount();
+    });
+  });
+
+  // Filtro de actividades
+  dlg.querySelector('#ra-filter').addEventListener('input', e => {
+    const q = e.target.value.toLowerCase();
+    dlg.querySelectorAll('.ra-task-item').forEach(el => {
+      el.style.display = el.textContent.toLowerCase().includes(q) ? '' : 'none';
+    });
+  });
+
+  // Seleccionar todo (solo los visibles)
+  dlg.querySelector('#ra-sel-all').addEventListener('change', e => {
+    dlg.querySelectorAll('.ra-task-item').forEach(el => {
+      if (el.style.display !== 'none') {
+        el.querySelector('.ra-task-cb').checked = e.target.checked;
+      }
+    });
+    _updateCount();
+  });
+
+  dlg.querySelector('#ra-task-list').addEventListener('change', e => {
+    if (e.target.classList.contains('ra-task-cb')) _updateCount();
+  });
+
+  // Asignar
+  dlg.querySelector('#ra-btn-assign').addEventListener('click', async () => {
+    const rid = _getSelectedRes();
+    const tids = _getSelectedTasks();
+    if (!rid || !tids.length) return;
+    const units = parseFloat(dlg.querySelector('#ra-units').value) || 100;
+    const statusEl = dlg.querySelector('#ra-status');
+    statusEl.textContent = 'Asignando…';
+    let count = 0;
+    for (const tid of tids) {
+      const existing = await getByIndex('task_resources', 'task_id', tid)
+        .then(r => r.find(x => !x.deleted_at && x.resource_id === rid)).catch(() => null);
+      if (existing) {
+        existing.units = units;
+        await dbPut('task_resources', existing);
+      } else {
+        await dbPut('task_resources', {
+          id: crypto.randomUUID(), task_id: tid, resource_id: rid,
+          units, deleted_at: null
+        });
+      }
+      count++;
+    }
+    statusEl.textContent = `✓ ${count} actividades asignadas`;
+    _showToast(`Recurso asignado a ${count} actividades`, 'success');
+  });
+
+  // Quitar asignaciones
+  dlg.querySelector('#ra-btn-remove').addEventListener('click', async () => {
+    const rid = _getSelectedRes();
+    const tids = _getSelectedTasks();
+    if (!rid || !tids.length) return;
+    const statusEl = dlg.querySelector('#ra-status');
+    statusEl.textContent = 'Quitando…';
+    let count = 0;
+    for (const tid of tids) {
+      const existing = await getByIndex('task_resources', 'task_id', tid)
+        .then(r => r.find(x => !x.deleted_at && x.resource_id === rid)).catch(() => null);
+      if (existing) { await dbRemove('task_resources', existing.id); count++; }
+    }
+    statusEl.textContent = count ? `✓ Quitado de ${count} actividades` : 'Sin asignación previa';
+    if (count) _showToast(`Recurso quitado de ${count} actividades`, 'success');
   });
 
   if (!dlg.open) dlg.show();
@@ -994,6 +1230,8 @@ async function _loadProject(projectId) {
   if (!data.project) throw new Error(t('projectNotFound'));
   appState.loadProject(data);
   _ganttFitPending = true;
+  try { localStorage.setItem('last-project-id', projectId); } catch { /* ignore */ }
+  history.replaceState(null, '', location.pathname + '?p=' + encodeURIComponent(projectId));
   _renderProjectList();
   if (!data.project.start_date) {
     _showToast('Sin fecha de inicio — edita el proyecto para configurarla', 'warn');
@@ -1315,9 +1553,15 @@ async function init() {
     appState.onRequestCpm = _requestCpm;
 
     // ---- Cargar proyecto ----
-    const projectId = new URLSearchParams(location.search).get('p');
+    const projectId = new URLSearchParams(location.search).get('p')
+                   || localStorage.getItem('last-project-id');
     if (projectId) {
-      await _loadProject(projectId);
+      try {
+        await _loadProject(projectId);
+      } catch {
+        const proj = await _ensureDemoData();
+        await _loadProject(proj.id);
+      }
     } else {
       const proj = await _ensureDemoData();
       await _loadProject(proj.id);
