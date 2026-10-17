@@ -338,16 +338,32 @@ async function _openTaskDetail(taskId) {
   const resOpts = allResources.map(r =>
     `<option value="${r.id}">${_escHtml(r.name)}${r.role ? ' ('+_escHtml(r.role)+')' : ''}</option>`).join('');
 
+  // Cálculo de costo estimado por recurso (inspirado en MS Project / P6)
+  const _hpd = _calState?.hours_per_day ?? 8;
+  const _taskDur = task.duration_days ?? cpmTask?.dur ?? 0;
+  const _calcResCost = (units, res) => {
+    if (!res || res.rate_per_hour == null) return null;
+    const u = units ?? 100;
+    if (res.type === 'work')     return (u / 100) * res.rate_per_hour * _taskDur * _hpd;
+    if (res.type === 'cost')     return res.rate_per_hour;
+    return u * res.rate_per_hour; // material, equipment: units × rate
+  };
+  const _fmtCost = v => v != null ? `S/ ${v.toLocaleString('es-PE', {minimumFractionDigits:2, maximumFractionDigits:2})}` : '—';
+
+  let _totalResCost = 0;
   const resRows = taskResources.map(tr => {
     const res = allResources.find(r => r.id === tr.resource_id);
     const unitSuffix = res?.type === 'material' || res?.type === 'equipment'
       ? (res.unit_label ? ' ' + _escHtml(res.unit_label) : ' und')
       : ' %';
     const typeTag = { work: 'trabajo', material: 'material', equipment: 'equipo', cost: 'costo' };
+    const cost = _calcResCost(tr.units, res);
+    if (cost != null) _totalResCost += cost;
     return `<tr data-trid="${tr.id}">
       <td style="padding:4px 8px;font-size:12px">${_escHtml(res?.name ?? '—')}<br><span style="font-size:10px;color:var(--clr-text-3)">${typeTag[res?.type ?? 'work'] ?? ''}</span></td>
       <td style="padding:4px 8px;font-size:12px">${_escHtml(res?.role ?? '')}</td>
       <td style="padding:4px 8px;font-size:12px"><input type="number" class="tdp-res-units" data-trid="${tr.id}" value="${tr.units ?? 100}" min="1" max="100000" style="width:64px;padding:2px 6px;border:1px solid var(--clr-border);border-radius:4px;font-size:11px;background:var(--clr-surface);color:var(--clr-text)">${unitSuffix}</td>
+      <td style="padding:4px 8px;font-size:11px;color:var(--clr-text-2);white-space:nowrap">${_fmtCost(cost)}</td>
       <td style="padding:4px 8px"><button class="btn btn-icon btn-sm tdp-res-remove" data-trid="${tr.id}" title="Quitar" style="color:var(--clr-danger,#e74c3c);padding:0 6px">✕</button></td>
     </tr>`;
   }).join('');
@@ -447,11 +463,18 @@ async function _openTaskDetail(taskId) {
               <th style="padding:4px 8px;text-align:left;font-size:11px;color:var(--clr-text-3);font-weight:600">Recurso</th>
               <th style="padding:4px 8px;text-align:left;font-size:11px;color:var(--clr-text-3);font-weight:600">Rol</th>
               <th style="padding:4px 8px;text-align:left;font-size:11px;color:var(--clr-text-3);font-weight:600">Unidades</th>
+              <th style="padding:4px 8px;text-align:left;font-size:11px;color:var(--clr-text-3);font-weight:600" title="Costo estimado = Unidades × Tarifa × Duración">Costo est.</th>
               <th style="padding:4px 8px;width:32px"></th>
             </tr>
           </thead>
-          <tbody id="tdp-res-body">${resRows || '<tr><td colspan="4" style="padding:8px;color:var(--clr-text-3);font-size:12px;text-align:center">Sin recursos asignados</td></tr>'}</tbody>
+          <tbody id="tdp-res-body">${resRows || '<tr><td colspan="5" style="padding:8px;color:var(--clr-text-3);font-size:12px;text-align:center">Sin recursos asignados</td></tr>'}</tbody>
         </table>
+        ${_totalResCost > 0 ? `
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-top:6px;padding:6px 8px;background:var(--clr-surface-2);border-radius:6px;font-size:12px">
+          <span style="color:var(--clr-text-3)">Costo total recursos:</span>
+          <span style="font-weight:700;color:var(--clr-text)">${_fmtCost(_totalResCost)}</span>
+          <button id="tdp-use-res-cost" data-cost="${_totalResCost.toFixed(2)}" class="btn btn-ghost btn-sm" style="font-size:10px;padding:2px 8px" title="Copiar al campo Costo planificado">↓ Usar como costo planificado</button>
+        </div>` : ''}
         ${allResources.length ? `
         <div style="display:flex;gap:6px;margin-top:8px;align-items:center">
           <select id="tdp-res-select" style="flex:1;padding:6px 10px;border:1px solid var(--clr-border);border-radius:6px;font-size:12px;background:var(--clr-surface-2);color:var(--clr-text)">
@@ -475,6 +498,11 @@ async function _openTaskDetail(taskId) {
   body.querySelector('#tdp-res-add')?.addEventListener('click', () => _tdpAddResource(taskId), _bSig);
   body.querySelector('#tdp-open-resources')?.addEventListener('click', (e) => { e.preventDefault(); _openResourceManager(); }, _bSig);
   body.querySelector('#tdp-open-catalog')?.addEventListener('click', () => _openResourceManager(), _bSig);
+  body.querySelector('#tdp-use-res-cost')?.addEventListener('click', (e) => {
+    const cost = /** @type {HTMLElement} */ (e.currentTarget).dataset.cost;
+    const inp = /** @type {HTMLInputElement|null} */ (document.getElementById('tdp-cost-plan'));
+    if (inp && cost) { inp.value = cost; _showToast('Costo planificado actualizado desde recursos', 'success'); }
+  }, _bSig);
   body.addEventListener('click', (e) => {
     if (/** @type {HTMLElement} */ (e.target).classList.contains('tdp-res-remove')) {
       const trid = /** @type {HTMLElement} */ (e.target).dataset.trid;
@@ -508,10 +536,20 @@ async function _tdpAddResource(taskId) {
   const newUnitSuffix = res.type === 'material' || res.type === 'equipment'
     ? (res.unit_label ? ' ' + res.unit_label : ' und') : ' %';
   const newTypeTag = { work: 'trabajo', material: 'material', equipment: 'equipo', cost: 'costo' };
+  const _hpdNew = appState.state.calendar?.hours_per_day ?? 8;
+  const _durNew = appState.state.tasks?.get(taskId)?.duration_days ?? 0;
+  const _costNew = (() => {
+    if (res.rate_per_hour == null) return null;
+    if (res.type === 'work') return (100 / 100) * res.rate_per_hour * _durNew * _hpdNew;
+    if (res.type === 'cost') return res.rate_per_hour;
+    return 1 * res.rate_per_hour;
+  })();
+  const _fmtCostNew = v => v != null ? `S/ ${v.toLocaleString('es-PE', {minimumFractionDigits:2, maximumFractionDigits:2})}` : '—';
   tr.innerHTML = `
     <td style="padding:4px 8px;font-size:12px">${_escHtml(res.name)}<br><span style="font-size:10px;color:var(--clr-text-3)">${newTypeTag[res.type ?? 'work'] ?? ''}</span></td>
     <td style="padding:4px 8px;font-size:12px">${_escHtml(res.role ?? '')}</td>
     <td style="padding:4px 8px;font-size:12px"><input type="number" class="tdp-res-units" data-trid="${trid}" value="100" min="1" max="100000" style="width:64px;padding:2px 6px;border:1px solid var(--clr-border);border-radius:4px;font-size:11px;background:var(--clr-surface);color:var(--clr-text)">${_escHtml(newUnitSuffix)}</td>
+    <td style="padding:4px 8px;font-size:11px;color:var(--clr-text-2);white-space:nowrap" class="tdp-cost-cell">${_fmtCostNew(_costNew)}</td>
     <td style="padding:4px 8px"><button class="btn btn-icon btn-sm tdp-res-remove" data-trid="${trid}" title="Quitar" style="color:var(--clr-danger,#e74c3c);padding:0 6px">✕</button></td>`;
   if (tbody) {
     const empty = tbody.querySelector('td[colspan]');
@@ -609,81 +647,175 @@ async function _openResourceManager() {
   }
 
   const { getAll } = await import('./storage.js?v=4');
-  const resources = await getAll('resources').then(r => r.filter(x => !x.deleted_at));
+  const [resources, allTaskRes] = await Promise.all([
+    getAll('resources').then(r => r.filter(x => !x.deleted_at)),
+    getAll('task_resources').then(r => r.filter(x => !x.deleted_at)).catch(() => []),
+  ]);
+
+  // Total units assigned per resource (for over-allocation indicator, P6 style)
+  const _resUnitsMap = {};
+  for (const tr of allTaskRes) {
+    _resUnitsMap[tr.resource_id] = (_resUnitsMap[tr.resource_id] ?? 0) + (tr.units ?? 100);
+  }
+  // Count tasks per resource (for usage summary)
+  const _resTaskCount = {};
+  for (const tr of allTaskRes) {
+    _resTaskCount[tr.resource_id] = (_resTaskCount[tr.resource_id] ?? 0) + 1;
+  }
 
   const typeLabel = { work: 'Trabajo', material: 'Material', equipment: 'Equipo', cost: 'Costo fijo' };
   const typeBadgeColor = { work:'#1976D2', material:'#7B1FA2', equipment:'#E65100', cost:'#2E7D32' };
   const rows = resources.map(r => {
     const typ = r.type ?? 'work';
-    // Precio/Unidad: para trabajo → S/XX/h; material/equipo → S/XX/<unidad>; costo → S/XX
     const unitSuffix = typ === 'work' ? '/h' : (r.unit_label ? '/'+r.unit_label : '');
     const priceCell = r.rate_per_hour != null ? `S/ ${r.rate_per_hour}${unitSuffix}` : '—';
-    // Disponibilidad máxima solo para trabajo
     const dispMax = typ === 'work' ? `${r.max_units ?? 100}%` : (r.unit_label ? r.unit_label : '—');
+    // Over-allocation indicator (P6: red when assigned > max)
+    const totalAssigned = _resUnitsMap[r.id] ?? 0;
+    const maxU = r.max_units ?? 100;
+    const taskCount = _resTaskCount[r.id] ?? 0;
+    let overAllocCell = '';
+    if (typ === 'work') {
+      const isOver = totalAssigned > maxU;
+      const color = isOver ? '#dc2626' : (totalAssigned > 0 ? '#16a34a' : 'var(--clr-text-3)');
+      const icon = isOver ? '⚠️' : (totalAssigned > 0 ? '✓' : '');
+      overAllocCell = `<span style="font-size:11px;color:${color}" title="${taskCount} actividad(es) asignadas, total ${totalAssigned}%${isOver?' — SOBREASIGNADO':''}">${icon} ${totalAssigned > 0 ? totalAssigned+'%' : '—'} <span style="font-size:10px;color:var(--clr-text-3)">(${taskCount})</span></span>`;
+    } else {
+      overAllocCell = `<span style="font-size:11px;color:var(--clr-text-3)">${taskCount > 0 ? taskCount+' act.' : '—'}</span>`;
+    }
     return `<tr style="border-bottom:1px solid var(--clr-border)">
       <td style="padding:6px 10px;font-size:13px;font-weight:500">${_escHtml(r.name)}</td>
       <td style="padding:6px 10px"><span style="font-size:10px;font-weight:600;padding:2px 6px;border-radius:4px;color:#fff;background:${typeBadgeColor[typ]??'#607D8B'}">${typeLabel[typ]??typ}</span></td>
       <td style="padding:6px 10px;font-size:12px;color:var(--clr-text-3)">${_escHtml(r.role ?? '—')}</td>
       <td style="padding:6px 10px;font-size:12px;color:var(--clr-text-3)">${priceCell}</td>
       <td style="padding:6px 10px;font-size:12px;color:var(--clr-text-3)">${dispMax}</td>
+      <td style="padding:6px 10px">${overAllocCell}</td>
       <td style="padding:5px 8px;white-space:nowrap">
         <button class="btn btn-sm rm-assign" data-rid="${r.id}" title="Asignar este recurso a actividades" style="font-size:11px;padding:3px 8px;background:#1976D2;color:#fff;border:none;border-radius:5px;cursor:pointer;margin-right:4px">▶ Asignar</button>
         <button class="btn btn-icon btn-sm rm-del" data-rid="${r.id}" title="Eliminar" style="color:var(--clr-danger,#e74c3c)">🗑</button>
       </td>
     </tr>`;
-  }).join('') || '<tr><td colspan="6" style="padding:16px;text-align:center;color:var(--clr-text-3)">Sin recursos en el catálogo</td></tr>';
+  }).join('') || '<tr><td colspan="7" style="padding:16px;text-align:center;color:var(--clr-text-3)">Sin recursos en el catálogo</td></tr>';
+
+  // Build resource usage rows (P6: Resource Usage Sheet / MS Project: Resource Usage view)
+  const _tasks = appState.state.tasks;
+  const _usageRows = resources.map(r => {
+    const assignments = allTaskRes.filter(tr => tr.resource_id === r.id);
+    if (!assignments.length) return `
+      <tr style="border-bottom:1px solid var(--clr-border)">
+        <td style="padding:7px 10px;font-size:13px;font-weight:500">${_escHtml(r.name)}</td>
+        <td style="padding:7px 10px;font-size:12px;color:var(--clr-text-3)" colspan="4">Sin asignaciones</td>
+      </tr>`;
+    const taskRows = assignments.map(tr => {
+      const t = _tasks?.get(tr.task_id);
+      const unitSufx = (r.type === 'material' || r.type === 'equipment') ? (r.unit_label ?? 'und') : '%';
+      const cpm = appState.state.cpmResult?.tasks?.get(tr.task_id);
+      const dur = t?.duration_days ?? cpm?.dur ?? '—';
+      return `<tr style="background:var(--clr-surface-2)">
+        <td style="padding:4px 10px 4px 28px;font-size:12px;color:var(--clr-text)">${_escHtml(t?.name ?? tr.task_id)}</td>
+        <td style="padding:4px 10px;font-size:12px;color:var(--clr-text-2)">${tr.units ?? 100} ${_escHtml(unitSufx)}</td>
+        <td style="padding:4px 10px;font-size:12px;color:var(--clr-text-3)">${dur !== '—' ? dur+' días' : '—'}</td>
+        <td style="padding:4px 10px;font-size:12px;color:var(--clr-text-3)">${_escHtml(t?.wbs_code ?? '')}</td>
+      </tr>`;
+    }).join('');
+    const totalU = assignments.reduce((s, tr) => s + (tr.units ?? 100), 0);
+    const isOver = r.type === 'work' && totalU > (r.max_units ?? 100);
+    return `
+      <tr style="border-bottom:1px solid var(--clr-border);${isOver?'background:rgba(220,38,38,0.04)':''}">
+        <td style="padding:7px 10px;font-size:13px;font-weight:600">${_escHtml(r.name)} ${isOver?'<span style="color:#dc2626;font-size:11px">⚠️ sobreasignado</span>':''}</td>
+        <td style="padding:7px 10px;font-size:12px;color:var(--clr-text-3)">${assignments.length} actividad(es)</td>
+        <td style="padding:7px 10px;font-size:12px;color:var(--clr-text-3)">${r.type === 'work' ? totalU + '% total' : ''}</td>
+        <td style="padding:7px 10px"></td>
+      </tr>${taskRows}`;
+  }).join('') || '<tr><td colspan="4" style="padding:16px;text-align:center;color:var(--clr-text-3)">Sin asignaciones en el proyecto</td></tr>';
 
   dlg.innerHTML = `
     <div id="dlg-res-hdr" style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid var(--clr-border);background:var(--clr-surface-2);cursor:move;user-select:none" title="Arrastrar para mover">
       <div>
-        <div style="font-weight:700;font-size:15px">Catálogo de Recursos</div>
-        <div style="font-size:11px;color:var(--clr-text-3);margin-top:2px">Recursos disponibles para asignar a actividades</div>
+        <div style="font-weight:700;font-size:15px">Gestión de Recursos</div>
+        <div style="font-size:11px;color:var(--clr-text-3);margin-top:2px">Catálogo, asignación y uso de recursos del proyecto</div>
       </div>
       <div style="display:flex;gap:6px;align-items:center">
-        <button id="dlg-res-assign" class="btn btn-primary btn-sm" title="Asignar recursos a actividades (masivo)" style="cursor:pointer">📌 Asignar Recursos</button>
+        <button id="btn-open-assign-dlg" class="btn btn-primary btn-sm" title="Asignar recursos a actividades (masivo)" style="cursor:pointer">📌 Asignar Recursos</button>
         <button id="dlg-res-close" class="btn btn-icon btn-sm" style="cursor:default">✕</button>
       </div>
     </div>
-    <div style="padding:16px;max-height:45vh;overflow-y:auto">
+    <!-- Tabs -->
+    <div style="display:flex;gap:0;border-bottom:1px solid var(--clr-border);background:var(--clr-surface-2)">
+      <button id="rm-tab-catalog" class="rm-tab" data-tab="catalog" style="padding:8px 18px;border:none;background:transparent;font-size:12px;font-weight:600;color:var(--clr-primary);border-bottom:2px solid var(--clr-primary);cursor:pointer">📋 Catálogo</button>
+      <button id="rm-tab-usage" class="rm-tab" data-tab="usage" style="padding:8px 18px;border:none;background:transparent;font-size:12px;font-weight:600;color:var(--clr-text-3);border-bottom:2px solid transparent;cursor:pointer">📊 Uso de Recursos</button>
+    </div>
+    <!-- Tab: Catálogo -->
+    <div id="rm-panel-catalog">
+      <div style="padding:16px;max-height:42vh;overflow-y:auto">
+        <table style="width:100%;border-collapse:collapse">
+          <thead><tr style="background:var(--clr-surface-2)">
+            <th style="padding:6px 10px;text-align:left;font-size:11px;color:var(--clr-text-3);font-weight:600">Nombre</th>
+            <th style="padding:6px 10px;text-align:left;font-size:11px;color:var(--clr-text-3);font-weight:600">Tipo</th>
+            <th style="padding:6px 10px;text-align:left;font-size:11px;color:var(--clr-text-3);font-weight:600">Rol</th>
+            <th style="padding:6px 10px;text-align:left;font-size:11px;color:var(--clr-text-3);font-weight:600">Precio/Ud.</th>
+            <th style="padding:6px 10px;text-align:left;font-size:11px;color:var(--clr-text-3);font-weight:600" title="Disponibilidad máxima (Trabajo) o Unidad de medida (Material/Equipo)">Unid./Disp.Máx</th>
+            <th style="padding:6px 10px;text-align:left;font-size:11px;color:var(--clr-text-3);font-weight:600" title="Total % asignado en el proyecto (⚠️ = sobreasignado)">Asignado</th>
+            <th style="width:130px"></th>
+          </tr></thead>
+          <tbody id="rm-body">${rows}</tbody>
+        </table>
+      </div>
+      <div style="padding:14px 16px;border-top:1px solid var(--clr-border);background:var(--clr-surface-2)">
+        <div style="font-size:12px;font-weight:700;color:var(--clr-text-2);margin-bottom:10px">Agregar recurso al catálogo</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+          <input id="rm-name" type="text" placeholder="Nombre *" style="padding:7px 10px;border:1px solid var(--clr-border);border-radius:7px;font-size:12px;background:var(--clr-surface);color:var(--clr-text)">
+          <select id="rm-type" style="padding:7px 10px;border:1px solid var(--clr-border);border-radius:7px;font-size:12px;background:var(--clr-surface);color:var(--clr-text)">
+            <option value="work">Trabajo (mano de obra)</option>
+            <option value="material">Material</option>
+            <option value="equipment">Equipo / Maquinaria</option>
+            <option value="cost">Costo fijo</option>
+          </select>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:10px">
+          <input id="rm-role" type="text" placeholder="Rol / Especialidad" title="Ej: Ing. Civil, Operario, Albañil" style="padding:7px 10px;border:1px solid var(--clr-border);border-radius:7px;font-size:12px;background:var(--clr-surface);color:var(--clr-text)">
+          <input id="rm-rate" type="number" min="0" step="0.01" placeholder="Precio/Unidad (S/)" title="Tasa estándar. Para trabajo: S/h. Para material: S/unidad." style="padding:7px 10px;border:1px solid var(--clr-border);border-radius:7px;font-size:12px;background:var(--clr-surface);color:var(--clr-text)">
+          <span id="rm-fields-extra" style="display:contents">
+            <input id="rm-unit-label" type="text" placeholder="Unidad (m³, kg, und…)" title="Unidad de medida — para material y equipo" style="padding:7px 10px;border:1px solid var(--clr-border);border-radius:7px;font-size:12px;background:var(--clr-surface);color:var(--clr-text)">
+            <input id="rm-max-units" type="number" min="1" max="100000" step="1" placeholder="Disponib. máx (%)" title="Disponibilidad máxima para recursos de trabajo (%). Ej: 100 = jornada completa, 50 = medio tiempo." style="padding:7px 10px;border:1px solid var(--clr-border);border-radius:7px;font-size:12px;background:var(--clr-surface);color:var(--clr-text);display:none">
+          </span>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <button id="rm-add" class="btn btn-primary btn-sm">＋ Agregar al catálogo</button>
+          <span id="rm-type-hint" style="font-size:11px;color:var(--clr-text-3)">Tipo Trabajo: define rol y disponibilidad máxima (%)</span>
+        </div>
+      </div>
+    </div>
+    <!-- Tab: Uso de Recursos -->
+    <div id="rm-panel-usage" style="display:none;padding:16px;max-height:60vh;overflow-y:auto">
+      <div style="font-size:11px;color:var(--clr-text-3);margin-bottom:10px">Vista de uso de recursos por actividad — similar a MS Project Resource Usage y P6 Resource Usage Sheet.</div>
       <table style="width:100%;border-collapse:collapse">
         <thead><tr style="background:var(--clr-surface-2)">
-          <th style="padding:6px 10px;text-align:left;font-size:11px;color:var(--clr-text-3);font-weight:600">Nombre</th>
-          <th style="padding:6px 10px;text-align:left;font-size:11px;color:var(--clr-text-3);font-weight:600">Tipo</th>
-          <th style="padding:6px 10px;text-align:left;font-size:11px;color:var(--clr-text-3);font-weight:600">Rol</th>
-          <th style="padding:6px 10px;text-align:left;font-size:11px;color:var(--clr-text-3);font-weight:600">Precio/Ud.</th>
-          <th style="padding:6px 10px;text-align:left;font-size:11px;color:var(--clr-text-3);font-weight:600" title="Disponibilidad máxima (Trabajo) o Unidad de medida (Material/Equipo)">Unid./Disp.Máx</th>
-          <th style="width:130px"></th>
+          <th style="padding:6px 10px;text-align:left;font-size:11px;color:var(--clr-text-3);font-weight:600">Recurso / Actividad</th>
+          <th style="padding:6px 10px;text-align:left;font-size:11px;color:var(--clr-text-3);font-weight:600">Unidades</th>
+          <th style="padding:6px 10px;text-align:left;font-size:11px;color:var(--clr-text-3);font-weight:600">Duración</th>
+          <th style="padding:6px 10px;text-align:left;font-size:11px;color:var(--clr-text-3);font-weight:600">WBS</th>
         </tr></thead>
-        <tbody id="rm-body">${rows}</tbody>
+        <tbody>${_usageRows}</tbody>
       </table>
-    </div>
-    <div style="padding:14px 16px;border-top:1px solid var(--clr-border);background:var(--clr-surface-2)">
-      <div style="font-size:12px;font-weight:700;color:var(--clr-text-2);margin-bottom:10px">Agregar recurso al catálogo</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
-        <input id="rm-name" type="text" placeholder="Nombre *" style="padding:7px 10px;border:1px solid var(--clr-border);border-radius:7px;font-size:12px;background:var(--clr-surface);color:var(--clr-text)">
-        <select id="rm-type" style="padding:7px 10px;border:1px solid var(--clr-border);border-radius:7px;font-size:12px;background:var(--clr-surface);color:var(--clr-text)">
-          <option value="work">Trabajo (mano de obra)</option>
-          <option value="material">Material</option>
-          <option value="equipment">Equipo / Maquinaria</option>
-          <option value="cost">Costo fijo</option>
-        </select>
-      </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:10px">
-        <input id="rm-role" type="text" placeholder="Rol / Especialidad" title="Ej: Ing. Civil, Operario, Albañil" style="padding:7px 10px;border:1px solid var(--clr-border);border-radius:7px;font-size:12px;background:var(--clr-surface);color:var(--clr-text)">
-        <input id="rm-rate" type="number" min="0" step="0.01" placeholder="Precio/Unidad (S/)" title="Tasa estándar. Para trabajo: S/h. Para material: S/unidad." style="padding:7px 10px;border:1px solid var(--clr-border);border-radius:7px;font-size:12px;background:var(--clr-surface);color:var(--clr-text)">
-        <span id="rm-fields-extra" style="display:contents">
-          <input id="rm-unit-label" type="text" placeholder="Unidad (m³, kg, und…)" title="Unidad de medida — para material y equipo" style="padding:7px 10px;border:1px solid var(--clr-border);border-radius:7px;font-size:12px;background:var(--clr-surface);color:var(--clr-text)">
-          <input id="rm-max-units" type="number" min="1" max="100000" step="1" placeholder="Disponib. máx (%)" title="Disponibilidad máxima para recursos de trabajo (%). Ej: 100 = jornada completa, 50 = medio tiempo." style="padding:7px 10px;border:1px solid var(--clr-border);border-radius:7px;font-size:12px;background:var(--clr-surface);color:var(--clr-text);display:none">
-        </span>
-      </div>
-      <div style="display:flex;gap:8px;align-items:center">
-        <button id="rm-add" class="btn btn-primary btn-sm">＋ Agregar al catálogo</button>
-        <span id="rm-type-hint" style="font-size:11px;color:var(--clr-text-3)">Tipo Trabajo: define rol y disponibilidad máxima (%)</span>
-      </div>
     </div>`;
 
   dlg.querySelector('#dlg-res-close').addEventListener('click', () => dlg.close());
-  dlg.querySelector('#dlg-res-assign').addEventListener('click', () => { dlg.close(); _openResourceAssign(); });
+  dlg.querySelector('#btn-open-assign-dlg').addEventListener('click', () => { dlg.close(); _openResourceAssign(); });
+
+  // ---- Tab switching ----
+  dlg.querySelectorAll('.rm-tab').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const tab = btn.dataset.tab;
+      dlg.querySelectorAll('.rm-tab').forEach(b => {
+        const active = b.dataset.tab === tab;
+        b.style.color = active ? 'var(--clr-primary)' : 'var(--clr-text-3)';
+        b.style.borderBottom = active ? '2px solid var(--clr-primary)' : '2px solid transparent';
+      });
+      dlg.querySelector('#rm-panel-catalog').style.display = tab === 'catalog' ? '' : 'none';
+      dlg.querySelector('#rm-panel-usage').style.display   = tab === 'usage'   ? '' : 'none';
+    });
+  });
 
   // ---- Mostrar/ocultar campos según tipo ----
   const _rmTypeChange = () => {
@@ -788,7 +920,10 @@ async function _openResourceManager() {
 
 async function _openResourceAssign(preSelectedId = null) {
   const { getAll, getByIndex, put: dbPut, remove: dbRemove } = await import('./storage.js?v=4');
-  const resources = await getAll('resources').then(r => r.filter(x => !x.deleted_at));
+  const [resources, allTaskResRaw] = await Promise.all([
+    getAll('resources').then(r => r.filter(x => !x.deleted_at)),
+    getAll('task_resources').then(r => r.filter(x => !x.deleted_at)).catch(() => []),
+  ]);
   if (!resources.length) {
     _showToast('Agrega recursos al catálogo primero', 'warn');
     _openResourceManager();
@@ -796,6 +931,13 @@ async function _openResourceAssign(preSelectedId = null) {
   }
   const tasks = [...(appState.state.tasks?.values() ?? [])].filter(t => !t.deleted_at && t.type !== 'milestone');
   if (!tasks.length) { _showToast('No hay actividades en el proyecto', 'warn'); return; }
+
+  // Build lookup: existingAssign[rid][tid] = units (for current assignment badges)
+  const existingAssign = {};
+  for (const tr of allTaskResRaw) {
+    if (!existingAssign[tr.resource_id]) existingAssign[tr.resource_id] = {};
+    existingAssign[tr.resource_id][tr.task_id] = tr.units ?? 100;
+  }
 
   let dlg = document.getElementById('dlg-res-assign');
   if (!dlg) {
@@ -808,12 +950,15 @@ async function _openResourceAssign(preSelectedId = null) {
   const typeLabel = { work:'Trabajo', material:'Material', equipment:'Equipo', cost:'Costo' };
   const typeBadge = { work:'#1976D2', material:'#7B1FA2', equipment:'#E65100', cost:'#2E7D32' };
 
-  const resItems = resources.map(r =>
-    `<label class="ra-res-item" data-rid="${r.id}" style="display:flex;align-items:center;gap:8px;padding:7px 10px;cursor:pointer;border-radius:6px;margin-bottom:2px;border:1px solid transparent">
+  const resItems = resources.map(r => {
+    const assignedCount = Object.keys(existingAssign[r.id] ?? {}).length;
+    return `<label class="ra-res-item" data-rid="${r.id}" style="display:flex;align-items:center;gap:8px;padding:7px 10px;cursor:pointer;border-radius:6px;margin-bottom:2px;border:1px solid transparent">
       <input type="radio" name="ra-res" value="${r.id}" style="accent-color:#1976D2">
       <span style="flex:1;font-size:12px;font-weight:500">${_escHtml(r.name)}</span>
+      ${assignedCount > 0 ? `<span style="font-size:10px;color:var(--clr-text-3)">${assignedCount}</span>` : ''}
       <span style="font-size:10px;font-weight:600;padding:1px 6px;border-radius:4px;color:#fff;background:${typeBadge[r.type??'work']??'#607D8B'}">${typeLabel[r.type??'work']??r.type}</span>
-    </label>`).join('');
+    </label>`;
+  }).join('');
 
   const wbsMap = {};
   tasks.forEach(t => { wbsMap[t.id] = t; });
@@ -822,6 +967,7 @@ async function _openResourceAssign(preSelectedId = null) {
       <input type="checkbox" class="ra-task-cb" value="${t.id}" style="accent-color:#1976D2">
       <span style="font-size:11px;color:var(--clr-text-3);min-width:32px">${_escHtml(t.wbs_code??'')}</span>
       <span style="font-size:12px;flex:1">${_escHtml(t.name)}</span>
+      <span class="ra-cur-badge" data-tid="${t.id}" style="display:none;font-size:10px;padding:1px 6px;border-radius:4px;background:#e0f2fe;color:#0369a1;white-space:nowrap"></span>
     </label>`).join('');
 
   dlg.innerHTML = `
@@ -889,6 +1035,20 @@ async function _openResourceAssign(preSelectedId = null) {
     dlg.querySelector('#ra-btn-remove').disabled = !(hasRes && n > 0);
   };
 
+  // Update assignment badges for a given resource
+  const _updateBadges = (rid) => {
+    const assignments = rid ? (existingAssign[rid] ?? {}) : {};
+    dlg.querySelectorAll('.ra-cur-badge').forEach(badge => {
+      const tid = badge.dataset.tid;
+      if (tid && assignments[tid] != null) {
+        badge.textContent = 'ya: ' + assignments[tid] + (resources.find(r=>r.id===rid)?.type==='work' ? '%' : '');
+        badge.style.display = '';
+      } else {
+        badge.style.display = 'none';
+      }
+    });
+  };
+
   // Resaltar recurso seleccionado
   dlg.querySelectorAll('input[name="ra-res"]').forEach(rb => {
     rb.addEventListener('change', () => {
@@ -898,6 +1058,7 @@ async function _openResourceAssign(preSelectedId = null) {
       const res = resources.find(r => r.id === sel?.value);
       dlg.querySelector('#ra-unit-suffix').textContent =
         res?.type === 'work' ? '%' : (res?.unit_label ?? 'und');
+      _updateBadges(sel?.value ?? null);
       _updateCount();
     });
   });
