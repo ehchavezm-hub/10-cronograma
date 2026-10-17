@@ -332,27 +332,47 @@
     <dialog id="dlg-baseline" aria-labelledby="dlg-bl-title" style="
       border:none;border-radius:12px;padding:0;
       box-shadow:0 8px 40px rgba(0,0,0,0.25);
-      min-width:340px;max-width:480px;width:90vw;
+      min-width:360px;max-width:500px;width:92vw;
       font-family:var(--font-ui);">
-      <div style="display:flex;align-items:center;gap:8px;padding:16px 20px;border-bottom:1px solid var(--clr-border);">
+      <div style="display:flex;align-items:center;gap:8px;padding:14px 18px;border-bottom:1px solid var(--clr-border);">
         <span style="font-size:20px">📐</span>
-        <h2 id="dlg-bl-title" style="font-size:var(--text-md);font-weight:var(--fw-semi);flex:1;margin:0">Línea base</h2>
+        <div style="flex:1">
+          <h2 id="dlg-bl-title" style="font-size:var(--text-md);font-weight:var(--fw-semi);margin:0;line-height:1.2">Línea base</h2>
+          <p style="font-size:var(--text-xs);color:var(--clr-text-3);margin:2px 0 0">Snapshot del plan aprobado — al estilo MS Project / Primavera P6</p>
+        </div>
         <button class="btn btn-ghost btn-icon btn-sm" id="dlg-bl-close" aria-label="Cerrar">✕</button>
       </div>
-      <div style="padding:16px 20px;display:flex;flex-direction:column;gap:14px;">
-        <div style="display:flex;gap:8px;">
-          <input id="bl-name-input" type="text" class="input-sm" placeholder="Nombre de la línea base…"
+      <div style="padding:14px 18px;display:flex;flex-direction:column;gap:12px;">
+        <!-- Guardar nueva LB -->
+        <div style="display:flex;gap:8px;align-items:center;">
+          <input id="bl-name-input" type="text" class="input-sm" placeholder="Nombre (ej: LB-0 Contrato)"
             style="flex:1;border:1px solid var(--clr-border);border-radius:6px;padding:6px 10px;font-size:var(--text-sm)">
-          <button id="btn-bl-save" class="btn btn-primary btn-sm">Guardar</button>
+          <button id="btn-bl-save" class="btn btn-primary btn-sm" title="Captura ES/EF actuales del CPM">💾 Guardar</button>
         </div>
-        <div id="bl-list" style="display:flex;flex-direction:column;gap:6px;max-height:220px;overflow-y:auto;"></div>
-        <p id="bl-empty-msg" style="font-size:var(--text-xs);color:var(--clr-text-3);text-align:center;display:none">
-          No hay líneas base guardadas para este proyecto.
+
+        <!-- Lista de líneas base -->
+        <div id="bl-list" style="display:flex;flex-direction:column;max-height:230px;overflow-y:auto;"></div>
+        <p id="bl-empty-msg" style="font-size:var(--text-xs);color:var(--clr-text-3);text-align:center;display:none;padding:8px 0">
+          No hay líneas base. Guarda una para comparar planificado vs actual.
         </p>
-        <div id="bl-active-indicator" style="display:none;padding:6px 10px;border-radius:6px;
-          background:var(--clr-surface-2);font-size:var(--text-xs);color:var(--clr-text-2);">
-          📐 <span id="bl-active-name"></span>
-          <button id="btn-bl-clear" class="btn btn-ghost btn-sm" style="margin-left:8px;font-size:10px">Limpiar</button>
+
+        <!-- Leyenda visual (P6 style) -->
+        <div style="background:var(--clr-surface-2,#f8f9fa);border-radius:6px;padding:8px 10px;font-size:10px;color:var(--clr-text-3);line-height:1.6">
+          <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:4px">
+            <span><span style="display:inline-block;width:22px;height:6px;background:#6366f1;border-radius:2px;vertical-align:middle;margin-right:4px"></span>Barra línea base (Gantt)</span>
+            <span><span style="color:#dc2626;font-weight:700">+N d</span> Atrasado</span>
+            <span><span style="color:#16a34a;font-weight:700">−N d</span> Adelantado</span>
+          </div>
+          <span>⭐ = Línea base primaria (plan oficial aprobado) · 📌 = Aplicar comparación · ΔI/ΔF/ΔD = varianza inicio/fin/duración</span>
+        </div>
+
+        <!-- Indicador línea base activa -->
+        <div id="bl-active-indicator" style="display:none;padding:7px 10px;border-radius:6px;
+          background:var(--clr-primary-subtle,#eef2ff);border:1px solid var(--clr-primary,#6366f1);
+          font-size:var(--text-xs);color:var(--clr-primary,#4338ca);align-items:center;gap:6px">
+          <span>📐 Activa:</span>
+          <span id="bl-active-name" style="font-weight:600;flex:1"></span>
+          <button id="btn-bl-clear" class="btn btn-ghost btn-sm" style="font-size:10px;padding:2px 8px;color:var(--clr-text-3)">✕ Limpiar</button>
         </div>
       </div>
     </dialog>

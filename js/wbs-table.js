@@ -25,6 +25,9 @@ const COLS = [
   { id: 'pct',    label: '%',          w: 56,   align: 'right',  sortable: false },
   { id: 'tf',     label: 'HT',         w: 52,   align: 'right',  sortable: true  },
   { id: 'ff',     label: 'HL',         w: 52,   align: 'right',  sortable: true  },
+  { id: 'bl_vi',  label: 'ΔI (d)',     w: 58,   align: 'right',  sortable: false, blOnly: true },
+  { id: 'bl_vf',  label: 'ΔF (d)',     w: 58,   align: 'right',  sortable: false, blOnly: true },
+  { id: 'bl_vd',  label: 'ΔD (d)',     w: 52,   align: 'right',  sortable: false, blOnly: true },
   { id: 'pred',   label: 'Pred.',      w: 80,   align: 'left',   sortable: false },
   { id: 'alerts', label: 'Alertas',    w: 100,  align: 'left',   sortable: false },
 ];
@@ -101,13 +104,20 @@ export class WbsTable {
         .col-resizer.resizing::after { background: var(--clr-primary, #1976D2); }
         .wbs-table td { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         body.col-resizing { cursor: col-resize !important; user-select: none !important; }
+        .col-bl { display: none; }
+        .wbs-table.has-baseline .col-bl { display: table-cell; }
+        .bl-var-pos { color: #dc2626; font-weight: 600; }
+        .bl-var-neg { color: #16a34a; font-weight: 600; }
+        .bl-var-zero { color: var(--clr-text-3); }
       `;
       document.head.appendChild(style);
     }
 
     const thHtml = COLS.map(c => {
       const w = this._colWidths[c.id] ?? c.w;
-      return `<th id="th-${c.id}" style="width:${w}px;min-width:${w}px" class="${c.sortable ? 'sortable' : ''}" data-col="${c.id}" scope="col">
+      const extra = c.blOnly ? ' col-bl' : '';
+      const title = c.blOnly ? ` title="${c.id === 'bl_vi' ? 'Varianza inicio vs línea base' : c.id === 'bl_vf' ? 'Varianza fin vs línea base' : 'Varianza duración vs línea base'}"` : '';
+      return `<th id="th-${c.id}" style="width:${w}px;min-width:${w}px" class="${c.sortable ? 'sortable' : ''}${extra}" data-col="${c.id}" scope="col"${title}>
         ${c.label}
         <span class="col-resizer" data-resizer="${c.id}" title="Arrastrar para redimensionar"></span>
       </th>`;
@@ -326,7 +336,7 @@ export class WbsTable {
     const ghostHtml = Array.from({ length: ghosts }, (_, i) =>
       `<tr data-ghost="${i}" class="ghost-row" title="Clic para agregar actividad" tabindex="-1">
         <td style="color:var(--clr-text-4,#ccc);text-align:center;font-size:var(--text-xs)">${rows.length + i + 1}</td>
-        <td colspan="9" style="color:var(--clr-text-4,#bbb);font-size:var(--text-xs);padding-left:8px">
+        <td colspan="12" style="color:var(--clr-text-4,#bbb);font-size:var(--text-xs);padding-left:8px">
           ${i === 0 ? '＋ Clic para agregar actividad…' : ''}
         </td>
         <td></td>
@@ -405,6 +415,7 @@ export class WbsTable {
       <td data-col="pct"  style="text-align:right">${pctStr}</td>
       <td data-col="tf"   style="text-align:right" class="${tfClass}">${tfStr}</td>
       <td data-col="ff"   style="text-align:right;color:var(--clr-text-2)">${ffStr}</td>
+      ${this._renderBlVarianceCells(task.id, cpm, isSummary)}
       <td data-col="pred" style="font-size:var(--text-xs);color:var(--clr-text-3);cursor:pointer" title="Clic para editar predecesoras (ej: 3FS, 4SS+2)">${preds}</td>
       <td data-col="alerts">${alerts}</td>`;
   }
@@ -423,6 +434,41 @@ export class WbsTable {
       }).join('') +
       (taskWarns.length > 3 ? `<span class="alert-icon warn" aria-label="+${taskWarns.length - 3} más">+${taskWarns.length - 3}</span>` : '') +
       `</div>`;
+  }
+
+  /** @returns {string} 3 celdas de varianza línea base (bl_vi, bl_vf, bl_vd) */
+  _renderBlVarianceCells(taskId, cpm, isSummary) {
+    const { baselineData } = appState.state;
+    if (!baselineData || isSummary) {
+      return `
+        <td data-col="bl_vi" class="col-bl" style="text-align:right">—</td>
+        <td data-col="bl_vf" class="col-bl" style="text-align:right">—</td>
+        <td data-col="bl_vd" class="col-bl" style="text-align:right">—</td>`;
+    }
+
+    const bl = baselineData.get(taskId);
+    if (!bl || !cpm || cpm.es == null) {
+      return `
+        <td data-col="bl_vi" class="col-bl" style="text-align:right">—</td>
+        <td data-col="bl_vf" class="col-bl" style="text-align:right">—</td>
+        <td data-col="bl_vd" class="col-bl" style="text-align:right">—</td>`;
+    }
+
+    const vi = cpm.es  - bl.es;
+    const vf = cpm.ef  - bl.ef;
+    const vd = (cpm.dur ?? (cpm.ef - cpm.es + 1)) - bl.dur;
+
+    const fmt = (v) => {
+      const cls  = v > 0 ? 'bl-var-pos' : v < 0 ? 'bl-var-neg' : 'bl-var-zero';
+      const sign = v > 0 ? '+' : '';
+      const tip  = v > 0 ? 'Atrasado vs línea base' : v < 0 ? 'Adelantado vs línea base' : 'En línea con la base';
+      return `<span class="${cls}" title="${tip}">${sign}${v}</span>`;
+    };
+
+    return `
+      <td data-col="bl_vi" class="col-bl" style="text-align:right;font-size:var(--text-xs)">${fmt(vi)}</td>
+      <td data-col="bl_vf" class="col-bl" style="text-align:right;font-size:var(--text-xs)">${fmt(vf)}</td>
+      <td data-col="bl_vd" class="col-bl" style="text-align:right;font-size:var(--text-xs)">${fmt(vd)}</td>`;
   }
 
   // ---- Construcción de lista ordenada de filas ----
@@ -467,7 +513,10 @@ export class WbsTable {
   // ---- Eventos ----
 
   _onStateChange(state, keys) {
-    if (!keys || keys.includes('all') || keys.some(k => ['tasks','deps','cpmResult','expandedIds','selectedTaskId','project'].includes(k))) {
+    if (!keys || keys.includes('all') || keys.some(k => ['tasks','deps','cpmResult','expandedIds','selectedTaskId','project','baselineData'].includes(k))) {
+      // Toggle clase has-baseline en el <table>
+      const tbl = this._container.querySelector('#wbs-tbl');
+      if (tbl) tbl.classList.toggle('has-baseline', !!state.baselineData);
       this.render();
     }
   }

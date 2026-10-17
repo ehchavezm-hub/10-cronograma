@@ -22,7 +22,7 @@ import { SyncEngine }     from './sync.js';
 import { outboxAdd }      from './storage.js?v=4';
 import { EvmPanel }       from './evm.js';
 import { ChangeLogPanel, logCommand } from './change-log.js';
-import { saveBaseline, listBaselines, loadBaselineData, deleteBaseline } from './baseline.js';
+import { saveBaseline, listBaselines, loadBaselineData, deleteBaseline, setPrimaryBaseline } from './baseline.js';
 
 // ============================================================
 // Detectar file://
@@ -1866,35 +1866,71 @@ function _bindToolbar() {
       if (!pid || !listEl) return;
       const rows = await listBaselines(pid);
       if (emptyMsg) emptyMsg.style.display = rows.length ? 'none' : 'block';
-      listEl.innerHTML = rows.map(b => `
-        <div class="bl-row" style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--clr-border-2)">
-          <span style="flex:1;font-size:var(--text-sm);color:var(--clr-text)">${_escHtml(b.name)}</span>
-          <span style="font-size:var(--text-xs);color:var(--clr-text-3)">${b.created_at.slice(0,10)}</span>
-          <button class="btn btn-ghost btn-sm" data-bl-apply="${b.id}" data-bl-name="${_escAttr(b.name)}" title="Aplicar como referencia">📌</button>
-          <button class="btn btn-ghost btn-sm" data-bl-delete="${b.id}" title="Eliminar">🗑</button>
-        </div>`).join('');
 
+      listEl.innerHTML = rows.map(b => {
+        const isActive  = b.id === _activeBaselineId;
+        const isPrimary = !!b.is_primary;
+        const primaryBadge = isPrimary
+          ? `<span title="Línea base primaria (plan aprobado)" style="font-size:13px;line-height:1" aria-label="Línea base primaria">⭐</span>`
+          : `<button class="btn btn-ghost btn-sm" data-bl-primary="${b.id}" title="Marcar como línea base primaria" style="opacity:.5;font-size:12px;padding:0 4px" aria-label="Marcar como primaria">☆</button>`;
+        const activeClass = isActive ? 'background:var(--clr-primary-subtle,#eef2ff);border-radius:4px;' : '';
+        return `
+        <div class="bl-row" style="display:flex;align-items:center;gap:6px;padding:6px 4px;border-bottom:1px solid var(--clr-border-2);${activeClass}">
+          ${primaryBadge}
+          <span style="flex:1;font-size:var(--text-sm);color:var(--clr-text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${_escAttr(b.name)}">${_escHtml(b.name)}${isActive ? ' <span style="font-size:10px;color:var(--clr-primary)">▶ activa</span>' : ''}</span>
+          <span style="font-size:var(--text-xs);color:var(--clr-text-3);white-space:nowrap">${b.created_at.slice(0,10)}</span>
+          <button class="btn btn-ghost btn-sm" data-bl-apply="${b.id}" data-bl-name="${_escAttr(b.name)}" data-bl-primary="${isPrimary}" title="Aplicar como referencia de comparación (P6: Set as Primary)" style="font-size:13px;padding:0 5px" aria-label="Aplicar línea base">📌</button>
+          <button class="btn btn-ghost btn-sm" data-bl-delete="${b.id}" title="Eliminar línea base" style="font-size:13px;padding:0 5px" aria-label="Eliminar">🗑</button>
+        </div>`;
+      }).join('');
+
+      // Aplicar
       listEl.querySelectorAll('[data-bl-apply]').forEach(btn => {
         btn.addEventListener('click', async () => {
-          const id   = /** @type {HTMLElement} */ (btn).dataset.blApply;
-          const name = /** @type {HTMLElement} */ (btn).dataset.blName;
+          const el        = /** @type {HTMLElement} */ (btn);
+          const id        = el.dataset.blApply;
+          const name      = el.dataset.blName;
+          const isPrimary = el.dataset.blPrimary === 'true';
           _activeBaselineId   = id;
           _activeBaselineName = name;
           const data = await loadBaselineData(id);
           appState.setBaselineData(data);
+          appState.setBaselineMeta({ id, name, isPrimary });
           if (activeInd) activeInd.style.display = 'block';
-          if (activeName) activeName.textContent = name;
+          if (activeName) {
+            activeName.textContent = name + (isPrimary ? ' ⭐' : '');
+          }
           dlg?.close();
-          _showToast('Línea base aplicada', 'success');
+          _showToast('Línea base aplicada — varianzas visibles en la tabla', 'success');
         });
       });
+
+      // Marcar como primaria
+      listEl.querySelectorAll('[data-bl-primary]').forEach(btn => {
+        if (/** @type {HTMLElement} */ (btn).tagName !== 'BUTTON') return;
+        btn.addEventListener('click', async () => {
+          const id = /** @type {HTMLElement} */ (btn).dataset.blPrimary;
+          await setPrimaryBaseline(pid, id);
+          // Si era la activa, actualizar meta
+          if (id === _activeBaselineId) {
+            appState.setBaselineMeta({ id, name: _activeBaselineName, isPrimary: true });
+            if (activeName) activeName.textContent = _activeBaselineName + ' ⭐';
+          }
+          await _refreshBaselineList();
+          _showToast('Línea base primaria definida', 'success');
+        });
+      });
+
+      // Eliminar
       listEl.querySelectorAll('[data-bl-delete]').forEach(btn => {
         btn.addEventListener('click', async () => {
           const id = /** @type {HTMLElement} */ (btn).dataset.blDelete;
           await deleteBaseline(id);
           if (id === _activeBaselineId) {
             _activeBaselineId = null;
+            _activeBaselineName = '';
             appState.setBaselineData(null);
+            appState.setBaselineMeta(null);
             if (activeInd) activeInd.style.display = 'none';
           }
           await _refreshBaselineList();
@@ -1926,6 +1962,7 @@ function _bindToolbar() {
       _activeBaselineId = null;
       _activeBaselineName = '';
       appState.setBaselineData(null);
+      appState.setBaselineMeta(null);
       if (activeInd) activeInd.style.display = 'none';
       _showToast('Línea base limpiada', 'success');
     });

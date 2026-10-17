@@ -67,6 +67,8 @@ export class AppStateManager {
       nearThreshold: 5,
       /** @type {Map<string,{es:number,ef:number,dur:number}>|null} */
       baselineData:  null,
+      /** @type {{id:string, name:string, isPrimary:boolean}|null} */
+      baselineMeta:  null,
     };
 
     /** @type {Array<{cmd:Command, inverse:Command}>} */
@@ -179,6 +181,12 @@ export class AppStateManager {
   setBaselineData(data) {
     this._state.baselineData = data;
     this._notify(['baselineData']);
+  }
+
+  /** @param {{id:string, name:string, isPrimary:boolean}|null} meta */
+  setBaselineMeta(meta) {
+    this._state.baselineMeta = meta;
+    this._notify(['baselineMeta']);
   }
 
   /** @param {boolean} v */

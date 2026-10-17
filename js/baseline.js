@@ -2,11 +2,11 @@
 /**
  * baseline.js — Gestión de líneas base (baselines).
  *
- * Una línea base captura el plan aprobado: fechas ES/EF de cada tarea
- * en el momento del guardado. Permite comparar planificado vs actual.
+ * Inspirado en MS Project (hasta 11 baselines, doble barra, columnas varianza)
+ * y Primavera P6 (línea base primaria, semáforo de desvío, BL columns).
  *
  * Esquema IndexedDB:
- *   baselines      { id, project_id, name, created_at, is_active }
+ *   baselines      { id, project_id, name, created_at, is_active, is_primary }
  *   baseline_tasks { id, baseline_id, task_id, es, ef, dur }
  */
 
@@ -35,6 +35,7 @@ export async function saveBaseline(name) {
     name:       name.trim() || `Línea base ${now.slice(0, 10)}`,
     created_at: now,
     is_active:  true,
+    is_primary: false,
   });
 
   // Guardar ES/EF por tarea desde el resultado CPM
@@ -96,4 +97,32 @@ export async function deleteBaseline(baselineId) {
   for (const row of all) {
     if (row.baseline_id === baselineId) await remove('baseline_tasks', row.id);
   }
+}
+
+// ---- Línea base primaria (P6: Primary Baseline) ----
+
+/**
+ * Designa una línea base como primaria (plan aprobado oficial).
+ * Solo puede haber una por proyecto.
+ * @param {string} projectId
+ * @param {string} baselineId  — null para desmarcar todas
+ */
+export async function setPrimaryBaseline(projectId, baselineId) {
+  const all = await getAll('baselines');
+  for (const b of all) {
+    if (b.project_id !== projectId) continue;
+    if (b.is_primary !== (b.id === baselineId)) {
+      await put('baselines', { ...b, is_primary: b.id === baselineId });
+    }
+  }
+}
+
+/**
+ * Obtiene una línea base por ID.
+ * @param {string} baselineId
+ * @returns {Promise<{id:string, name:string, created_at:string, is_active:boolean, is_primary:boolean}|null>}
+ */
+export async function getBaseline(baselineId) {
+  const all = await getAll('baselines');
+  return all.find(b => b.id === baselineId) ?? null;
 }

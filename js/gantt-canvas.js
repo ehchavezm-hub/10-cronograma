@@ -193,6 +193,31 @@ export class GanttCanvas {
           if (cpm.dur != null) lines += `\nDuración: ${cpm.dur} d`;
           if (cpm.tf != null) lines += `\nFloat: ${cpm.tf} d`;
           if (task.percent_complete != null) lines += `\nAvance: ${task.percent_complete}%`;
+
+          // Comparativa línea base (P6 style: BL Inicio / BL Fin / Δ días)
+          const blData = appState.state.baselineData;
+          if (blData) {
+            const bl = blData.get(barId);
+            if (bl != null) {
+              const blMeta = appState.state.baselineMeta;
+              const blLabel = blMeta?.name ? _esc(blMeta.name) : 'Línea base';
+              lines += `\n─── ${blLabel} ───`;
+              if (bl.es != null) lines += `\nBL Inicio: ${fmt(cal.idxToDate(bl.es, ps))}`;
+              if (bl.ef != null) lines += `\nBL Fin: ${fmt(cal.finishDate(bl.ef, ps))}`;
+              if (bl.dur != null) lines += `\nBL Duración: ${bl.dur} d`;
+              // Varianza (días laborables)
+              if (cpm.es != null && bl.es != null) {
+                const vi = cpm.es - bl.es;
+                const icon = vi > 3 ? '🔴' : vi > 0 ? '🟡' : vi < 0 ? '🟢' : '🟢';
+                lines += `\n${icon} ΔInicio: ${vi > 0 ? '+' : ''}${vi} d`;
+              }
+              if (cpm.ef != null && bl.ef != null) {
+                const vf = cpm.ef - bl.ef;
+                const icon = vf > 3 ? '🔴' : vf > 0 ? '🟡' : vf < 0 ? '🟢' : '🟢';
+                lines += `\n${icon} ΔFin: ${vf > 0 ? '+' : ''}${vf} d`;
+              }
+            }
+          }
         }
         this._showTooltip(lines, e.clientX, e.clientY);
       }
@@ -776,7 +801,7 @@ export class GanttCanvas {
       const color    = this._barColor(task, cpm);
       const selected = task.id === selectedId;
 
-      // ---- Línea base (si está activa) ----
+      // ---- Línea base (doble barra: estilo MS Project + P6) ----
       const baselineData = state.baselineData;
       if (baselineData && !row.isSummary && task.type !== 'milestone') {
         const bl = baselineData.get(row.id);
@@ -786,15 +811,22 @@ export class GanttCanvas {
           const bx1 = scene._dateToXAbs(blStart) - scene.scrollX;
           const bx2 = scene._dateToXAbs(blEnd)   - scene.scrollX + scene.pixPerDay;
           if (bx2 > 0 && bx1 < W) {
-            const blH  = 4;
+            const blW  = Math.max(bx2 - bx1, 3);
+            // Barra base: parte inferior de la fila (estilo MS Project doble barra)
+            const blH  = Math.max(5, Math.round(rowHeight * 0.25));
             const blY  = y0 + rowHeight - blH - 2;
-            const blW  = Math.max(bx2 - bx1, 2);
             ctx.save();
-            ctx.globalAlpha = 0.55;
-            ctx.fillStyle   = '#f59e0b';  // ámbar para la línea base
-            ctx.beginPath();
-            ctx.roundRect(bx1, blY, blW, blH, 2);
+            // Relleno sólido índigo (P6: color distinto al bar actual)
+            ctx.globalAlpha = 0.72;
+            ctx.fillStyle   = '#6366f1';
+            _roundRect(ctx, bx1, blY, blW, blH, 2);
             ctx.fill();
+            // Borde más oscuro para contraste
+            ctx.globalAlpha = 0.9;
+            ctx.strokeStyle = '#4338ca';
+            ctx.lineWidth   = 1;
+            _roundRect(ctx, bx1, blY, blW, blH, 2);
+            ctx.stroke();
             ctx.restore();
           }
         }
