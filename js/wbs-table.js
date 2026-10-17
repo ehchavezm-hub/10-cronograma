@@ -16,25 +16,25 @@ import { fmtDate, isoToDate, Calendar } from './calendar.js';
 // ============================================================
 
 const COLS = [
-  { id: 'wbs',    label: 'EDT',        w: 56,   align: 'center', sortable: false },
-  { id: 'name',   label: 'Nombre',     w: 260,  align: 'left',   sortable: true  },
-  { id: 'type',   label: 'Tipo',       w: 70,   align: 'center', sortable: false },
-  { id: 'dur',    label: 'Dur (d)',    w: 64,   align: 'right',  sortable: true  },
-  { id: 'start',  label: 'Inicio',     w: 90,   align: 'center', sortable: true  },
-  { id: 'finish', label: 'Fin',        w: 90,   align: 'center', sortable: true  },
-  { id: 'pct',    label: '%',          w: 56,   align: 'right',  sortable: false },
-  { id: 'tf',     label: 'HT',         w: 52,   align: 'right',  sortable: true  },
-  { id: 'ff',     label: 'HL',         w: 52,   align: 'right',  sortable: true  },
-  { id: 'bl_vi',  label: 'ΔI (d)',     w: 58,   align: 'right',  sortable: false, blOnly: true },
-  { id: 'bl_vf',  label: 'ΔF (d)',     w: 58,   align: 'right',  sortable: false, blOnly: true },
-  { id: 'bl_vd',  label: 'ΔD (d)',     w: 52,   align: 'right',  sortable: false, blOnly: true },
-  { id: 'pred',   label: 'Pred.',      w: 80,   align: 'left',   sortable: false },
-  { id: 'alerts', label: 'Alertas',    w: 100,  align: 'left',   sortable: false },
+  { id: 'wbs',    label: 'EDT',        w: 52,   align: 'center', sortable: false },
+  { id: 'name',   label: 'Nombre',     w: 240,  align: 'left',   sortable: true  },
+  { id: 'type',   label: 'Tipo',       w: 64,   align: 'center', sortable: false },
+  { id: 'dur',    label: 'Dur (d)',    w: 58,   align: 'right',  sortable: true  },
+  { id: 'start',  label: 'Inicio',     w: 82,   align: 'center', sortable: true  },
+  { id: 'finish', label: 'Fin',        w: 82,   align: 'center', sortable: true  },
+  { id: 'pct',    label: '%',          w: 48,   align: 'right',  sortable: false },
+  { id: 'tf',     label: 'HT',         w: 46,   align: 'right',  sortable: true  },
+  { id: 'ff',     label: 'HL',         w: 46,   align: 'right',  sortable: true  },
+  { id: 'bl_vi',  label: 'ΔI (d)',     w: 54,   align: 'right',  sortable: false, blOnly: true },
+  { id: 'bl_vf',  label: 'ΔF (d)',     w: 54,   align: 'right',  sortable: false, blOnly: true },
+  { id: 'bl_vd',  label: 'ΔD (d)',     w: 48,   align: 'right',  sortable: false, blOnly: true },
+  { id: 'pred',   label: 'Pred.',      w: 72,   align: 'left',   sortable: false },
+  { id: 'alerts', label: 'Alertas',    w: 90,   align: 'left',   sortable: false },
 ];
 
-const COL_WIDTHS_KEY = 'wbs-col-widths';
+const COL_WIDTHS_KEY = 'wbs-col-widths-v2';
 
-const INDENT_PX = 16;
+const INDENT_PX = 12;
 
 // ============================================================
 // Clase principal
