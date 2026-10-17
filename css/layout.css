@@ -244,8 +244,12 @@ html, body {
   #app.mobile-view-gantt #wbs-panel   { display: none !important; }
 
   /* Vista KPIs activa en móvil */
-  #app.mobile-view-kpi #evm-panel  { display: block !important; }
+  #app.mobile-view-kpi #evm-panel  { display: block !important; overflow-y: auto; }
   #app.mobile-view-kpi #wbs-panel  { display: none !important; }
+
+  /* Prevent horizontal scroll on small screens */
+  #main-area { overflow-x: hidden; }
+  #wbs-panel, #evm-panel, #gantt-panel { max-width: 100vw; }
 }
 @media (min-width: 600px) {
   #bottom-tabs { display: none; }

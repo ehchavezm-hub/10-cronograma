@@ -193,6 +193,14 @@ export class EvmPanel {
     this._result    = null;
     container.innerHTML = _buildPanelHtml();
     this._canvas = /** @type {HTMLCanvasElement} */ (container.querySelector('#evm-curve-canvas'));
+
+    container.querySelector('#evm-data-date-save')?.addEventListener('click', () => {
+      const inp = /** @type {HTMLInputElement|null} */ (container.querySelector('#evm-data-date-input'));
+      const val = inp?.value;
+      if (!val) return;
+      appState.dispatch({ type: 'UPDATE_PROJECT', payload: { fields: { data_date: val } } });
+      this.refresh();
+    });
   }
 
   /** Recalcula y re-renderiza el panel. */
@@ -211,7 +219,7 @@ export class EvmPanel {
     this._container.querySelector('#evm-no-data').style.display = 'none';
     this._container.querySelector('#evm-content').style.display = '';
     const warnEl = this._container.querySelector('#evm-no-date-warn');
-    if (warnEl) warnEl.style.display = r.hasDataDate ? 'none' : '';
+    if (warnEl) warnEl.style.display = r.hasDataDate ? 'none' : 'flex';
 
     // KPIs
     _setKpi(this._container, 'bac',  r.bac,  'currency');
@@ -376,8 +384,13 @@ function _buildPanelHtml() {
 <div id="evm-no-data" style="display:none;padding:32px;text-align:center;color:var(--clr-text-3)">
   No hay datos de CPM disponibles. Espere que se complete el cálculo.
 </div>
-<div id="evm-no-date-warn" style="display:none;padding:6px 16px;background:var(--clr-warn-bg,#fff3cd);color:var(--clr-warn-text,#856404);font-size:12px;border-bottom:1px solid var(--clr-warn-border,#ffc107)">
-  ⚠️ El proyecto no tiene <strong>Fecha de datos</strong> configurada. PV se calcula con la fecha actual. Configure la fecha de datos en la pestaña del proyecto.
+<div id="evm-no-date-warn" style="display:none;padding:6px 16px;background:var(--clr-warn-bg,#fff3cd);color:var(--clr-warn-text,#856404);font-size:12px;border-bottom:1px solid var(--clr-warn-border,#ffc107);align-items:center;gap:8px;flex-wrap:wrap">
+  <span>⚠️ El proyecto no tiene <strong>Fecha de datos</strong> configurada. PV se calcula con la fecha actual.</span>
+  <label style="display:flex;align-items:center;gap:4px;margin-left:auto">
+    <span>Establecer fecha:</span>
+    <input id="evm-data-date-input" type="date" style="font-size:11px;padding:2px 4px;border:1px solid var(--clr-warn-border,#ffc107);border-radius:3px;background:var(--clr-surface,#fff);color:var(--clr-text,#333)">
+    <button id="evm-data-date-save" style="font-size:11px;padding:2px 8px;background:var(--clr-warn-text,#856404);color:#fff;border:none;border-radius:3px;cursor:pointer">Guardar</button>
+  </label>
 </div>
 <div id="evm-content">
   <!-- KPIs principales -->

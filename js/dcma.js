@@ -485,7 +485,7 @@ export class DcmaPanel {
       const cnt     = c.na ? '—' : (c.count > 0 ? `<span class="dcma-count">${c.count}</span>` : '0');
       return `<tr data-check-id="${c.id}" class="${cls} ${this._selected === c.id ? 'selected' : ''}" title="${_esc(c.description)}">
         <td class="dcma-point">${c.point}</td>
-        <td class="dcma-name">${_esc(c.name)}</td>
+        <td class="dcma-name">${_esc(c.name)} <span class="dcma-info-icon" title="${_esc(c.description)}" aria-label="Más información" style="cursor:help;color:var(--clr-text-3,#888);font-size:10px;vertical-align:middle">ℹ</span></td>
         <td class="dcma-val" style="text-align:right">${metric}</td>
         <td class="dcma-tgt" style="text-align:right">${target}</td>
         <td style="text-align:center">${cnt}</td>

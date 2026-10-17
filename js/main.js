@@ -2004,6 +2004,7 @@ function _bindToolbar() {
       case 'svg':         exportSvg(rows);           break;
       case 'print-table': printWbsTable();           break;
       case 'print-gantt': printGantt(rows);          break;
+      case 'print-pdf':   window.print();            break;
       case 'col-config':  _showPrintColConfig();     break;
     }
   });
