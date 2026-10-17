@@ -293,7 +293,8 @@ async function _pushOp(op) {
       break;
     }
     case 'DELETE':
-      await sb.softDelete(op.tabla, op.fila);
+      // Enviar deleted_at y updated_at para que el merge remoto refleje el borrado
+      await sb.update(op.tabla, op.fila, { deleted_at: op.campos.deleted_at ?? new Date().toISOString(), updated_at: op.campos.updated_at ?? new Date().toISOString() });
       break;
   }
 }

@@ -1,6 +1,6 @@
 // @ts-check
 /**
- * main.js â€” Punto de entrada de la aplicación.
+ * main.js — Punto de entrada de la aplicación.
  * Detecta file://, inicializa módulos, carga datos demo en modo local.
  */
 
@@ -231,7 +231,7 @@ function _initTaskDetailPanel() {
   panel.innerHTML = `
     <div id="tdp-header" style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid var(--clr-border);background:var(--clr-surface-2);flex-shrink:0">
       <span style="font-weight:700;font-size:14px">Detalle de actividad</span>
-      <button id="tdp-close" class="btn btn-icon btn-sm" title="Cerrar">âœ•</button>
+      <button id="tdp-close" class="btn btn-icon btn-sm" title="Cerrar">✕</button>
     </div>
     <div id="tdp-body" style="flex:1;overflow-y:auto;padding:16px"></div>
     <div id="tdp-footer" style="padding:12px 16px;border-top:1px solid var(--clr-border);display:flex;gap:8px;justify-content:flex-end;background:var(--clr-surface-2);flex-shrink:0">
@@ -261,7 +261,7 @@ async function _openTaskDetail(taskId) {
   const startIso = project?.start_date || new Date().toISOString().slice(0, 10);
 
   const idxToDate = (idx) => {
-    if (idx == null) return 'â€”';
+    if (idx == null) return '—';
     const cal = appState.state.calendar;
     const calDef = cal
       ? { work_week: cal.work_week, exceptions: (appState.state.calExceptions || []).filter(e => !e.deleted_at).map(e => ({ on_date: e.on_date, is_working: e.is_working })) }
@@ -279,7 +279,7 @@ async function _openTaskDetail(taskId) {
   // Calcular fechas desde índice de días
   const startDate = new Date(startIso + 'T00:00:00');
   const addDays = (n) => {
-    if (n == null) return 'â€”';
+    if (n == null) return '—';
     const d = new Date(startDate);
     d.setDate(d.getDate() + n);
     return d.toLocaleDateString('es-PE', { day:'2-digit', month:'2-digit', year:'numeric' });
@@ -307,10 +307,10 @@ async function _openTaskDetail(taskId) {
   const resRows = taskResources.map(tr => {
     const res = allResources.find(r => r.id === tr.resource_id);
     return `<tr data-trid="${tr.id}">
-      <td style="padding:4px 8px;font-size:12px">${_escHtml(res?.name ?? 'â€”')}</td>
+      <td style="padding:4px 8px;font-size:12px">${_escHtml(res?.name ?? '—')}</td>
       <td style="padding:4px 8px;font-size:12px">${_escHtml(res?.role ?? '')}</td>
       <td style="padding:4px 8px;font-size:12px"><input type="number" class="tdp-res-units" data-trid="${tr.id}" value="${tr.units ?? 100}" min="1" max="100000" style="width:64px;padding:2px 6px;border:1px solid var(--clr-border);border-radius:4px;font-size:11px;background:var(--clr-surface);color:var(--clr-text)"> %</td>
-      <td style="padding:4px 8px"><button class="btn btn-icon btn-sm tdp-res-remove" data-trid="${tr.id}" title="Quitar" style="color:var(--clr-danger,#e74c3c);padding:0 6px">âœ•</button></td>
+      <td style="padding:4px 8px"><button class="btn btn-icon btn-sm tdp-res-remove" data-trid="${tr.id}" title="Quitar" style="color:var(--clr-danger,#e74c3c);padding:0 6px">✕</button></td>
     </tr>`;
   }).join('');
 
@@ -414,10 +414,10 @@ async function _openTaskDetail(taskId) {
         ${allResources.length ? `
         <div style="display:flex;gap:6px;margin-top:8px;align-items:center">
           <select id="tdp-res-select" style="flex:1;padding:6px 10px;border:1px solid var(--clr-border);border-radius:6px;font-size:12px;background:var(--clr-surface-2);color:var(--clr-text)">
-            <option value="">â€” Seleccionar recurso â€”</option>
+            <option value="">— Seleccionar recurso —</option>
             ${resOpts}
           </select>
-          <button id="tdp-res-add" class="btn btn-ghost btn-sm">ï¼‹ Asignar</button>
+          <button id="tdp-res-add" class="btn btn-ghost btn-sm">＋ Asignar</button>
         </div>` : `
         <div style="margin-top:8px;font-size:12px;color:var(--clr-text-3)">
           No hay recursos definidos. <a href="#" id="tdp-open-resources" style="color:var(--clr-primary)">Gestionar recursos</a>
@@ -461,7 +461,7 @@ async function _tdpAddResource(taskId) {
     <td style="padding:4px 8px;font-size:12px">${_escHtml(res.name)}</td>
     <td style="padding:4px 8px;font-size:12px">${_escHtml(res.role ?? '')}</td>
     <td style="padding:4px 8px;font-size:12px"><input type="number" class="tdp-res-units" data-trid="${trid}" value="100" min="1" max="100000" style="width:64px;padding:2px 6px;border:1px solid var(--clr-border);border-radius:4px;font-size:11px;background:var(--clr-surface);color:var(--clr-text)"> %</td>
-    <td style="padding:4px 8px"><button class="btn btn-icon btn-sm tdp-res-remove" data-trid="${trid}" title="Quitar" style="color:var(--clr-danger,#e74c3c);padding:0 6px">âœ•</button></td>`;
+    <td style="padding:4px 8px"><button class="btn btn-icon btn-sm tdp-res-remove" data-trid="${trid}" title="Quitar" style="color:var(--clr-danger,#e74c3c);padding:0 6px">✕</button></td>`;
   if (tbody) {
     const empty = tbody.querySelector('td[colspan]');
     if (empty) empty.closest('tr')?.remove();
@@ -565,15 +565,15 @@ async function _openResourceManager() {
     <tr>
       <td style="padding:6px 10px;font-size:13px">${_escHtml(r.name)}</td>
       <td style="padding:6px 10px;font-size:12px;color:var(--clr-text-3)">${_escHtml(r.role ?? '')}</td>
-      <td style="padding:6px 10px;font-size:12px;color:var(--clr-text-3)">${r.rate_per_hour ? 'S/ '+r.rate_per_hour+'/h' : 'â€”'}</td>
+      <td style="padding:6px 10px;font-size:12px;color:var(--clr-text-3)">${r.rate_per_hour ? 'S/ '+r.rate_per_hour+'/h' : '—'}</td>
       <td style="padding:6px 10px;font-size:12px;color:var(--clr-text-3)">${_escHtml(r.type ?? 'work')}</td>
-      <td style="padding:6px 10px"><button class="btn btn-icon btn-sm rm-del" data-rid="${r.id}" title="Eliminar" style="color:var(--clr-danger,#e74c3c)">ðŸ—‘</button></td>
+      <td style="padding:6px 10px"><button class="btn btn-icon btn-sm rm-del" data-rid="${r.id}" title="Eliminar" style="color:var(--clr-danger,#e74c3c)">🗑</button></td>
     </tr>`).join('') || '<tr><td colspan="5" style="padding:16px;text-align:center;color:var(--clr-text-3)">Sin recursos</td></tr>';
 
   dlg.innerHTML = `
     <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid var(--clr-border);background:var(--clr-surface-2)">
       <span style="font-weight:700;font-size:15px">Gestión de Recursos</span>
-      <button id="dlg-res-close" class="btn btn-icon btn-sm">âœ•</button>
+      <button id="dlg-res-close" class="btn btn-icon btn-sm">✕</button>
     </div>
     <div style="padding:16px;max-height:50vh;overflow-y:auto">
       <table style="width:100%;border-collapse:collapse">
@@ -601,7 +601,7 @@ async function _openResourceManager() {
           <option value="cost">Costo fijo</option>
           <option value="equipment">Equipo</option>
         </select>
-        <button id="rm-add" class="btn btn-primary btn-sm">ï¼‹ Agregar</button>
+        <button id="rm-add" class="btn btn-primary btn-sm">＋ Agregar</button>
       </div>
     </div>`;
 
@@ -902,7 +902,7 @@ async function _loadProject(projectId) {
   _ganttFitPending = true;
   _renderProjectList();
   if (!data.project.start_date) {
-    _showToast('Sin fecha de inicio â€” edita el proyecto para configurarla', 'warn');
+    _showToast('Sin fecha de inicio — edita el proyecto para configurarla', 'warn');
   }
 
   // Arrancar engine de sync para el nuevo proyecto (solo modo Supabase)
@@ -934,22 +934,22 @@ async function _renderProjectList() {
   function _projItem(p, indent = 0) {
     return `<div class="explorer-item ${p.id === currentId ? 'active' : ''}" data-project-id="${p.id}"
       title="${_escAttr(p.name)}" style="padding-left:${8 + indent * 16}px">
-      <span class="item-icon">ðŸ“‹</span>
+      <span class="item-icon">📋</span>
       <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px">${_escHtml(p.name)}</span>
       ${p.id !== currentId ? `<button class="btn btn-ghost" data-del-project="${p.id}" title="Eliminar"
-        style="padding:0 4px;font-size:10px;line-height:1;opacity:0.5;flex-shrink:0">âœ•</button>` : ''}
+        style="padding:0 4px;font-size:10px;line-height:1;opacity:0.5;flex-shrink:0">✕</button>` : ''}
     </div>`;
   }
 
   function _progItem(prog, indent = 0) {
     const progProjects = projects.filter(p => p.settings?.program_id === prog.id);
     return `<div class="explorer-section-title" style="padding-left:${8 + indent * 16}px;display:flex;align-items:center;gap:4px">
-        <span>ðŸ“¦</span><span>${_escHtml(prog.name)}</span>
+        <span>📦</span><span>${_escHtml(prog.name)}</span>
         ${prog.code ? `<span style="font-size:10px;opacity:0.6">${_escHtml(prog.code)}</span>` : ''}
         <button class="btn btn-ghost" data-add-to-program="${prog.id}" data-prog-code="${_escAttr(prog.code||'')}" title="Nuevo proyecto en este programa"
-          style="padding:0 5px;font-size:11px;line-height:1;color:var(--clr-primary);margin-left:auto" tabindex="0">ï¼‹</button>
+          style="padding:0 5px;font-size:11px;line-height:1;color:var(--clr-primary);margin-left:auto" tabindex="0">＋</button>
         <button class="btn btn-ghost" data-del-program="${prog.id}" title="Eliminar programa"
-          style="padding:0 4px;font-size:10px;line-height:1;opacity:0.4">âœ•</button>
+          style="padding:0 4px;font-size:10px;line-height:1;opacity:0.4">✕</button>
       </div>
       ${progProjects.map(p => _projItem(p, indent + 1)).join('')}`;
   }
@@ -959,12 +959,12 @@ async function _renderProjectList() {
     const pfPrograms  = programs.filter(p => p.portfolio_id === pf.id);
     const pfProjects  = projects.filter(p => p.settings?.portfolio_id === pf.id && !p.settings?.program_id);
     rows.push(`<div class="explorer-section-title" style="display:flex;align-items:center;gap:4px">
-        <span>ðŸ—‚</span><span>${_escHtml(pf.name)}</span>
+        <span>🗂</span><span>${_escHtml(pf.name)}</span>
         ${pf.code ? `<span style="font-size:10px;opacity:0.6">${_escHtml(pf.code)}</span>` : ''}
         <button class="btn btn-ghost" data-add-to-portfolio="${pf.id}" data-pf-code="${_escAttr(pf.code||'')}" title="Nuevo programa/proyecto en este portafolio"
-          style="padding:0 5px;font-size:11px;line-height:1;color:var(--clr-primary);margin-left:auto" tabindex="0">ï¼‹</button>
+          style="padding:0 5px;font-size:11px;line-height:1;color:var(--clr-primary);margin-left:auto" tabindex="0">＋</button>
         <button class="btn btn-ghost" data-del-portfolio="${pf.id}" title="Eliminar portafolio"
-          style="padding:0 4px;font-size:10px;line-height:1;opacity:0.4">âœ•</button>
+          style="padding:0 4px;font-size:10px;line-height:1;opacity:0.4">✕</button>
       </div>`);
     pfPrograms.forEach(prog => rows.push(_progItem(prog, 1)));
     pfProjects.forEach(p   => rows.push(_projItem(p, 1)));
@@ -1031,7 +1031,7 @@ async function _renderProjectList() {
     });
   });
 
-  // "+" junto a programa â†’ nuevo proyecto heredando código
+  // "+" junto a programa → nuevo proyecto heredando código
   list.querySelectorAll('[data-add-to-program]').forEach(btn => {
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -1041,7 +1041,7 @@ async function _renderProjectList() {
     });
   });
 
-  // "+" junto a portafolio â†’ nuevo programa o proyecto directo
+  // "+" junto a portafolio → nuevo programa o proyecto directo
   list.querySelectorAll('[data-add-to-portfolio]').forEach(btn => {
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -1106,14 +1106,14 @@ function _bindNewProject() {
   async function _loadParentOptions(type) {
     const sel = /** @type {HTMLSelectElement|null} */ (document.getElementById('ni-parent'));
     if (!sel) return;
-    sel.innerHTML = '<option value="">â€” Sin asignar (nivel raíz) â€”</option>';
+    sel.innerHTML = '<option value="">— Sin asignar (nivel raíz) —</option>';
     if (type === 'portfolio') return;
     const { portfolios, programs } = await loadHierarchy();
     if (type === 'program') {
       portfolios.forEach(p => {
         const opt = document.createElement('option');
         opt.value = 'portfolio:' + p.id;
-        opt.textContent = 'ðŸ—‚ ' + p.name;
+        opt.textContent = '🗂 ' + p.name;
         sel.appendChild(opt);
       });
     } else {
@@ -1121,13 +1121,13 @@ function _bindNewProject() {
       portfolios.forEach(p => {
         const opt = document.createElement('option');
         opt.value = 'portfolio:' + p.id;
-        opt.textContent = 'ðŸ—‚ ' + p.name;
+        opt.textContent = '🗂 ' + p.name;
         sel.appendChild(opt);
       });
       programs.forEach(p => {
         const opt = document.createElement('option');
         opt.value = 'program:' + p.id;
-        opt.textContent = 'ðŸ“¦ ' + p.name;
+        opt.textContent = '📦 ' + p.name;
         sel.appendChild(opt);
       });
     }
@@ -1274,12 +1274,12 @@ async function init() {
         _ganttCanvas?.updateRows(e.detail.rows);
       });
 
-      // Fila fantasma â†’ crear tarea nueva
+      // Fila fantasma → crear tarea nueva
       document.addEventListener('wbs-add-task', /** @type {any} */ (e) => {
         _wbsTable?.addTaskAfterSelected(e.detail?.type ?? 'task');
       });
 
-      // Sincronizar scroll: Gantt â†’ tabla WBS
+      // Sincronizar scroll: Gantt → tabla WBS
       document.addEventListener('gantt-scroll-y', /** @type {any} */ (e) => {
         const scroll = document.getElementById('wbs-scroll');
         if (scroll) scroll.scrollTop = e.detail.scrollY;
@@ -1357,7 +1357,7 @@ async function init() {
 
     // El motor de sync ya fue iniciado dentro de _loadProject.
 
-    console.log('[Cronogramas] v28 completo â€” modo', IS_LOCAL_MODE ? 'local' : 'Supabase');
+    console.log('[Cronogramas] v28 completo — modo', IS_LOCAL_MODE ? 'local' : 'Supabase');
   } catch (err) {
     console.error('[init]', err);
     _showToast('Error al iniciar: ' + err.message, 'error');
@@ -1569,7 +1569,7 @@ function _bindToolbar() {
     const { project } = appState.state;
     if (project) {
       document.getElementById('app')?.setAttribute('data-print-title',
-        `${project.name} â€” Cronograma EDT â€” ${new Date().toLocaleDateString('es-PE')}`);
+        `${project.name} — Cronograma EDT — ${new Date().toLocaleDateString('es-PE')}`);
     }
   };
   appState.subscribe((_state, keys) => {
@@ -1658,7 +1658,7 @@ function _bindResizer() {
 
   document.addEventListener('mousemove', e => {
     if (!dragging) return;
-    const dx = startX - e.clientX; // mover derecha â†’ gantt se hace más pequeño
+    const dx = startX - e.clientX; // mover derecha → gantt se hace más pequeño
     const minW = 180;
     const maxW = window.innerWidth - 280;
     const newW = Math.max(minW, Math.min(maxW, startW + dx));
@@ -1679,11 +1679,11 @@ function _bindResizer() {
 }
 
 // ============================================================
-// Organigrama de jerarquía (portafolioâ†’programaâ†’proyecto)
+// Organigrama de jerarquía (portafolio→programa→proyecto)
 // ============================================================
 
 // ============================================================
-// Estructura de Proyectos â€” canvas libre
+// Estructura de Proyectos — canvas libre
 // ============================================================
 
 /** Lee posiciones guardadas del lienzo */
@@ -1702,12 +1702,12 @@ function _showOrgChart() {
         <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 16px;border-bottom:1px solid var(--clr-border);background:var(--clr-surface-2);flex-shrink:0;gap:8px;flex-wrap:wrap">
           <span style="font-weight:700;font-size:15px">Estructura de Proyectos</span>
           <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
-            <button id="oc-add-pf"   class="btn btn-primary btn-sm">ï¼‹ Portafolio</button>
-            <button id="oc-add-prog" class="btn btn-ghost btn-sm">ï¼‹ Programa</button>
-            <button id="oc-add-proj" class="btn btn-ghost btn-sm">ï¼‹ Proyecto</button>
+            <button id="oc-add-pf"   class="btn btn-primary btn-sm">＋ Portafolio</button>
+            <button id="oc-add-prog" class="btn btn-ghost btn-sm">＋ Programa</button>
+            <button id="oc-add-proj" class="btn btn-ghost btn-sm">＋ Proyecto</button>
             <span style="width:1px;height:18px;background:var(--clr-border)"></span>
-            <button id="oc-reset-layout" class="btn btn-ghost btn-sm" title="Restablecer posiciones">â†º Organizar</button>
-            <button id="btn-orgchart-close" class="btn btn-ghost btn-sm">âœ• Cerrar</button>
+            <button id="oc-reset-layout" class="btn btn-ghost btn-sm" title="Restablecer posiciones">↺ Organizar</button>
+            <button id="btn-orgchart-close" class="btn btn-ghost btn-sm">✕ Cerrar</button>
           </div>
         </div>
         <div id="oc-viewport" style="flex:1;overflow:auto;position:relative">
@@ -1751,7 +1751,7 @@ function _ocOpenForm(dlg, type, data) {
   const overlay = dlg.querySelector('#oc-edit-overlay');
   if (!overlay) return;
 
-  const icons  = { portfolio: 'ðŸ—‚', program: 'ðŸ“¦', project: 'ðŸ“‹' };
+  const icons  = { portfolio: '🗂', program: '📦', project: '📋' };
   const labels = { portfolio: 'Portafolio', program: 'Programa', project: 'Proyecto' };
   const isNew  = !data?.id;
 
@@ -1786,12 +1786,12 @@ function _ocOpenForm(dlg, type, data) {
     ${inp('desc', 'Descripción', data?.description ?? '', 'Opcional')}
     ${extraHtml}
     ${!isNew ? `<div id="oc-del-zone" style="display:none;background:rgba(231,76,60,0.08);border:1px solid rgba(231,76,60,0.3);border-radius:8px;padding:12px;margin-bottom:12px">
-      <div style="font-size:12px;font-weight:600;color:#c0392b;margin-bottom:6px">âš  Esta acción no se puede deshacer</div>
+      <div style="font-size:12px;font-weight:600;color:#c0392b;margin-bottom:6px">⚠ Esta acción no se puede deshacer</div>
       <button id="ocf-del-confirm" style="background:#e74c3c;color:#fff;border:none;border-radius:6px;padding:6px 14px;cursor:pointer;font-size:12px;font-weight:600">Eliminar definitivamente</button>
       <button id="ocf-del-cancel" style="margin-left:8px;background:none;border:1px solid var(--clr-border);border-radius:6px;padding:6px 14px;cursor:pointer;font-size:12px">Cancelar</button>
     </div>` : ''}
     <div style="display:flex;gap:8px;justify-content:space-between;align-items:center;margin-top:16px">
-      <div>${!isNew ? `<button id="ocf-del-init" style="background:none;border:1px solid #e74c3c;color:#e74c3c;border-radius:6px;padding:5px 12px;cursor:pointer;font-size:12px">ðŸ—‘ Eliminar</button>` : ''}</div>
+      <div>${!isNew ? `<button id="ocf-del-init" style="background:none;border:1px solid #e74c3c;color:#e74c3c;border-radius:6px;padding:5px 12px;cursor:pointer;font-size:12px">🗑 Eliminar</button>` : ''}</div>
       <div style="display:flex;gap:8px">
         <button id="ocf-cancel" class="btn btn-ghost btn-sm">Cancelar</button>
         <button id="ocf-save" class="btn btn-primary btn-sm">Guardar</button>
@@ -1803,7 +1803,7 @@ function _ocOpenForm(dlg, type, data) {
     const pfSel = box.querySelector('#ocf-pfid');
     if (pfSel) {
       portfolios.forEach(pf => {
-        const opt = new Option(`${pf.code ? pf.code + ' â€” ' : ''}${pf.name}`, pf.id);
+        const opt = new Option(`${pf.code ? pf.code + ' — ' : ''}${pf.name}`, pf.id);
         const curPf = data?.portfolio_id ?? data?.settings?.portfolio_id;
         if (curPf === pf.id) opt.selected = true;
         pfSel.appendChild(opt);
@@ -1812,7 +1812,7 @@ function _ocOpenForm(dlg, type, data) {
     const progSel = box.querySelector('#ocf-progid');
     if (progSel) {
       programs.forEach(prog => {
-        const opt = new Option(`${prog.code ? prog.code + ' â€” ' : ''}${prog.name}`, prog.id);
+        const opt = new Option(`${prog.code ? prog.code + ' — ' : ''}${prog.name}`, prog.id);
         if (data?.settings?.program_id === prog.id) opt.selected = true;
         progSel.appendChild(opt);
       });
@@ -1994,7 +1994,7 @@ async function _renderOrgChart() {
   });
 
   // ---- Crear tarjetas en el canvas ----
-  const icons  = { portfolio: 'ðŸ—‚', program: 'ðŸ“¦', project: 'ðŸ“‹' };
+  const icons  = { portfolio: '🗂', program: '📦', project: '📋' };
   const colors = { portfolio: '#1976D2', program: '#7B1FA2', project: '#2E7D32' };
   const bgCol  = { portfolio: 'rgba(25,118,210,0.06)', program: 'rgba(123,31,162,0.06)', project: 'rgba(46,125,50,0.06)' };
 
@@ -2015,14 +2015,14 @@ async function _renderOrgChart() {
       transition:box-shadow .15s;`;
 
     card.innerHTML = `
-      <div class="oc-drag-handle" style="position:absolute;top:4px;left:6px;font-size:12px;opacity:0.25;cursor:grab;line-height:1" title="Arrastrar">â ¿</div>
-      <button class="oc-btn-edit" title="Editar" style="position:absolute;top:4px;right:26px;background:none;border:none;cursor:pointer;font-size:12px;opacity:0.3;padding:0;line-height:1">âœŽ</button>
-      <button class="oc-btn-add" title="Agregar hijo" style="position:absolute;top:4px;right:6px;background:none;border:none;cursor:pointer;font-size:12px;opacity:0.3;padding:0;line-height:1;font-weight:700">ï¼‹</button>
+      <div class="oc-drag-handle" style="position:absolute;top:4px;left:6px;font-size:12px;opacity:0.25;cursor:grab;line-height:1" title="Arrastrar">⠿</div>
+      <button class="oc-btn-edit" title="Editar" style="position:absolute;top:4px;right:26px;background:none;border:none;cursor:pointer;font-size:12px;opacity:0.3;padding:0;line-height:1">✎</button>
+      <button class="oc-btn-add" title="Agregar hijo" style="position:absolute;top:4px;right:6px;background:none;border:none;cursor:pointer;font-size:12px;opacity:0.3;padding:0;line-height:1;font-weight:700">＋</button>
       <div style="font-size:20px;margin-top:2px">${icons[type]}</div>
       <div style="font-size:11px;font-weight:700;word-break:break-word;text-align:center;line-height:1.3;color:${colors[type]};margin-top:2px">${_escHtml(data.name)}</div>
       ${data.code ? `<div style="font-size:9px;opacity:0.55;background:rgba(0,0,0,0.06);border-radius:4px;padding:1px 6px;margin-top:1px">${_escHtml(data.code)}</div>` : ''}
-      ${type === 'project' && data.start_date ? `<div style="font-size:9px;opacity:0.4;margin-top:2px">ðŸ“… ${data.start_date}</div>` : ''}
-      ${type === 'project' && data.percent_complete ? `<div style="font-size:9px;color:${colors[type]};margin-top:1px">â–“ ${data.percent_complete}%</div>` : ''}`;
+      ${type === 'project' && data.start_date ? `<div style="font-size:9px;opacity:0.4;margin-top:2px">📅 ${data.start_date}</div>` : ''}
+      ${type === 'project' && data.percent_complete ? `<div style="font-size:9px;color:${colors[type]};margin-top:1px">▓ ${data.percent_complete}%</div>` : ''}`;
 
     // Hover reveal buttons
     const editBtn = card.querySelector('.oc-btn-edit');
@@ -2036,7 +2036,7 @@ async function _renderOrgChart() {
       card.style.boxShadow = '0 2px 8px rgba(0,0,0,0.10)';
     });
 
-    // Edit button â†’ open form
+    // Edit button → open form
     editBtn.addEventListener('click', e => {
       e.stopPropagation();
       if (dlg) _ocOpenForm(dlg, type, data);
@@ -2126,7 +2126,7 @@ async function _renderOrgChart() {
             const [tPrefix, tId] = targetKey.split(':');
 
             if (type === 'project' && tPrefix === 'prog') {
-              // Reasignar proyecto â†’ programa
+              // Reasignar proyecto → programa
               const proj = projects.find(p => p.id === data.id);
               const prog = programs.find(p => p.id === tId);
               if (proj && prog) {
@@ -2136,7 +2136,7 @@ async function _renderOrgChart() {
                 dropped = true;
               }
             } else if (type === 'project' && tPrefix === 'pf') {
-              // Reasignar proyecto â†’ portafolio (sin programa)
+              // Reasignar proyecto → portafolio (sin programa)
               const proj = projects.find(p => p.id === data.id);
               const pf = portfolios.find(p => p.id === tId);
               if (proj && pf) {
@@ -2146,7 +2146,7 @@ async function _renderOrgChart() {
                 dropped = true;
               }
             } else if (type === 'program' && tPrefix === 'pf') {
-              // Reasignar programa â†’ portafolio
+              // Reasignar programa → portafolio
               const prog = programs.find(p => p.id === data.id);
               const pf = portfolios.find(p => p.id === tId);
               if (prog && pf) {
@@ -2184,13 +2184,13 @@ async function _renderOrgChart() {
 const PRINT_COL_OPTS = [
   { id: 'wbs',    label: 'EDT (código WBS)',       group: 'tabla' },
   { id: 'name',   label: 'Nombre de actividad',    group: 'tabla' },
-  { id: 'type',   label: 'Tipo (Tarea/Hitoâ€¦)',     group: 'tabla' },
+  { id: 'type',   label: 'Tipo (Tarea/Hito…)',     group: 'tabla' },
   { id: 'dur',    label: 'Duración (días)',         group: 'ambos' },
   { id: 'start',  label: 'Inicio',                 group: 'ambos' },
   { id: 'finish', label: 'Fin',                    group: 'ambos' },
   { id: 'pct',    label: '% Avance',               group: 'ambos' },
-  { id: 'tf',     label: 'HT â€” Holgura Total',     group: 'ambos' },
-  { id: 'ff',     label: 'HL â€” Holgura Libre',     group: 'tabla' },
+  { id: 'tf',     label: 'HT — Holgura Total',     group: 'ambos' },
+  { id: 'ff',     label: 'HL — Holgura Libre',     group: 'tabla' },
   { id: 'pred',   label: 'Predecesoras (PRED)',    group: 'tabla' },
 ];
 
@@ -2202,7 +2202,7 @@ function _showPrintColConfig() {
     dlg.style.cssText = 'border:none;border-radius:12px;padding:0;width:440px;max-width:95vw;box-shadow:0 8px 40px rgba(0,0,0,0.25);overflow:hidden';
     dlg.innerHTML = `
       <div style="background:var(--clr-surface-2);padding:16px 20px;border-bottom:1px solid var(--clr-border)">
-        <div style="font-weight:700;font-size:15px">âš™ Columnas de exportación</div>
+        <div style="font-weight:700;font-size:15px">⚙ Columnas de exportación</div>
         <div style="font-size:11px;opacity:0.6;margin-top:2px">Selecciona las columnas que aparecen al imprimir o exportar SVG.</div>
       </div>
       <div style="padding:16px 20px">
@@ -2228,7 +2228,7 @@ function _showPrintColConfig() {
       // Mostrar confirmación
       const toast = document.createElement('div');
       toast.className = 'toast toast-success';
-      toast.textContent = 'âœ“ Columnas guardadas';
+      toast.textContent = '✓ Columnas guardadas';
       document.body.appendChild(toast);
       setTimeout(() => toast.remove(), 2500);
     });
@@ -2275,23 +2275,23 @@ function _showCpmNetwork() {
       <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 16px;border-bottom:1px solid var(--clr-border);background:var(--clr-surface-2);flex-shrink:0">
         <span style="font-weight:700;font-size:15px">Red CPM</span>
         <div style="display:flex;gap:6px;align-items:center">
-          <button id="btn-cpm-zoomfit" class="btn btn-ghost btn-sm" title="Zoom extendido â€” ver toda la red" style="font-size:16px;padding:2px 8px;line-height:1">â¤¢</button>
-          <button id="btn-cpm-zoomin"  class="btn btn-ghost btn-sm" title="Acercar" style="font-size:16px;padding:2px 8px;line-height:1">ï¼‹</button>
-          <button id="btn-cpm-zoomout" class="btn btn-ghost btn-sm" title="Alejar"  style="font-size:16px;padding:2px 8px;line-height:1">ï¼</button>
+          <button id="btn-cpm-zoomfit" class="btn btn-ghost btn-sm" title="Zoom extendido — ver toda la red" style="font-size:16px;padding:2px 8px;line-height:1">⤢</button>
+          <button id="btn-cpm-zoomin"  class="btn btn-ghost btn-sm" title="Acercar" style="font-size:16px;padding:2px 8px;line-height:1">＋</button>
+          <button id="btn-cpm-zoomout" class="btn btn-ghost btn-sm" title="Alejar"  style="font-size:16px;padding:2px 8px;line-height:1">－</button>
           <span style="width:1px;height:18px;background:var(--clr-border);margin:0 4px;display:inline-block"></span>
           <span style="display:inline-block;width:11px;height:11px;background:#e74c3c;border-radius:2px"></span><span style="font-size:11px">Crítica</span>
           <span style="display:inline-block;width:11px;height:11px;background:#f39c12;border-radius:2px;margin-left:5px"></span><span style="font-size:11px">Casi crítica</span>
           <span style="display:inline-block;width:11px;height:11px;background:#2980b9;border-radius:2px;margin-left:5px"></span><span style="font-size:11px">Normal</span>
           <span style="display:inline-block;width:11px;height:11px;background:#27ae60;border-radius:2px;margin-left:5px"></span><span style="font-size:11px">Completa</span>
           <div style="position:relative;margin-left:10px" id="cpm-export-wrap">
-            <button id="btn-cpm-export" class="btn btn-ghost btn-sm" title="Exportar red CPM" style="display:flex;align-items:center;gap:4px">ðŸ–¨ Exportar â–¾</button>
+            <button id="btn-cpm-export" class="btn btn-ghost btn-sm" title="Exportar red CPM" style="display:flex;align-items:center;gap:4px">🖨 Exportar ▾</button>
             <div id="cpm-export-menu" style="display:none;position:absolute;right:0;top:calc(100% + 4px);background:var(--clr-surface);border:1px solid var(--clr-border);border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,0.15);z-index:9999;min-width:200px;overflow:hidden">
-              <button class="cpm-exp-item" data-fmt="pdf" style="display:block;width:100%;text-align:left;padding:10px 16px;background:none;border:none;cursor:pointer;font-size:13px">ðŸ“„ PDF (imprimir)</button>
-              <button class="cpm-exp-item" data-fmt="png" style="display:block;width:100%;text-align:left;padding:10px 16px;background:none;border:none;cursor:pointer;font-size:13px">ðŸ–¼ PNG (imagen)</button>
-              <button class="cpm-exp-item" data-fmt="svg" style="display:block;width:100%;text-align:left;padding:10px 16px;background:none;border:none;cursor:pointer;font-size:13px">ðŸ“ SVG (vectorial)</button>
+              <button class="cpm-exp-item" data-fmt="pdf" style="display:block;width:100%;text-align:left;padding:10px 16px;background:none;border:none;cursor:pointer;font-size:13px">📄 PDF (imprimir)</button>
+              <button class="cpm-exp-item" data-fmt="png" style="display:block;width:100%;text-align:left;padding:10px 16px;background:none;border:none;cursor:pointer;font-size:13px">🖼 PNG (imagen)</button>
+              <button class="cpm-exp-item" data-fmt="svg" style="display:block;width:100%;text-align:left;padding:10px 16px;background:none;border:none;cursor:pointer;font-size:13px">📐 SVG (vectorial)</button>
             </div>
           </div>
-          <button id="btn-cpm-net-close" class="btn btn-ghost btn-sm" style="margin-left:4px">âœ• Cerrar</button>
+          <button id="btn-cpm-net-close" class="btn btn-ghost btn-sm" style="margin-left:4px">✕ Cerrar</button>
         </div>
       </div>
       <div id="cpm-net-viewport" style="flex:1;overflow:hidden;position:relative;background:var(--clr-bg);cursor:grab">
@@ -2451,7 +2451,7 @@ function _exportCpmNetwork(fmt, dlg) {
     return;
   }
 
-  // ---- PNG: rasterizar a 3Ã— para alta resolución ----
+  // ---- PNG: rasterizar a 3× para alta resolución ----
   if (fmt === 'png') {
     const scale = 3;
     const imgW = Math.round(vbW * scale), imgH = Math.round(vbH * scale);
@@ -2488,7 +2488,7 @@ function _exportCpmNetwork(fmt, dlg) {
         <text x="${i * 100 + 18}" y="14" font-size="11" font-family="Segoe UI,Arial,sans-serif" fill="#444">${it.label}</text>`).join('')}
     </svg>`;
 
-    // Redimensionar clone para que quepa en A3 landscape (420mm Ã— 297mm â‰ˆ 1587Ã—1123px at 96dpi)
+    // Redimensionar clone para que quepa en A3 landscape (420mm × 297mm ≈ 1587×1123px at 96dpi)
     const aspect = vbW / vbH;
     const maxW = 1400, maxH = 900;
     const fitW = Math.min(maxW, maxH * aspect);
@@ -2500,7 +2500,7 @@ function _exportCpmNetwork(fmt, dlg) {
     const html = `<!doctype html>
 <html lang="es"><head>
   <meta charset="UTF-8">
-  <title>Red CPM â€” ${projDisplayName}</title>
+  <title>Red CPM — ${projDisplayName}</title>
   <style>
     @page { size: A3 landscape; margin: 12mm; }
     * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
@@ -2553,7 +2553,7 @@ function _drawCpmGrid(dlg, panX, panY, zoom) {
   const CELL = 100;
   // En pantalla
   const step = CELL * zoom;
-  if (step < 8) return; // Grilla muy densa â†’ omitir
+  if (step < 8) return; // Grilla muy densa → omitir
 
   ctx.strokeStyle = 'rgba(180,180,210,0.22)';
   ctx.lineWidth   = 1;
@@ -2620,7 +2620,7 @@ function _renderCpmNetwork() {
       if ((remaining.get(succId) ?? 1) <= 0) queue.push(succId);
     }
   }
-  // Tasks sin nivel (en ciclos) â†’ nivel máximo + 1
+  // Tasks sin nivel (en ciclos) → nivel máximo + 1
   const maxLv = Math.max(0, ...level.values());
   leafTasks.forEach(t => { if (!level.has(t.id)) level.set(t.id, maxLv + 1); });
 
@@ -2640,7 +2640,7 @@ function _renderCpmNetwork() {
   const STRIDE_Y = BH + GAP_Y;
 
   // Calcular posición de cada tarea
-  const pos = new Map(); // id â†’ {x, y, cx, cy}
+  const pos = new Map(); // id → {x, y, cx, cy}
   byLevel.forEach((tasks, lv) => {
     tasks.forEach((t, row) => {
       const x = lv * STRIDE_X;
@@ -2769,7 +2769,7 @@ function _renderCpmNetwork() {
 
     const W3 = BW / 3;
     const es = r?.es ?? 0, ef = r?.ef ?? 0, ls = r?.ls ?? 0, lf = r?.lf ?? 0;
-    const tf = r?.tf != null ? String(r.tf) : 'â€”';
+    const tf = r?.tf != null ? String(r.tf) : '—';
     const dur = t.duration_days ?? 0;
 
     // Franja superior: ES | DUR | EF
@@ -2779,7 +2779,7 @@ function _renderCpmNetwork() {
 
     // Nombre (máx. 2 líneas)
     const name = t.name ?? '';
-    const line1 = name.length > 22 ? name.substring(0, 22) + 'â€¦' : name;
+    const line1 = name.length > 22 ? name.substring(0, 22) + '…' : name;
     g.appendChild(mkTxt(line1, p.cx, p.y + 33, 'middle', '10', false, isCrit || isNear ? fillColor : '#1a2533'));
 
     // WBS code (derive inline: count position among siblings)
@@ -2870,5 +2870,40 @@ document.addEventListener('DOMContentLoaded', () => {
   _bindResizer();
   document.getElementById('btn-orgchart-view')?.addEventListener('click', _showOrgChart);
   document.getElementById('btn-cpm-network')?.addEventListener('click', _showCpmNetwork);
+
+  // Cerrar panel explorador y navegar a la vista seleccionada
+  const _closeExplorer = () => {
+    document.getElementById('explorer-panel')?.classList.remove('open');
+    document.getElementById('drawer-overlay')?.classList.remove('visible');
+  };
+  document.getElementById('btn-edt-view')?.addEventListener('click', () => {
+    _closeExplorer();
+    document.getElementById('wbs-panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+  document.getElementById('btn-gantt-view')?.addEventListener('click', () => {
+    _closeExplorer();
+    document.getElementById('gantt-panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+  document.getElementById('btn-dcma-view')?.addEventListener('click', () => {
+    _closeExplorer();
+    document.getElementById('btn-dcma')?.click();
+  });
+  document.getElementById('btn-sync-view')?.addEventListener('click', () => {
+    _closeExplorer();
+    const status = appState.state.syncStatus;
+    const labels = /** @type {Record<string,string>} */ ({
+      local: 'Modo local (sin Supabase)',
+      synced: 'Sincronizado con Supabase ✓',
+      syncing: 'Sincronizando con Supabase…',
+      offline: 'Sin conexión a internet',
+      conflict: 'Conflicto de datos detectado',
+    });
+    _showToast(labels[status] ?? `Sync: ${status}`);
+  });
+  document.getElementById('btn-evm-view')?.addEventListener('click', () => {
+    _closeExplorer();
+    document.getElementById('btn-evm')?.click();
+  });
+
   init();
 });

@@ -181,23 +181,23 @@
           <span class="item-icon">🔗</span>
           <span class="item-label">Red CPM</span>
         </div>
-        <div class="explorer-item" onclick="">
+        <div class="explorer-item" id="btn-edt-view" style="cursor:pointer" title="Ir a tabla EDT">
           <span class="item-icon">📋</span>
           <span class="item-label">EDT (Tabla)</span>
         </div>
-        <div class="explorer-item" onclick="">
+        <div class="explorer-item" id="btn-gantt-view" style="cursor:pointer" title="Ir al diagrama Gantt">
           <span class="item-icon">📊</span>
           <span class="item-label">Gantt ✓</span>
         </div>
-        <div class="explorer-item" onclick="">
+        <div class="explorer-item" id="btn-dcma-view" style="cursor:pointer" title="Abrir análisis DCMA 14 puntos">
           <span class="item-icon">✅</span>
           <span class="item-label">DCMA ✓</span>
         </div>
-        <div class="explorer-item" onclick="">
+        <div class="explorer-item" id="btn-sync-view" style="cursor:pointer" title="Estado de sincronización con Supabase">
           <span class="item-icon">☁</span>
           <span class="item-label">Sync Supabase ✓</span>
         </div>
-        <div class="explorer-item" onclick="">
+        <div class="explorer-item" id="btn-evm-view" style="cursor:pointer" title="Abrir panel de Valor Ganado">
           <span class="item-icon">📈</span>
           <span class="item-label">Valor Ganado ✓</span>
         </div>
@@ -308,7 +308,7 @@
     </div>
     <span style="flex:1"></span>
     <span id="status-warnings" style="font-size:var(--text-xs);color:var(--clr-text-3)"></span>
-    <span>v30 — Fix borrado no persiste + chars + gantt print ✓</span>
+    <span>v31 — Fix nav vistas + borrado persiste + chars + gantt print ✓</span>
   </footer>
 
   <!-- Pestañas inferiores (solo móvil) -->
@@ -339,7 +339,7 @@
 <!-- ============================================================
      Módulo principal (ES Module)
      ============================================================ -->
-<script type="module" src="js/main.js?v=30"></script>
+<script type="module" src="js/main.js?v=31"></script>
 
 <!-- Atajos de teclado globales -->
 <script type="module">

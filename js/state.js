@@ -287,13 +287,15 @@ export class AppStateManager {
     if (!existing) return { ok: false, inverse: cmd, changed: [], error: 'Task not found' };
 
     const prevDeleted = existing.deleted_at;
-    this._state.tasks.set(id, { ...existing, deleted_at: new Date().toISOString() });
+    const now = new Date().toISOString();
+    // Actualizar updated_at junto con deleted_at para que el merge local > remoto funcione
+    this._state.tasks.set(id, { ...existing, deleted_at: now, updated_at: now });
 
     // También borrar lógicamente dependencias que la usen
     const affectedDeps = [];
     for (const [did, dep] of this._state.deps) {
       if (!dep.deleted_at && (dep.pred_id === id || dep.succ_id === id)) {
-        this._state.deps.set(did, { ...dep, deleted_at: new Date().toISOString() });
+        this._state.deps.set(did, { ...dep, deleted_at: now, updated_at: now });
         affectedDeps.push(did);
       }
     }
