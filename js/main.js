@@ -2164,13 +2164,16 @@ function _printOrgChart() {
   clone.querySelectorAll('.oc-btn-edit,.oc-btn-add,.oc-drag-handle').forEach(el => el.remove());
   const canvasHtml = clone.outerHTML;
 
-  const today    = new Date().toLocaleDateString('es-PE');
+  const _dOc = new Date();
+  const today    = _dOc.toLocaleDateString('es-PE');
   const projName = project?.name ?? '';
+  const _ocFileDateStr = `${String(_dOc.getDate()).padStart(2,'0')}-${String(_dOc.getMonth()+1).padStart(2,'0')}-${_dOc.getFullYear()}`;
+  const _ocFileTitle = `${projName || 'Estructura'} - Estructura de Proyectos - ${_ocFileDateStr}`;
 
   const html = `<!doctype html>
 <html lang="es"><head>
   <meta charset="UTF-8">
-  <title>Estructura de Proyectos</title>
+  <title>${_ocFileTitle}</title>
   <style id="page-style">@page { size: landscape; margin: 10mm; }</style>
   <style>
     :root { --clr-primary:#1976D2; --clr-bg:#f8f9fc; --clr-surface:#fff;
@@ -3020,8 +3023,11 @@ function _exportCpmNetwork(fmt, dlg) {
 
   // ---- PDF: SVG vectorial inline en ventana de impresión ----
   if (fmt === 'pdf') {
-    const today = new Date().toLocaleDateString('es-PE');
+    const _d = new Date();
+    const today = _d.toLocaleDateString('es-PE');
+    const fileDateStr = `${String(_d.getDate()).padStart(2,'0')}-${String(_d.getMonth()+1).padStart(2,'0')}-${_d.getFullYear()}`;
     const projDisplayName = _escHtml(appState.state.project?.name ?? projName);
+    const fileTitle = `${appState.state.project?.name ?? projName} - Red CPM - ${fileDateStr}`;
 
     // Quitar width/height fijos; dejar solo viewBox para que CSS controle el tamaño
     clone.removeAttribute('width');
@@ -3036,7 +3042,7 @@ function _exportCpmNetwork(fmt, dlg) {
     const html = `<!doctype html>
 <html lang="es"><head>
   <meta charset="UTF-8">
-  <title></title>
+  <title>${fileTitle}</title>
   <style id="page-style">@page { size: landscape; margin: 10mm; }</style>
   <style>
     * { box-sizing: border-box; }

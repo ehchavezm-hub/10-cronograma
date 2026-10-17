@@ -105,11 +105,14 @@ export function printGantt(rows) {
       barLabels,
     });
 
-    const today   = new Date().toLocaleDateString('es-PE');
+    const _dG = new Date();
+    const today   = _dG.toLocaleDateString('es-PE');
+    const _gDateStr = `${String(_dG.getDate()).padStart(2,'0')}-${String(_dG.getMonth()+1).padStart(2,'0')}-${_dG.getFullYear()}`;
+    const _gTitle = `${project.name} - Gantt - ${_gDateStr}`;
     const html    = `<!doctype html>
 <html lang="es"><head>
   <meta charset="UTF-8">
-  <title></title>
+  <title>${_gTitle}</title>
   <style id="page-style">@page { size: landscape; margin: 10mm; }</style>
   <style>
     * { box-sizing: border-box; }
