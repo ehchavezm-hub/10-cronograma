@@ -1,0 +1,2638 @@
+// @ts-check
+/**
+ * main.js — Punto de entrada de la aplicación.
+ * Detecta file://, inicializa módulos, carga datos demo en modo local.
+ */
+
+import { IS_LOCAL_MODE } from './config.js';
+import { appState }      from './state.js';
+import { WbsTable }      from './wbs-table.js?v=5';
+import { GanttCanvas }   from './gantt-canvas.js?v=25';
+import { GanttScene }    from './scene.js';
+import { DcmaPanel }     from './dcma.js';
+import { Calendar, isoToDate } from './calendar.js';
+import { computeCPM }    from './cpm.js';
+import { openDB, listProjects, loadProject, saveProjectSnapshot, putMany, put as dbPut, getByIndex, remove as dbRemove,
+         listPortfolios, savePortfolio, deletePortfolio, listPrograms, saveProgram, deleteProgram, loadHierarchy } from './storage.js?v=2';
+import { t }             from './i18n.js';
+import { DEMO_DATA }     from './demo-data.js';
+import { exportJson, importJson, exportCsv, exportMspXml, exportSvg } from './io.js';
+import { printWbsTable, printGantt, getPrintCols, setPrintCols } from './print.js?v=2';
+import { SyncEngine }     from './sync.js';
+import { outboxAdd }      from './storage.js?v=2';
+import { EvmPanel }       from './evm.js';
+import { ChangeLogPanel, logCommand } from './change-log.js';
+
+// ============================================================
+// Detectar file://
+// ============================================================
+if (location.protocol === 'file:') {
+  const warn = document.getElementById('file-protocol-warning');
+  if (warn) warn.classList.add('show');
+  throw new Error('file:// protocol: modules are not supported. Use a local server.');
+}
+
+// ============================================================
+// Web Worker CPM
+// ============================================================
+let _worker = null;
+let _workerPending = false;
+
+function _initWorker() {
+  try {
+    _worker = new Worker('./js/workers/cpm.worker.js', { type: 'module' });
+    _worker.onmessage = (e) => {
+      _workerPending = false;
+      if (e.data.ok) {
+        const result = e.data.result;
+        result.tasks = new Map(result.tasks.map(t => [t.id, t]));
+        appState.setCpmResult(result);
+        _updateStatus();
+        // Si el estado cambió mientras el worker procesaba, re-calcular
+        if (appState.state.cpmDirty) _requestCpm();
+      } else {
+        console.error('[CPM worker]', e.data.error);
+        _runCpmSync();
+      }
+    };
+    _worker.onerror = (err) => {
+      console.error('[CPM worker error]', err);
+      _workerPending = false;  // desbloquear para que el siguiente request funcione
+      _worker = null;
+      _runCpmSync();           // calcular en hilo principal como fallback
+    };
+  } catch {
+    _worker = null;
+  }
+}
+
+function _requestCpm() {
+  if (_workerPending) return;
+  const { project, tasks, deps, calendar, calExceptions } = appState.state;
+  if (!project) return;
+
+  // Fallback a hoy si el proyecto no tiene fecha de inicio
+  const startDate = project.start_date || new Date().toISOString().slice(0, 10);
+  const dataDate  = project.data_date ?? null;
+
+  const calDef = calendar
+    ? { work_week: calendar.work_week,
+        exceptions: calExceptions.filter(e => !e.deleted_at).map(e => ({ on_date: e.on_date, is_working: e.is_working })) }
+    : { work_week: [1,2,3,4,5], exceptions: [] };
+
+  const taskArr = [...tasks.values()];
+  const depArr  = [...deps.values()];
+
+  if (_worker) {
+    _workerPending = true;
+    _worker.postMessage({ tasks: taskArr, deps: depArr, calendarDef: calDef, projectStartISO: startDate, dataDateISO: dataDate, nearThreshold: appState.state.nearThreshold });
+  } else {
+    _runCpmSync();
+  }
+}
+
+function _runCpmSync() {
+  const { project, tasks, deps, calendar, calExceptions } = appState.state;
+  if (!project) return;
+
+  const calDef = calendar
+    ? { work_week: calendar.work_week,
+        exceptions: calExceptions.filter(e => !e.deleted_at).map(e => ({ on_date: e.on_date, is_working: e.is_working })) }
+    : { work_week: [1,2,3,4,5], exceptions: [] };
+
+  const cal = new Calendar(calDef);
+  // Fallback a hoy si el proyecto no tiene fecha de inicio configurada
+  const startIso = project.start_date || new Date().toISOString().slice(0, 10);
+  const startDate = isoToDate(startIso);
+  let dataDateIdx = null;
+  if (project.data_date) {
+    dataDateIdx = cal.dateToIdx(isoToDate(project.data_date), startDate);
+  }
+
+  try {
+    const result = computeCPM([...tasks.values()], [...deps.values()], cal, startDate, dataDateIdx, appState.state.nearThreshold);
+    appState.setCpmResult(result);
+    _updateStatus();
+  } catch (err) {
+    console.error('[CPM sync error]', err);
+  }
+}
+
+// ============================================================
+// Persistencia de comandos
+// ============================================================
+
+appState.onPersist = async ({ cmd, isUndo }) => {
+  // Registrar en historial de sesión (no registrar los undos)
+  if (!isUndo) logCommand(cmd);
+  const { project, tasks, deps } = appState.state;
+  if (!project) return;
+  try {
+    // Guardar tareas y deps afectadas en IndexedDB + encolar en outbox
+    if (cmd.type === 'ADD_TASK' || cmd.type === 'UPDATE_TASK' || cmd.type === 'REMOVE_TASK') {
+      const id   = cmd.payload.task?.id ?? cmd.payload.id;
+      const task = tasks.get(id);
+      if (task) {
+        await dbPut('tasks', task);
+        if (!IS_LOCAL_MODE) {
+          await outboxAdd({
+            id:            crypto.randomUUID(),
+            tabla:         'tasks',
+            fila:          id,
+            tipo:          cmd.type === 'ADD_TASK'    ? 'INSERT'
+                         : cmd.type === 'REMOVE_TASK' ? 'DELETE' : 'UPDATE',
+            campos:        task,
+            baseUpdatedAt: task.updated_at ?? null,
+          });
+        }
+      }
+    }
+    if (cmd.type === 'ADD_DEP' || cmd.type === 'REMOVE_DEP') {
+      const depId = cmd.payload.dep?.id ?? cmd.payload.id;
+      const dep   = deps.get(depId);
+      if (dep) {
+        await dbPut('task_dependencies', dep);
+        if (!IS_LOCAL_MODE) {
+          await outboxAdd({
+            id:            crypto.randomUUID(),
+            tabla:         'task_dependencies',
+            fila:          depId,
+            tipo:          cmd.type === 'ADD_DEP' ? 'INSERT' : 'DELETE',
+            campos:        dep,
+            baseUpdatedAt: dep.updated_at ?? null,
+          });
+        }
+      }
+    }
+    if (cmd.type === 'UPDATE_PROJECT' && project) {
+      await dbPut('projects', project);
+      if (!IS_LOCAL_MODE) {
+        await outboxAdd({
+          id:            crypto.randomUUID(),
+          tabla:         'projects',
+          fila:          project.id,
+          tipo:          'UPDATE',
+          campos:        project,
+          baseUpdatedAt: project.updated_at ?? null,
+        });
+      }
+    }
+  } catch (err) {
+    if (err.message === 'OUTBOX_LIMIT') {
+      _showToast(t('outboxWarning'), 'warn');
+    }
+  }
+};
+
+// ============================================================
+// UI helpers
+// ============================================================
+
+let _toastTimeout = null;
+
+/** Sync bar-label checkboxes to the given list of selected keys */
+function _syncBarLabelsUI(labels) {
+  const menu = document.getElementById('bar-labels-menu');
+  if (!menu) return;
+  const sel = new Set(labels);
+  menu.querySelectorAll('input[type=checkbox]').forEach(/** @type {HTMLInputElement} */ (cb) => {
+    cb.checked = sel.has(cb.value);
+  });
+}
+
+/** @param {string} msg @param {'success'|'error'|'warn'|''} type */
+function _showToast(msg, type = '') {
+  const container = document.getElementById('toast-container');
+  if (!container) return;
+  const toast = document.createElement('div');
+  toast.className = `toast ${type}`;
+  toast.textContent = msg;
+  container.appendChild(toast);
+  setTimeout(() => toast.remove(), 3000);
+}
+
+// ============================================================
+// Panel de Detalle de Tarea + Recursos
+// ============================================================
+
+let _taskDetailPanel = null;
+
+function _initTaskDetailPanel() {
+  if (_taskDetailPanel) return;
+  const panel = document.createElement('div');
+  panel.id = 'task-detail-panel';
+  panel.style.cssText = `
+    position:fixed;right:0;top:0;bottom:0;width:380px;max-width:100vw;
+    background:var(--clr-surface);border-left:1px solid var(--clr-border);
+    box-shadow:-4px 0 24px rgba(0,0,0,0.12);z-index:400;
+    display:flex;flex-direction:column;transform:translateX(100%);
+    transition:transform 0.22s cubic-bezier(.4,0,.2,1);overflow:hidden;
+  `;
+  panel.innerHTML = `
+    <div id="tdp-header" style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid var(--clr-border);background:var(--clr-surface-2);flex-shrink:0">
+      <span style="font-weight:700;font-size:14px">Detalle de actividad</span>
+      <button id="tdp-close" class="btn btn-icon btn-sm" title="Cerrar">✕</button>
+    </div>
+    <div id="tdp-body" style="flex:1;overflow-y:auto;padding:16px"></div>
+    <div id="tdp-footer" style="padding:12px 16px;border-top:1px solid var(--clr-border);display:flex;gap:8px;justify-content:flex-end;background:var(--clr-surface-2);flex-shrink:0">
+      <button id="tdp-cancel" class="btn btn-ghost btn-sm">Cancelar</button>
+      <button id="tdp-save"   class="btn btn-primary btn-sm">Guardar cambios</button>
+    </div>`;
+  document.body.appendChild(panel);
+  _taskDetailPanel = panel;
+
+  panel.querySelector('#tdp-close').addEventListener('click', _closeTaskDetail);
+  panel.querySelector('#tdp-cancel').addEventListener('click', _closeTaskDetail);
+  panel.querySelector('#tdp-save').addEventListener('click', _saveTaskDetail);
+}
+
+function _closeTaskDetail() {
+  if (_taskDetailPanel) _taskDetailPanel.style.transform = 'translateX(100%)';
+}
+
+async function _openTaskDetail(taskId) {
+  _initTaskDetailPanel();
+  const task = appState.state.tasks.get(taskId);
+  if (!task) return;
+
+  _taskDetailPanel.dataset.taskId = taskId;
+  const cpmTask = appState.state.cpmResult?.tasks?.get(taskId);
+  const project = appState.state.project;
+  const startIso = project?.start_date || new Date().toISOString().slice(0, 10);
+
+  const idxToDate = (idx) => {
+    if (idx == null) return '—';
+    const cal = appState.state.calendar;
+    const calDef = cal
+      ? { work_week: cal.work_week, exceptions: (appState.state.calExceptions || []).filter(e => !e.deleted_at).map(e => ({ on_date: e.on_date, is_working: e.is_working })) }
+      : { work_week: [1,2,3,4,5], exceptions: [] };
+    const calObj = new (/** @type {any} */ (window).__Calendar || Object)(calDef);
+    // Usamos isoToDate + calendar.idxToDate si disponible, sino calculamos directo
+    try {
+      const { Calendar: Cal } = /** @type {any} */ ({});
+      const start = new Date(startIso + 'T00:00:00');
+      start.setDate(start.getDate() + idx);
+      return start.toLocaleDateString('es-PE', { day:'2-digit', month:'2-digit', year:'numeric' });
+    } catch { return String(idx) + 'd'; }
+  };
+
+  // Calcular fechas desde índice de días
+  const startDate = new Date(startIso + 'T00:00:00');
+  const addDays = (n) => {
+    if (n == null) return '—';
+    const d = new Date(startDate);
+    d.setDate(d.getDate() + n);
+    return d.toLocaleDateString('es-PE', { day:'2-digit', month:'2-digit', year:'numeric' });
+  };
+
+  // Cargar recursos asignados
+  let taskResources = [];
+  let allResources = [];
+  try {
+    const { getAll, getByIndex } = await import('./storage.js?v=2');
+    [allResources, taskResources] = await Promise.all([
+      getAll('resources').then(r => r.filter(x => !x.deleted_at)),
+      getByIndex('task_resources', 'task_id', taskId).then(r => r.filter(x => !x.deleted_at)),
+    ]);
+  } catch (e) { /* sin recursos */ }
+
+  const constraintTypes = ['ASAP','ALAP','MSO','MFO','SNET','SNLT','FNET','FNLT'];
+  const constraintLabels = { ASAP:'Lo antes posible', ALAP:'Lo más tarde posible',
+    MSO:'Inicio no antes de', MFO:'Fin no antes de', SNET:'Inicio no antes de (SNET)',
+    SNLT:'Inicio no después de', FNET:'Fin no antes de (FNET)', FNLT:'Fin no después de' };
+
+  const resOpts = allResources.map(r =>
+    `<option value="${r.id}">${_escHtml(r.name)}${r.role ? ' ('+_escHtml(r.role)+')' : ''}</option>`).join('');
+
+  const resRows = taskResources.map(tr => {
+    const res = allResources.find(r => r.id === tr.resource_id);
+    return `<tr data-trid="${tr.id}">
+      <td style="padding:4px 8px;font-size:12px">${_escHtml(res?.name ?? '—')}</td>
+      <td style="padding:4px 8px;font-size:12px">${_escHtml(res?.role ?? '')}</td>
+      <td style="padding:4px 8px;font-size:12px"><input type="number" class="tdp-res-units" data-trid="${tr.id}" value="${tr.units ?? 100}" min="1" max="100000" style="width:64px;padding:2px 6px;border:1px solid var(--clr-border);border-radius:4px;font-size:11px;background:var(--clr-surface);color:var(--clr-text)"> %</td>
+      <td style="padding:4px 8px"><button class="btn btn-icon btn-sm tdp-res-remove" data-trid="${tr.id}" title="Quitar" style="color:var(--clr-danger,#e74c3c);padding:0 6px">✕</button></td>
+    </tr>`;
+  }).join('');
+
+  const body = document.getElementById('tdp-body');
+  body.innerHTML = `
+    <div style="display:flex;flex-direction:column;gap:14px">
+
+      <!-- Nombre -->
+      <label style="font-size:12px;font-weight:600;color:var(--clr-text-2)">Nombre
+        <input id="tdp-name" type="text" value="${_escAttr(task.name)}" style="margin-top:4px;width:100%;padding:7px 10px;border:1px solid var(--clr-border);border-radius:7px;font-size:13px;background:var(--clr-surface-2);color:var(--clr-text);box-sizing:border-box">
+      </label>
+
+      <!-- Tipo + Duración -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <label style="font-size:12px;font-weight:600;color:var(--clr-text-2)">Tipo
+          <select id="tdp-type" style="margin-top:4px;width:100%;padding:7px 10px;border:1px solid var(--clr-border);border-radius:7px;font-size:12px;background:var(--clr-surface-2);color:var(--clr-text)">
+            <option value="task" ${task.type==='task'?'selected':''}>Tarea</option>
+            <option value="milestone" ${task.type==='milestone'?'selected':''}>Hito</option>
+          </select>
+        </label>
+        <label style="font-size:12px;font-weight:600;color:var(--clr-text-2)">Duración (días)
+          <input id="tdp-dur" type="number" min="0" value="${task.duration_days ?? 0}" style="margin-top:4px;width:100%;padding:7px 10px;border:1px solid var(--clr-border);border-radius:7px;font-size:12px;background:var(--clr-surface-2);color:var(--clr-text);box-sizing:border-box">
+        </label>
+      </div>
+
+      <!-- % Avance + Horas trabajo -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <label style="font-size:12px;font-weight:600;color:var(--clr-text-2)">% Avance
+          <input id="tdp-pct" type="number" min="0" max="100" value="${task.percent_complete ?? 0}" style="margin-top:4px;width:100%;padding:7px 10px;border:1px solid var(--clr-border);border-radius:7px;font-size:12px;background:var(--clr-surface-2);color:var(--clr-text);box-sizing:border-box">
+        </label>
+        <label style="font-size:12px;font-weight:600;color:var(--clr-text-2)">Horas trabajo
+          <input id="tdp-hours" type="number" min="0" value="${task.work_hours ?? 0}" style="margin-top:4px;width:100%;padding:7px 10px;border:1px solid var(--clr-border);border-radius:7px;font-size:12px;background:var(--clr-surface-2);color:var(--clr-text);box-sizing:border-box">
+        </label>
+      </div>
+
+      <!-- Fechas CPM (solo lectura) -->
+      ${cpmTask ? `
+      <div style="background:var(--clr-surface-2);border-radius:8px;padding:12px">
+        <div style="font-size:11px;font-weight:700;color:var(--clr-text-3);margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px">Fechas CPM</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:12px">
+          <div><span style="color:var(--clr-text-3)">Inicio temprano:</span><br><strong>${addDays(cpmTask.es)}</strong></div>
+          <div><span style="color:var(--clr-text-3)">Fin temprano:</span><br><strong>${addDays(cpmTask.ef)}</strong></div>
+          <div><span style="color:var(--clr-text-3)">Inicio tardío:</span><br><strong>${addDays(cpmTask.ls)}</strong></div>
+          <div><span style="color:var(--clr-text-3)">Fin tardío:</span><br><strong>${addDays(cpmTask.lf)}</strong></div>
+          <div><span style="color:var(--clr-text-3)">Holgura total:</span><br><strong style="color:${(cpmTask.tf??0)===0?'var(--clr-danger,#e74c3c)':'var(--clr-text)'}">${cpmTask.tf ?? 0} d</strong></div>
+          <div><span style="color:var(--clr-text-3)">Holgura libre:</span><br><strong>${cpmTask.ff ?? 0} d</strong></div>
+        </div>
+      </div>` : '<div style="font-size:12px;color:var(--clr-text-3)">CPM no calculado aún</div>'}
+
+      <!-- Costos -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <label style="font-size:12px;font-weight:600;color:var(--clr-text-2)">Costo planificado (S/)
+          <input id="tdp-cost-plan" type="number" min="0" step="0.01" value="${task.planned_cost ?? 0}" style="margin-top:4px;width:100%;padding:7px 10px;border:1px solid var(--clr-border);border-radius:7px;font-size:12px;background:var(--clr-surface-2);color:var(--clr-text);box-sizing:border-box">
+        </label>
+        <label style="font-size:12px;font-weight:600;color:var(--clr-text-2)">Costo real (S/)
+          <input id="tdp-cost-real" type="number" min="0" step="0.01" value="${task.actual_cost ?? 0}" style="margin-top:4px;width:100%;padding:7px 10px;border:1px solid var(--clr-border);border-radius:7px;font-size:12px;background:var(--clr-surface-2);color:var(--clr-text);box-sizing:border-box">
+        </label>
+      </div>
+
+      <!-- Restricción -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <label style="font-size:12px;font-weight:600;color:var(--clr-text-2)">Restricción
+          <select id="tdp-constraint" style="margin-top:4px;width:100%;padding:7px 10px;border:1px solid var(--clr-border);border-radius:7px;font-size:11px;background:var(--clr-surface-2);color:var(--clr-text)">
+            ${constraintTypes.map(c => `<option value="${c}" ${task.constraint_type===c?'selected':''}>${constraintLabels[c]??c}</option>`).join('')}
+          </select>
+        </label>
+        <label style="font-size:12px;font-weight:600;color:var(--clr-text-2)">Fecha restricción
+          <input id="tdp-constraint-date" type="date" value="${task.constraint_date ?? ''}" style="margin-top:4px;width:100%;padding:7px 10px;border:1px solid var(--clr-border);border-radius:7px;font-size:12px;background:var(--clr-surface-2);color:var(--clr-text);box-sizing:border-box">
+        </label>
+      </div>
+
+      <!-- Fechas reales -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <label style="font-size:12px;font-weight:600;color:var(--clr-text-2)">Inicio real
+          <input id="tdp-actual-start" type="date" value="${task.actual_start ?? ''}" style="margin-top:4px;width:100%;padding:7px 10px;border:1px solid var(--clr-border);border-radius:7px;font-size:12px;background:var(--clr-surface-2);color:var(--clr-text);box-sizing:border-box">
+        </label>
+        <label style="font-size:12px;font-weight:600;color:var(--clr-text-2)">Fin real
+          <input id="tdp-actual-finish" type="date" value="${task.actual_finish ?? ''}" style="margin-top:4px;width:100%;padding:7px 10px;border:1px solid var(--clr-border);border-radius:7px;font-size:12px;background:var(--clr-surface-2);color:var(--clr-text);box-sizing:border-box">
+        </label>
+      </div>
+
+      <!-- Notas -->
+      <label style="font-size:12px;font-weight:600;color:var(--clr-text-2)">Notas
+        <textarea id="tdp-notes" rows="3" style="margin-top:4px;width:100%;padding:7px 10px;border:1px solid var(--clr-border);border-radius:7px;font-size:12px;background:var(--clr-surface-2);color:var(--clr-text);resize:vertical;box-sizing:border-box;font-family:inherit">${_escHtml(task.notes ?? '')}</textarea>
+      </label>
+
+      <!-- Recursos asignados -->
+      <div>
+        <div style="font-size:12px;font-weight:700;color:var(--clr-text-2);margin-bottom:8px">Recursos asignados</div>
+        <table id="tdp-res-table" style="width:100%;border-collapse:collapse;font-size:12px">
+          <thead>
+            <tr style="background:var(--clr-surface-2)">
+              <th style="padding:4px 8px;text-align:left;font-size:11px;color:var(--clr-text-3);font-weight:600">Recurso</th>
+              <th style="padding:4px 8px;text-align:left;font-size:11px;color:var(--clr-text-3);font-weight:600">Rol</th>
+              <th style="padding:4px 8px;text-align:left;font-size:11px;color:var(--clr-text-3);font-weight:600">Unidades</th>
+              <th style="padding:4px 8px;width:32px"></th>
+            </tr>
+          </thead>
+          <tbody id="tdp-res-body">${resRows || '<tr><td colspan="4" style="padding:8px;color:var(--clr-text-3);font-size:12px;text-align:center">Sin recursos asignados</td></tr>'}</tbody>
+        </table>
+        ${allResources.length ? `
+        <div style="display:flex;gap:6px;margin-top:8px;align-items:center">
+          <select id="tdp-res-select" style="flex:1;padding:6px 10px;border:1px solid var(--clr-border);border-radius:6px;font-size:12px;background:var(--clr-surface-2);color:var(--clr-text)">
+            <option value="">— Seleccionar recurso —</option>
+            ${resOpts}
+          </select>
+          <button id="tdp-res-add" class="btn btn-ghost btn-sm">＋ Asignar</button>
+        </div>` : `
+        <div style="margin-top:8px;font-size:12px;color:var(--clr-text-3)">
+          No hay recursos definidos. <a href="#" id="tdp-open-resources" style="color:var(--clr-primary)">Gestionar recursos</a>
+        </div>`}
+      </div>
+
+    </div>`;
+
+  // Listeners para recursos
+  body.querySelector('#tdp-res-add')?.addEventListener('click', () => _tdpAddResource(taskId));
+  body.querySelector('#tdp-open-resources')?.addEventListener('click', (e) => { e.preventDefault(); _openResourceManager(); });
+  body.addEventListener('click', (e) => {
+    if (/** @type {HTMLElement} */ (e.target).classList.contains('tdp-res-remove')) {
+      const trid = /** @type {HTMLElement} */ (e.target).dataset.trid;
+      /** @type {HTMLElement} */ (e.target).closest('tr')?.remove();
+      _taskDetailPanel.dataset['removeRes'] = (_taskDetailPanel.dataset['removeRes'] || '') + trid + ',';
+    }
+  });
+
+  _taskDetailPanel.style.transform = 'translateX(0)';
+}
+
+async function _tdpAddResource(taskId) {
+  const sel = /** @type {HTMLSelectElement} */ (document.getElementById('tdp-res-select'));
+  if (!sel?.value) return;
+  const resId = sel.value;
+  const { getAll } = await import('./storage.js?v=2');
+  const allRes = await getAll('resources').then(r => r.filter(x => !x.deleted_at));
+  const res = allRes.find(r => r.id === resId);
+  if (!res) return;
+
+  // Verificar que no esté ya asignado
+  const tbody = document.getElementById('tdp-res-body');
+  const existing = tbody?.querySelector(`[data-trid]`);
+  // Simplemente añadimos fila nueva (se persiste al guardar)
+  const trid = crypto.randomUUID();
+  const tr = document.createElement('tr');
+  tr.dataset.trid = trid;
+  tr.dataset.newRes = resId;
+  tr.innerHTML = `
+    <td style="padding:4px 8px;font-size:12px">${_escHtml(res.name)}</td>
+    <td style="padding:4px 8px;font-size:12px">${_escHtml(res.role ?? '')}</td>
+    <td style="padding:4px 8px;font-size:12px"><input type="number" class="tdp-res-units" data-trid="${trid}" value="100" min="1" max="100000" style="width:64px;padding:2px 6px;border:1px solid var(--clr-border);border-radius:4px;font-size:11px;background:var(--clr-surface);color:var(--clr-text)"> %</td>
+    <td style="padding:4px 8px"><button class="btn btn-icon btn-sm tdp-res-remove" data-trid="${trid}" title="Quitar" style="color:var(--clr-danger,#e74c3c);padding:0 6px">✕</button></td>`;
+  if (tbody) {
+    const empty = tbody.querySelector('td[colspan]');
+    if (empty) empty.closest('tr')?.remove();
+    tbody.appendChild(tr);
+  }
+  sel.value = '';
+}
+
+async function _saveTaskDetail() {
+  const panel = _taskDetailPanel;
+  if (!panel) return;
+  const taskId = panel.dataset.taskId;
+  if (!taskId) return;
+
+  const name   = /** @type {HTMLInputElement} */ (document.getElementById('tdp-name'))?.value?.trim();
+  const type   = /** @type {HTMLSelectElement} */ (document.getElementById('tdp-type'))?.value;
+  const dur    = parseInt(/** @type {HTMLInputElement} */ (document.getElementById('tdp-dur'))?.value ?? '0', 10);
+  const pct    = parseFloat(/** @type {HTMLInputElement} */ (document.getElementById('tdp-pct'))?.value ?? '0');
+  const hours  = parseFloat(/** @type {HTMLInputElement} */ (document.getElementById('tdp-hours'))?.value ?? '0');
+  const costPlan = parseFloat(/** @type {HTMLInputElement} */ (document.getElementById('tdp-cost-plan'))?.value ?? '0');
+  const costReal = parseFloat(/** @type {HTMLInputElement} */ (document.getElementById('tdp-cost-real'))?.value ?? '0');
+  const constraint = /** @type {HTMLSelectElement} */ (document.getElementById('tdp-constraint'))?.value;
+  const constraintDate = /** @type {HTMLInputElement} */ (document.getElementById('tdp-constraint-date'))?.value || null;
+  const actualStart  = /** @type {HTMLInputElement} */ (document.getElementById('tdp-actual-start'))?.value || null;
+  const actualFinish = /** @type {HTMLInputElement} */ (document.getElementById('tdp-actual-finish'))?.value || null;
+  const notes  = /** @type {HTMLTextAreaElement} */ (document.getElementById('tdp-notes'))?.value || null;
+
+  if (!name) { _showToast('El nombre no puede estar vacío', 'warn'); return; }
+
+  appState.dispatch({ type: 'UPDATE_TASK', payload: { id: taskId, fields: {
+    name, type, duration_days: isNaN(dur) ? 0 : dur,
+    percent_complete: isNaN(pct) ? 0 : Math.min(100, Math.max(0, pct)),
+    work_hours: isNaN(hours) ? 0 : hours,
+    planned_cost: isNaN(costPlan) ? 0 : costPlan,
+    actual_cost:  isNaN(costReal) ? 0 : costReal,
+    constraint_type: constraint, constraint_date: constraintDate,
+    actual_start: actualStart, actual_finish: actualFinish,
+    notes,
+  }}});
+
+  // Persistir task_resources
+  const proj = appState.state.project;
+  if (proj) {
+    const { getByIndex, put: dbPutSt, remove: dbRemoveSt } = await import('./storage.js?v=2');
+    // Eliminar los marcados
+    const toRemove = (panel.dataset['removeRes'] || '').split(',').filter(Boolean);
+    for (const trid of toRemove) {
+      try { await dbRemoveSt('task_resources', trid); } catch {}
+    }
+    panel.dataset['removeRes'] = '';
+
+    // Agregar nuevos
+    const newRows = document.querySelectorAll('#tdp-res-body tr[data-new-res]');
+    for (const row of newRows) {
+      const resId = /** @type {HTMLElement} */ (row).dataset.newRes;
+      const units = /** @type {HTMLInputElement|null} */ (row.querySelector('.tdp-res-units'))?.value ?? '100';
+      const rec = {
+        id: /** @type {HTMLElement} */ (row).dataset.trid,
+        project_id: proj.id,
+        task_id: taskId,
+        resource_id: resId,
+        units: parseFloat(units) || 100,
+        org_id: proj.org_id ?? null,
+        deleted_at: null,
+      };
+      await dbPutSt('task_resources', rec);
+      delete /** @type {HTMLElement} */ (row).dataset.newRes;
+    }
+    // Actualizar unidades de los existentes
+    const unitInputs = document.querySelectorAll('#tdp-res-body .tdp-res-units:not([data-new-res])');
+    for (const inp of unitInputs) {
+      const trid = /** @type {HTMLElement} */ (inp).dataset.trid;
+      if (!trid) continue;
+      const existing = await getByIndex('task_resources', 'task_id', taskId).then(r => r.find(x => x.id === trid)).catch(() => null);
+      if (existing) { existing.units = parseFloat(/** @type {HTMLInputElement} */ (inp).value) || 100; await dbPutSt('task_resources', existing); }
+    }
+  }
+
+  _showToast('Guardado', 'success');
+  _closeTaskDetail();
+}
+
+// ============================================================
+// Gestor de Recursos (catálogo)
+// ============================================================
+
+async function _openResourceManager() {
+  let dlg = /** @type {HTMLDialogElement|null} */ (document.getElementById('dlg-resources'));
+  if (!dlg) {
+    dlg = document.createElement('dialog');
+    dlg.id = 'dlg-resources';
+    dlg.style.cssText = 'border:none;border-radius:12px;padding:0;width:600px;max-width:96vw;box-shadow:0 8px 40px rgba(0,0,0,0.3);overflow:hidden';
+    document.body.appendChild(dlg);
+    dlg.addEventListener('click', e => { if (e.target === dlg) dlg.close(); });
+  }
+
+  const { getAll } = await import('./storage.js?v=2');
+  const resources = await getAll('resources').then(r => r.filter(x => !x.deleted_at));
+
+  const rows = resources.map(r => `
+    <tr>
+      <td style="padding:6px 10px;font-size:13px">${_escHtml(r.name)}</td>
+      <td style="padding:6px 10px;font-size:12px;color:var(--clr-text-3)">${_escHtml(r.role ?? '')}</td>
+      <td style="padding:6px 10px;font-size:12px;color:var(--clr-text-3)">${r.rate_per_hour ? 'S/ '+r.rate_per_hour+'/h' : '—'}</td>
+      <td style="padding:6px 10px;font-size:12px;color:var(--clr-text-3)">${_escHtml(r.type ?? 'work')}</td>
+      <td style="padding:6px 10px"><button class="btn btn-icon btn-sm rm-del" data-rid="${r.id}" title="Eliminar" style="color:var(--clr-danger,#e74c3c)">🗑</button></td>
+    </tr>`).join('') || '<tr><td colspan="5" style="padding:16px;text-align:center;color:var(--clr-text-3)">Sin recursos</td></tr>';
+
+  dlg.innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid var(--clr-border);background:var(--clr-surface-2)">
+      <span style="font-weight:700;font-size:15px">Gestión de Recursos</span>
+      <button id="dlg-res-close" class="btn btn-icon btn-sm">✕</button>
+    </div>
+    <div style="padding:16px;max-height:50vh;overflow-y:auto">
+      <table style="width:100%;border-collapse:collapse">
+        <thead><tr style="background:var(--clr-surface-2)">
+          <th style="padding:6px 10px;text-align:left;font-size:11px;color:var(--clr-text-3);font-weight:600">Nombre</th>
+          <th style="padding:6px 10px;text-align:left;font-size:11px;color:var(--clr-text-3);font-weight:600">Rol / Cargo</th>
+          <th style="padding:6px 10px;text-align:left;font-size:11px;color:var(--clr-text-3);font-weight:600">Tarifa</th>
+          <th style="padding:6px 10px;text-align:left;font-size:11px;color:var(--clr-text-3);font-weight:600">Tipo</th>
+          <th style="width:40px"></th>
+        </tr></thead>
+        <tbody id="rm-body">${rows}</tbody>
+      </table>
+    </div>
+    <div style="padding:14px 16px;border-top:1px solid var(--clr-border);background:var(--clr-surface-2)">
+      <div style="font-size:12px;font-weight:700;color:var(--clr-text-2);margin-bottom:10px">Agregar recurso</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:10px">
+        <input id="rm-name" type="text" placeholder="Nombre *" style="padding:7px 10px;border:1px solid var(--clr-border);border-radius:7px;font-size:12px;background:var(--clr-surface);color:var(--clr-text)">
+        <input id="rm-role" type="text" placeholder="Rol / Cargo" style="padding:7px 10px;border:1px solid var(--clr-border);border-radius:7px;font-size:12px;background:var(--clr-surface);color:var(--clr-text)">
+        <input id="rm-rate" type="number" min="0" step="0.01" placeholder="Tarifa/hora (S/)" style="padding:7px 10px;border:1px solid var(--clr-border);border-radius:7px;font-size:12px;background:var(--clr-surface);color:var(--clr-text)">
+      </div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <select id="rm-type" style="padding:7px 10px;border:1px solid var(--clr-border);border-radius:7px;font-size:12px;background:var(--clr-surface);color:var(--clr-text)">
+          <option value="work">Trabajo (persona)</option>
+          <option value="material">Material</option>
+          <option value="cost">Costo fijo</option>
+          <option value="equipment">Equipo</option>
+        </select>
+        <button id="rm-add" class="btn btn-primary btn-sm">＋ Agregar</button>
+      </div>
+    </div>`;
+
+  dlg.querySelector('#dlg-res-close').addEventListener('click', () => dlg.close());
+  dlg.querySelector('#rm-add').addEventListener('click', async () => {
+    const name = /** @type {HTMLInputElement} */ (dlg.querySelector('#rm-name')).value.trim();
+    if (!name) { _showToast('Nombre requerido', 'warn'); return; }
+    const role = /** @type {HTMLInputElement} */ (dlg.querySelector('#rm-role')).value.trim() || null;
+    const rate = parseFloat(/** @type {HTMLInputElement} */ (dlg.querySelector('#rm-rate')).value) || null;
+    const type = /** @type {HTMLSelectElement} */ (dlg.querySelector('#rm-type')).value;
+    const { put: dbPutSt } = await import('./storage.js?v=2');
+    const rec = { id: crypto.randomUUID(), name, role, rate_per_hour: rate, type, org_id: null, deleted_at: null };
+    await dbPutSt('resources', rec);
+    _showToast('Recurso agregado: ' + name, 'success');
+    dlg.close();
+    _openResourceManager(); // reabrir para mostrar la lista actualizada
+  });
+  dlg.addEventListener('click', async (e) => {
+    const btn = /** @type {HTMLElement} */ (e.target).closest('.rm-del');
+    if (btn) {
+      const rid = btn.dataset.rid;
+      if (confirm('¿Eliminar este recurso?')) {
+        const { remove: dbRemoveSt } = await import('./storage.js?v=2');
+        await dbRemoveSt('resources', rid);
+        btn.closest('tr')?.remove();
+        _showToast('Recurso eliminado', 'success');
+      }
+    }
+  });
+
+  dlg.showModal();
+}
+
+function _updateStatus() {
+  const dot  = document.querySelector('#statusbar .status-dot');
+  const text = document.querySelector('#statusbar .status-text');
+  const { syncStatus, cpmResult } = appState.state;
+  if (dot) { dot.className = 'status-dot ' + syncStatus; }
+  if (text) {
+    const labels = {
+      local:    t('localMode'),
+      synced:   t('synced'),
+      syncing:  t('syncing'),
+      offline:  t('offline'),
+      conflict: t('conflict') ?? 'Conflicto',
+    };
+    text.textContent = labels[syncStatus] ?? syncStatus;
+  }
+  // Duración del proyecto
+  const durEl = document.getElementById('project-duration');
+  if (durEl && cpmResult) {
+    durEl.textContent = `${cpmResult.projectDuration ?? 0} d`;
+  }
+}
+
+function _updateUndoRedoBtns() {
+  const undoBtn = document.getElementById('btn-undo');
+  const redoBtn = document.getElementById('btn-redo');
+  if (undoBtn) undoBtn.disabled = !appState.canUndo;
+  if (redoBtn) redoBtn.disabled = !appState.canRedo;
+}
+
+// ============================================================
+// Cargar proyecto
+// ============================================================
+
+async function _ensureDemoData() {
+  const projects = await listProjects();
+  if (projects.some(p => p.is_template === false || !p.is_template)) {
+    return projects[0]; // ya existe
+  }
+  // Guardar datos demo en IndexedDB
+  await saveProjectSnapshot(DEMO_DATA);
+  return DEMO_DATA.project;
+}
+
+async function _loadProject(projectId) {
+  const data = await loadProject(projectId);
+  if (!data.project) throw new Error(t('projectNotFound'));
+  appState.loadProject(data);
+  _renderProjectList();
+  if (!data.project.start_date) {
+    _showToast('Sin fecha de inicio — edita el proyecto para configurarla', 'warn');
+  }
+}
+
+// ============================================================
+// Lista de proyectos en el explorador
+// ============================================================
+
+async function _renderProjectList() {
+  const list = document.getElementById('explorer-list');
+  if (!list) return;
+  const { portfolios, programs, projects } = await loadHierarchy();
+  const currentId = appState.state.project?.id;
+
+  const rows = [];
+
+  // Proyectos sin portafolio ni programa (nivel raíz)
+  const rootProjects  = projects.filter(p => !p.settings?.portfolio_id && !p.settings?.program_id);
+  // Programas sin portafolio (nivel raíz)
+  const rootPrograms  = programs.filter(p => !p.portfolio_id);
+
+  function _projItem(p, indent = 0) {
+    return `<div class="explorer-item ${p.id === currentId ? 'active' : ''}" data-project-id="${p.id}"
+      title="${_escAttr(p.name)}" style="padding-left:${8 + indent * 16}px">
+      <span class="item-icon">📋</span>
+      <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px">${_escHtml(p.name)}</span>
+      ${p.id !== currentId ? `<button class="btn btn-ghost" data-del-project="${p.id}" title="Eliminar"
+        style="padding:0 4px;font-size:10px;line-height:1;opacity:0.5;flex-shrink:0">✕</button>` : ''}
+    </div>`;
+  }
+
+  function _progItem(prog, indent = 0) {
+    const progProjects = projects.filter(p => p.settings?.program_id === prog.id);
+    return `<div class="explorer-section-title" style="padding-left:${8 + indent * 16}px;display:flex;align-items:center;gap:4px">
+        <span>📦</span><span>${_escHtml(prog.name)}</span>
+        ${prog.code ? `<span style="font-size:10px;opacity:0.6">${_escHtml(prog.code)}</span>` : ''}
+        <button class="btn btn-ghost" data-add-to-program="${prog.id}" data-prog-code="${_escAttr(prog.code||'')}" title="Nuevo proyecto en este programa"
+          style="padding:0 5px;font-size:11px;line-height:1;color:var(--clr-primary);margin-left:auto" tabindex="0">＋</button>
+        <button class="btn btn-ghost" data-del-program="${prog.id}" title="Eliminar programa"
+          style="padding:0 4px;font-size:10px;line-height:1;opacity:0.4">✕</button>
+      </div>
+      ${progProjects.map(p => _projItem(p, indent + 1)).join('')}`;
+  }
+
+  // Portafolios
+  portfolios.forEach(pf => {
+    const pfPrograms  = programs.filter(p => p.portfolio_id === pf.id);
+    const pfProjects  = projects.filter(p => p.settings?.portfolio_id === pf.id && !p.settings?.program_id);
+    rows.push(`<div class="explorer-section-title" style="display:flex;align-items:center;gap:4px">
+        <span>🗂</span><span>${_escHtml(pf.name)}</span>
+        ${pf.code ? `<span style="font-size:10px;opacity:0.6">${_escHtml(pf.code)}</span>` : ''}
+        <button class="btn btn-ghost" data-add-to-portfolio="${pf.id}" data-pf-code="${_escAttr(pf.code||'')}" title="Nuevo programa/proyecto en este portafolio"
+          style="padding:0 5px;font-size:11px;line-height:1;color:var(--clr-primary);margin-left:auto" tabindex="0">＋</button>
+        <button class="btn btn-ghost" data-del-portfolio="${pf.id}" title="Eliminar portafolio"
+          style="padding:0 4px;font-size:10px;line-height:1;opacity:0.4">✕</button>
+      </div>`);
+    pfPrograms.forEach(prog => rows.push(_progItem(prog, 1)));
+    pfProjects.forEach(p   => rows.push(_projItem(p, 1)));
+  });
+
+  // Programas raíz (sin portafolio)
+  rootPrograms.forEach(prog => rows.push(_progItem(prog, 0)));
+
+  // Proyectos raíz
+  rootProjects.forEach(p => rows.push(_projItem(p, 0)));
+
+  list.innerHTML = rows.join('');
+
+  list.querySelectorAll('[data-project-id]').forEach(el => {
+    el.addEventListener('click', async (e) => {
+      if (/** @type {HTMLElement} */ (e.target).closest('[data-del-project]')) return;
+      const pid = /** @type {HTMLElement} */ (el).dataset.projectId;
+      if (pid && pid !== appState.state.project?.id) {
+        try {
+          await _loadProject(pid);
+          _showToast('Proyecto cargado: ' + (appState.state.project?.name ?? ''), 'success');
+        } catch (err) {
+          _showToast('Error al cargar proyecto: ' + err.message, 'error');
+        }
+      }
+    });
+  });
+
+  list.querySelectorAll('[data-del-project]').forEach(delBtn => {
+    delBtn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const pid = /** @type {HTMLElement} */ (delBtn).dataset.delProject;
+      const { projects: projs } = await loadHierarchy();
+      const proj = projs.find(p => p.id === pid);
+      if (!proj) return;
+      if (!confirm(`¿Eliminar el proyecto "${proj.name}"?\nEsta acción no se puede deshacer.`)) return;
+      try {
+        await _deleteProject(pid);
+        _showToast('Proyecto eliminado', 'success');
+        _renderProjectList();
+      } catch (err) {
+        _showToast('Error al eliminar: ' + err.message, 'error');
+      }
+    });
+  });
+
+  list.querySelectorAll('[data-del-portfolio]').forEach(delBtn => {
+    delBtn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const id = /** @type {HTMLElement} */ (delBtn).dataset.delPortfolio;
+      if (!confirm('¿Eliminar este portafolio? Los proyectos y programas dentro quedarán sin asignar.')) return;
+      try { await deletePortfolio(id); _showToast('Portafolio eliminado', 'success'); _renderProjectList(); }
+      catch (err) { _showToast('Error: ' + err.message, 'error'); }
+    });
+  });
+
+  list.querySelectorAll('[data-del-program]').forEach(delBtn => {
+    delBtn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const id = /** @type {HTMLElement} */ (delBtn).dataset.delProgram;
+      if (!confirm('¿Eliminar este programa? Los proyectos dentro quedarán sin asignar.')) return;
+      try { await deleteProgram(id); _showToast('Programa eliminado', 'success'); _renderProjectList(); }
+      catch (err) { _showToast('Error: ' + err.message, 'error'); }
+    });
+  });
+
+  // "+" junto a programa → nuevo proyecto heredando código
+  list.querySelectorAll('[data-add-to-program]').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const id   = /** @type {HTMLElement} */ (btn).dataset.addToProgram;
+      const code = /** @type {HTMLElement} */ (btn).dataset.progCode;
+      _openNewItemWithParent('project', 'program', id, code);
+    });
+  });
+
+  // "+" junto a portafolio → nuevo programa o proyecto directo
+  list.querySelectorAll('[data-add-to-portfolio]').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const id   = /** @type {HTMLElement} */ (btn).dataset.addToPortfolio;
+      const code = /** @type {HTMLElement} */ (btn).dataset.pfCode;
+      _openNewItemWithParent('project', 'portfolio', id, code);
+    });
+  });
+}
+
+async function _deleteProject(projectId) {
+  const tasks = await getByIndex('tasks', 'project_id', projectId);
+  const deps  = await getByIndex('task_dependencies', 'project_id', projectId);
+  for (const t of tasks) await dbRemove('tasks', t.id);
+  for (const d of deps)  await dbRemove('task_dependencies', d.id);
+  await dbRemove('projects', projectId);
+}
+
+function _escHtml(s) {
+  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+function _escAttr(s) {
+  return String(s ?? '').replace(/"/g,'&quot;');
+}
+
+// ============================================================
+// Crear nuevo elemento (portafolio / programa / proyecto)
+// ============================================================
+
+function _bindNewProject() {
+  const btn    = document.getElementById('btn-new-project');
+  const dlg    = /** @type {HTMLDialogElement|null} */ (document.getElementById('dlg-new-item'));
+  const form   = document.getElementById('form-new-item');
+  const cancel = document.getElementById('btn-ni-cancel');
+  const submitBtn = document.getElementById('btn-ni-submit');
+
+  // Fecha de hoy por defecto
+  const startInput = /** @type {HTMLInputElement|null} */ (document.getElementById('ni-start'));
+  if (startInput) startInput.value = new Date().toISOString().slice(0, 10);
+
+  // Selector de tipo: actualizar apariencia y visibilidad de campos
+  function _updateTypeUI() {
+    const type = /** @type {HTMLInputElement|null} */ (document.querySelector('input[name="ni-type"]:checked'))?.value ?? 'project';
+    document.querySelectorAll('.ni-type-btn').forEach(btn => {
+      const forType = /** @type {HTMLElement} */ (btn).dataset.for;
+      const active  = forType === type;
+      /** @type {HTMLElement} */ (btn).style.borderColor  = active ? 'var(--clr-primary,#1976D2)' : 'var(--clr-border,#ddd)';
+      /** @type {HTMLElement} */ (btn).style.background   = active ? 'rgba(25,118,210,0.08)' : '';
+      /** @type {HTMLElement} */ (btn).style.color        = active ? 'var(--clr-primary,#1976D2)' : '';
+    });
+    const parentRow = document.getElementById('ni-parent-row');
+    const dateRow   = document.getElementById('ni-date-row');
+    const dateInput = document.getElementById('ni-start');
+    if (parentRow) parentRow.style.display = type === 'portfolio' ? 'none' : 'block';
+    if (dateRow)   dateRow.style.display   = type === 'project'   ? 'block' : 'none';
+    if (dateInput) /** @type {HTMLInputElement} */ (dateInput).required = type === 'project';
+    if (submitBtn) submitBtn.textContent = type === 'portfolio' ? 'Crear portafolio' : type === 'program' ? 'Crear programa' : 'Crear proyecto';
+    _loadParentOptions(type);
+  }
+
+  // Cargar opciones del select "Pertenece a"
+  async function _loadParentOptions(type) {
+    const sel = /** @type {HTMLSelectElement|null} */ (document.getElementById('ni-parent'));
+    if (!sel) return;
+    sel.innerHTML = '<option value="">— Sin asignar (nivel raíz) —</option>';
+    if (type === 'portfolio') return;
+    const { portfolios, programs } = await loadHierarchy();
+    if (type === 'program') {
+      portfolios.forEach(p => {
+        const opt = document.createElement('option');
+        opt.value = 'portfolio:' + p.id;
+        opt.textContent = '🗂 ' + p.name;
+        sel.appendChild(opt);
+      });
+    } else {
+      // proyecto puede ir en portafolio o programa
+      portfolios.forEach(p => {
+        const opt = document.createElement('option');
+        opt.value = 'portfolio:' + p.id;
+        opt.textContent = '🗂 ' + p.name;
+        sel.appendChild(opt);
+      });
+      programs.forEach(p => {
+        const opt = document.createElement('option');
+        opt.value = 'program:' + p.id;
+        opt.textContent = '📦 ' + p.name;
+        sel.appendChild(opt);
+      });
+    }
+  }
+
+  document.querySelectorAll('input[name="ni-type"]').forEach(r =>
+    r.addEventListener('change', _updateTypeUI));
+
+  btn?.addEventListener('click', async () => {
+    _updateTypeUI();
+    document.getElementById('ni-name')?.focus();
+    dlg?.showModal();
+  });
+
+  cancel?.addEventListener('click', () => dlg?.close());
+  dlg?.addEventListener('click', (e) => { if (e.target === dlg) dlg.close(); });
+
+  form?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const type   = /** @type {HTMLInputElement|null} */ (document.querySelector('input[name="ni-type"]:checked'))?.value ?? 'project';
+    const name   = /** @type {HTMLInputElement} */ (document.getElementById('ni-name')).value.trim();
+    const code   = /** @type {HTMLInputElement} */ (document.getElementById('ni-code')).value.trim();
+    const start  = /** @type {HTMLInputElement} */ (document.getElementById('ni-start')).value;
+    const parentVal = /** @type {HTMLSelectElement} */ (document.getElementById('ni-parent'))?.value ?? '';
+
+    if (!name) return;
+    if (type === 'project' && !start) return;
+
+    const id  = crypto.randomUUID();
+    const now = new Date().toISOString();
+
+    // Parsear padre
+    let portfolio_id = null, program_id = null;
+    if (parentVal.startsWith('portfolio:')) portfolio_id = parentVal.slice(10);
+    if (parentVal.startsWith('program:'))   program_id   = parentVal.slice(8);
+
+    try {
+      if (type === 'portfolio') {
+        await savePortfolio({ id, name, code: code || null, settings: {}, created_at: now, updated_at: now, deleted_at: null });
+        _showToast('Portafolio creado: ' + name, 'success');
+      } else if (type === 'program') {
+        await saveProgram({ id, name, code: code || null, portfolio_id, settings: {}, created_at: now, updated_at: now, deleted_at: null });
+        _showToast('Programa creado: ' + name, 'success');
+      } else {
+        const newProject = {
+          id, org_id: null, code: code || null, name, start_date: start,
+          data_date: null, status: 'active', is_template: false,
+          settings: { portfolio_id, program_id },
+          created_at: now, updated_at: now, deleted_at: null,
+        };
+        await saveProjectSnapshot({ project: newProject, tasks: [], deps: [], calendar: null, calExceptions: [] });
+        await _loadProject(id);
+        _showToast('Proyecto creado: ' + name, 'success');
+      }
+      dlg?.close();
+      _clearNewItemForm();
+      await _renderProjectList();
+    } catch (err) {
+      _showToast('Error al crear: ' + err.message, 'error');
+    }
+  });
+}
+
+function _clearNewItemForm() {
+  const fields = ['ni-name','ni-code'];
+  fields.forEach(id => { const el = /** @type {HTMLInputElement|null} */ (document.getElementById(id)); if (el) el.value = ''; });
+  const startEl = /** @type {HTMLInputElement|null} */ (document.getElementById('ni-start'));
+  if (startEl) startEl.value = new Date().toISOString().slice(0, 10);
+  const typeProject = /** @type {HTMLInputElement|null} */ (document.getElementById('ni-type-project'));
+  if (typeProject) typeProject.checked = true;
+}
+
+// ============================================================
+// Inicialización
+// ============================================================
+
+let _wbsTable       = null;
+let _ganttScene     = null;
+let _ganttCanvas    = null;
+let _dcmaPanel      = null;
+let _evmPanel       = null;
+let _changeLogPanel = null;
+let _syncEngine     = null;
+
+async function init() {
+  try {
+    await openDB();
+    _initWorker();
+
+    appState.onRequestCpm = _requestCpm;
+
+    // ---- Cargar proyecto ----
+    const projectId = new URLSearchParams(location.search).get('p');
+    if (projectId) {
+      await _loadProject(projectId);
+    } else {
+      const proj = await _ensureDemoData();
+      await _loadProject(proj.id);
+    }
+
+    // ---- Inicializar tabla WBS ----
+    const wbsPanel = document.getElementById('wbs-panel');
+    if (wbsPanel) {
+      _wbsTable = new WbsTable(wbsPanel);
+    }
+
+    // ---- Inicializar Gantt Canvas ----
+    const ganttCanvas = /** @type {HTMLCanvasElement|null} */ (document.getElementById('gantt-canvas'));
+    if (ganttCanvas) {
+      _ganttScene  = new GanttScene();
+      _ganttCanvas = new GanttCanvas(ganttCanvas, _ganttScene);
+
+      // Restaurar etiquetas de barras desde localStorage
+      try {
+        const saved = JSON.parse(localStorage.getItem('gantt-bar-labels') || '["name"]');
+        _ganttCanvas.setBarLabels(saved);
+        _syncBarLabelsUI(saved);
+      } catch (_) { /* ignore */ }
+
+      // Alimentar la escena con los datos del proyecto
+      _syncGanttScene();
+
+      // Actualizar escena cuando cambia el estado relevante
+      appState.subscribe((_state, keys) => {
+        if (!keys || keys.includes('all') || keys.some(k =>
+          ['project','tasks','deps','cpmResult','calendar','calExceptions'].includes(k))) {
+          _syncGanttScene();
+        }
+        if (!keys || keys.includes('all') || keys.some(k =>
+          ['cpmResult','tasks','deps','selectedTaskId'].includes(k))) {
+          _ganttCanvas?.requestRender();
+        }
+      });
+
+      // Recibir filas visibles de la tabla WBS
+      document.addEventListener('gantt-rows-update', /** @type {any} */ (e) => {
+        _ganttCanvas?.updateRows(e.detail.rows);
+      });
+
+      // Fila fantasma → crear tarea nueva
+      document.addEventListener('wbs-add-task', /** @type {any} */ (e) => {
+        _wbsTable?.addTaskAfterSelected(e.detail?.type ?? 'task');
+      });
+
+      // Sincronizar scroll: Gantt → tabla WBS
+      document.addEventListener('gantt-scroll-y', /** @type {any} */ (e) => {
+        const scroll = document.getElementById('wbs-scroll');
+        if (scroll) scroll.scrollTop = e.detail.scrollY;
+      });
+    }
+
+    // ---- Actualizar nombre del proyecto ----
+    const nameEl = document.getElementById('project-name-display');
+    if (nameEl && appState.state.project) {
+      nameEl.textContent = appState.state.project.name;
+    }
+
+    // ---- Mostrar badge modo local ----
+    if (IS_LOCAL_MODE) {
+      const badge = document.getElementById('sync-mode-badge');
+      if (badge) { badge.textContent = t('localMode'); badge.style.display = ''; }
+    }
+
+    // ---- Suscribir actualizaciones de estado ----
+    appState.subscribe((_state, keys) => {
+      _updateUndoRedoBtns();
+      _updateStatus();
+    });
+
+    _updateUndoRedoBtns();
+    _updateStatus();
+
+    // ---- Inicializar panel DCMA ----
+    const dcmaEl = document.getElementById('dcma-panel');
+    if (dcmaEl) {
+      _dcmaPanel = new DcmaPanel(dcmaEl);
+    }
+
+    // Escuchar selección de tarea desde el panel DCMA
+    document.addEventListener('dcma-select-task', /** @type {any} */ (e) => {
+      appState.selectTask(e.detail.id);
+    });
+
+    // Abrir panel de detalle de tarea
+    document.addEventListener('open-task-detail', (/** @type {any} */ e) => {
+      _openTaskDetail(e.detail.taskId);
+    });
+
+    // ---- Inicializar panel EVM ----
+    const evmEl = document.getElementById('evm-panel');
+    if (evmEl) {
+      _evmPanel = new EvmPanel(evmEl);
+      // Actualizar al cambiar CPM
+      appState.subscribe((_state, keys) => {
+        if (evmEl.classList.contains('open') &&
+            keys?.some(k => ['cpmResult', 'tasks'].includes(k))) {
+          _evmPanel.refresh();
+        }
+      });
+      // Botón cerrar dentro del panel
+      evmEl.addEventListener('click', (e) => {
+        if (/** @type {HTMLElement} */ (e.target).id === 'btn-evm-close') {
+          evmEl.classList.remove('open');
+          document.getElementById('btn-evm')?.removeAttribute('aria-pressed');
+        }
+      });
+    }
+
+    // ---- Inicializar panel Historial ----
+    const changelogEl = document.getElementById('changelog-panel');
+    if (changelogEl) {
+      _changeLogPanel = new ChangeLogPanel(changelogEl);
+      changelogEl.addEventListener('click', (e) => {
+        if (/** @type {HTMLElement} */ (e.target).id === 'btn-changelog-close') {
+          changelogEl.classList.remove('open');
+          document.getElementById('btn-changelog')?.removeAttribute('aria-pressed');
+        }
+      });
+    }
+
+    // ---- Iniciar motor de sync (solo si hay credenciales Supabase) ----
+    if (!IS_LOCAL_MODE && appState.state.project) {
+      const { project } = appState.state;
+      _syncEngine = new SyncEngine(project.id, project.org_id);
+      _syncEngine.start().catch(err => {
+        console.warn('[Sync] No se pudo iniciar:', err.message);
+      });
+    }
+
+    console.log('[Cronogramas] v25b completo — modo', IS_LOCAL_MODE ? 'local' : 'Supabase');
+  } catch (err) {
+    console.error('[init]', err);
+    _showToast('Error al iniciar: ' + err.message, 'error');
+  }
+}
+
+// ============================================================
+// Sincronización de la escena Gantt
+// ============================================================
+
+function _syncGanttScene() {
+  if (!_ganttScene) return;
+  const { project, calendar, calExceptions, cpmResult } = appState.state;
+  if (!project) return;
+
+  _ganttScene.projectStart = isoToDate(project.start_date || new Date().toISOString().slice(0, 10));
+  _ganttScene.cpmResult    = cpmResult;
+
+  const calDef = calendar
+    ? { work_week: calendar.work_week,
+        exceptions: calExceptions.filter(e => !e.deleted_at).map(e => ({ on_date: e.on_date, is_working: e.is_working })) }
+    : { work_week: [1,2,3,4,5], exceptions: [] };
+
+  _ganttScene.calendar = new Calendar(calDef);
+}
+
+// ============================================================
+// Manejadores de botones del toolbar
+// ============================================================
+
+function _bindToolbar() {
+  document.getElementById('btn-undo')?.addEventListener('click', () => {
+    if (appState.undo()) _showToast(t('undone'));
+    else _showToast(t('noMoreUndo'));
+  });
+  document.getElementById('btn-redo')?.addEventListener('click', () => {
+    if (appState.redo()) _showToast(t('redone'));
+    else _showToast(t('noMoreRedo'));
+  });
+  document.getElementById('btn-add-task')?.addEventListener('click', () => {
+    _wbsTable?.addTaskAfterSelected('task');
+  });
+  document.getElementById('btn-add-milestone')?.addEventListener('click', () => {
+    _wbsTable?.addTaskAfterSelected('milestone');
+  });
+  document.getElementById('btn-indent')?.addEventListener('click', () => {
+    const id = appState.state.selectedTaskId;
+    if (id) _wbsTable?._indentTask(id);
+  });
+  document.getElementById('btn-outdent')?.addEventListener('click', () => {
+    const id = appState.state.selectedTaskId;
+    if (id) _wbsTable?._outdentTask(id);
+  });
+  document.getElementById('btn-auto-calc')?.addEventListener('change', e => {
+    appState.setAutoCalc(/** @type {HTMLInputElement} */ (e.target).checked);
+  });
+  document.getElementById('btn-theme')?.addEventListener('click', () => {
+    const html = document.documentElement;
+    const cur = html.getAttribute('data-theme');
+    html.setAttribute('data-theme', cur === 'dark' ? 'light' : 'dark');
+  });
+  document.getElementById('btn-dcma')?.addEventListener('click', () => {
+    const panel = document.getElementById('dcma-panel');
+    const btn   = document.getElementById('btn-dcma');
+    const isOpen = panel?.classList.toggle('open');
+    btn?.setAttribute('aria-pressed', String(isOpen));
+    if (isOpen) {
+      _dcmaPanel?.refresh();
+      btn.style.background = 'var(--clr-primary)';
+      btn.style.color = '#fff';
+    } else {
+      btn.style.background = '';
+      btn.style.color = '';
+    }
+  });
+
+  document.getElementById('btn-resources')?.addEventListener('click', () => _openResourceManager());
+
+  // ---- Menú etiquetas de barras Gantt ----
+  const _barLabelsBtn  = document.getElementById('btn-bar-labels');
+  const _barLabelsMenu = document.getElementById('bar-labels-menu');
+  _barLabelsBtn?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const open = _barLabelsMenu?.hidden === false;
+    _barLabelsMenu && (_barLabelsMenu.hidden = open);
+    _barLabelsBtn.setAttribute('aria-expanded', String(!open));
+  });
+  _barLabelsMenu?.addEventListener('change', () => {
+    const checked = [..._barLabelsMenu.querySelectorAll('input:checked')].map(/** @type {HTMLInputElement} */ (i) => i.value);
+    const labels  = checked.length ? checked : ['name'];
+    localStorage.setItem('gantt-bar-labels', JSON.stringify(labels));
+    _ganttCanvas?.setBarLabels(labels);
+    _syncBarLabelsUI(labels);
+  });
+  document.addEventListener('click', (e) => {
+    if (_barLabelsMenu && !_barLabelsMenu.hidden && !document.getElementById('bar-labels-wrap')?.contains(/** @type {Node} */ (e.target))) {
+      _barLabelsMenu.hidden = true;
+      _barLabelsBtn?.setAttribute('aria-expanded', 'false');
+    }
+  });
+
+  document.getElementById('btn-evm')?.addEventListener('click', () => {
+    const panel = document.getElementById('evm-panel');
+    const btn   = document.getElementById('btn-evm');
+    const isOpen = panel?.classList.toggle('open');
+    btn?.setAttribute('aria-pressed', String(isOpen));
+    if (isOpen) {
+      _evmPanel?.refresh();
+      btn.style.background = 'var(--clr-primary)';
+      btn.style.color = '#fff';
+    } else {
+      btn.style.background = '';
+      btn.style.color = '';
+    }
+  });
+
+  document.getElementById('btn-changelog')?.addEventListener('click', () => {
+    const panel = document.getElementById('changelog-panel');
+    const btn   = document.getElementById('btn-changelog');
+    const isOpen = panel?.classList.toggle('open');
+    btn?.setAttribute('aria-pressed', String(isOpen));
+    if (isOpen) {
+      _changeLogPanel?.refresh();
+      btn.style.background = 'var(--clr-primary)';
+      btn.style.color = '#fff';
+    } else {
+      btn.style.background = '';
+      btn.style.color = '';
+    }
+  });
+
+  document.getElementById('btn-menu')?.addEventListener('click', () => {
+    const panel = document.getElementById('explorer-panel');
+    const overlay = document.getElementById('drawer-overlay');
+    panel?.classList.toggle('open');
+    overlay?.classList.toggle('visible');
+  });
+  document.getElementById('drawer-overlay')?.addEventListener('click', () => {
+    document.getElementById('explorer-panel')?.classList.remove('open');
+    document.getElementById('drawer-overlay')?.classList.remove('visible');
+  });
+
+  // ---- Menú Exportar ----
+  const exportBtn  = document.getElementById('btn-export');
+  const exportMenu = document.getElementById('export-menu');
+
+  exportBtn?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const isOpen = !exportMenu?.hidden;
+    if (exportMenu) exportMenu.hidden = isOpen;
+    exportBtn.setAttribute('aria-expanded', String(!isOpen));
+  });
+
+  // Cerrar menú al hacer clic fuera
+  document.addEventListener('click', () => {
+    if (exportMenu && !exportMenu.hidden) {
+      exportMenu.hidden = true;
+      exportBtn?.setAttribute('aria-expanded', 'false');
+    }
+  });
+
+  exportMenu?.addEventListener('click', (e) => {
+    const btn = /** @type {HTMLElement} */ (e.target).closest('button[data-action]');
+    if (!btn) return;
+    exportMenu.hidden = true;
+    exportBtn?.setAttribute('aria-expanded', 'false');
+
+    const action = btn.dataset.action;
+    const rows = _ganttCanvas ? _ganttScene.rows : [];
+
+    switch (action) {
+      case 'json':        exportJson();              break;
+      case 'csv':         exportCsv();               break;
+      case 'xml':         exportMspXml();            break;
+      case 'svg':         exportSvg(rows);           break;
+      case 'print-table': printWbsTable();           break;
+      case 'print-gantt': printGantt(rows);          break;
+      case 'col-config':  _showPrintColConfig();     break;
+    }
+  });
+
+  // Importar JSON
+  document.getElementById('import-file')?.addEventListener('change', async (e) => {
+    const file = /** @type {HTMLInputElement} */ (e.target).files?.[0];
+    if (!file) return;
+    try {
+      const data = await importJson(file);
+      await saveProjectSnapshot(data);
+      await _loadProject(data.project.id);
+      _showToast('Proyecto importado: ' + data.project.name, 'success');
+    } catch (err) {
+      _showToast('Error al importar: ' + err.message, 'error');
+    }
+    /** @type {HTMLInputElement} */ (e.target).value = '';
+  });
+
+  // Establecer título de impresión en el elemento #app
+  const updatePrintTitle = () => {
+    const { project } = appState.state;
+    if (project) {
+      document.getElementById('app')?.setAttribute('data-print-title',
+        `${project.name} — Cronograma EDT — ${new Date().toLocaleDateString('es-PE')}`);
+    }
+  };
+  appState.subscribe((_state, keys) => {
+    if (!keys || keys.includes('project')) updatePrintTitle();
+  });
+  updatePrintTitle();
+}
+
+// ============================================================
+// Arranque
+// ============================================================
+
+function _bindLinkMode() {
+  const btn = document.getElementById('btn-link');
+  if (!btn) return;
+
+  let _linkModeOn = false;
+
+  btn.addEventListener('click', () => {
+    _linkModeOn = !_linkModeOn;
+    btn.setAttribute('aria-pressed', String(_linkModeOn));
+    btn.classList.toggle('btn-active', _linkModeOn);
+    btn.style.background = _linkModeOn ? 'var(--clr-primary, #1976D2)' : '';
+    btn.style.color      = _linkModeOn ? '#fff' : '';
+    _ganttCanvas?.setLinkMode(_linkModeOn);
+  });
+
+  document.addEventListener('gantt-add-dep', /** @type {any} */ async (e) => {
+    const { predId, succId, type, lag } = e.detail;
+
+    // Salir del modo enlace
+    _linkModeOn = false;
+    btn.setAttribute('aria-pressed', 'false');
+    btn.classList.remove('btn-active');
+    btn.style.background = '';
+    btn.style.color      = '';
+    _ganttCanvas?.setLinkMode(false);
+
+    // Verificar que no exista ya la dependencia
+    const existing = [...appState.state.deps.values()].find(
+      d => !d.deleted_at && d.pred_id === predId && d.succ_id === succId
+    );
+    if (existing) { _showToast('Esa dependencia ya existe', 'warn'); return; }
+
+    const dep = {
+      id:          crypto.randomUUID(),
+      project_id:  appState.state.project?.id ?? '',
+      pred_id:     predId,
+      succ_id:     succId,
+      type:        type ?? 'FS',
+      lag:         lag  ?? 0,
+      created_at:  new Date().toISOString(),
+      updated_at:  new Date().toISOString(),
+      deleted_at:  null,
+    };
+    appState.dispatch({ type: 'ADD_DEP', payload: { dep } });
+    _showToast('Dependencia FS creada', 'success');
+  });
+}
+
+// ============================================================
+// Splitter arrastrable entre panel WBS y panel Gantt
+// ============================================================
+
+function _bindResizer() {
+  const resizer    = document.getElementById('resizer-gantt');
+  const ganttPanel = document.getElementById('gantt-panel');
+  if (!resizer || !ganttPanel) return;
+
+  // Restaurar ancho guardado
+  const saved = localStorage.getItem('gantt-panel-width');
+  if (saved) ganttPanel.style.width = saved;
+
+  let startX = 0, startW = 0, dragging = false;
+
+  resizer.addEventListener('mousedown', e => {
+    if (e.button !== 0) return;
+    startX   = e.clientX;
+    startW   = ganttPanel.getBoundingClientRect().width;
+    dragging = true;
+    resizer.classList.add('dragging');
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+    e.preventDefault();
+  });
+
+  document.addEventListener('mousemove', e => {
+    if (!dragging) return;
+    const dx = startX - e.clientX; // mover derecha → gantt se hace más pequeño
+    const minW = 180;
+    const maxW = window.innerWidth - 280;
+    const newW = Math.max(minW, Math.min(maxW, startW + dx));
+    ganttPanel.style.width = newW + 'px';
+    _ganttCanvas?.requestRender();
+  });
+
+  document.addEventListener('mouseup', () => {
+    if (!dragging) return;
+    dragging = false;
+    resizer.classList.remove('dragging');
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
+    localStorage.setItem('gantt-panel-width', ganttPanel.style.width);
+    // Forzar redibujado con el nuevo tamaño del canvas
+    setTimeout(() => _ganttCanvas?.requestRender(), 50);
+  });
+}
+
+// ============================================================
+// Organigrama de jerarquía (portafolio→programa→proyecto)
+// ============================================================
+
+// ============================================================
+// Estructura de Proyectos — canvas libre
+// ============================================================
+
+/** Lee posiciones guardadas del lienzo */
+function _ocGetPos() { try { return JSON.parse(localStorage.getItem('oc-pos') || '{}'); } catch { return {}; } }
+/** Guarda posiciones */
+function _ocSetPos(pos) { localStorage.setItem('oc-pos', JSON.stringify(pos)); }
+
+function _showOrgChart() {
+  let dlg = /** @type {HTMLDialogElement|null} */ (document.getElementById('dlg-org-chart'));
+  if (!dlg) {
+    dlg = document.createElement('dialog');
+    dlg.id = 'dlg-org-chart';
+    dlg.style.cssText = 'border:none;border-radius:12px;padding:0;width:96vw;max-width:1400px;height:92vh;box-shadow:0 8px 40px rgba(0,0,0,0.3);overflow:hidden;position:relative';
+    dlg.innerHTML = `
+      <div style="display:flex;flex-direction:column;height:100%;background:var(--clr-bg)">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 16px;border-bottom:1px solid var(--clr-border);background:var(--clr-surface-2);flex-shrink:0;gap:8px;flex-wrap:wrap">
+          <span style="font-weight:700;font-size:15px">Estructura de Proyectos</span>
+          <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+            <button id="oc-add-pf"   class="btn btn-primary btn-sm">＋ Portafolio</button>
+            <button id="oc-add-prog" class="btn btn-ghost btn-sm">＋ Programa</button>
+            <button id="oc-add-proj" class="btn btn-ghost btn-sm">＋ Proyecto</button>
+            <span style="width:1px;height:18px;background:var(--clr-border)"></span>
+            <button id="oc-reset-layout" class="btn btn-ghost btn-sm" title="Restablecer posiciones">↺ Organizar</button>
+            <button id="btn-orgchart-close" class="btn btn-ghost btn-sm">✕ Cerrar</button>
+          </div>
+        </div>
+        <div id="oc-viewport" style="flex:1;overflow:auto;position:relative">
+          <div id="oc-canvas" style="position:relative;width:3200px;height:2400px">
+            <svg id="oc-svg-lines" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;overflow:visible"></svg>
+          </div>
+        </div>
+      </div>
+      <div id="oc-edit-overlay" style="display:none;position:absolute;inset:0;background:rgba(0,0,0,0.35);z-index:20;align-items:center;justify-content:center">
+        <div id="oc-edit-box" style="background:var(--clr-surface);border-radius:14px;padding:24px 26px;min-width:340px;max-width:460px;width:90%;box-shadow:0 8px 32px rgba(0,0,0,0.28);position:relative"></div>
+      </div>`;
+    document.body.appendChild(dlg);
+    dlg.querySelector('#btn-orgchart-close')?.addEventListener('click', () => dlg?.close());
+    dlg.addEventListener('click', e => { if (e.target === dlg) dlg?.close(); });
+
+    dlg.querySelector('#oc-add-pf')  ?.addEventListener('click', () => _ocOpenForm(dlg, 'portfolio', null));
+    dlg.querySelector('#oc-add-prog')?.addEventListener('click', () => _ocOpenForm(dlg, 'program', null));
+    dlg.querySelector('#oc-add-proj')?.addEventListener('click', () => _ocOpenForm(dlg, 'project', null));
+    dlg.querySelector('#oc-reset-layout')?.addEventListener('click', () => {
+      localStorage.removeItem('oc-pos');
+      _renderOrgChart();
+    });
+  }
+  _renderOrgChart();
+  dlg.showModal();
+}
+
+// ---- Helpers del formulario inline ----
+
+function _ocCloseEdit(dlg) {
+  const ov = dlg?.querySelector('#oc-edit-overlay');
+  if (ov) ov.style.display = 'none';
+  const dc = dlg?.querySelector('#oc-del-confirm');
+  if (dc) dc.style.display = 'none';
+  const dd = dlg?.querySelector('#oc-edit-delete');
+  if (dd) dd.style.display = 'none';
+}
+
+function _ocOpenForm(dlg, type, data) {
+  // Reemplaza TODO el contenido del edit-box con HTML fresco cada vez
+  const overlay = dlg.querySelector('#oc-edit-overlay');
+  if (!overlay) return;
+
+  const icons  = { portfolio: '🗂', program: '📦', project: '📋' };
+  const labels = { portfolio: 'Portafolio', program: 'Programa', project: 'Proyecto' };
+  const isNew  = !data?.id;
+
+  const inp = (id, label, val = '', ph = '', type2 = 'text') =>
+    `<div style="margin-bottom:13px">
+      <label style="display:block;font-size:12px;font-weight:600;margin-bottom:4px;color:var(--clr-text-2)">${label}</label>
+      <input id="ocf-${id}" type="${type2}" value="${_escHtml(String(val ?? ''))}" placeholder="${ph}"
+        style="width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid var(--clr-border);border-radius:7px;font-size:13px;background:var(--clr-surface-2);color:var(--clr-text)">
+    </div>`;
+
+  const sel = (id, label) =>
+    `<div style="margin-bottom:13px">
+      <label style="display:block;font-size:12px;font-weight:600;margin-bottom:4px;color:var(--clr-text-2)">${label}</label>
+      <select id="ocf-${id}" style="width:100%;padding:8px 10px;border:1px solid var(--clr-border);border-radius:7px;font-size:13px;background:var(--clr-surface-2);color:var(--clr-text)">
+        <option value="">(Ninguno)</option>
+      </select>
+    </div>`;
+
+  let extraHtml = '';
+  if (type === 'program' || type === 'project') extraHtml += sel('pfid', 'Portafolio');
+  if (type === 'project') {
+    extraHtml += sel('progid', 'Programa');
+    extraHtml += inp('start', 'Fecha inicio', data?.start_date ?? '', 'AAAA-MM-DD');
+    extraHtml += inp('pct', '% Avance', data?.percent_complete ?? 0, '0', 'number');
+  }
+
+  const box = dlg.querySelector('#oc-edit-box');
+  box.innerHTML = `
+    <h3 style="margin:0 0 16px;font-size:15px;font-weight:700">${icons[type]} ${isNew ? 'Nuevo' : 'Editar'} ${labels[type]}</h3>
+    ${inp('name', 'Nombre *', data?.name ?? '', 'Nombre del ' + labels[type])}
+    ${inp('code', 'Código', data?.code ?? '', 'Ej: PF-001')}
+    ${inp('desc', 'Descripción', data?.description ?? '', 'Opcional')}
+    ${extraHtml}
+    ${!isNew ? `<div id="oc-del-zone" style="display:none;background:rgba(231,76,60,0.08);border:1px solid rgba(231,76,60,0.3);border-radius:8px;padding:12px;margin-bottom:12px">
+      <div style="font-size:12px;font-weight:600;color:#c0392b;margin-bottom:6px">⚠ Esta acción no se puede deshacer</div>
+      <button id="ocf-del-confirm" style="background:#e74c3c;color:#fff;border:none;border-radius:6px;padding:6px 14px;cursor:pointer;font-size:12px;font-weight:600">Eliminar definitivamente</button>
+      <button id="ocf-del-cancel" style="margin-left:8px;background:none;border:1px solid var(--clr-border);border-radius:6px;padding:6px 14px;cursor:pointer;font-size:12px">Cancelar</button>
+    </div>` : ''}
+    <div style="display:flex;gap:8px;justify-content:space-between;align-items:center;margin-top:16px">
+      <div>${!isNew ? `<button id="ocf-del-init" style="background:none;border:1px solid #e74c3c;color:#e74c3c;border-radius:6px;padding:5px 12px;cursor:pointer;font-size:12px">🗑 Eliminar</button>` : ''}</div>
+      <div style="display:flex;gap:8px">
+        <button id="ocf-cancel" class="btn btn-ghost btn-sm">Cancelar</button>
+        <button id="ocf-save" class="btn btn-primary btn-sm">Guardar</button>
+      </div>
+    </div>`;
+
+  // Poblar selects
+  loadHierarchy().then(({ portfolios, programs }) => {
+    const pfSel = box.querySelector('#ocf-pfid');
+    if (pfSel) {
+      portfolios.forEach(pf => {
+        const opt = new Option(`${pf.code ? pf.code + ' — ' : ''}${pf.name}`, pf.id);
+        const curPf = data?.portfolio_id ?? data?.settings?.portfolio_id;
+        if (curPf === pf.id) opt.selected = true;
+        pfSel.appendChild(opt);
+      });
+    }
+    const progSel = box.querySelector('#ocf-progid');
+    if (progSel) {
+      programs.forEach(prog => {
+        const opt = new Option(`${prog.code ? prog.code + ' — ' : ''}${prog.name}`, prog.id);
+        if (data?.settings?.program_id === prog.id) opt.selected = true;
+        progSel.appendChild(opt);
+      });
+    }
+  });
+
+  // ---- Listeners ----
+  box.querySelector('#ocf-cancel')?.addEventListener('click', () => { overlay.style.display = 'none'; });
+  overlay.onclick = e => { if (e.target === overlay) overlay.style.display = 'none'; };
+
+  box.querySelector('#ocf-del-init')?.addEventListener('click', () => {
+    box.querySelector('#oc-del-zone').style.display = 'block';
+    box.querySelector('#ocf-del-init').style.display = 'none';
+  });
+  box.querySelector('#ocf-del-cancel')?.addEventListener('click', () => {
+    box.querySelector('#oc-del-zone').style.display = 'none';
+    box.querySelector('#ocf-del-init').style.display = '';
+  });
+  box.querySelector('#ocf-del-confirm')?.addEventListener('click', async () => {
+    try {
+      if (type === 'portfolio') await deletePortfolio(data.id);
+      else if (type === 'program') await deleteProgram(data.id);
+      else await dbRemove('projects', data.id);
+      overlay.style.display = 'none';
+      await _renderOrgChart();
+      _showToast('Eliminado', 'success');
+    } catch (err) { _showToast('Error: ' + err.message, 'error'); }
+  });
+
+  box.querySelector('#ocf-save').addEventListener('click', async () => {
+    const nameEl = box.querySelector('#ocf-name');
+    const name = nameEl?.value.trim();
+    if (!name) { nameEl.style.borderColor = '#e74c3c'; nameEl.focus(); return; }
+    nameEl.style.borderColor = '';
+
+    const code     = box.querySelector('#ocf-code')?.value.trim() || null;
+    const desc     = box.querySelector('#ocf-desc')?.value.trim() || null;
+    const pfId     = box.querySelector('#ocf-pfid')?.value   || null;
+    const progId   = box.querySelector('#ocf-progid')?.value || null;
+    const startDate = box.querySelector('#ocf-start')?.value || null;
+    const pct      = parseInt(box.querySelector('#ocf-pct')?.value || '0', 10) || 0;
+    const now      = new Date().toISOString();
+    const newId    = data?.id || crypto.randomUUID();
+
+    try {
+      if (type === 'portfolio') {
+        await savePortfolio({
+          id: newId, name, code, description: desc,
+          settings: data?.settings ?? {},
+          created_at: data?.created_at ?? now,
+          updated_at: now, deleted_at: null,
+        });
+      } else if (type === 'program') {
+        await saveProgram({
+          id: newId, name, code, description: desc,
+          portfolio_id: pfId,
+          settings: data?.settings ?? {},
+          created_at: data?.created_at ?? now,
+          updated_at: now, deleted_at: null,
+        });
+      } else {
+        const projSettings = {
+          ...(data?.settings ?? {}),
+          portfolio_id: pfId,
+          program_id: progId,
+        };
+        await dbPut('projects', {
+          id: newId, name, code, description: desc,
+          start_date: startDate, percent_complete: pct,
+          settings: projSettings,
+          created_at: data?.created_at ?? now,
+          updated_at: now, deleted_at: null,
+        });
+      }
+      overlay.style.display = 'none';
+      await _renderOrgChart();
+      _showToast((isNew ? 'Creado: ' : 'Guardado: ') + name, 'success');
+    } catch (err) { _showToast('Error al guardar: ' + err.message, 'error'); }
+  });
+
+  // Foco en nombre
+  setTimeout(() => box.querySelector('#ocf-name')?.focus(), 50);
+  overlay.style.display = 'flex';
+}
+
+// ---- Dibujar líneas de conexión SVG ----
+function _ocDrawLines(canvas, cards) {
+  const svg = canvas.querySelector('#oc-svg-lines');
+  if (!svg) return;
+  svg.innerHTML = '';
+  const mkLine = (x1, y1, x2, y2, color) => {
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    const mid = (y1 + y2) / 2;
+    path.setAttribute('d', `M${x1},${y1} C${x1},${mid} ${x2},${mid} ${x2},${y2}`);
+    path.setAttribute('stroke', color || 'var(--clr-border)');
+    path.setAttribute('stroke-width', '2');
+    path.setAttribute('fill', 'none');
+    path.setAttribute('opacity', '0.7');
+    svg.appendChild(path);
+  };
+
+  cards.forEach(({ el, parentKey }) => {
+    if (!parentKey) return;
+    const parentEl = canvas.querySelector(`[data-oc-key="${parentKey}"]`);
+    if (!parentEl) return;
+    const cx  = parseInt(el.style.left) + el.offsetWidth / 2;
+    const cy  = parseInt(el.style.top);
+    const pcx = parseInt(parentEl.style.left) + parentEl.offsetWidth / 2;
+    const pcy = parseInt(parentEl.style.top)  + parentEl.offsetHeight;
+    mkLine(pcx, pcy, cx, cy, null);
+  });
+}
+
+async function _renderOrgChart() {
+  const canvas = document.getElementById('oc-canvas');
+  if (!canvas) return;
+  // Clear only card elements, keep SVG
+  [...canvas.querySelectorAll('.oc-card')].forEach(c => c.remove());
+  const svg = canvas.querySelector('#oc-svg-lines');
+  if (svg) svg.innerHTML = '';
+
+  const { portfolios, programs, projects } = await loadHierarchy();
+  const currentId = appState.state.project?.id;
+
+  const dlg = document.getElementById('dlg-org-chart');
+
+  // ---- Calcular posiciones por defecto si no hay guardadas ----
+  const savedPos = _ocGetPos();
+  const CARD_W = 160, CARD_H = 110, COL_GAP = 200, ROW_GAP = 160;
+
+  function defaultPos(type, id, col, row) {
+    const key = `${type}:${id}`;
+    if (savedPos[key]) return savedPos[key];
+    return { x: 60 + col * (CARD_W + COL_GAP), y: 60 + row * (CARD_H + ROW_GAP) };
+  }
+
+  // Layout automático: asignar columnas/filas
+  const pfPositions = portfolios.map((pf, i) => ({ id: pf.id, col: i }));
+  let cardList = []; // { type, data, pos, parentKey }
+
+  portfolios.forEach((pf, pi) => {
+    const pos = defaultPos('pf', pf.id, pi, 0);
+    cardList.push({ type: 'portfolio', data: pf, pos, parentKey: null });
+
+    const pfProgs = programs.filter(p => p.portfolio_id === pf.id);
+    pfProgs.forEach((prog, gi) => {
+      const progPos = defaultPos('prog', prog.id, pi + gi * 0.5, 1);
+      cardList.push({ type: 'program', data: prog, pos: progPos, parentKey: `pf:${pf.id}` });
+
+      projects.filter(p => p.settings?.program_id === prog.id).forEach((proj, ji) => {
+        const projPos = defaultPos('proj', proj.id, pi + gi * 0.5 + ji * 0.3, 2);
+        cardList.push({ type: 'project', data: proj, pos: projPos, parentKey: `prog:${prog.id}` });
+      });
+    });
+
+    // Proyectos directos del portafolio (sin programa)
+    projects.filter(p => p.settings?.portfolio_id === pf.id && !p.settings?.program_id).forEach((proj, ji) => {
+      const projPos = defaultPos('proj', proj.id, pi + 0.5 + ji * 0.3, 1);
+      cardList.push({ type: 'project', data: proj, pos: projPos, parentKey: `pf:${pf.id}` });
+    });
+  });
+
+  // Programas sin portafolio
+  const orphanProgs = programs.filter(p => !p.portfolio_id);
+  orphanProgs.forEach((prog, i) => {
+    const progPos = defaultPos('prog', prog.id, portfolios.length + i, 0);
+    cardList.push({ type: 'program', data: prog, pos: progPos, parentKey: null });
+    projects.filter(p => p.settings?.program_id === prog.id).forEach((proj, ji) => {
+      const projPos = defaultPos('proj', proj.id, portfolios.length + i + ji * 0.3, 1);
+      cardList.push({ type: 'project', data: proj, pos: projPos, parentKey: `prog:${prog.id}` });
+    });
+  });
+
+  // Proyectos sin asignar
+  const unassigned = projects.filter(p => !p.settings?.portfolio_id && !p.settings?.program_id);
+  unassigned.forEach((proj, i) => {
+    const projPos = defaultPos('proj', proj.id, i, orphanProgs.length > 0 ? 2 : 1);
+    cardList.push({ type: 'project', data: proj, pos: projPos, parentKey: null });
+  });
+
+  // ---- Crear tarjetas en el canvas ----
+  const icons  = { portfolio: '🗂', program: '📦', project: '📋' };
+  const colors = { portfolio: '#1976D2', program: '#7B1FA2', project: '#2E7D32' };
+  const bgCol  = { portfolio: 'rgba(25,118,210,0.06)', program: 'rgba(123,31,162,0.06)', project: 'rgba(46,125,50,0.06)' };
+
+  cardList.forEach(({ type, data, pos }) => {
+    const isActive = type === 'project' && data.id === currentId;
+    const card = document.createElement('div');
+    card.className = 'oc-card';
+    const ocKey = `${type === 'portfolio' ? 'pf' : type === 'program' ? 'prog' : 'proj'}:${data.id}`;
+    card.dataset.ocKey = ocKey;
+    card.style.cssText = `
+      position:absolute;left:${pos.x}px;top:${pos.y}px;
+      width:${CARD_W}px;min-height:${CARD_H}px;
+      border-radius:12px;border:2px solid ${isActive ? 'var(--clr-primary)' : colors[type]};
+      background:${isActive ? 'rgba(25,118,210,0.12)' : bgCol[type]};
+      box-shadow:0 2px 8px rgba(0,0,0,0.10);padding:10px 10px 8px;
+      display:flex;flex-direction:column;align-items:center;gap:4px;
+      cursor:grab;user-select:none;font-family:inherit;box-sizing:border-box;
+      transition:box-shadow .15s;`;
+
+    card.innerHTML = `
+      <div class="oc-drag-handle" style="position:absolute;top:4px;left:6px;font-size:12px;opacity:0.25;cursor:grab;line-height:1" title="Arrastrar">⠿</div>
+      <button class="oc-btn-edit" title="Editar" style="position:absolute;top:4px;right:26px;background:none;border:none;cursor:pointer;font-size:12px;opacity:0.3;padding:0;line-height:1">✎</button>
+      <button class="oc-btn-add" title="Agregar hijo" style="position:absolute;top:4px;right:6px;background:none;border:none;cursor:pointer;font-size:12px;opacity:0.3;padding:0;line-height:1;font-weight:700">＋</button>
+      <div style="font-size:20px;margin-top:2px">${icons[type]}</div>
+      <div style="font-size:11px;font-weight:700;word-break:break-word;text-align:center;line-height:1.3;color:${colors[type]};margin-top:2px">${_escHtml(data.name)}</div>
+      ${data.code ? `<div style="font-size:9px;opacity:0.55;background:rgba(0,0,0,0.06);border-radius:4px;padding:1px 6px;margin-top:1px">${_escHtml(data.code)}</div>` : ''}
+      ${type === 'project' && data.start_date ? `<div style="font-size:9px;opacity:0.4;margin-top:2px">📅 ${data.start_date}</div>` : ''}
+      ${type === 'project' && data.percent_complete ? `<div style="font-size:9px;color:${colors[type]};margin-top:1px">▓ ${data.percent_complete}%</div>` : ''}`;
+
+    // Hover reveal buttons
+    const editBtn = card.querySelector('.oc-btn-edit');
+    const addBtn  = card.querySelector('.oc-btn-add');
+    card.addEventListener('mouseenter', () => {
+      editBtn.style.opacity = '0.65'; addBtn.style.opacity = '0.65';
+      card.style.boxShadow = '0 4px 16px rgba(0,0,0,0.18)';
+    });
+    card.addEventListener('mouseleave', () => {
+      editBtn.style.opacity = '0.3'; addBtn.style.opacity = '0.3';
+      card.style.boxShadow = '0 2px 8px rgba(0,0,0,0.10)';
+    });
+
+    // Edit button → open form
+    editBtn.addEventListener('click', e => {
+      e.stopPropagation();
+      if (dlg) _ocOpenForm(dlg, type, data);
+    });
+
+    // Add child button
+    addBtn.addEventListener('click', e => {
+      e.stopPropagation();
+      if (!dlg) return;
+      if (type === 'portfolio') _ocOpenForm(dlg, 'program', { settings: {}, portfolio_id: data.id });
+      else if (type === 'program') _ocOpenForm(dlg, 'project', { settings: { program_id: data.id, portfolio_id: data.portfolio_id } });
+    });
+
+    // Open project on click (only for project cards, not on button clicks)
+    if (type === 'project') {
+      card.addEventListener('click', e => {
+        if (e.target !== card && !e.target.closest('.oc-drag-handle')) return;
+        _loadProject(data.id).then(() => _showToast('Cargado: ' + data.name, 'success')).catch(err => _showToast('Error: ' + err.message, 'error'));
+      });
+    }
+
+    // ---- Drag: reposicionar + reasignar padre ----
+    let dragging = false, dx = 0, dy = 0, moved = false;
+
+    const keyOf = c => `${c.type === 'portfolio' ? 'pf' : c.type === 'program' ? 'prog' : 'proj'}:${c.data.id}`;
+
+    // Resalta o quita resaltado de drop targets compatibles
+    const setDropHighlight = (on) => {
+      const accepts = type === 'project' ? ['prog', 'pf'] : type === 'program' ? ['pf'] : [];
+      canvas.querySelectorAll('.oc-card').forEach(c => {
+        const k = c.dataset.ocKey ?? '';
+        const prefix = k.split(':')[0];
+        if (accepts.includes(prefix) && c !== card) {
+          c.style.outline = on ? '3px dashed var(--clr-primary)' : '';
+          c.style.outlineOffset = on ? '3px' : '';
+        }
+      });
+    };
+
+    card.addEventListener('mousedown', e => {
+      if (e.target.closest('button')) return;
+      dragging = true; moved = false;
+      dx = e.clientX - pos.x; dy = e.clientY - pos.y;
+      card.style.cursor = 'grabbing'; card.style.zIndex = '10';
+      e.preventDefault();
+    });
+
+    const onMove = e => {
+      if (!dragging) return;
+      if (!moved && Math.hypot(e.clientX - (pos.x + dx), e.clientY - (pos.y + dy)) > 5) {
+        moved = true;
+        setDropHighlight(true);
+      }
+      pos.x = Math.max(0, e.clientX - dx);
+      pos.y = Math.max(0, e.clientY - dy);
+      card.style.left = pos.x + 'px';
+      card.style.top  = pos.y + 'px';
+      _ocDrawLines(canvas, cardList.map(c => ({ el: canvas.querySelector(`[data-oc-key="${keyOf(c)}"]`), parentKey: c.parentKey })));
+    };
+
+    const onUp = async e => {
+      if (!dragging) return;
+      dragging = false; card.style.cursor = 'grab'; card.style.zIndex = '';
+      setDropHighlight(false);
+
+      if (moved) {
+        // Guardar posición
+        const posMap = _ocGetPos();
+        posMap[ocKey] = { x: pos.x, y: pos.y };
+        _ocSetPos(posMap);
+
+        // Detectar si soltó sobre una tarjeta compatible para reasignar padre
+        const vp = document.getElementById('oc-viewport');
+        const vpRect = vp?.getBoundingClientRect();
+        const scrollLeft = vp?.scrollLeft ?? 0;
+        const scrollTop  = vp?.scrollTop  ?? 0;
+        const canvasX = e.clientX - (vpRect?.left ?? 0) + scrollLeft;
+        const canvasY = e.clientY - (vpRect?.top  ?? 0) + scrollTop;
+
+        let dropped = false;
+        canvas.querySelectorAll('.oc-card').forEach(target => {
+          if (dropped || target === card) return;
+          const tx = parseInt(target.style.left), ty = parseInt(target.style.top);
+          const tw = target.offsetWidth, th = target.offsetHeight;
+          if (canvasX >= tx && canvasX <= tx + tw && canvasY >= ty && canvasY <= ty + th) {
+            const targetKey = target.dataset.ocKey ?? '';
+            const [tPrefix, tId] = targetKey.split(':');
+
+            if (type === 'project' && tPrefix === 'prog') {
+              // Reasignar proyecto → programa
+              const proj = projects.find(p => p.id === data.id);
+              const prog = programs.find(p => p.id === tId);
+              if (proj && prog) {
+                const ns = { ...(proj.settings ?? {}), program_id: prog.id, portfolio_id: prog.portfolio_id ?? null };
+                dbPut('projects', { ...proj, settings: ns, updated_at: new Date().toISOString() })
+                  .then(() => { _showToast(`Proyecto asignado a ${prog.name}`, 'success'); _renderOrgChart(); });
+                dropped = true;
+              }
+            } else if (type === 'project' && tPrefix === 'pf') {
+              // Reasignar proyecto → portafolio (sin programa)
+              const proj = projects.find(p => p.id === data.id);
+              const pf = portfolios.find(p => p.id === tId);
+              if (proj && pf) {
+                const ns = { ...(proj.settings ?? {}), program_id: null, portfolio_id: pf.id };
+                dbPut('projects', { ...proj, settings: ns, updated_at: new Date().toISOString() })
+                  .then(() => { _showToast(`Proyecto asignado a ${pf.name}`, 'success'); _renderOrgChart(); });
+                dropped = true;
+              }
+            } else if (type === 'program' && tPrefix === 'pf') {
+              // Reasignar programa → portafolio
+              const prog = programs.find(p => p.id === data.id);
+              const pf = portfolios.find(p => p.id === tId);
+              if (prog && pf) {
+                saveProgram({ ...prog, portfolio_id: pf.id, updated_at: new Date().toISOString() })
+                  .then(() => { _showToast(`Programa asignado a ${pf.name}`, 'success'); _renderOrgChart(); });
+                dropped = true;
+              }
+            }
+          }
+        });
+      }
+    };
+
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+    dlg?.addEventListener('close', () => {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+    }, { once: true });
+
+    canvas.appendChild(card);
+  });
+
+  // ---- Dibujar líneas ----
+  _ocDrawLines(canvas, cardList.map(c => ({
+    el: canvas.querySelector(`[data-oc-key="${c.type === 'portfolio' ? 'pf' : c.type === 'program' ? 'prog' : 'proj'}:${c.data.id}"]`),
+    parentKey: c.parentKey,
+  })));
+}
+
+// ============================================================
+// Configurador de columnas de exportación / impresión
+// ============================================================
+
+const PRINT_COL_OPTS = [
+  { id: 'wbs',    label: 'EDT (código WBS)',       group: 'tabla' },
+  { id: 'name',   label: 'Nombre de actividad',    group: 'tabla' },
+  { id: 'type',   label: 'Tipo (Tarea/Hito…)',     group: 'tabla' },
+  { id: 'dur',    label: 'Duración (días)',         group: 'ambos' },
+  { id: 'start',  label: 'Inicio',                 group: 'ambos' },
+  { id: 'finish', label: 'Fin',                    group: 'ambos' },
+  { id: 'pct',    label: '% Avance',               group: 'ambos' },
+  { id: 'tf',     label: 'HT — Holgura Total',     group: 'ambos' },
+  { id: 'ff',     label: 'HL — Holgura Libre',     group: 'tabla' },
+  { id: 'pred',   label: 'Predecesoras (PRED)',    group: 'tabla' },
+];
+
+function _showPrintColConfig() {
+  let dlg = /** @type {HTMLDialogElement|null} */ (document.getElementById('dlg-print-cols'));
+  if (!dlg) {
+    dlg = document.createElement('dialog');
+    dlg.id = 'dlg-print-cols';
+    dlg.style.cssText = 'border:none;border-radius:12px;padding:0;width:440px;max-width:95vw;box-shadow:0 8px 40px rgba(0,0,0,0.25);overflow:hidden';
+    dlg.innerHTML = `
+      <div style="background:var(--clr-surface-2);padding:16px 20px;border-bottom:1px solid var(--clr-border)">
+        <div style="font-weight:700;font-size:15px">⚙ Columnas de exportación</div>
+        <div style="font-size:11px;opacity:0.6;margin-top:2px">Selecciona las columnas que aparecen al imprimir o exportar SVG.</div>
+      </div>
+      <div style="padding:16px 20px">
+        <div style="font-size:11px;font-weight:600;color:var(--clr-text-2);margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px">
+          Tabla EDT (Imprimir tabla)
+        </div>
+        <div id="pcc-tabla" style="display:flex;flex-direction:column;gap:6px;margin-bottom:16px"></div>
+        <div style="font-size:11px;font-weight:600;color:var(--clr-text-2);margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px">
+          Gantt SVG + Tabla EDT
+        </div>
+        <div id="pcc-ambos" style="display:flex;flex-direction:column;gap:6px"></div>
+      </div>
+      <div style="display:flex;justify-content:flex-end;gap:8px;padding:12px 20px;border-top:1px solid var(--clr-border);background:var(--clr-surface-2)">
+        <button class="btn btn-ghost btn-sm" id="pcc-cancel">Cancelar</button>
+        <button class="btn btn-primary btn-sm" id="pcc-save">Guardar</button>
+      </div>`;
+    document.body.appendChild(dlg);
+    dlg.querySelector('#pcc-cancel')?.addEventListener('click', () => dlg.close());
+    dlg.querySelector('#pcc-save')?.addEventListener('click', () => {
+      const checked = [...dlg.querySelectorAll('input[type=checkbox]:checked')].map(el => /** @type {HTMLInputElement} */ (el).value);
+      setPrintCols(checked);
+      dlg.close();
+      // Mostrar confirmación
+      const toast = document.createElement('div');
+      toast.className = 'toast toast-success';
+      toast.textContent = '✓ Columnas guardadas';
+      document.body.appendChild(toast);
+      setTimeout(() => toast.remove(), 2500);
+    });
+  }
+
+  // Rellenar checkboxes con el estado actual
+  const selected = new Set(getPrintCols());
+  ['tabla', 'ambos'].forEach(group => {
+    const container = dlg.querySelector(`#pcc-${group}`);
+    if (!container) return;
+    container.innerHTML = '';
+    PRINT_COL_OPTS.filter(c => c.group === group).forEach(col => {
+      const label = document.createElement('label');
+      label.style.cssText = 'display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;padding:4px 6px;border-radius:6px';
+      label.innerHTML = `<input type="checkbox" value="${col.id}" ${selected.has(col.id) ? 'checked' : ''} style="width:15px;height:15px;cursor:pointer">
+        <span>${col.label}</span>
+        <span style="font-size:10px;opacity:0.45;margin-left:auto">${col.group === 'ambos' ? 'Tabla + SVG' : 'Solo tabla'}</span>`;
+      container.appendChild(label);
+    });
+  });
+
+  dlg.showModal();
+}
+
+// ============================================================
+// Red de precedencias CPM (Activity-on-Node)
+// ============================================================
+
+function _showCpmNetwork() {
+  const { cpmResult, tasks: taskMap, deps: depMap } = appState.state;
+  if (!cpmResult) {
+    alert('El CPM aún no ha calculado. Espera un momento y vuelve a intentarlo.');
+    return;
+  }
+
+  let dlg = /** @type {HTMLDialogElement|null} */ (document.getElementById('dlg-cpm-network'));
+  if (dlg) { dlg.showModal(); _renderCpmNetwork(); setTimeout(() => dlg.querySelector('#btn-cpm-zoomfit')?.dispatchEvent(new Event('click')), 80); return; }
+
+  dlg = document.createElement('dialog');
+  dlg.id = 'dlg-cpm-network';
+  dlg.style.cssText = 'border:none;border-radius:12px;padding:0;width:96vw;max-width:1400px;height:90vh;box-shadow:0 8px 40px rgba(0,0,0,0.3);overflow:hidden';
+  dlg.innerHTML = `
+    <div style="display:flex;flex-direction:column;height:100%">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 16px;border-bottom:1px solid var(--clr-border);background:var(--clr-surface-2);flex-shrink:0">
+        <span style="font-weight:700;font-size:15px">Red CPM</span>
+        <div style="display:flex;gap:6px;align-items:center">
+          <button id="btn-cpm-zoomfit" class="btn btn-ghost btn-sm" title="Zoom extendido — ver toda la red" style="font-size:16px;padding:2px 8px;line-height:1">⤢</button>
+          <button id="btn-cpm-zoomin"  class="btn btn-ghost btn-sm" title="Acercar" style="font-size:16px;padding:2px 8px;line-height:1">＋</button>
+          <button id="btn-cpm-zoomout" class="btn btn-ghost btn-sm" title="Alejar"  style="font-size:16px;padding:2px 8px;line-height:1">－</button>
+          <span style="width:1px;height:18px;background:var(--clr-border);margin:0 4px;display:inline-block"></span>
+          <span style="display:inline-block;width:11px;height:11px;background:#e74c3c;border-radius:2px"></span><span style="font-size:11px">Crítica</span>
+          <span style="display:inline-block;width:11px;height:11px;background:#f39c12;border-radius:2px;margin-left:5px"></span><span style="font-size:11px">Casi crítica</span>
+          <span style="display:inline-block;width:11px;height:11px;background:#2980b9;border-radius:2px;margin-left:5px"></span><span style="font-size:11px">Normal</span>
+          <span style="display:inline-block;width:11px;height:11px;background:#27ae60;border-radius:2px;margin-left:5px"></span><span style="font-size:11px">Completa</span>
+          <div style="position:relative;margin-left:10px" id="cpm-export-wrap">
+            <button id="btn-cpm-export" class="btn btn-ghost btn-sm" title="Exportar red CPM" style="display:flex;align-items:center;gap:4px">🖨 Exportar ▾</button>
+            <div id="cpm-export-menu" style="display:none;position:absolute;right:0;top:calc(100% + 4px);background:var(--clr-surface);border:1px solid var(--clr-border);border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,0.15);z-index:9999;min-width:200px;overflow:hidden">
+              <button class="cpm-exp-item" data-fmt="pdf" style="display:block;width:100%;text-align:left;padding:10px 16px;background:none;border:none;cursor:pointer;font-size:13px">📄 PDF (imprimir)</button>
+              <button class="cpm-exp-item" data-fmt="png" style="display:block;width:100%;text-align:left;padding:10px 16px;background:none;border:none;cursor:pointer;font-size:13px">🖼 PNG (imagen)</button>
+              <button class="cpm-exp-item" data-fmt="svg" style="display:block;width:100%;text-align:left;padding:10px 16px;background:none;border:none;cursor:pointer;font-size:13px">📐 SVG (vectorial)</button>
+            </div>
+          </div>
+          <button id="btn-cpm-net-close" class="btn btn-ghost btn-sm" style="margin-left:4px">✕ Cerrar</button>
+        </div>
+      </div>
+      <div id="cpm-net-viewport" style="flex:1;overflow:hidden;position:relative;background:var(--clr-bg);cursor:grab">
+        <canvas id="cpm-net-grid" style="position:absolute;top:0;left:0;pointer-events:none"></canvas>
+        <svg id="cpm-net-svg" style="position:absolute;top:0;left:0;overflow:visible"></svg>
+      </div>
+    </div>`;
+  document.body.appendChild(dlg);
+
+  dlg.querySelector('#btn-cpm-net-close')?.addEventListener('click', () => dlg.close());
+  dlg.addEventListener('click', e => { if (e.target === dlg) dlg.close(); });
+
+  // Zoom + pan state (accessible to zoom-fit button after render)
+  const vp = /** @type {HTMLElement} */ (dlg.querySelector('#cpm-net-viewport'));
+  let panX = 40, panY = 40, zoom = 1;
+  let panning = false, px0 = 0, py0 = 0, tx0 = 0, ty0 = 0;
+
+  function applyTransform() {
+    const svg = dlg.querySelector('#cpm-net-svg');
+    if (svg) /** @type {SVGElement} */ (svg).style.transform = `translate(${panX}px,${panY}px) scale(${zoom})`;
+    _drawCpmGrid(dlg, panX, panY, zoom);
+  }
+
+  // Zoom-to-fit: calcula bounds del SVG y ajusta para que quepa
+  function zoomFit() {
+    const svg = /** @type {SVGSVGElement|null} */ (dlg.querySelector('#cpm-net-svg'));
+    if (!svg) return;
+    const bb = svg.getBBox();
+    if (!bb.width || !bb.height) return;
+    const vpR = vp.getBoundingClientRect();
+    const scaleX = (vpR.width  - 80) / bb.width;
+    const scaleY = (vpR.height - 80) / bb.height;
+    zoom = Math.max(0.05, Math.min(scaleX, scaleY, 1));
+    panX = (vpR.width  - bb.width  * zoom) / 2 - bb.x * zoom;
+    panY = (vpR.height - bb.height * zoom) / 2 - bb.y * zoom;
+    applyTransform();
+  }
+
+  dlg.querySelector('#btn-cpm-zoomfit')?.addEventListener('click', zoomFit);
+  dlg.querySelector('#btn-cpm-zoomin')?.addEventListener('click', () => {
+    zoom = Math.min(3, zoom * 1.25); applyTransform();
+  });
+  dlg.querySelector('#btn-cpm-zoomout')?.addEventListener('click', () => {
+    zoom = Math.max(0.05, zoom / 1.25); applyTransform();
+  });
+
+  vp.addEventListener('mousedown', e => {
+    if (e.button !== 0) return;
+    panning = true; px0 = e.clientX; py0 = e.clientY; tx0 = panX; ty0 = panY;
+    vp.style.cursor = 'grabbing';
+  });
+  document.addEventListener('mousemove', e => {
+    if (!panning) return;
+    panX = tx0 + e.clientX - px0;
+    panY = ty0 + e.clientY - py0;
+    applyTransform();
+  });
+  document.addEventListener('mouseup', () => { panning = false; vp.style.cursor = 'grab'; });
+  vp.addEventListener('wheel', e => {
+    e.preventDefault();
+    const factor = e.deltaY < 0 ? 1.1 : 0.9;
+    const rect = vp.getBoundingClientRect();
+    const mx = e.clientX - rect.left - panX;
+    const my = e.clientY - rect.top - panY;
+    zoom = Math.max(0.05, Math.min(3, zoom * factor));
+    panX = e.clientX - rect.left - mx * zoom;
+    panY = e.clientY - rect.top - my * zoom;
+    applyTransform();
+  }, { passive: false });
+
+  // ---- Export menu ----
+  const exportBtn  = dlg.querySelector('#btn-cpm-export');
+  const exportMenu = dlg.querySelector('#cpm-export-menu');
+
+  exportBtn?.addEventListener('click', e => {
+    e.stopPropagation();
+    exportMenu.style.display = exportMenu.style.display === 'none' ? 'block' : 'none';
+  });
+  document.addEventListener('click', () => { if (exportMenu) exportMenu.style.display = 'none'; });
+
+  // Hover highlight for menu items
+  dlg.querySelectorAll('.cpm-exp-item').forEach(btn => {
+    btn.addEventListener('mouseenter', () => btn.style.background = 'var(--clr-surface-2)');
+    btn.addEventListener('mouseleave', () => btn.style.background = 'none');
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      exportMenu.style.display = 'none';
+      const fmt = btn.dataset.fmt;
+      _exportCpmNetwork(fmt, dlg);
+    });
+  });
+
+  dlg.showModal();
+  _renderCpmNetwork();
+  // Auto fit after render (brief delay for SVG layout)
+  setTimeout(zoomFit, 80);
+}
+
+/** Exporta la Red CPM en el formato indicado (pdf | png | svg). */
+function _exportCpmNetwork(fmt, dlg) {
+  const svgEl = /** @type {SVGSVGElement|null} */ (dlg?.querySelector('#cpm-net-svg'));
+  if (!svgEl) return;
+
+  const bb = svgEl.getBBox();
+  if (!bb.width || !bb.height) { alert('La red está vacía.'); return; }
+  const PAD = 40;
+  const vbX = bb.x - PAD, vbY = bb.y - PAD;
+  const vbW = bb.width  + PAD * 2;
+  const vbH = bb.height + PAD * 2;
+
+  // ---- Clonar SVG y ajustar viewBox ----
+  const clone = /** @type {SVGSVGElement} */ (svgEl.cloneNode(true));
+  clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+  clone.style.transform = '';
+  clone.setAttribute('viewBox', `${vbX} ${vbY} ${vbW} ${vbH}`);
+  clone.setAttribute('width',  String(vbW));
+  clone.setAttribute('height', String(vbH));
+
+  // ---- Estilos embebidos ----
+  const styleEl = document.createElementNS('http://www.w3.org/2000/svg', 'style');
+  styleEl.textContent = `text { font-family: 'Segoe UI', Arial, sans-serif; } rect { stroke-width: 1.5; }`;
+  clone.prepend(styleEl);
+
+  // ---- Guías minimalistas (fondo, detrás del contenido) ----
+  const GRID = 60;
+  const gridG = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+  gridG.setAttribute('opacity', '0.25');
+  // líneas verticales
+  const x0 = Math.floor(vbX / GRID) * GRID;
+  for (let x = x0; x <= vbX + vbW; x += GRID) {
+    const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    line.setAttribute('x1', String(x)); line.setAttribute('y1', String(vbY));
+    line.setAttribute('x2', String(x)); line.setAttribute('y2', String(vbY + vbH));
+    line.setAttribute('stroke', '#b0bec5'); line.setAttribute('stroke-width', '0.4');
+    line.setAttribute('stroke-dasharray', '3 6');
+    gridG.appendChild(line);
+  }
+  // líneas horizontales
+  const y0 = Math.floor(vbY / GRID) * GRID;
+  for (let y = y0; y <= vbY + vbH; y += GRID) {
+    const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    line.setAttribute('x1', String(vbX)); line.setAttribute('y1', String(y));
+    line.setAttribute('x2', String(vbX + vbW)); line.setAttribute('y2', String(y));
+    line.setAttribute('stroke', '#b0bec5'); line.setAttribute('stroke-width', '0.4');
+    line.setAttribute('stroke-dasharray', '3 6');
+    gridG.appendChild(line);
+  }
+  clone.insertBefore(gridG, clone.firstChild.nextSibling); // after <style>
+
+  const serializer = new XMLSerializer();
+  const svgStr = serializer.serializeToString(clone);
+  const projName = (appState.state.project?.code || appState.state.project?.name || 'red-cpm').replace(/[^\w.-]/g, '_');
+
+  // ---- SVG descargable ----
+  if (fmt === 'svg') {
+    _dlUrl(new Blob([svgStr], { type: 'image/svg+xml;charset=utf-8' }), projName + '_red-cpm.svg');
+    return;
+  }
+
+  // ---- PNG: rasterizar a 3× para alta resolución ----
+  if (fmt === 'png') {
+    const scale = 3;
+    const imgW = Math.round(vbW * scale), imgH = Math.round(vbH * scale);
+    const img = new Image();
+    const url = URL.createObjectURL(new Blob([svgStr], { type: 'image/svg+xml;charset=utf-8' }));
+    img.onload = () => {
+      const cv = document.createElement('canvas');
+      cv.width = imgW; cv.height = imgH;
+      const ctx = cv.getContext('2d');
+      ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, imgW, imgH);
+      ctx.drawImage(img, 0, 0, imgW, imgH);
+      URL.revokeObjectURL(url);
+      cv.toBlob(blob => _dlUrl(blob, projName + '_red-cpm.png'), 'image/png');
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); alert('Error al generar PNG.'); };
+    img.src = url;
+    return;
+  }
+
+  // ---- PDF: SVG vectorial inline en ventana de impresión ----
+  if (fmt === 'pdf') {
+    const today = new Date().toLocaleDateString('es-PE');
+    const projDisplayName = _escHtml(appState.state.project?.name ?? projName);
+    // Leyenda con SVG inline para garantizar colores en impresión
+    const legendItems = [
+      { color: '#e74c3c', label: 'Crítica' },
+      { color: '#f39c12', label: 'Casi crítica' },
+      { color: '#2980b9', label: 'Normal' },
+      { color: '#27ae60', label: 'Completa' },
+    ];
+    const legendSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="${legendItems.length * 100}" height="20" style="display:block">
+      ${legendItems.map((it, i) => `
+        <rect x="${i * 100}" y="3" width="13" height="13" rx="2" fill="${it.color}"/>
+        <text x="${i * 100 + 18}" y="14" font-size="11" font-family="Segoe UI,Arial,sans-serif" fill="#444">${it.label}</text>`).join('')}
+    </svg>`;
+
+    // Redimensionar clone para que quepa en A3 landscape (420mm × 297mm ≈ 1587×1123px at 96dpi)
+    const aspect = vbW / vbH;
+    const maxW = 1400, maxH = 900;
+    const fitW = Math.min(maxW, maxH * aspect);
+    const fitH = fitW / aspect;
+    clone.setAttribute('width',  String(Math.round(fitW)));
+    clone.setAttribute('height', String(Math.round(fitH)));
+    const svgForPdf = serializer.serializeToString(clone);
+
+    const html = `<!doctype html>
+<html lang="es"><head>
+  <meta charset="UTF-8">
+  <title>Red CPM — ${projDisplayName}</title>
+  <style>
+    @page { size: A3 landscape; margin: 12mm; }
+    * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+    body { margin:0; font-family:'Segoe UI',Arial,sans-serif; background:#fff; }
+    .hdr { display:flex; justify-content:space-between; align-items:flex-end;
+           border-bottom:2.5px solid #1976D2; padding-bottom:6px; margin-bottom:12px; }
+    .ttl { font-size:18px; font-weight:700; color:#1976D2; }
+    .meta { font-size:10px; color:#78909C; text-align:right; line-height:1.5; }
+    .net-wrap { width:100%; }
+    .net-wrap svg { max-width:100%; height:auto; display:block; }
+    .legend-wrap { margin-top:10px; }
+  </style>
+</head><body>
+  <div class="hdr">
+    <div class="ttl">Red CPM &mdash; ${projDisplayName}</div>
+    <div class="meta">Generado: ${today}<br>© Cronogramas v16</div>
+  </div>
+  <div class="net-wrap">${svgForPdf}</div>
+  <div class="legend-wrap">${legendSvg}</div>
+  <script>window.onload = () => { setTimeout(() => window.print(), 300); }<\/script>
+</body></html>`;
+
+    const win = window.open('', '_blank', 'width=1300,height=900');
+    if (!win) { alert('El navegador bloqueó la ventana emergente. Permítala e intente de nuevo.'); return; }
+    win.document.write(html);
+    win.document.close();
+  }
+}
+
+function _dlUrl(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a = Object.assign(document.createElement('a'), { href: url, download: filename });
+  document.body.appendChild(a); a.click();
+  setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 1000);
+}
+
+/** Dibuja la grilla de guías sobre el canvas de fondo del viewport CPM. */
+function _drawCpmGrid(dlg, panX, panY, zoom) {
+  const canvas = /** @type {HTMLCanvasElement|null} */ (dlg.querySelector('#cpm-net-grid'));
+  const vp     = dlg.querySelector('#cpm-net-viewport');
+  if (!canvas || !vp) return;
+  const vpR = vp.getBoundingClientRect();
+  canvas.width  = vpR.width;
+  canvas.height = vpR.height;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  // Tamaño lógico de celda de grilla (en coordenadas de escena)
+  const CELL = 100;
+  // En pantalla
+  const step = CELL * zoom;
+  if (step < 8) return; // Grilla muy densa → omitir
+
+  ctx.strokeStyle = 'rgba(180,180,210,0.22)';
+  ctx.lineWidth   = 1;
+
+  // Punto de inicio en pantalla (ajustado al pan)
+  const startX = ((panX % step) + step) % step;
+  const startY = ((panY % step) + step) % step;
+
+  ctx.beginPath();
+  for (let x = startX; x <= canvas.width;  x += step) { ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height); }
+  for (let y = startY; y <= canvas.height; y += step) { ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); }
+  ctx.stroke();
+
+  // Ejes de nivel (líneas más gruesas cada 5 celdas)
+  const stepMajor = step * 5;
+  const startXM = ((panX % stepMajor) + stepMajor) % stepMajor;
+  const startYM = ((panY % stepMajor) + stepMajor) % stepMajor;
+  ctx.strokeStyle = 'rgba(150,150,200,0.35)';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  for (let x = startXM; x <= canvas.width;  x += stepMajor) { ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height); }
+  for (let y = startYM; y <= canvas.height; y += stepMajor) { ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); }
+  ctx.stroke();
+}
+
+function _renderCpmNetwork() {
+  const { cpmResult, tasks: taskMap, deps: depMap, project } = appState.state;
+  if (!cpmResult) return;
+  const svg = /** @type {SVGSVGElement|null} */ (document.getElementById('cpm-net-svg'));
+  if (!svg) return;
+  svg.innerHTML = '';
+
+  // Tareas hoja activas con resultado CPM
+  const parentIds = new Set([...taskMap.values()].filter(t => !t.deleted_at).map(t => t.parent_id).filter(Boolean));
+  const leafTasks = [...taskMap.values()].filter(t => !t.deleted_at && !parentIds.has(t.id) && cpmResult.tasks.has(t.id));
+
+  if (!leafTasks.length) {
+    svg.innerHTML = '<text x="40" y="60" fill="var(--clr-text)" font-size="14">No hay tareas hoja con CPM calculado.</text>';
+    return;
+  }
+
+  const leafSet = new Set(leafTasks.map(t => t.id));
+  const activeDeps = [...depMap.values()].filter(d => !d.deleted_at && leafSet.has(d.pred_id) && leafSet.has(d.succ_id));
+
+  // Calcular niveles topológicos (BFS: nivel = max(nivel de predecesores) + 1)
+  const predCount = new Map(leafTasks.map(t => [t.id, 0]));
+  const succOf = new Map(leafTasks.map(t => [t.id, []]));
+  for (const d of activeDeps) {
+    predCount.set(d.succ_id, (predCount.get(d.succ_id) ?? 0) + 1);
+    succOf.get(d.pred_id)?.push(d.succ_id);
+  }
+  const level = new Map();
+  const queue = leafTasks.filter(t => (predCount.get(t.id) ?? 0) === 0).map(t => t.id);
+  queue.forEach(id => level.set(id, 0));
+  const remaining = new Map(predCount);
+  let qi = 0;
+  while (qi < queue.length) {
+    const id = queue[qi++];
+    const lv = level.get(id) ?? 0;
+    for (const succId of (succOf.get(id) ?? [])) {
+      const newLv = Math.max(level.get(succId) ?? 0, lv + 1);
+      level.set(succId, newLv);
+      remaining.set(succId, (remaining.get(succId) ?? 1) - 1);
+      if ((remaining.get(succId) ?? 1) <= 0) queue.push(succId);
+    }
+  }
+  // Tasks sin nivel (en ciclos) → nivel máximo + 1
+  const maxLv = Math.max(0, ...level.values());
+  leafTasks.forEach(t => { if (!level.has(t.id)) level.set(t.id, maxLv + 1); });
+
+  // Agrupar por nivel
+  const byLevel = new Map();
+  leafTasks.forEach(t => {
+    const lv = level.get(t.id) ?? 0;
+    if (!byLevel.has(lv)) byLevel.set(lv, []);
+    byLevel.get(lv).push(t);
+  });
+  // Ordenar cada nivel por sort_order
+  byLevel.forEach(arr => arr.sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0)));
+
+  // Dimensiones de caja
+  const BW = 148, BH = 80, GAP_X = 60, GAP_Y = 20;
+  const STRIDE_X = BW + GAP_X;
+  const STRIDE_Y = BH + GAP_Y;
+
+  // Calcular posición de cada tarea
+  const pos = new Map(); // id → {x, y, cx, cy}
+  byLevel.forEach((tasks, lv) => {
+    tasks.forEach((t, row) => {
+      const x = lv * STRIDE_X;
+      const y = row * STRIDE_Y;
+      pos.set(t.id, { x, y, cx: x + BW / 2, cy: y + BH / 2 });
+    });
+  });
+
+  // Obtener fecha de inicio del proyecto para mostrar días reales
+  const startDate = project?.start_date ? new Date(project.start_date) : null;
+  const fmtDay = (/** @type {number} */ idx) => {
+    if (!startDate) return String(idx);
+    const d = new Date(startDate);
+    d.setDate(d.getDate() + idx);
+    return `${d.getDate()}/${d.getMonth() + 1}`;
+  };
+
+  // Definir marcador de flecha
+  const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+  const mkMarker = (id, color) => {
+    const m = document.createElementNS('http://www.w3.org/2000/svg', 'marker');
+    m.setAttribute('id', id);
+    m.setAttribute('markerWidth', '8'); m.setAttribute('markerHeight', '6');
+    m.setAttribute('refX', '8'); m.setAttribute('refY', '3');
+    m.setAttribute('orient', 'auto');
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    path.setAttribute('d', 'M0,0 L8,3 L0,6 Z');
+    path.setAttribute('fill', color);
+    m.appendChild(path);
+    return m;
+  };
+  defs.appendChild(mkMarker('arr-crit', '#e74c3c'));
+  defs.appendChild(mkMarker('arr-near', '#f39c12'));
+  defs.appendChild(mkMarker('arr-norm', '#7f8c8d'));
+  svg.appendChild(defs);
+
+  // Dibujar flechas primero (debajo de las cajas)
+  for (const d of activeDeps) {
+    const p1 = pos.get(d.pred_id);
+    const p2 = pos.get(d.succ_id);
+    if (!p1 || !p2) continue;
+    const r1 = cpmResult.tasks.get(d.pred_id);
+    const r2 = cpmResult.tasks.get(d.succ_id);
+    const isCrit = r1?.is_critical && r2?.is_critical;
+    const isNear = !isCrit && ((r1?.tf ?? 99) <= 5 || (r2?.tf ?? 99) <= 5);
+    const color = isCrit ? '#e74c3c' : isNear ? '#f39c12' : '#7f8c8d';
+    const marker = isCrit ? 'arr-crit' : isNear ? 'arr-near' : 'arr-norm';
+
+    const x1 = p1.x + BW, y1 = p1.cy;
+    const x2 = p2.x, y2 = p2.cy;
+    const mx = (x1 + x2) / 2;
+    const line = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    line.setAttribute('d', `M${x1},${y1} C${mx},${y1} ${mx},${y2} ${x2},${y2}`);
+    line.setAttribute('fill', 'none');
+    line.setAttribute('stroke', color);
+    line.setAttribute('stroke-width', isCrit ? '2' : '1.5');
+    line.setAttribute('marker-end', `url(#${marker})`);
+    if (d.lag) {
+      const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      text.setAttribute('x', String(mx)); text.setAttribute('y', String((y1 + y2) / 2 - 4));
+      text.setAttribute('text-anchor', 'middle'); text.setAttribute('font-size', '10');
+      text.setAttribute('fill', color);
+      text.textContent = `${d.lag > 0 ? '+' : ''}${d.lag}d`;
+      svg.appendChild(text);
+    }
+    svg.appendChild(line);
+  }
+
+  // Dibujar cajas
+  for (const t of leafTasks) {
+    const p = pos.get(t.id);
+    if (!p) continue;
+    const r = cpmResult.tasks.get(t.id);
+
+    const isCrit = r?.is_critical;
+    const isNear = !isCrit && (r?.tf ?? 99) <= 5;
+    const isComp = r?.is_complete;
+    const fillColor = isComp ? '#27ae60' : isCrit ? '#e74c3c' : isNear ? '#f39c12' : '#2980b9';
+    const lightFill = isComp ? '#eafaf1' : isCrit ? '#fdedec' : isNear ? '#fef9e7' : '#eaf4fb';
+
+    const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+
+    // Rect exterior
+    const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    rect.setAttribute('x', String(p.x)); rect.setAttribute('y', String(p.y));
+    rect.setAttribute('width', String(BW)); rect.setAttribute('height', String(BH));
+    rect.setAttribute('rx', '4'); rect.setAttribute('fill', lightFill);
+    rect.setAttribute('stroke', fillColor); rect.setAttribute('stroke-width', isCrit ? '2' : '1');
+    g.appendChild(rect);
+
+    // Franja superior (ES | DUR | EF)
+    const top = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    top.setAttribute('x', String(p.x)); top.setAttribute('y', String(p.y));
+    top.setAttribute('width', String(BW)); top.setAttribute('height', '20');
+    top.setAttribute('rx', '4'); top.setAttribute('fill', fillColor); top.setAttribute('stroke', 'none');
+    g.appendChild(top);
+    // Franja inferior (LS | TF | LF)
+    const bot = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    bot.setAttribute('x', String(p.x)); bot.setAttribute('y', String(p.y + BH - 20));
+    bot.setAttribute('width', String(BW)); bot.setAttribute('height', '20');
+    bot.setAttribute('rx', '4'); bot.setAttribute('fill', fillColor + '88'); bot.setAttribute('stroke', 'none');
+    g.appendChild(bot);
+
+    const mkTxt = (txt, x, y, anchor = 'middle', size = '10', bold = false, color = '#fff') => {
+      const el = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      el.setAttribute('x', String(x)); el.setAttribute('y', String(y));
+      el.setAttribute('text-anchor', anchor); el.setAttribute('font-size', size);
+      el.setAttribute('dominant-baseline', 'middle');
+      if (bold) el.setAttribute('font-weight', 'bold');
+      el.setAttribute('fill', color);
+      el.textContent = txt;
+      return el;
+    };
+
+    // Líneas divisoras verticales en franjas
+    const div1 = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    div1.setAttribute('x1', String(p.x + BW / 3)); div1.setAttribute('y1', String(p.y));
+    div1.setAttribute('x2', String(p.x + BW / 3)); div1.setAttribute('y2', String(p.y + 20));
+    div1.setAttribute('stroke', 'rgba(255,255,255,0.4)'); div1.setAttribute('stroke-width', '0.5');
+    g.appendChild(div1);
+    const div2 = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    div2.setAttribute('x1', String(p.x + (2 * BW) / 3)); div2.setAttribute('y1', String(p.y));
+    div2.setAttribute('x2', String(p.x + (2 * BW) / 3)); div2.setAttribute('y2', String(p.y + 20));
+    div2.setAttribute('stroke', 'rgba(255,255,255,0.4)'); div2.setAttribute('stroke-width', '0.5');
+    g.appendChild(div2);
+
+    const W3 = BW / 3;
+    const es = r?.es ?? 0, ef = r?.ef ?? 0, ls = r?.ls ?? 0, lf = r?.lf ?? 0;
+    const tf = r?.tf != null ? String(r.tf) : '—';
+    const dur = t.duration_days ?? 0;
+
+    // Franja superior: ES | DUR | EF
+    g.appendChild(mkTxt(fmtDay(es), p.x + W3 * 0.5, p.y + 10, 'middle', '9'));
+    g.appendChild(mkTxt(String(dur) + 'd', p.x + W3 * 1.5, p.y + 10, 'middle', '9', true));
+    g.appendChild(mkTxt(fmtDay(ef), p.x + W3 * 2.5, p.y + 10, 'middle', '9'));
+
+    // Nombre (máx. 2 líneas)
+    const name = t.name ?? '';
+    const line1 = name.length > 22 ? name.substring(0, 22) + '…' : name;
+    g.appendChild(mkTxt(line1, p.cx, p.y + 33, 'middle', '10', false, isCrit || isNear ? fillColor : '#1a2533'));
+
+    // WBS code (derive inline: count position among siblings)
+    const wbsCode = (() => {
+      const parts = [];
+      let cur = t;
+      while (cur) {
+        const siblings = [...taskMap.values()].filter(x => x.parent_id === cur.parent_id && !x.deleted_at).sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+        parts.unshift(String(siblings.indexOf(cur) + 1));
+        cur = cur.parent_id ? taskMap.get(cur.parent_id) : null;
+      }
+      return parts.join('.');
+    })();
+    if (wbsCode) {
+      const wbsEl = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      wbsEl.setAttribute('x', String(p.x + 4)); wbsEl.setAttribute('y', String(p.y + 24));
+      wbsEl.setAttribute('font-size', '8'); wbsEl.setAttribute('fill', '#888');
+      wbsEl.textContent = wbsCode;
+      g.appendChild(wbsEl);
+    }
+
+    // Franja inferior: LS | TF | LF
+    g.appendChild(mkTxt(fmtDay(ls), p.x + W3 * 0.5, p.y + BH - 10, 'middle', '9'));
+    g.appendChild(mkTxt('H' + tf, p.x + W3 * 1.5, p.y + BH - 10, 'middle', '9', true));
+    g.appendChild(mkTxt(fmtDay(lf), p.x + W3 * 2.5, p.y + BH - 10, 'middle', '9'));
+
+    // Divisores franja inferior
+    const div3 = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    div3.setAttribute('x1', String(p.x + BW / 3)); div3.setAttribute('y1', String(p.y + BH - 20));
+    div3.setAttribute('x2', String(p.x + BW / 3)); div3.setAttribute('y2', String(p.y + BH));
+    div3.setAttribute('stroke', 'rgba(255,255,255,0.4)'); div3.setAttribute('stroke-width', '0.5');
+    g.appendChild(div3);
+    const div4 = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    div4.setAttribute('x1', String(p.x + (2 * BW) / 3)); div4.setAttribute('y1', String(p.y + BH - 20));
+    div4.setAttribute('x2', String(p.x + (2 * BW) / 3)); div4.setAttribute('y2', String(p.y + BH));
+    div4.setAttribute('stroke', 'rgba(255,255,255,0.4)'); div4.setAttribute('stroke-width', '0.5');
+    g.appendChild(div4);
+
+    svg.appendChild(g);
+  }
+}
+
+// Abre el diálogo de nuevo elemento pre-configurado con el padre dado
+function _openNewItemWithParent(type, parentType, parentId, parentCode) {
+  const dlg    = /** @type {HTMLDialogElement|null} */ (document.getElementById('dlg-new-item'));
+  if (!dlg) return;
+
+  // Seleccionar tipo
+  const typeInput = document.getElementById('ni-type-' + type);
+  if (typeInput) /** @type {HTMLInputElement} */ (typeInput).click();
+
+  // Abrir diálogo (necesita estar abierto para poder actualizar el select)
+  dlg.showModal();
+
+  // Esperar a que se carguen las opciones del select
+  setTimeout(async () => {
+    if (parentType && parentId) {
+      const sel = /** @type {HTMLSelectElement|null} */ (document.getElementById('ni-parent'));
+      if (sel) {
+        const val = parentType + ':' + parentId;
+        // Si la opción no existe aún, esperar a que _loadParentOptions termine
+        let attempts = 0;
+        while (![...sel.options].some(o => o.value === val) && attempts++ < 20) {
+          await new Promise(r => setTimeout(r, 50));
+        }
+        sel.value = val;
+      }
+
+      // Auto-sugerir código si el padre tiene uno
+      if (parentCode) {
+        const { projects: projs, programs: progs } = await loadHierarchy();
+        let count = 0;
+        if (type === 'project' && parentType === 'program') count = projs.filter(p => p.settings?.program_id === parentId).length;
+        if (type === 'project' && parentType === 'portfolio') count = projs.filter(p => p.settings?.portfolio_id === parentId && !p.settings?.program_id).length;
+        if (type === 'program' && parentType === 'portfolio') count = progs.filter(p => p.portfolio_id === parentId).length;
+        const codeEl = /** @type {HTMLInputElement|null} */ (document.getElementById('ni-code'));
+        if (codeEl && !codeEl.value) codeEl.value = `${parentCode}-${String(count + 1).padStart(2, '0')}`;
+      }
+    }
+    document.getElementById('ni-name')?.focus();
+  }, 80);
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  _bindToolbar();
+  _bindNewProject();
+  _bindLinkMode();
+  _bindResizer();
+  document.getElementById('btn-orgchart-view')?.addEventListener('click', _showOrgChart);
+  document.getElementById('btn-cpm-network')?.addEventListener('click', _showCpmNetwork);
+  init();
+});

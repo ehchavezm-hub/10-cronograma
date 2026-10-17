@@ -1,0 +1,137 @@
+/* ============================================================
+   print.css — Estilos de impresión A4 horizontal (Fase 4)
+   ============================================================ */
+
+@media print {
+  /* ---- Ocultar todo lo que no sea contenido ---- */
+  #topbar, #toolbar, #statusbar, #explorer-panel,
+  #bottom-tabs, .resizer, .context-menu, .toast,
+  .task-detail-panel, .modal-backdrop, #gantt-panel,
+  #dcma-panel, .no-print, .row-more-btn,
+  .expand-btn.empty, .alert-icon { display: none !important; }
+
+  /* ---- Resetear layout para impresión ---- */
+  html, body {
+    height: auto;
+    overflow: visible;
+    background: #fff;
+    color: #000;
+  }
+
+  #app {
+    display: block;
+    height: auto;
+    overflow: visible;
+  }
+
+  #main-area {
+    display: block;
+    overflow: visible;
+    position: static;
+  }
+
+  /* ---- Panel WBS: expandir al 100% ---- */
+  #wbs-panel,
+  #wbs-scroll {
+    overflow: visible !important;
+    height: auto !important;
+    max-height: none !important;
+    width: 100% !important;
+    border: none;
+  }
+
+  /* ---- Tabla de actividades ---- */
+  .wbs-table {
+    font-size: 8pt;
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: auto;
+  }
+
+  .wbs-table thead {
+    position: static;
+    display: table-header-group;
+    background: #F5F5F5;
+  }
+
+  .wbs-table tfoot { display: table-footer-group; }
+
+  .wbs-table th {
+    background: #EEEEEE !important;
+    color: #000 !important;
+    font-size: 8pt;
+    padding: 4px 6px;
+    border: 1px solid #BDBDBD;
+  }
+
+  .wbs-table td {
+    padding: 3px 6px;
+    border: 1px solid #E0E0E0;
+    font-size: 8pt;
+  }
+
+  .wbs-table tr { break-inside: avoid; }
+
+  /* Filas de resumen en negrita */
+  .wbs-table tr.summary-row td { font-weight: 600; background: #FAFAFA; }
+
+  /* Holgura negativa en rojo */
+  .wbs-table td.tf-neg { color: #C62828 !important; font-weight: 600; }
+  .wbs-table td.tf-zero { color: #E65100 !important; }
+
+  /* Ocultar columnas anchas innecesarias en impresión */
+  .wbs-table th[data-col="alerts"], .wbs-table td[data-col="alerts"],
+  .wbs-table .td-actions { display: none; }
+
+  /* ---- Encabezado de página (logo + nombre proyecto) ---- */
+  #app::before {
+    content: attr(data-print-title);
+    display: block;
+    font-size: 12pt;
+    font-weight: 700;
+    color: #1976D2;
+    padding: 0 0 6px;
+    border-bottom: 2px solid #1976D2;
+    margin-bottom: 10px;
+  }
+
+  /* ---- Pie de página con número de página ---- */
+  .print-footer {
+    display: block !important;
+    position: fixed;
+    bottom: 8mm;
+    left: 10mm;
+    right: 10mm;
+    font-size: 7pt;
+    color: #9E9E9E;
+    border-top: 1px solid #E0E0E0;
+    padding-top: 3px;
+    display: flex;
+    justify-content: space-between;
+  }
+
+  /* Número de página automático */
+  .print-page-num::after {
+    content: "Página " counter(page);
+  }
+
+  /* ---- Ajuste de página ---- */
+  @page {
+    size: A4 landscape;
+    margin: 12mm 10mm 18mm;
+  }
+
+  /* Primera página sin margen superior adicional */
+  @page :first {
+    margin-top: 16mm;
+  }
+
+  /* Evitar salto de página dentro de grupos de fases */
+  .wbs-table tr.summary-row { break-before: auto; page-break-after: avoid; }
+}
+
+/* ---- Clase .printing agregada por JS antes de window.print() ---- */
+body.printing #gantt-panel,
+body.printing #dcma-panel,
+body.printing #explorer-panel,
+body.printing #topbar .spacer { display: none; }

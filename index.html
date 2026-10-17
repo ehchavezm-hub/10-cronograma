@@ -1,0 +1,365 @@
+<!doctype html>
+<html lang="es" dir="ltr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Sistema profesional de gestión de cronogramas de construcción">
+  <title>Cronogramas</title>
+
+  <!-- Fuentes: Urbanist (UI) + IBM Plex Sans (datos) con respaldo system-ui -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Urbanist:wght@400;500;600;700&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="css/tokens.css">
+  <link rel="stylesheet" href="css/layout.css">
+  <link rel="stylesheet" href="css/components.css">
+  <link rel="stylesheet" media="print" href="css/print.css">
+</head>
+<body>
+
+<!-- Aviso file:// -->
+<div id="file-protocol-warning" role="alert">
+  <div class="warn-box">
+    <div class="warn-icon">⚠️</div>
+    <h2>No abrir con doble clic</h2>
+    <p>Los módulos ES de esta aplicación <strong>no funcionan con el protocolo <code>file://</code></strong>.</p>
+    <br>
+    <p>Ejecute un servidor local desde la carpeta del proyecto:</p>
+    <br>
+    <p><code>python3 -m http.server 8080</code></p>
+    <br>
+    <p>Luego abra <code>http://localhost:8080</code> en su navegador.</p>
+    <br>
+    <p>O acceda directamente a la versión publicada en GitHub Pages.</p>
+  </div>
+</div>
+
+<!-- Overlay para cajón lateral móvil -->
+<div id="drawer-overlay"></div>
+
+<!-- Región aria-live para anuncios -->
+<div id="aria-live" aria-live="polite" aria-atomic="true"></div>
+
+<!-- ============================================================
+     Aplicación principal
+     ============================================================ -->
+<div id="app">
+
+  <!-- ---- Barra superior ---- -->
+  <header id="topbar" role="banner">
+    <button id="btn-menu" class="btn btn-icon" aria-label="Menú" title="Menú (explorador)">☰</button>
+    <span class="app-logo" aria-label="Cronogramas">📅 Cronogramas</span>
+    <span class="topbar-sep" style="width:1px;height:20px;background:var(--clr-border);margin:0 4px"></span>
+    <span id="project-name-display" class="project-name">—</span>
+    <div class="spacer"></div>
+    <!-- Indicador de modo -->
+    <span id="sync-mode-badge" class="local-mode-badge" style="display:none">Modo local</span>
+    <!-- Duración del proyecto -->
+    <span style="font-size:var(--text-xs);color:var(--clr-text-3);font-family:var(--font-ui)">
+      Duración: <strong id="project-duration">—</strong>
+    </span>
+    <!-- Toggle tema -->
+    <button id="btn-theme" class="btn btn-ghost btn-sm" title="Cambiar tema claro/oscuro" aria-label="Cambiar tema">🌗</button>
+  </header>
+
+  <!-- ---- Barra de herramientas EDT ---- -->
+  <div id="toolbar" role="toolbar" aria-label="Herramientas EDT">
+    <button id="btn-undo" class="btn btn-secondary btn-sm" title="Deshacer (Ctrl+Z)" aria-label="Deshacer" disabled>
+      ↩ Deshacer
+    </button>
+    <button id="btn-redo" class="btn btn-secondary btn-sm" title="Rehacer (Ctrl+Y)" aria-label="Rehacer" disabled>
+      ↪ Rehacer
+    </button>
+    <div class="toolbar-sep"></div>
+    <button id="btn-add-task" class="btn btn-primary btn-sm" title="Agregar tarea" aria-label="Agregar tarea">
+      ＋ Tarea
+    </button>
+    <button id="btn-add-milestone" class="btn btn-secondary btn-sm" title="Agregar hito" aria-label="Agregar hito">
+      ◆ Hito
+    </button>
+    <div class="toolbar-sep"></div>
+    <button id="btn-indent" class="btn btn-ghost btn-sm" title="Indentar (Tab)" aria-label="Indentar">→ Ind.</button>
+    <button id="btn-outdent" class="btn btn-ghost btn-sm" title="Desindentar (Shift+Tab)" aria-label="Desindentar">← Desind.</button>
+    <div class="toolbar-sep"></div>
+    <label style="display:flex;align-items:center;gap:6px;font-size:var(--text-xs);font-family:var(--font-ui);cursor:pointer;color:var(--clr-text-2);">
+      <input id="btn-auto-calc" type="checkbox" checked aria-label="Cálculo automático" style="cursor:pointer">
+      Auto-calc
+    </label>
+    <div class="toolbar-sep"></div>
+    <button id="btn-link" class="btn btn-ghost btn-sm" title="Crear dependencia FS: clic en el fin de una barra, luego en el inicio de otra" aria-label="Modo enlace FS" aria-pressed="false">
+      🔗 Enlace FS
+    </button>
+    <div class="toolbar-sep"></div>
+    <button id="btn-dcma" class="btn btn-ghost btn-sm" title="Panel DCMA 14 Puntos" aria-label="Abrir panel DCMA" aria-pressed="false">
+      ✅ DCMA
+    </button>
+    <button id="btn-resources" class="btn btn-ghost btn-sm" title="Gestión de recursos" aria-label="Gestionar recursos">
+      👥 Recursos
+    </button>
+    <button id="btn-evm" class="btn btn-ghost btn-sm" title="Panel de Valor Ganado (EVM)" aria-label="Abrir panel EVM" aria-pressed="false">
+      📈 EVM
+    </button>
+    <button id="btn-changelog" class="btn btn-ghost btn-sm" title="Historial de cambios" aria-label="Abrir historial de cambios" aria-pressed="false">
+      📋 Historial
+    </button>
+    <div class="toolbar-sep"></div>
+    <!-- Menú etiquetas de barras Gantt -->
+    <div class="dropdown" id="bar-labels-wrap" style="position:relative">
+      <button id="btn-bar-labels" class="btn btn-ghost btn-sm" aria-haspopup="true" aria-expanded="false"
+              title="Propiedades visibles en las barras Gantt">🏷 Etiquetas ▾</button>
+      <div id="bar-labels-menu" class="dropdown-menu" hidden style="min-width:180px;padding:6px 0">
+        <label class="bar-label-opt" style="display:flex;align-items:center;gap:8px;padding:4px 12px;cursor:pointer;font-size:var(--text-xs)">
+          <input type="checkbox" value="name" checked> Nombre
+        </label>
+        <label class="bar-label-opt" style="display:flex;align-items:center;gap:8px;padding:4px 12px;cursor:pointer;font-size:var(--text-xs)">
+          <input type="checkbox" value="pct"> % Avance
+        </label>
+        <label class="bar-label-opt" style="display:flex;align-items:center;gap:8px;padding:4px 12px;cursor:pointer;font-size:var(--text-xs)">
+          <input type="checkbox" value="duration"> Duración
+        </label>
+        <label class="bar-label-opt" style="display:flex;align-items:center;gap:8px;padding:4px 12px;cursor:pointer;font-size:var(--text-xs)">
+          <input type="checkbox" value="start"> Fecha inicio
+        </label>
+        <label class="bar-label-opt" style="display:flex;align-items:center;gap:8px;padding:4px 12px;cursor:pointer;font-size:var(--text-xs)">
+          <input type="checkbox" value="finish"> Fecha fin
+        </label>
+        <label class="bar-label-opt" style="display:flex;align-items:center;gap:8px;padding:4px 12px;cursor:pointer;font-size:var(--text-xs)">
+          <input type="checkbox" value="tf"> Holgura total
+        </label>
+      </div>
+    </div>
+    <div class="toolbar-sep"></div>
+    <!-- Menú Exportar / Importar -->
+    <div class="dropdown" id="export-menu-wrap">
+      <button id="btn-export" class="btn btn-ghost btn-sm" aria-haspopup="true" aria-expanded="false"
+              title="Exportar o importar proyecto">⬇ Exportar ▾</button>
+      <ul id="export-menu" class="dropdown-menu" hidden role="menu">
+        <li role="menuitem"><button data-action="json">📦 JSON (proyecto completo)</button></li>
+        <li role="menuitem"><button data-action="csv">📊 CSV (actividades)</button></li>
+        <li role="menuitem"><button data-action="xml">📁 MS Project XML</button></li>
+        <li role="menuitem"><button data-action="svg">🖼 SVG (diagrama Gantt)</button></li>
+        <li class="dropdown-sep" role="separator"></li>
+        <li role="menuitem"><button data-action="col-config">⚙ Columnas de exportación…</button></li>
+        <li role="menuitem"><button data-action="print-table">🖨 Imprimir tabla EDT</button></li>
+        <li role="menuitem"><button data-action="print-gantt">🖨 Imprimir Gantt</button></li>
+        <li class="dropdown-sep" role="separator"></li>
+        <li role="menuitem">
+          <label for="import-file" class="menu-import-label">📂 Importar JSON…</label>
+          <input type="file" id="import-file" accept=".json" hidden aria-label="Importar archivo JSON">
+        </li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- ---- Área principal ---- -->
+  <main id="main-area" role="main">
+
+    <!-- Panel explorador -->
+    <nav id="explorer-panel" aria-label="Explorador de proyectos">
+      <div class="panel-header" style="display:flex;align-items:center;justify-content:space-between;">
+        <span>Proyectos</span>
+        <button id="btn-new-project" class="btn btn-primary btn-sm" title="Crear nuevo proyecto" style="font-size:11px;padding:2px 8px;">＋ Nuevo</button>
+      </div>
+      <div class="explorer-list" id="explorer-list">
+        <!-- Lista de proyectos generada por JS -->
+      </div>
+      <div class="explorer-section-title" style="margin-top:8px">Vistas</div>
+      <div style="padding:0 4px 8px">
+        <div class="explorer-item" id="btn-orgchart-view" style="cursor:pointer" title="Estructura de Proyectos — portafolio, programa, proyecto">
+          <span class="item-icon">🏗</span>
+          <span class="item-label">Estructura de Proyectos</span>
+        </div>
+        <div class="explorer-item" id="btn-cpm-network" style="cursor:pointer" title="Ver red de precedencias CPM">
+          <span class="item-icon">🔗</span>
+          <span class="item-label">Red CPM</span>
+        </div>
+        <div class="explorer-item" onclick="">
+          <span class="item-icon">📋</span>
+          <span class="item-label">EDT (Tabla)</span>
+        </div>
+        <div class="explorer-item" onclick="">
+          <span class="item-icon">📊</span>
+          <span class="item-label">Gantt ✓</span>
+        </div>
+        <div class="explorer-item" onclick="">
+          <span class="item-icon">✅</span>
+          <span class="item-label">DCMA ✓</span>
+        </div>
+        <div class="explorer-item" onclick="">
+          <span class="item-icon">☁</span>
+          <span class="item-label">Sync Supabase ✓</span>
+        </div>
+        <div class="explorer-item" onclick="">
+          <span class="item-icon">📈</span>
+          <span class="item-label">Valor Ganado ✓</span>
+        </div>
+      </div>
+    </nav>
+
+    <!-- Diálogo: Nuevo Proyecto -->
+    <dialog id="dlg-new-item" aria-labelledby="dlg-ni-title" style="
+      border:none;border-radius:12px;padding:0;
+      box-shadow:0 8px 40px rgba(0,0,0,0.25);
+      min-width:380px;max-width:500px;width:90vw;">
+      <form method="dialog" id="form-new-item" style="padding:24px 28px;">
+        <h2 id="dlg-ni-title" style="margin:0 0 16px;font-size:16px;font-weight:700;color:var(--clr-text-1,#1a1a2e)">
+          Nuevo elemento
+        </h2>
+
+        <!-- Selector de tipo -->
+        <div style="display:flex;gap:8px;margin-bottom:18px">
+          <label style="flex:1;cursor:pointer">
+            <input type="radio" name="ni-type" id="ni-type-portfolio" value="portfolio" style="display:none">
+            <div class="ni-type-btn" data-for="portfolio" style="text-align:center;padding:10px 6px;border:2px solid var(--clr-border,#ddd);border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">
+              🗂 Portafolio
+            </div>
+          </label>
+          <label style="flex:1;cursor:pointer">
+            <input type="radio" name="ni-type" id="ni-type-program" value="program" style="display:none">
+            <div class="ni-type-btn" data-for="program" style="text-align:center;padding:10px 6px;border:2px solid var(--clr-border,#ddd);border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">
+              📦 Programa
+            </div>
+          </label>
+          <label style="flex:1;cursor:pointer">
+            <input type="radio" name="ni-type" id="ni-type-project" value="project" checked style="display:none">
+            <div class="ni-type-btn" data-for="project" style="text-align:center;padding:10px 6px;border:2px solid var(--clr-primary,#1976D2);border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;background:rgba(25,118,210,0.08);color:var(--clr-primary,#1976D2)">
+              📋 Proyecto
+            </div>
+          </label>
+        </div>
+
+        <label style="display:block;margin-bottom:14px">
+          <span style="font-size:12px;font-weight:600;color:var(--clr-text-2,#555);display:block;margin-bottom:4px">Nombre *</span>
+          <input id="ni-name" type="text" required maxlength="120" placeholder="Ej: Edificio Torres del Norte"
+            style="width:100%;box-sizing:border-box;padding:8px 10px;border:1.5px solid var(--clr-border,#ddd);border-radius:6px;font-size:13px;outline:none">
+        </label>
+        <label style="display:block;margin-bottom:14px">
+          <span style="font-size:12px;font-weight:600;color:var(--clr-text-2,#555);display:block;margin-bottom:4px">Código / sigla</span>
+          <input id="ni-code" type="text" maxlength="20" placeholder="Ej: ETN-2026"
+            style="width:100%;box-sizing:border-box;padding:8px 10px;border:1.5px solid var(--clr-border,#ddd);border-radius:6px;font-size:13px;outline:none">
+        </label>
+
+        <!-- Pertenece a (padre) — visible para programa y proyecto -->
+        <div id="ni-parent-row" style="margin-bottom:14px">
+          <span style="font-size:12px;font-weight:600;color:var(--clr-text-2,#555);display:block;margin-bottom:4px">Pertenece a</span>
+          <select id="ni-parent" style="width:100%;box-sizing:border-box;padding:8px 10px;border:1.5px solid var(--clr-border,#ddd);border-radius:6px;font-size:13px;outline:none;background:var(--clr-bg,#fff)">
+            <option value="">— Sin asignar (nivel raíz) —</option>
+          </select>
+        </div>
+
+        <!-- Fecha inicio — solo para proyectos -->
+        <div id="ni-date-row" style="margin-bottom:20px">
+          <span style="font-size:12px;font-weight:600;color:var(--clr-text-2,#555);display:block;margin-bottom:4px">Fecha de inicio *</span>
+          <input id="ni-start" type="date" required
+            style="width:100%;box-sizing:border-box;padding:8px 10px;border:1.5px solid var(--clr-border,#ddd);border-radius:6px;font-size:13px;outline:none">
+        </div>
+
+        <div style="display:flex;gap:10px;justify-content:flex-end">
+          <button type="button" id="btn-ni-cancel" class="btn btn-ghost btn-sm" style="padding:8px 18px">Cancelar</button>
+          <button type="submit" id="btn-ni-submit" class="btn btn-primary btn-sm" style="padding:8px 18px">Crear proyecto</button>
+        </div>
+      </form>
+    </dialog>
+
+    <!-- Panel WBS (tabla EDT) -->
+    <section id="wbs-panel" aria-label="Tabla de actividades EDT">
+      <!-- La tabla WBS se inyecta aquí por wbs-table.js -->
+      <div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--clr-text-3);font-family:var(--font-ui);">
+        <div class="spinner"></div>&nbsp; Cargando…
+      </div>
+    </section>
+
+    <!-- Divisor redimensionable -->
+    <div class="resizer" id="resizer-gantt" role="separator" aria-orientation="vertical" aria-label="Redimensionar panel Gantt"></div>
+
+    <!-- Panel Gantt — Canvas 2D (Fase 2) -->
+    <section id="gantt-panel" aria-label="Diagrama Gantt">
+      <canvas id="gantt-canvas"
+        style="display:block;cursor:grab;touch-action:none"
+        aria-label="Diagrama de Gantt interactivo — arrastrar para desplazar, Ctrl+rueda para zoom"
+        role="img">
+      </canvas>
+    </section>
+
+    <!-- Panel DCMA (overlay sobre el área principal) -->
+    <div id="dcma-panel" role="region" aria-label="Panel de evaluación DCMA 14 puntos"></div>
+
+    <!-- Panel EVM — Valor Ganado (Fase 6) -->
+    <div id="evm-panel" role="region" aria-label="Panel de Valor Ganado EVM"></div>
+
+    <!-- Panel Historial de Cambios (Fase 6) -->
+    <div id="changelog-panel" role="region" aria-label="Historial de cambios de la sesión"></div>
+
+  </main>
+
+  <!-- ---- Barra de estado ---- -->
+  <footer id="statusbar" role="contentinfo">
+    <div class="status-indicator">
+      <span class="status-dot local" aria-hidden="true"></span>
+      <span class="status-text">Modo local</span>
+    </div>
+    <span style="flex:1"></span>
+    <span id="status-warnings" style="font-size:var(--text-xs);color:var(--clr-text-3)"></span>
+    <span>v25 — Flechas suaves + Etiquetas Gantt ✓</span>
+  </footer>
+
+  <!-- Pestañas inferiores (solo móvil) -->
+  <nav id="bottom-tabs" aria-label="Navegación principal">
+    <button class="tab-btn active" aria-label="Proyectos">
+      <span class="tab-icon" aria-hidden="true">📁</span>
+      Proyectos
+    </button>
+    <button class="tab-btn" aria-label="Actividades">
+      <span class="tab-icon" aria-hidden="true">📋</span>
+      EDT
+    </button>
+    <button class="tab-btn" aria-label="Gantt">
+      <span class="tab-icon" aria-hidden="true">📊</span>
+      Gantt
+    </button>
+    <button class="tab-btn" aria-label="KPIs">
+      <span class="tab-icon" aria-hidden="true">📈</span>
+      KPIs
+    </button>
+  </nav>
+
+</div><!-- /#app -->
+
+<!-- Contenedor de toasts -->
+<div id="toast-container" aria-live="assertive" aria-atomic="true" role="status"></div>
+
+<!-- ============================================================
+     Módulo principal (ES Module)
+     ============================================================ -->
+<script type="module" src="js/main.js?v=25b"></script>
+
+<!-- Atajos de teclado globales -->
+<script type="module">
+import { appState } from './js/state.js';
+document.addEventListener('keydown', e => {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+    e.preventDefault();
+    appState.undo();
+  }
+  if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) {
+    e.preventDefault();
+    appState.redo();
+  }
+});
+// Actualizar nombre en explorador
+appState.subscribe((state) => {
+  const el = document.getElementById('explorer-project-name');
+  if (el && state.project) el.textContent = state.project.name;
+  // Mostrar número de warnings en statusbar
+  const warnEl = document.getElementById('status-warnings');
+  if (warnEl && state.cpmResult?.warnings?.length) {
+    warnEl.textContent = `${state.cpmResult.warnings.length} alertas`;
+  } else if (warnEl) {
+    warnEl.textContent = '';
+  }
+});
+</script>
+
+</body>
+</html>

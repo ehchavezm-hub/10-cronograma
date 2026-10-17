@@ -1,0 +1,175 @@
+/* ============================================================
+   tokens.css — Variables de diseño globales
+   Fuentes: Urbanist (cabeceras/UI) + IBM Plex Sans (tabla/datos)
+   ============================================================ */
+
+:root {
+  /* ---------- Colores base ---------- */
+  --clr-bg:          #f7f8fa;
+  --clr-surface:     #ffffff;
+  --clr-surface-2:   #f0f2f5;
+  --clr-surface-3:   #e4e7ec;
+  --clr-border:      #d1d5db;
+  --clr-border-2:    #e5e7eb;
+
+  /* ---------- Texto ---------- */
+  --clr-text:        #111827;
+  --clr-text-2:      #374151;
+  --clr-text-3:      #6b7280;
+  --clr-text-inv:    #ffffff;
+
+  /* ---------- Marca / acción ---------- */
+  --clr-primary:     #4f46e5;
+  --clr-primary-h:   #4338ca;
+  --clr-primary-l:   #ede9fe;
+
+  /* ---------- Estado de tareas (Monday-inspired) ---------- */
+  --clr-normal:      #1976D2;   /* azul — tarea normal con holgura  */
+  --clr-normal-bg:   #e3f0fd;
+  --clr-critical:    #D32F2F;   /* rojo coral — crítica TF≤0        */
+  --clr-critical-bg: #fdecea;
+  --clr-near:        #FB8C00;   /* naranja — casi crítica            */
+  --clr-near-bg:     #fff3e0;
+  --clr-done:        #388E3C;   /* verde esmeralda — 100%            */
+  --clr-done-bg:     #e8f5e9;
+  --clr-milestone:   #F9A825;   /* ámbar — hito no crítico           */
+  --clr-milestone-bg:#fff9e6;
+  --clr-pending:     #9e9e9e;   /* gris — pendiente                  */
+  --clr-pending-bg:  #f5f5f5;
+  --clr-delayed:     #F57C00;   /* ámbar oscuro — retrasado          */
+  --clr-delayed-bg:  #fff3e0;
+  --clr-summary-bar: #455a64;   /* corchete resumen                  */
+  --clr-baseline:    rgba(144,164,174,0.5);
+
+  /* ---------- Semáforo DCMA ---------- */
+  --clr-ok:          #2e7d32;
+  --clr-warn:        #ef6c00;
+  --clr-error:       #c62828;
+  --clr-ok-bg:       #e8f5e9;
+  --clr-warn-bg:     #fff8e1;
+  --clr-error-bg:    #ffebee;
+
+  /* ---------- Holgura negativa ---------- */
+  --clr-neg-float:   #c62828;
+
+  /* ---------- Sombras ---------- */
+  --shadow-xs:  0 1px 2px rgba(0,0,0,.05);
+  --shadow-sm:  0 1px 3px rgba(0,0,0,.08), 0 1px 2px rgba(0,0,0,.06);
+  --shadow-md:  0 4px 6px rgba(0,0,0,.07), 0 2px 4px rgba(0,0,0,.06);
+  --shadow-lg:  0 10px 15px rgba(0,0,0,.08), 0 4px 6px rgba(0,0,0,.05);
+  --shadow-xl:  0 20px 25px rgba(0,0,0,.08), 0 10px 10px rgba(0,0,0,.04);
+
+  /* ---------- Bordes ---------- */
+  --radius-sm:  4px;
+  --radius-md:  8px;
+  --radius-lg:  12px;
+  --radius-xl:  16px;
+  --radius-full: 9999px;
+
+  /* ---------- Espaciado ---------- */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 20px;
+  --sp-6: 24px;
+  --sp-8: 32px;
+  --sp-10: 40px;
+  --sp-12: 48px;
+
+  /* ---------- Tipografía ---------- */
+  --font-ui:   'Urbanist', system-ui, sans-serif;
+  --font-data: 'IBM Plex Sans', system-ui, sans-serif;
+
+  --text-xs:   11px;
+  --text-sm:   12px;
+  --text-base: 14px;
+  --text-md:   15px;
+  --text-lg:   16px;
+  --text-xl:   18px;
+  --text-2xl:  22px;
+  --text-3xl:  28px;
+
+  --fw-normal: 400;
+  --fw-medium: 500;
+  --fw-semi:   600;
+  --fw-bold:   700;
+
+  /* ---------- Gantt/tabla ---------- */
+  --row-h:      32px;   /* desktop */
+  --row-h-touch:44px;   /* táctil  */
+  --gantt-header-h: 48px;
+
+  /* ---------- Transición ---------- */
+  --dur-fast:  80ms;
+  --dur-base:  150ms;
+  --dur-slow:  200ms;
+  --ease:      cubic-bezier(.4,0,.2,1);
+
+  /* ---------- Z-index ---------- */
+  --z-tooltip:  100;
+  --z-dropdown: 200;
+  --z-modal:    300;
+  --z-toast:    400;
+}
+
+/* ---------- Modo oscuro ---------- */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --clr-bg:        #0f1117;
+    --clr-surface:   #1a1d27;
+    --clr-surface-2: #22263a;
+    --clr-surface-3: #2d3148;
+    --clr-border:    #3a3f5c;
+    --clr-border-2:  #2d3148;
+
+    --clr-text:      #f0f2f7;
+    --clr-text-2:    #c8cde0;
+    --clr-text-3:    #7f87a8;
+
+    --clr-primary:   #818cf8;
+    --clr-primary-h: #a5b4fc;
+    --clr-primary-l: #1e1b4b;
+
+    --clr-normal-bg:   #1e2f3d;
+    --clr-critical-bg: #3d1a1a;
+    --clr-near-bg:     #3d2a0a;
+    --clr-done-bg:     #1a3020;
+    --clr-milestone-bg:#3d3010;
+    --clr-pending-bg:  #222222;
+    --clr-ok-bg:       #1a3020;
+    --clr-warn-bg:     #3d3010;
+    --clr-error-bg:    #3d1a1a;
+  }
+}
+:root[data-theme="dark"] {
+  --clr-bg:        #0f1117;
+  --clr-surface:   #1a1d27;
+  --clr-surface-2: #22263a;
+  --clr-surface-3: #2d3148;
+  --clr-border:    #3a3f5c;
+  --clr-border-2:  #2d3148;
+  --clr-text:      #f0f2f7;
+  --clr-text-2:    #c8cde0;
+  --clr-text-3:    #7f87a8;
+  --clr-primary:   #818cf8;
+  --clr-primary-h: #a5b4fc;
+  --clr-primary-l: #1e1b4b;
+  --clr-normal-bg:   #1e2f3d;
+  --clr-critical-bg: #3d1a1a;
+  --clr-near-bg:     #3d2a0a;
+  --clr-done-bg:     #1a3020;
+  --clr-milestone-bg:#3d3010;
+  --clr-pending-bg:  #222222;
+  --clr-ok-bg:       #1a3020;
+  --clr-warn-bg:     #3d3010;
+  --clr-error-bg:    #3d1a1a;
+}
+
+/* ---------- Reducir movimiento ---------- */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .01ms !important;
+    transition-duration: .01ms !important;
+  }
+}

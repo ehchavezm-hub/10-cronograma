@@ -1,0 +1,407 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Pruebas CPM — Gantt v7</title>
+  <style>
+    body { font-family: 'Segoe UI', system-ui, sans-serif; max-width: 960px; margin: 0 auto; padding: 20px; background: #f5f6fa; color: #222; }
+    h1  { color: #4f46e5; margin-bottom: 8px; }
+    h2  { margin: 24px 0 8px; color: #374151; font-size: 16px; }
+    h3  { margin: 16px 0 6px; color: #6b7280; font-size: 14px; font-weight: 600; }
+    .suite  { background: #fff; border-radius: 10px; padding: 16px; margin-bottom: 16px; box-shadow: 0 1px 4px rgba(0,0,0,.08); }
+    .result { display: flex; align-items: flex-start; gap: 10px; padding: 6px 0; border-bottom: 1px solid #f0f0f0; font-size: 13px; font-family: monospace; }
+    .result:last-child { border-bottom: none; }
+    .pass   { color: #166534; }
+    .fail   { color: #991b1b; }
+    .icon   { flex-shrink: 0; font-size: 14px; }
+    .msg    { flex: 1; word-break: break-word; }
+    .detail { color: #9ca3af; font-size: 11px; margin-top: 2px; }
+    #summary { margin: 20px 0; padding: 12px 20px; border-radius: 8px; font-size: 15px; font-weight: 600; }
+    .sum-pass { background: #dcfce7; color: #166534; }
+    .sum-fail { background: #fee2e2; color: #991b1b; }
+    pre { background: #f0f0f0; border-radius: 6px; padding: 8px; font-size: 11px; overflow-x: auto; }
+  </style>
+</head>
+<body>
+<h1>🧪 Pruebas CPM — Gantt v7</h1>
+<p style="color:#6b7280;font-size:13px">Pruebas P1.1 – P1.8 calculadas a mano y contrastadas con un CPM de referencia.</p>
+<div id="summary"></div>
+<div id="results"></div>
+
+<script type="module">
+// ============================================================
+// Mini framework de tests
+// ============================================================
+let _pass = 0, _fail = 0;
+const results = [];
+
+function test(suiteName, name, fn) {
+  try {
+    fn();
+    results.push({ suite: suiteName, name, ok: true });
+    _pass++;
+  } catch (e) {
+    results.push({ suite: suiteName, name, ok: false, err: e.message });
+    _fail++;
+  }
+}
+
+function assert(condition, msg) {
+  if (!condition) throw new Error(msg ?? 'Assertion failed');
+}
+
+function eq(actual, expected, label = '') {
+  const pass = actual === expected || (actual == null && expected == null);
+  if (!pass) throw new Error(`${label}: expected ${JSON.stringify(expected)}, got ${JSON.stringify(actual)}`);
+}
+
+function near(actual, expected, tol = 0.01, label = '') {
+  if (Math.abs(actual - expected) > tol)
+    throw new Error(`${label}: expected ≈${expected}, got ${actual}`);
+}
+
+// ============================================================
+// Importar módulos
+// ============================================================
+import { computeCPM, topologicalSort, detectCycle } from '../js/cpm.js';
+import { Calendar, isoToDate, fmtDate } from '../js/calendar.js';
+
+const ASAP = 'ASAP';
+const mkT = (id, dur, {parent=null,pct=0,type='task',constraint='ASAP',cDate=null,actual_start=null,actual_finish=null}={}) => ({
+  id, parent_id: parent, type, duration_days: type==='milestone'?0:dur,
+  percent_complete: pct, actual_start, actual_finish,
+  constraint_type: constraint, constraint_date: cDate, deleted_at: null,
+  sort_order: 0, work_hours: 0, planned_cost: 0, actual_cost: 0, notes: null,
+  org_id:'org', project_id:'proj'
+});
+const mkD = (id, pred, succ, type='FS', lag=0) => ({
+  id, pred_id:pred, succ_id:succ, type, lag_days:lag,
+  deleted_at:null, org_id:'org', project_id:'proj'
+});
+
+const startDate = isoToDate('2026-01-05'); // lunes
+const defaultCal = new Calendar({ work_week:[1,2,3,4,5] });
+
+// ============================================================
+// P1.1 — Red A (6 tareas, todas FS)
+// ============================================================
+
+const P11_TASKS = [
+  mkT('A',3), mkT('B',4), mkT('C',2), mkT('D',5), mkT('E',3), mkT('F',2)
+];
+const P11_DEPS = [
+  mkD('d1','A','B'), mkD('d2','A','C'),
+  mkD('d3','B','D'), mkD('d4','C','E'), mkD('d5','D','F'), mkD('d6','E','F'),
+];
+
+{
+  const r = computeCPM(P11_TASKS, P11_DEPS, defaultCal, startDate, null);
+  const g = id => r.tasks.get(id);
+
+  test('P1.1','A: ES=0 EF=3 LS=0 LF=3 TF=0 FF=0', () => {
+    eq(g('A').es,0,'A.es'); eq(g('A').ef,3,'A.ef');
+    eq(g('A').ls,0,'A.ls'); eq(g('A').lf,3,'A.lf');
+    eq(g('A').tf,0,'A.tf'); eq(g('A').ff,0,'A.ff');
+  });
+  test('P1.1','B: ES=3 EF=7 LS=3 LF=7 TF=0 FF=0', () => {
+    eq(g('B').es,3,'B.es'); eq(g('B').ef,7,'B.ef');
+    eq(g('B').ls,3,'B.ls'); eq(g('B').lf,7,'B.lf');
+    eq(g('B').tf,0,'B.tf'); eq(g('B').ff,0,'B.ff');
+  });
+  test('P1.1','C: ES=3 EF=5 LS=7 LF=9 TF=4 FF=0', () => {
+    eq(g('C').es,3,'C.es'); eq(g('C').ef,5,'C.ef');
+    eq(g('C').ls,7,'C.ls'); eq(g('C').lf,9,'C.lf');
+    eq(g('C').tf,4,'C.tf'); eq(g('C').ff,0,'C.ff');
+  });
+  test('P1.1','D: ES=7 EF=12 LS=7 LF=12 TF=0 FF=0', () => {
+    eq(g('D').es,7,'D.es'); eq(g('D').ef,12,'D.ef');
+    eq(g('D').tf,0,'D.tf'); eq(g('D').ff,0,'D.ff');
+  });
+  test('P1.1','E: ES=5 EF=8 LS=9 LF=12 TF=4 FF=4', () => {
+    eq(g('E').es,5,'E.es'); eq(g('E').ef,8,'E.ef');
+    eq(g('E').ls,9,'E.ls'); eq(g('E').lf,12,'E.lf');
+    eq(g('E').tf,4,'E.tf'); eq(g('E').ff,4,'E.ff');
+  });
+  test('P1.1','F: ES=12 EF=14 LS=12 LF=14 TF=0', () => {
+    eq(g('F').es,12,'F.es'); eq(g('F').ef,14,'F.ef');
+    eq(g('F').tf,0,'F.tf');
+  });
+  test('P1.1','Duración del proyecto = 14', () => eq(r.projectDuration,14,'dur'));
+  test('P1.1','Ruta crítica: A,B,D,F son críticas', () => {
+    assert(g('A').is_critical,'A crit');
+    assert(g('B').is_critical,'B crit');
+    assert(!g('C').is_critical,'C no crit');
+    assert(g('D').is_critical,'D crit');
+    assert(!g('E').is_critical,'E no crit');
+    assert(g('F').is_critical,'F crit');
+  });
+}
+
+// ============================================================
+// P1.2 — SS+2
+// ============================================================
+{
+  const ts = [mkT('G',4), mkT('H',6)];
+  const ds = [mkD('d','G','H','SS',2)];
+  const r  = computeCPM(ts, ds, defaultCal, startDate, null);
+  const g  = id => r.tasks.get(id);
+
+  test('P1.2 SS+2','G: ES=0 EF=4 TF=0',   () => { eq(g('G').es,0); eq(g('G').ef,4); eq(g('G').tf,0); });
+  test('P1.2 SS+2','H: ES=2 EF=8 TF=0',   () => { eq(g('H').es,2); eq(g('H').ef,8); eq(g('H').tf,0); });
+  test('P1.2 SS+2','duración = 8',         () => eq(r.projectDuration,8));
+}
+
+// ============================================================
+// P1.2 — FF
+// ============================================================
+{
+  const ts = [mkT('G',4), mkT('I',6)];
+  const ds = [mkD('d','G','I','FF',0)];
+  const r  = computeCPM(ts, ds, defaultCal, startDate, null);
+  const g  = id => r.tasks.get(id);
+
+  test('P1.2 FF','I: ES=0 EF=6 TF=0',     () => { eq(g('I').es,0); eq(g('I').ef,6); eq(g('I').tf,0); });
+  test('P1.2 FF','G: TF=2 FF=2',           () => { eq(g('G').tf,2,'G.tf'); eq(g('G').ff,2,'G.ff'); });
+  test('P1.2 FF','duración = 6',           () => eq(r.projectDuration,6));
+  test('P1.2 FF','advertencia INICIO_RECORTADO en I', () => {
+    assert(r.warnings.some(w => w.code==='INICIO_RECORTADO' && w.task_id==='I'));
+  });
+}
+
+// ============================================================
+// P1.2 — SF
+// ============================================================
+{
+  const ts = [mkT('G',4), mkT('K',3)];
+  const ds = [mkD('d','G','K','SF',0)];
+  const r  = computeCPM(ts, ds, defaultCal, startDate, null);
+  const g  = id => r.tasks.get(id);
+
+  test('P1.2 SF','K: ES=0 EF=3 TF=1 FF=1', () => {
+    eq(g('K').es,0,'K.es'); eq(g('K').ef,3,'K.ef');
+    eq(g('K').tf,1,'K.tf'); eq(g('K').ff,1,'K.ff');
+  });
+  test('P1.2 SF','G: TF=0',                () => eq(g('G').tf,0,'G.tf'));
+  test('P1.2 SF','duración = 4',           () => eq(r.projectDuration,4));
+  test('P1.2 SF','advertencia INICIO_RECORTADO en K', () => {
+    assert(r.warnings.some(w => w.code==='INICIO_RECORTADO' && w.task_id==='K'));
+  });
+}
+
+// ============================================================
+// P1.2 — Lead −1
+// ============================================================
+{
+  const ts = [mkT('X',2), mkT('Y',3)];
+  const ds = [mkD('d','X','Y','FS',-1)];
+  const r  = computeCPM(ts, ds, defaultCal, startDate, null);
+  const g  = id => r.tasks.get(id);
+
+  test('P1.2 Lead-1','X: ES=0 EF=2 TF=0', () => { eq(g('X').es,0); eq(g('X').ef,2); eq(g('X').tf,0); });
+  test('P1.2 Lead-1','Y: ES=1 EF=4 TF=0', () => { eq(g('Y').es,1); eq(g('Y').ef,4); eq(g('Y').tf,0); });
+  test('P1.2 Lead-1','duración = 4',       () => eq(r.projectDuration,4));
+}
+
+// ============================================================
+// P1.2 — Lead −5
+// ============================================================
+{
+  const ts = [mkT('X',2), mkT('Y',3)];
+  const ds = [mkD('d','X','Y','FS',-5)];
+  const r  = computeCPM(ts, ds, defaultCal, startDate, null);
+  const g  = id => r.tasks.get(id);
+
+  test('P1.2 Lead-5','Y: ES=0 EF=3 TF=0', () => { eq(g('Y').es,0); eq(g('Y').ef,3); eq(g('Y').tf,0); });
+  test('P1.2 Lead-5','X: TF=1 FF=1',      () => { eq(g('X').tf,1,'X.tf'); eq(g('X').ff,1,'X.ff'); });
+  test('P1.2 Lead-5','duración = 3',       () => eq(r.projectDuration,3));
+  test('P1.2 Lead-5','advertencia INICIO_RECORTADO en Y', () => {
+    assert(r.warnings.some(w => w.code==='INICIO_RECORTADO' && w.task_id==='Y'));
+  });
+}
+
+// ============================================================
+// P1.2 — Lag +2
+// ============================================================
+{
+  const ts = [mkT('A',3), mkT('B',4)];
+  const ds = [mkD('d','A','B','FS',2)];
+  const r  = computeCPM(ts, ds, defaultCal, startDate, null);
+  const g  = id => r.tasks.get(id);
+
+  test('P1.2 Lag+2','A: ES=0 EF=3 TF=0',  () => { eq(g('A').es,0); eq(g('A').ef,3); eq(g('A').tf,0); });
+  test('P1.2 Lag+2','B: ES=5 EF=9 TF=0',  () => { eq(g('B').es,5); eq(g('B').ef,9); eq(g('B').tf,0); });
+  test('P1.2 Lag+2','duración = 9',        () => eq(r.projectDuration,9));
+}
+
+// ============================================================
+// P1.3 — Restricción FNLT holgura negativa
+// ============================================================
+{
+  const startIdx5 = new Date('2026-01-05T00:00:00');
+  // constraint_date en índice 5 = 5 días laborables = 12/01/2026
+  const ts = [
+    mkT('A',3),
+    mkT('B',4,{constraint:'FNLT', cDate:'2026-01-12'})  // fin ≤ idx 5
+  ];
+  const ds = [mkD('d','A','B','FS',0)];
+  const r  = computeCPM(ts, ds, defaultCal, startDate, null);
+  const g  = id => r.tasks.get(id);
+
+  // El constraint_date 2026-01-12 = día laborable idx 5
+  test('P1.3 FNLT','B: TF=-2', () => eq(g('B').tf,-2,'B.tf'));
+  test('P1.3 FNLT','A: TF=-2', () => eq(g('A').tf,-2,'A.tf'));
+  test('P1.3 FNLT','A y B críticas (TF≤0)', () => {
+    assert(g('A').is_critical,'A crit'); assert(g('B').is_critical,'B crit');
+  });
+}
+
+// ============================================================
+// P1.4 — Hitos
+// ============================================================
+{
+  const ts = [mkT('A',3), mkT('M',0,{type:'milestone'})];
+  const ds = [mkD('d','A','M','FS',0)];
+  const r  = computeCPM(ts, ds, defaultCal, startDate, null);
+  const g  = id => r.tasks.get(id);
+
+  test('P1.4 Hito','M: ES=3 EF=3 TF=0', () => {
+    eq(g('M').es,3,'M.es'); eq(g('M').ef,3,'M.ef'); eq(g('M').tf,0,'M.tf');
+  });
+}
+
+// ============================================================
+// P1.5 — Tareas resumen
+// ============================================================
+{
+  const ts = [
+    mkT('S', 0),            // resumen (tendrá hijos)
+    mkT('C1',3,{parent:'S', pct:100}),
+    mkT('C2',2,{parent:'S', pct:0}),
+  ];
+  const ds = [mkD('d','C1','C2','FS',0)];
+  const r  = computeCPM(ts, ds, defaultCal, startDate, null);
+  const g  = id => r.tasks.get(id);
+
+  test('P1.5 Resumen','C1: ES=0 EF=3', () => { eq(g('C1').es,0,'C1.es'); eq(g('C1').ef,3,'C1.ef'); });
+  test('P1.5 Resumen','C2: ES=3 EF=5', () => { eq(g('C2').es,3,'C2.es'); eq(g('C2').ef,5,'C2.ef'); });
+  test('P1.5 Resumen','S es_summary=true', () => assert(g('S').is_summary,'S.is_summary'));
+  test('P1.5 Resumen','S: ES=0 EF=5',  () => { eq(g('S').es,0,'S.es'); eq(g('S').ef,5,'S.ef'); });
+}
+
+// ============================================================
+// P1.6 — Ciclos
+// ============================================================
+{
+  const deps = [mkD('d1','P','Q','FS',0)];
+  const names = new Map([['P','P'],['Q','Q']]);
+  const res1 = detectCycle('Q','P', deps, names);
+  test('P1.6 Ciclo','Detecta ciclo Q→P cuando existe P→Q', () => assert(res1.hasCycle,'hasCycle'));
+  test('P1.6 Ciclo','La cadena cita P y Q',  () => assert(res1.chain.includes('P') && res1.chain.includes('Q'),'chain'));
+
+  const res2 = detectCycle('P','R', deps, names);
+  test('P1.6 No ciclo','No detecta ciclo en P→R', () => assert(!res2.hasCycle,'noHasCycle'));
+}
+
+// ============================================================
+// P1.7 — Calendario con excepciones
+// ============================================================
+{
+  const calEx = new Calendar({
+    work_week: [1,2,3,4,5],
+    exceptions: [{ on_date: '2026-01-13', is_working: false }]
+  });
+  const start = isoToDate('2026-01-05');
+  const ts = [mkT('A',5), mkT('B',2)];
+  const ds = [mkD('d','A','B','FS',0)];
+  const r  = computeCPM(ts, ds, calEx, start, null);
+  const g  = id => r.tasks.get(id);
+
+  test('P1.7 Calendario','A: ES=0 EF=5', () => { eq(g('A').es,0,'A.es'); eq(g('A').ef,5,'A.ef'); });
+  test('P1.7 Calendario','B: ES=5 EF=7', () => { eq(g('B').es,5,'B.es'); eq(g('B').ef,7,'B.ef'); });
+
+  // Verificar fechas con calendario
+  test('P1.7 Fechas','A inicia 05/01/2026', () => {
+    const d = calEx.idxToDate(0, start);
+    eq(fmtDate(d),'05/01/2026','A start');
+  });
+  test('P1.7 Fechas','A termina 09/01/2026', () => {
+    const d = calEx.finishDate(5, start);
+    eq(fmtDate(d),'09/01/2026','A finish');
+  });
+  test('P1.7 Fechas','B inicia 12/01/2026', () => {
+    const d = calEx.idxToDate(5, start);
+    eq(fmtDate(d),'12/01/2026','B start');
+  });
+  test('P1.7 Fechas','B termina 14/01/2026 (salta excepción 13/01)', () => {
+    const d = calEx.finishDate(7, start);
+    eq(fmtDate(d),'14/01/2026','B finish');
+  });
+}
+
+// ============================================================
+// P1.8 — Avance con fecha de corte y lógica retenida
+// ============================================================
+{
+  const calDefault = defaultCal;
+  const start8 = isoToDate('2026-01-05');
+
+  // data_date = índice 5
+  // A(3) 100% real 0→3; B(4)←A real inicio idx 3, 50%; C(2)←B 0%; D(2)←C real inicio idx 4, 50%
+  // Índice 5 = 12/01/2026 (después del fin de A en 09/01)
+  // actual_start en fecha = idxToDate(3) = 08/01/2026
+  const ts8 = [
+    mkT('A',3,{pct:100, actual_start:'2026-01-05', actual_finish:'2026-01-07'}),
+    mkT('B',4,{pct:50,  actual_start:'2026-01-08'}),
+    mkT('C',2,{pct:0}),
+    mkT('D',2,{pct:50,  actual_start:'2026-01-09'}),
+  ];
+  const ds8 = [mkD('d1','A','B','FS',0), mkD('d2','B','C','FS',0), mkD('d3','C','D','FS',0)];
+  const r8 = computeCPM(ts8, ds8, calDefault, start8, 5);
+  const g8 = id => r8.tasks.get(id);
+
+  test('P1.8 Avance','A completada: TF=null', () => assert(g8('A').tf === null,'A.tf'));
+  test('P1.8 Avance','A completada: is_critical=false', () => assert(!g8('A').is_critical,'A.not_crit'));
+  test('P1.8 Avance','B termina en idx 7', () => eq(g8('B').ef, 7, 'B.ef'));
+  test('P1.8 Avance','C: ES=7 EF=9',  () => { eq(g8('C').es,7,'C.es'); eq(g8('C').ef,9,'C.ef'); });
+  test('P1.8 Avance','D FUERA_DE_SECUENCIA',  () => {
+    assert(r8.warnings.some(w => w.code==='FUERA_DE_SECUENCIA' && w.task_id==='D'),'D.oos');
+  });
+  test('P1.8 Avance','Fin del proyecto = 10', () => eq(r8.projectDuration,10,'dur'));
+}
+
+// ============================================================
+// Renderizar resultados
+// ============================================================
+function render() {
+  const container = document.getElementById('results');
+  const suites    = [...new Set(results.map(r => r.suite))];
+
+  container.innerHTML = suites.map(suite => {
+    const suiteResults = results.filter(r => r.suite === suite);
+    const allPass = suiteResults.every(r => r.ok);
+    return `<div class="suite">
+      <h2>${allPass ? '✅' : '❌'} ${suite}</h2>
+      ${suiteResults.map(r => `
+        <div class="result ${r.ok ? 'pass' : 'fail'}">
+          <span class="icon">${r.ok ? '✔' : '✘'}</span>
+          <div class="msg">
+            ${r.name}
+            ${!r.ok ? `<div class="detail">${r.err}</div>` : ''}
+          </div>
+        </div>`).join('')}
+    </div>`;
+  }).join('');
+
+  const total  = _pass + _fail;
+  const sumEl  = document.getElementById('summary');
+  sumEl.className = _fail === 0 ? 'sum-pass' : 'sum-fail';
+  sumEl.textContent = _fail === 0
+    ? `✅ Todas las pruebas pasan: ${_pass}/${total}`
+    : `❌ ${_fail} prueba(s) fallaron de ${total}`;
+}
+
+render();
+</script>
+</body>
+</html>
