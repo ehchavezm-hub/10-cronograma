@@ -1,7 +1,7 @@
-﻿// @ts-check
+// @ts-check
 /**
- * main.js â€” Punto de entrada de la aplicaciÃ³n.
- * Detecta file://, inicializa mÃ³dulos, carga datos demo en modo local.
+ * main.js â€” Punto de entrada de la aplicación.
+ * Detecta file://, inicializa módulos, carga datos demo en modo local.
  */
 
 import { IS_LOCAL_MODE } from './config.js';
@@ -48,7 +48,7 @@ function _initWorker() {
         result.tasks = new Map(result.tasks.map(t => [t.id, t]));
         appState.setCpmResult(result);
         _updateStatus();
-        // Si el estado cambiÃ³ mientras el worker procesaba, re-calcular
+        // Si el estado cambió mientras el worker procesaba, re-calcular
         if (appState.state.cpmDirty) _requestCpm();
       } else {
         console.error('[CPM worker]', e.data.error);
@@ -123,7 +123,7 @@ function _runCpmSync() {
 // ============================================================
 
 appState.onPersist = async ({ cmd, isUndo }) => {
-  // Registrar en historial de sesiÃ³n (no registrar los undos)
+  // Registrar en historial de sesión (no registrar los undos)
   if (!isUndo) logCommand(cmd);
   const { project, tasks, deps } = appState.state;
   if (!project) return;
@@ -276,7 +276,7 @@ async function _openTaskDetail(taskId) {
     } catch { return String(idx) + 'd'; }
   };
 
-  // Calcular fechas desde Ã­ndice de dÃ­as
+  // Calcular fechas desde índice de días
   const startDate = new Date(startIso + 'T00:00:00');
   const addDays = (n) => {
     if (n == null) return 'â€”';
@@ -297,9 +297,9 @@ async function _openTaskDetail(taskId) {
   } catch (e) { /* sin recursos */ }
 
   const constraintTypes = ['ASAP','ALAP','MSO','MFO','SNET','SNLT','FNET','FNLT'];
-  const constraintLabels = { ASAP:'Lo antes posible', ALAP:'Lo mÃ¡s tarde posible',
+  const constraintLabels = { ASAP:'Lo antes posible', ALAP:'Lo más tarde posible',
     MSO:'Inicio no antes de', MFO:'Fin no antes de', SNET:'Inicio no antes de (SNET)',
-    SNLT:'Inicio no despuÃ©s de', FNET:'Fin no antes de (FNET)', FNLT:'Fin no despuÃ©s de' };
+    SNLT:'Inicio no después de', FNET:'Fin no antes de (FNET)', FNLT:'Fin no después de' };
 
   const resOpts = allResources.map(r =>
     `<option value="${r.id}">${_escHtml(r.name)}${r.role ? ' ('+_escHtml(r.role)+')' : ''}</option>`).join('');
@@ -323,7 +323,7 @@ async function _openTaskDetail(taskId) {
         <input id="tdp-name" type="text" value="${_escAttr(task.name)}" style="margin-top:4px;width:100%;padding:7px 10px;border:1px solid var(--clr-border);border-radius:7px;font-size:13px;background:var(--clr-surface-2);color:var(--clr-text);box-sizing:border-box">
       </label>
 
-      <!-- Tipo + DuraciÃ³n -->
+      <!-- Tipo + Duración -->
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
         <label style="font-size:12px;font-weight:600;color:var(--clr-text-2)">Tipo
           <select id="tdp-type" style="margin-top:4px;width:100%;padding:7px 10px;border:1px solid var(--clr-border);border-radius:7px;font-size:12px;background:var(--clr-surface-2);color:var(--clr-text)">
@@ -331,7 +331,7 @@ async function _openTaskDetail(taskId) {
             <option value="milestone" ${task.type==='milestone'?'selected':''}>Hito</option>
           </select>
         </label>
-        <label style="font-size:12px;font-weight:600;color:var(--clr-text-2)">DuraciÃ³n (dÃ­as)
+        <label style="font-size:12px;font-weight:600;color:var(--clr-text-2)">Duración (días)
           <input id="tdp-dur" type="number" min="0" value="${task.duration_days ?? 0}" style="margin-top:4px;width:100%;padding:7px 10px;border:1px solid var(--clr-border);border-radius:7px;font-size:12px;background:var(--clr-surface-2);color:var(--clr-text);box-sizing:border-box">
         </label>
       </div>
@@ -353,12 +353,12 @@ async function _openTaskDetail(taskId) {
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:12px">
           <div><span style="color:var(--clr-text-3)">Inicio temprano:</span><br><strong>${addDays(cpmTask.es)}</strong></div>
           <div><span style="color:var(--clr-text-3)">Fin temprano:</span><br><strong>${addDays(cpmTask.ef)}</strong></div>
-          <div><span style="color:var(--clr-text-3)">Inicio tardÃ­o:</span><br><strong>${addDays(cpmTask.ls)}</strong></div>
-          <div><span style="color:var(--clr-text-3)">Fin tardÃ­o:</span><br><strong>${addDays(cpmTask.lf)}</strong></div>
+          <div><span style="color:var(--clr-text-3)">Inicio tardío:</span><br><strong>${addDays(cpmTask.ls)}</strong></div>
+          <div><span style="color:var(--clr-text-3)">Fin tardío:</span><br><strong>${addDays(cpmTask.lf)}</strong></div>
           <div><span style="color:var(--clr-text-3)">Holgura total:</span><br><strong style="color:${(cpmTask.tf??0)===0?'var(--clr-danger,#e74c3c)':'var(--clr-text)'}">${cpmTask.tf ?? 0} d</strong></div>
           <div><span style="color:var(--clr-text-3)">Holgura libre:</span><br><strong>${cpmTask.ff ?? 0} d</strong></div>
         </div>
-      </div>` : '<div style="font-size:12px;color:var(--clr-text-3)">CPM no calculado aÃºn</div>'}
+      </div>` : '<div style="font-size:12px;color:var(--clr-text-3)">CPM no calculado aún</div>'}
 
       <!-- Costos -->
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
@@ -370,14 +370,14 @@ async function _openTaskDetail(taskId) {
         </label>
       </div>
 
-      <!-- RestricciÃ³n -->
+      <!-- Restricción -->
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-        <label style="font-size:12px;font-weight:600;color:var(--clr-text-2)">RestricciÃ³n
+        <label style="font-size:12px;font-weight:600;color:var(--clr-text-2)">Restricción
           <select id="tdp-constraint" style="margin-top:4px;width:100%;padding:7px 10px;border:1px solid var(--clr-border);border-radius:7px;font-size:11px;background:var(--clr-surface-2);color:var(--clr-text)">
             ${constraintTypes.map(c => `<option value="${c}" ${task.constraint_type===c?'selected':''}>${constraintLabels[c]??c}</option>`).join('')}
           </select>
         </label>
-        <label style="font-size:12px;font-weight:600;color:var(--clr-text-2)">Fecha restricciÃ³n
+        <label style="font-size:12px;font-weight:600;color:var(--clr-text-2)">Fecha restricción
           <input id="tdp-constraint-date" type="date" value="${task.constraint_date ?? ''}" style="margin-top:4px;width:100%;padding:7px 10px;border:1px solid var(--clr-border);border-radius:7px;font-size:12px;background:var(--clr-surface-2);color:var(--clr-text);box-sizing:border-box">
         </label>
       </div>
@@ -449,10 +449,10 @@ async function _tdpAddResource(taskId) {
   const res = allRes.find(r => r.id === resId);
   if (!res) return;
 
-  // Verificar que no estÃ© ya asignado
+  // Verificar que no esté ya asignado
   const tbody = document.getElementById('tdp-res-body');
   const existing = tbody?.querySelector(`[data-trid]`);
-  // Simplemente aÃ±adimos fila nueva (se persiste al guardar)
+  // Simplemente añadimos fila nueva (se persiste al guardar)
   const trid = crypto.randomUUID();
   const tr = document.createElement('tr');
   tr.dataset.trid = trid;
@@ -489,7 +489,7 @@ async function _saveTaskDetail() {
   const actualFinish = /** @type {HTMLInputElement} */ (document.getElementById('tdp-actual-finish'))?.value || null;
   const notes  = /** @type {HTMLTextAreaElement} */ (document.getElementById('tdp-notes'))?.value || null;
 
-  if (!name) { _showToast('El nombre no puede estar vacÃ­o', 'warn'); return; }
+  if (!name) { _showToast('El nombre no puede estar vacío', 'warn'); return; }
 
   appState.dispatch({ type: 'UPDATE_TASK', payload: { id: taskId, fields: {
     name, type, duration_days: isNaN(dur) ? 0 : dur,
@@ -545,7 +545,7 @@ async function _saveTaskDetail() {
 }
 
 // ============================================================
-// Gestor de Recursos (catÃ¡logo)
+// Gestor de Recursos (catálogo)
 // ============================================================
 
 async function _openResourceManager() {
@@ -572,7 +572,7 @@ async function _openResourceManager() {
 
   dlg.innerHTML = `
     <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid var(--clr-border);background:var(--clr-surface-2)">
-      <span style="font-weight:700;font-size:15px">GestiÃ³n de Recursos</span>
+      <span style="font-weight:700;font-size:15px">Gestión de Recursos</span>
       <button id="dlg-res-close" class="btn btn-icon btn-sm">âœ•</button>
     </div>
     <div style="padding:16px;max-height:50vh;overflow-y:auto">
@@ -623,7 +623,7 @@ async function _openResourceManager() {
     const btn = /** @type {HTMLElement} */ (e.target).closest('.rm-del');
     if (btn) {
       const rid = btn.dataset.rid;
-      if (confirm('Â¿Eliminar este recurso?')) {
+      if (confirm('¿Eliminar este recurso?')) {
         const { remove: dbRemoveSt } = await import('./storage.js?v=4');
         await dbRemoveSt('resources', rid);
         btn.closest('tr')?.remove();
@@ -861,7 +861,7 @@ function _updateStatus() {
     };
     text.textContent = labels[syncStatus] ?? syncStatus;
   }
-  // DuraciÃ³n del proyecto
+  // Duración del proyecto
   const durEl = document.getElementById('project-duration');
   if (durEl && cpmResult) {
     durEl.textContent = `${cpmResult.projectDuration ?? 0} d`;
@@ -926,9 +926,9 @@ async function _renderProjectList() {
 
   const rows = [];
 
-  // Proyectos sin portafolio ni programa (nivel raÃ­z)
+  // Proyectos sin portafolio ni programa (nivel raíz)
   const rootProjects  = projects.filter(p => !p.settings?.portfolio_id && !p.settings?.program_id);
-  // Programas sin portafolio (nivel raÃ­z)
+  // Programas sin portafolio (nivel raíz)
   const rootPrograms  = programs.filter(p => !p.portfolio_id);
 
   function _projItem(p, indent = 0) {
@@ -970,10 +970,10 @@ async function _renderProjectList() {
     pfProjects.forEach(p   => rows.push(_projItem(p, 1)));
   });
 
-  // Programas raÃ­z (sin portafolio)
+  // Programas raíz (sin portafolio)
   rootPrograms.forEach(prog => rows.push(_progItem(prog, 0)));
 
-  // Proyectos raÃ­z
+  // Proyectos raíz
   rootProjects.forEach(p => rows.push(_projItem(p, 0)));
 
   list.innerHTML = rows.join('');
@@ -1000,7 +1000,7 @@ async function _renderProjectList() {
       const { projects: projs } = await loadHierarchy();
       const proj = projs.find(p => p.id === pid);
       if (!proj) return;
-      if (!confirm(`Â¿Eliminar el proyecto "${proj.name}"?\nEsta acciÃ³n no se puede deshacer.`)) return;
+      if (!confirm(`¿Eliminar el proyecto "${proj.name}"?\nEsta acción no se puede deshacer.`)) return;
       try {
         await _deleteProject(pid);
         _showToast('Proyecto eliminado', 'success');
@@ -1015,7 +1015,7 @@ async function _renderProjectList() {
     delBtn.addEventListener('click', async (e) => {
       e.stopPropagation();
       const id = /** @type {HTMLElement} */ (delBtn).dataset.delPortfolio;
-      if (!confirm('Â¿Eliminar este portafolio? Los proyectos y programas dentro quedarÃ¡n sin asignar.')) return;
+      if (!confirm('¿Eliminar este portafolio? Los proyectos y programas dentro quedarán sin asignar.')) return;
       try { await deletePortfolio(id); _showToast('Portafolio eliminado', 'success'); _renderProjectList(); }
       catch (err) { _showToast('Error: ' + err.message, 'error'); }
     });
@@ -1025,13 +1025,13 @@ async function _renderProjectList() {
     delBtn.addEventListener('click', async (e) => {
       e.stopPropagation();
       const id = /** @type {HTMLElement} */ (delBtn).dataset.delProgram;
-      if (!confirm('Â¿Eliminar este programa? Los proyectos dentro quedarÃ¡n sin asignar.')) return;
+      if (!confirm('¿Eliminar este programa? Los proyectos dentro quedarán sin asignar.')) return;
       try { await deleteProgram(id); _showToast('Programa eliminado', 'success'); _renderProjectList(); }
       catch (err) { _showToast('Error: ' + err.message, 'error'); }
     });
   });
 
-  // "+" junto a programa â†’ nuevo proyecto heredando cÃ³digo
+  // "+" junto a programa â†’ nuevo proyecto heredando código
   list.querySelectorAll('[data-add-to-program]').forEach(btn => {
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -1106,7 +1106,7 @@ function _bindNewProject() {
   async function _loadParentOptions(type) {
     const sel = /** @type {HTMLSelectElement|null} */ (document.getElementById('ni-parent'));
     if (!sel) return;
-    sel.innerHTML = '<option value="">â€” Sin asignar (nivel raÃ­z) â€”</option>';
+    sel.innerHTML = '<option value="">â€” Sin asignar (nivel raíz) â€”</option>';
     if (type === 'portfolio') return;
     const { portfolios, programs } = await loadHierarchy();
     if (type === 'program') {
@@ -1201,7 +1201,7 @@ function _clearNewItemForm() {
 }
 
 // ============================================================
-// InicializaciÃ³n
+// Inicialización
 // ============================================================
 
 let _wbsTable       = null;
@@ -1313,7 +1313,7 @@ async function init() {
       _dcmaPanel = new DcmaPanel(dcmaEl);
     }
 
-    // Escuchar selecciÃ³n de tarea desde el panel DCMA
+    // Escuchar selección de tarea desde el panel DCMA
     document.addEventListener('dcma-select-task', /** @type {any} */ (e) => {
       appState.selectTask(e.detail.id);
     });
@@ -1334,7 +1334,7 @@ async function init() {
           _evmPanel.refresh();
         }
       });
-      // BotÃ³n cerrar dentro del panel
+      // Botón cerrar dentro del panel
       evmEl.addEventListener('click', (e) => {
         if (/** @type {HTMLElement} */ (e.target).id === 'btn-evm-close') {
           evmEl.classList.remove('open');
@@ -1372,7 +1372,7 @@ async function init() {
 }
 
 // ============================================================
-// SincronizaciÃ³n de la escena Gantt
+// Sincronización de la escena Gantt
 // ============================================================
 
 function _syncGanttScene() {
@@ -1446,7 +1446,7 @@ function _bindToolbar() {
   document.getElementById('btn-calendar')?.addEventListener('click', () => _openCalendarEditor());
   document.getElementById('btn-gantt-fit')?.addEventListener('click', () => _ganttCanvas?.fitToView());
 
-  // ---- MenÃº etiquetas de barras Gantt ----
+  // ---- Menú etiquetas de barras Gantt ----
   const _barLabelsBtn  = document.getElementById('btn-bar-labels');
   const _barLabelsMenu = document.getElementById('bar-labels-menu');
   _barLabelsBtn?.addEventListener('click', (e) => {
@@ -1510,7 +1510,7 @@ function _bindToolbar() {
     document.getElementById('drawer-overlay')?.classList.remove('visible');
   });
 
-  // ---- MenÃº Exportar ----
+  // ---- Menú Exportar ----
   const exportBtn  = document.getElementById('btn-export');
   const exportMenu = document.getElementById('export-menu');
 
@@ -1521,7 +1521,7 @@ function _bindToolbar() {
     exportBtn.setAttribute('aria-expanded', String(!isOpen));
   });
 
-  // Cerrar menÃº al hacer clic fuera
+  // Cerrar menú al hacer clic fuera
   document.addEventListener('click', () => {
     if (exportMenu && !exportMenu.hidden) {
       exportMenu.hidden = true;
@@ -1564,7 +1564,7 @@ function _bindToolbar() {
     /** @type {HTMLInputElement} */ (e.target).value = '';
   });
 
-  // Establecer tÃ­tulo de impresiÃ³n en el elemento #app
+  // Establecer título de impresión en el elemento #app
   const updatePrintTitle = () => {
     const { project } = appState.state;
     if (project) {
@@ -1658,7 +1658,7 @@ function _bindResizer() {
 
   document.addEventListener('mousemove', e => {
     if (!dragging) return;
-    const dx = startX - e.clientX; // mover derecha â†’ gantt se hace mÃ¡s pequeÃ±o
+    const dx = startX - e.clientX; // mover derecha â†’ gantt se hace más pequeño
     const minW = 180;
     const maxW = window.innerWidth - 280;
     const newW = Math.max(minW, Math.min(maxW, startW + dx));
@@ -1673,13 +1673,13 @@ function _bindResizer() {
     document.body.style.cursor = '';
     document.body.style.userSelect = '';
     localStorage.setItem('gantt-panel-width', ganttPanel.style.width);
-    // Forzar redibujado con el nuevo tamaÃ±o del canvas
+    // Forzar redibujado con el nuevo tamaño del canvas
     setTimeout(() => _ganttCanvas?.requestRender(), 50);
   });
 }
 
 // ============================================================
-// Organigrama de jerarquÃ­a (portafolioâ†’programaâ†’proyecto)
+// Organigrama de jerarquía (portafolioâ†’programaâ†’proyecto)
 // ============================================================
 
 // ============================================================
@@ -1782,11 +1782,11 @@ function _ocOpenForm(dlg, type, data) {
   box.innerHTML = `
     <h3 style="margin:0 0 16px;font-size:15px;font-weight:700">${icons[type]} ${isNew ? 'Nuevo' : 'Editar'} ${labels[type]}</h3>
     ${inp('name', 'Nombre *', data?.name ?? '', 'Nombre del ' + labels[type])}
-    ${inp('code', 'CÃ³digo', data?.code ?? '', 'Ej: PF-001')}
-    ${inp('desc', 'DescripciÃ³n', data?.description ?? '', 'Opcional')}
+    ${inp('code', 'Código', data?.code ?? '', 'Ej: PF-001')}
+    ${inp('desc', 'Descripción', data?.description ?? '', 'Opcional')}
     ${extraHtml}
     ${!isNew ? `<div id="oc-del-zone" style="display:none;background:rgba(231,76,60,0.08);border:1px solid rgba(231,76,60,0.3);border-radius:8px;padding:12px;margin-bottom:12px">
-      <div style="font-size:12px;font-weight:600;color:#c0392b;margin-bottom:6px">âš  Esta acciÃ³n no se puede deshacer</div>
+      <div style="font-size:12px;font-weight:600;color:#c0392b;margin-bottom:6px">âš  Esta acción no se puede deshacer</div>
       <button id="ocf-del-confirm" style="background:#e74c3c;color:#fff;border:none;border-radius:6px;padding:6px 14px;cursor:pointer;font-size:12px;font-weight:600">Eliminar definitivamente</button>
       <button id="ocf-del-cancel" style="margin-left:8px;background:none;border:1px solid var(--clr-border);border-radius:6px;padding:6px 14px;cursor:pointer;font-size:12px">Cancelar</button>
     </div>` : ''}
@@ -1898,7 +1898,7 @@ function _ocOpenForm(dlg, type, data) {
   overlay.style.display = 'flex';
 }
 
-// ---- Dibujar lÃ­neas de conexiÃ³n SVG ----
+// ---- Dibujar líneas de conexión SVG ----
 function _ocDrawLines(canvas, cards) {
   const svg = canvas.querySelector('#oc-svg-lines');
   if (!svg) return;
@@ -1949,7 +1949,7 @@ async function _renderOrgChart() {
     return { x: 60 + col * (CARD_W + COL_GAP), y: 60 + row * (CARD_H + ROW_GAP) };
   }
 
-  // Layout automÃ¡tico: asignar columnas/filas
+  // Layout automático: asignar columnas/filas
   const pfPositions = portfolios.map((pf, i) => ({ id: pf.id, col: i }));
   let cardList = []; // { type, data, pos, parentKey }
 
@@ -2103,12 +2103,12 @@ async function _renderOrgChart() {
       setDropHighlight(false);
 
       if (moved) {
-        // Guardar posiciÃ³n
+        // Guardar posición
         const posMap = _ocGetPos();
         posMap[ocKey] = { x: pos.x, y: pos.y };
         _ocSetPos(posMap);
 
-        // Detectar si soltÃ³ sobre una tarjeta compatible para reasignar padre
+        // Detectar si soltó sobre una tarjeta compatible para reasignar padre
         const vp = document.getElementById('oc-viewport');
         const vpRect = vp?.getBoundingClientRect();
         const scrollLeft = vp?.scrollLeft ?? 0;
@@ -2170,7 +2170,7 @@ async function _renderOrgChart() {
     canvas.appendChild(card);
   });
 
-  // ---- Dibujar lÃ­neas ----
+  // ---- Dibujar líneas ----
   _ocDrawLines(canvas, cardList.map(c => ({
     el: canvas.querySelector(`[data-oc-key="${c.type === 'portfolio' ? 'pf' : c.type === 'program' ? 'prog' : 'proj'}:${c.data.id}"]`),
     parentKey: c.parentKey,
@@ -2178,14 +2178,14 @@ async function _renderOrgChart() {
 }
 
 // ============================================================
-// Configurador de columnas de exportaciÃ³n / impresiÃ³n
+// Configurador de columnas de exportación / impresión
 // ============================================================
 
 const PRINT_COL_OPTS = [
-  { id: 'wbs',    label: 'EDT (cÃ³digo WBS)',       group: 'tabla' },
+  { id: 'wbs',    label: 'EDT (código WBS)',       group: 'tabla' },
   { id: 'name',   label: 'Nombre de actividad',    group: 'tabla' },
   { id: 'type',   label: 'Tipo (Tarea/Hitoâ€¦)',     group: 'tabla' },
-  { id: 'dur',    label: 'DuraciÃ³n (dÃ­as)',         group: 'ambos' },
+  { id: 'dur',    label: 'Duración (días)',         group: 'ambos' },
   { id: 'start',  label: 'Inicio',                 group: 'ambos' },
   { id: 'finish', label: 'Fin',                    group: 'ambos' },
   { id: 'pct',    label: '% Avance',               group: 'ambos' },
@@ -2202,7 +2202,7 @@ function _showPrintColConfig() {
     dlg.style.cssText = 'border:none;border-radius:12px;padding:0;width:440px;max-width:95vw;box-shadow:0 8px 40px rgba(0,0,0,0.25);overflow:hidden';
     dlg.innerHTML = `
       <div style="background:var(--clr-surface-2);padding:16px 20px;border-bottom:1px solid var(--clr-border)">
-        <div style="font-weight:700;font-size:15px">âš™ Columnas de exportaciÃ³n</div>
+        <div style="font-weight:700;font-size:15px">âš™ Columnas de exportación</div>
         <div style="font-size:11px;opacity:0.6;margin-top:2px">Selecciona las columnas que aparecen al imprimir o exportar SVG.</div>
       </div>
       <div style="padding:16px 20px">
@@ -2225,7 +2225,7 @@ function _showPrintColConfig() {
       const checked = [...dlg.querySelectorAll('input[type=checkbox]:checked')].map(el => /** @type {HTMLInputElement} */ (el).value);
       setPrintCols(checked);
       dlg.close();
-      // Mostrar confirmaciÃ³n
+      // Mostrar confirmación
       const toast = document.createElement('div');
       toast.className = 'toast toast-success';
       toast.textContent = 'âœ“ Columnas guardadas';
@@ -2260,7 +2260,7 @@ function _showPrintColConfig() {
 function _showCpmNetwork() {
   const { cpmResult, tasks: taskMap, deps: depMap } = appState.state;
   if (!cpmResult) {
-    alert('El CPM aÃºn no ha calculado. Espera un momento y vuelve a intentarlo.');
+    alert('El CPM aún no ha calculado. Espera un momento y vuelve a intentarlo.');
     return;
   }
 
@@ -2279,8 +2279,8 @@ function _showCpmNetwork() {
           <button id="btn-cpm-zoomin"  class="btn btn-ghost btn-sm" title="Acercar" style="font-size:16px;padding:2px 8px;line-height:1">ï¼‹</button>
           <button id="btn-cpm-zoomout" class="btn btn-ghost btn-sm" title="Alejar"  style="font-size:16px;padding:2px 8px;line-height:1">ï¼</button>
           <span style="width:1px;height:18px;background:var(--clr-border);margin:0 4px;display:inline-block"></span>
-          <span style="display:inline-block;width:11px;height:11px;background:#e74c3c;border-radius:2px"></span><span style="font-size:11px">CrÃ­tica</span>
-          <span style="display:inline-block;width:11px;height:11px;background:#f39c12;border-radius:2px;margin-left:5px"></span><span style="font-size:11px">Casi crÃ­tica</span>
+          <span style="display:inline-block;width:11px;height:11px;background:#e74c3c;border-radius:2px"></span><span style="font-size:11px">Crítica</span>
+          <span style="display:inline-block;width:11px;height:11px;background:#f39c12;border-radius:2px;margin-left:5px"></span><span style="font-size:11px">Casi crítica</span>
           <span style="display:inline-block;width:11px;height:11px;background:#2980b9;border-radius:2px;margin-left:5px"></span><span style="font-size:11px">Normal</span>
           <span style="display:inline-block;width:11px;height:11px;background:#27ae60;border-radius:2px;margin-left:5px"></span><span style="font-size:11px">Completa</span>
           <div style="position:relative;margin-left:10px" id="cpm-export-wrap">
@@ -2396,7 +2396,7 @@ function _exportCpmNetwork(fmt, dlg) {
   if (!svgEl) return;
 
   const bb = svgEl.getBBox();
-  if (!bb.width || !bb.height) { alert('La red estÃ¡ vacÃ­a.'); return; }
+  if (!bb.width || !bb.height) { alert('La red está vacía.'); return; }
   const PAD = 40;
   const vbX = bb.x - PAD, vbY = bb.y - PAD;
   const vbW = bb.width  + PAD * 2;
@@ -2415,11 +2415,11 @@ function _exportCpmNetwork(fmt, dlg) {
   styleEl.textContent = `text { font-family: 'Segoe UI', Arial, sans-serif; } rect { stroke-width: 1.5; }`;
   clone.prepend(styleEl);
 
-  // ---- GuÃ­as minimalistas (fondo, detrÃ¡s del contenido) ----
+  // ---- Guías minimalistas (fondo, detrás del contenido) ----
   const GRID = 60;
   const gridG = document.createElementNS('http://www.w3.org/2000/svg', 'g');
   gridG.setAttribute('opacity', '0.25');
-  // lÃ­neas verticales
+  // líneas verticales
   const x0 = Math.floor(vbX / GRID) * GRID;
   for (let x = x0; x <= vbX + vbW; x += GRID) {
     const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
@@ -2429,7 +2429,7 @@ function _exportCpmNetwork(fmt, dlg) {
     line.setAttribute('stroke-dasharray', '3 6');
     gridG.appendChild(line);
   }
-  // lÃ­neas horizontales
+  // líneas horizontales
   const y0 = Math.floor(vbY / GRID) * GRID;
   for (let y = y0; y <= vbY + vbH; y += GRID) {
     const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
@@ -2451,7 +2451,7 @@ function _exportCpmNetwork(fmt, dlg) {
     return;
   }
 
-  // ---- PNG: rasterizar a 3Ã— para alta resoluciÃ³n ----
+  // ---- PNG: rasterizar a 3Ã— para alta resolución ----
   if (fmt === 'png') {
     const scale = 3;
     const imgW = Math.round(vbW * scale), imgH = Math.round(vbH * scale);
@@ -2471,14 +2471,14 @@ function _exportCpmNetwork(fmt, dlg) {
     return;
   }
 
-  // ---- PDF: SVG vectorial inline en ventana de impresiÃ³n ----
+  // ---- PDF: SVG vectorial inline en ventana de impresión ----
   if (fmt === 'pdf') {
     const today = new Date().toLocaleDateString('es-PE');
     const projDisplayName = _escHtml(appState.state.project?.name ?? projName);
-    // Leyenda con SVG inline para garantizar colores en impresiÃ³n
+    // Leyenda con SVG inline para garantizar colores en impresión
     const legendItems = [
-      { color: '#e74c3c', label: 'CrÃ­tica' },
-      { color: '#f39c12', label: 'Casi crÃ­tica' },
+      { color: '#e74c3c', label: 'Crítica' },
+      { color: '#f39c12', label: 'Casi crítica' },
       { color: '#2980b9', label: 'Normal' },
       { color: '#27ae60', label: 'Completa' },
     ];
@@ -2516,7 +2516,7 @@ function _exportCpmNetwork(fmt, dlg) {
 </head><body>
   <div class="hdr">
     <div class="ttl">Red CPM &mdash; ${projDisplayName}</div>
-    <div class="meta">Generado: ${today}<br>Â© Cronogramas v16</div>
+    <div class="meta">Generado: ${today}<br>© Cronogramas v16</div>
   </div>
   <div class="net-wrap">${svgForPdf}</div>
   <div class="legend-wrap">${legendSvg}</div>
@@ -2524,7 +2524,7 @@ function _exportCpmNetwork(fmt, dlg) {
 </body></html>`;
 
     const win = window.open('', '_blank', 'width=1300,height=900');
-    if (!win) { alert('El navegador bloqueÃ³ la ventana emergente. PermÃ­tala e intente de nuevo.'); return; }
+    if (!win) { alert('El navegador bloqueó la ventana emergente. Permítala e intente de nuevo.'); return; }
     win.document.write(html);
     win.document.close();
   }
@@ -2537,7 +2537,7 @@ function _dlUrl(blob, filename) {
   setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 1000);
 }
 
-/** Dibuja la grilla de guÃ­as sobre el canvas de fondo del viewport CPM. */
+/** Dibuja la grilla de guías sobre el canvas de fondo del viewport CPM. */
 function _drawCpmGrid(dlg, panX, panY, zoom) {
   const canvas = /** @type {HTMLCanvasElement|null} */ (dlg.querySelector('#cpm-net-grid'));
   const vp     = dlg.querySelector('#cpm-net-viewport');
@@ -2549,7 +2549,7 @@ function _drawCpmGrid(dlg, panX, panY, zoom) {
   if (!ctx) return;
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-  // TamaÃ±o lÃ³gico de celda de grilla (en coordenadas de escena)
+  // Tamaño lógico de celda de grilla (en coordenadas de escena)
   const CELL = 100;
   // En pantalla
   const step = CELL * zoom;
@@ -2567,7 +2567,7 @@ function _drawCpmGrid(dlg, panX, panY, zoom) {
   for (let y = startY; y <= canvas.height; y += step) { ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); }
   ctx.stroke();
 
-  // Ejes de nivel (lÃ­neas mÃ¡s gruesas cada 5 celdas)
+  // Ejes de nivel (líneas más gruesas cada 5 celdas)
   const stepMajor = step * 5;
   const startXM = ((panX % stepMajor) + stepMajor) % stepMajor;
   const startYM = ((panY % stepMajor) + stepMajor) % stepMajor;
@@ -2598,7 +2598,7 @@ function _renderCpmNetwork() {
   const leafSet = new Set(leafTasks.map(t => t.id));
   const activeDeps = [...depMap.values()].filter(d => !d.deleted_at && leafSet.has(d.pred_id) && leafSet.has(d.succ_id));
 
-  // Calcular niveles topolÃ³gicos (BFS: nivel = max(nivel de predecesores) + 1)
+  // Calcular niveles topológicos (BFS: nivel = max(nivel de predecesores) + 1)
   const predCount = new Map(leafTasks.map(t => [t.id, 0]));
   const succOf = new Map(leafTasks.map(t => [t.id, []]));
   for (const d of activeDeps) {
@@ -2620,7 +2620,7 @@ function _renderCpmNetwork() {
       if ((remaining.get(succId) ?? 1) <= 0) queue.push(succId);
     }
   }
-  // Tasks sin nivel (en ciclos) â†’ nivel mÃ¡ximo + 1
+  // Tasks sin nivel (en ciclos) â†’ nivel máximo + 1
   const maxLv = Math.max(0, ...level.values());
   leafTasks.forEach(t => { if (!level.has(t.id)) level.set(t.id, maxLv + 1); });
 
@@ -2639,7 +2639,7 @@ function _renderCpmNetwork() {
   const STRIDE_X = BW + GAP_X;
   const STRIDE_Y = BH + GAP_Y;
 
-  // Calcular posiciÃ³n de cada tarea
+  // Calcular posición de cada tarea
   const pos = new Map(); // id â†’ {x, y, cx, cy}
   byLevel.forEach((tasks, lv) => {
     tasks.forEach((t, row) => {
@@ -2649,7 +2649,7 @@ function _renderCpmNetwork() {
     });
   });
 
-  // Obtener fecha de inicio del proyecto para mostrar dÃ­as reales
+  // Obtener fecha de inicio del proyecto para mostrar días reales
   const startDate = project?.start_date ? new Date(project.start_date) : null;
   const fmtDay = (/** @type {number} */ idx) => {
     if (!startDate) return String(idx);
@@ -2755,7 +2755,7 @@ function _renderCpmNetwork() {
       return el;
     };
 
-    // LÃ­neas divisoras verticales en franjas
+    // Líneas divisoras verticales en franjas
     const div1 = document.createElementNS('http://www.w3.org/2000/svg', 'line');
     div1.setAttribute('x1', String(p.x + BW / 3)); div1.setAttribute('y1', String(p.y));
     div1.setAttribute('x2', String(p.x + BW / 3)); div1.setAttribute('y2', String(p.y + 20));
@@ -2777,7 +2777,7 @@ function _renderCpmNetwork() {
     g.appendChild(mkTxt(String(dur) + 'd', p.x + W3 * 1.5, p.y + 10, 'middle', '9', true));
     g.appendChild(mkTxt(fmtDay(ef), p.x + W3 * 2.5, p.y + 10, 'middle', '9'));
 
-    // Nombre (mÃ¡x. 2 lÃ­neas)
+    // Nombre (máx. 2 líneas)
     const name = t.name ?? '';
     const line1 = name.length > 22 ? name.substring(0, 22) + 'â€¦' : name;
     g.appendChild(mkTxt(line1, p.cx, p.y + 33, 'middle', '10', false, isCrit || isNear ? fillColor : '#1a2533'));
@@ -2822,7 +2822,7 @@ function _renderCpmNetwork() {
   }
 }
 
-// Abre el diÃ¡logo de nuevo elemento pre-configurado con el padre dado
+// Abre el diálogo de nuevo elemento pre-configurado con el padre dado
 function _openNewItemWithParent(type, parentType, parentId, parentCode) {
   const dlg    = /** @type {HTMLDialogElement|null} */ (document.getElementById('dlg-new-item'));
   if (!dlg) return;
@@ -2831,7 +2831,7 @@ function _openNewItemWithParent(type, parentType, parentId, parentCode) {
   const typeInput = document.getElementById('ni-type-' + type);
   if (typeInput) /** @type {HTMLInputElement} */ (typeInput).click();
 
-  // Abrir diÃ¡logo (necesita estar abierto para poder actualizar el select)
+  // Abrir diálogo (necesita estar abierto para poder actualizar el select)
   dlg.showModal();
 
   // Esperar a que se carguen las opciones del select
@@ -2840,7 +2840,7 @@ function _openNewItemWithParent(type, parentType, parentId, parentCode) {
       const sel = /** @type {HTMLSelectElement|null} */ (document.getElementById('ni-parent'));
       if (sel) {
         const val = parentType + ':' + parentId;
-        // Si la opciÃ³n no existe aÃºn, esperar a que _loadParentOptions termine
+        // Si la opción no existe aún, esperar a que _loadParentOptions termine
         let attempts = 0;
         while (![...sel.options].some(o => o.value === val) && attempts++ < 20) {
           await new Promise(r => setTimeout(r, 50));
@@ -2848,7 +2848,7 @@ function _openNewItemWithParent(type, parentType, parentId, parentCode) {
         sel.value = val;
       }
 
-      // Auto-sugerir cÃ³digo si el padre tiene uno
+      // Auto-sugerir código si el padre tiene uno
       if (parentCode) {
         const { projects: projs, programs: progs } = await loadHierarchy();
         let count = 0;

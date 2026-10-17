@@ -76,7 +76,7 @@ export function printGantt(rows) {
 
   const { renderGanttSvg } = /** @type {any} */ ({ renderGanttSvg: null });
 
-  import('./gantt-svg.js?v=2').then(({ renderGanttSvg }) => {
+  import('./gantt-svg.js?v=3').then(({ renderGanttSvg }) => {
     const cal       = new Calendar(calDef);
     const startDate = isoToDate(project.start_date);
 

@@ -63,7 +63,16 @@ export function renderGanttSvg({ tasks, deps, cpmResult, calendar, projectStart,
   const extraW  = activeCols.reduce((s, c) => s + c.w, 0);
   const NAME_W  = BASE_NAME_W + extraW;
 
-  const totalDays = Math.ceil((cpmResult.projectDuration ?? 100) * 1.7) + 30;
+  // Compute actual rightmost calendar day across all visible rows
+  let maxCalDay = cpmResult.projectDuration ?? 100;
+  for (const { id } of rows) {
+    const cpm = cpmResult.tasks.get(id);
+    if (!cpm || cpm.ef == null) continue;
+    const endD = calendar.finishDate(cpm.ef, projectStart);
+    const d = _daysFrom(endD, projectStart) + 1;
+    if (d > maxCalDay) maxCalDay = d;
+  }
+  const totalDays = maxCalDay + 20; // 20-day padding for labels
   const totalW    = NAME_W + totalDays * PPD;
   const totalH    = HDR_H + rows.length * ROW_H;
 

@@ -18,6 +18,7 @@ import { appState }      from './state.js';
 import {
   outboxGetAll, outboxRemove, outboxCount,
   saveProjectSnapshot, getMeta, setMeta, putMany, put as dbPut,
+  getByIndex,
 } from './storage.js?v=4';
 import { IS_LOCAL_MODE } from './config.js';
 
@@ -60,6 +61,9 @@ export class SyncEngine {
 
     // Leer último pull desde meta
     this._lastPullAt = await getMeta('lastPullAt_' + this._projectId) ?? null;
+
+    // Vaciar outbox ANTES del pull para no sobreescribir cambios pendientes (ej: soft-deletes)
+    await this._pushCycle();
 
     // Pull inicial
     await this._pull(true);
@@ -142,10 +146,36 @@ export class SyncEngine {
       if (full) {
         // Pull completo: guardar snapshot y recargar estado
         if (project) {
-          await saveProjectSnapshot({ project, tasks, deps, calendar, calExceptions });
+          // Leer datos locales para preservar cambios más nuevos no sincronizados aún
+          const [localTasks, localDeps] = await Promise.all([
+            getByIndex('tasks', 'project_id', project.id),
+            getByIndex('task_dependencies', 'project_id', project.id),
+          ]);
+          const localTaskMap = new Map(localTasks.map(t => [t.id, t]));
+          const localDepMap  = new Map(localDeps.map(d => [d.id, d]));
+
+          // Merge: si la versión local es más nueva (ej: soft-delete pendiente), preservarla
+          const mergedTasks = tasks.map(t => {
+            const loc = localTaskMap.get(t.id);
+            return (loc && loc.updated_at > t.updated_at) ? loc : t;
+          });
+          // Preservar tareas locales que no están en remoto aún (ADD_TASK pendiente)
+          for (const [id, loc] of localTaskMap) {
+            if (!tasks.find(t => t.id === id)) mergedTasks.push(loc);
+          }
+
+          const mergedDeps = deps.map(d => {
+            const loc = localDepMap.get(d.id);
+            return (loc && loc.updated_at > d.updated_at) ? loc : d;
+          });
+          for (const [id, loc] of localDepMap) {
+            if (!deps.find(d => d.id === id)) mergedDeps.push(loc);
+          }
+
+          await saveProjectSnapshot({ project, tasks: mergedTasks, deps: mergedDeps, calendar, calExceptions });
           // Solo recargar la vista si el usuario sigue en este proyecto
           if (appState.state.project?.id === project.id) {
-            appState.loadProject({ project, tasks, deps, calendar, calExceptions });
+            appState.loadProject({ project, tasks: mergedTasks, deps: mergedDeps, calendar, calExceptions });
           }
         }
       } else {
