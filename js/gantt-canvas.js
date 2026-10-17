@@ -651,16 +651,20 @@ export class GanttCanvas {
         const lbl = this._buildBarLabel(task, cpm, startDate, endDate);
         if (lbl) {
           if (barW > 32) {
-            // Etiqueta dentro de la barra
+            // Etiqueta dentro de la barra — color inteligente según avance
+            const pct = task.percent_complete ?? 0;
+            // Con avance >= 40%: fondo sólido → texto blanco; sin avance: fondo claro → texto de color
+            const textClr   = pct >= 40 ? '#fff' : color;
+            const shadowClr = pct >= 40 ? 'rgba(0,0,0,0.45)' : 'rgba(255,255,255,0.85)';
             ctx.save();
             ctx.beginPath();
             ctx.rect(Math.max(0, x1 + 3), barY + 1, Math.min(barW - 6, W - Math.max(0, x1)), barH - 2);
             ctx.clip();
             ctx.font         = '500 10px "IBM Plex Sans", monospace';
-            ctx.fillStyle    = '#fff';
+            ctx.fillStyle    = textClr;
             ctx.textBaseline = 'middle';
-            ctx.shadowColor  = 'rgba(0,0,0,0.35)';
-            ctx.shadowBlur   = 2;
+            ctx.shadowColor  = shadowClr;
+            ctx.shadowBlur   = 3;
             ctx.fillText(lbl, Math.max(x1 + 4, 4), barY + barH / 2, barW - 8);
             ctx.restore();
           } else {
@@ -798,8 +802,14 @@ export class GanttCanvas {
       ctx.lineWidth   = 1.5;
       ctx.setLineDash([]);
 
+      // Corredor horizontal para evitar cruzar barras: por el límite de fila del destino
+      const corridorY = pi === si ? sy
+        : si > pi
+          ? headerHeight + si * rowHeight - scrollY       // arriba de la fila destino
+          : headerHeight + (si + 1) * rowHeight - scrollY; // abajo de la fila destino
+
       switch (dep.type) {
-        case 'FS': _arrowFS(ctx, pFin,   py, sStart, sy); break;
+        case 'FS': _arrowFS(ctx, pFin,   py, sStart, sy, corridorY); break;
         case 'SS': _arrowSS(ctx, pStart, py, sStart, sy); break;
         case 'FF': _arrowFF(ctx, pFin,   py, sFin,   sy); break;
         case 'SF': _arrowSF(ctx, pStart, py, sFin,   sy); break;
@@ -918,30 +928,56 @@ function _qcurve(ctx, cx, cy, ex, ey) {
   ctx.quadraticCurveTo(cx, cy, ex, ey);
 }
 
-function _arrowFS(ctx, x1, y1, x2, y2) {
-  const off = 7, r = _CR;
-  const dy  = y2 >= y1 ? 1 : -1;
+/**
+ * Flecha FS ortogonal que NO cruza barras.
+ * Ruta: salida derecha → baja/sube hasta corridorY (espacio entre filas) → derecha → baja/sube a y2.
+ */
+function _arrowFS(ctx, x1, y1, x2, y2, corridorY) {
+  const off = 8, r = _CR;
+  const dy1 = corridorY >= y1 ? 1 : -1;   // dirección y1 → corridorY
+  const dy2 = y2 >= corridorY ? 1 : -1;   // dirección corridorY → y2
+
   ctx.beginPath();
   ctx.moveTo(x1, y1);
+
   if (x2 >= x1 + off * 2) {
-    ctx.lineTo(x1 + off - r, y1);
-    _qcurve(ctx, x1 + off, y1, x1 + off, y1 + dy * r);
-    ctx.lineTo(x1 + off, y2 - dy * r);
-    _qcurve(ctx, x1 + off, y2, x1 + off + r, y2);
+    // Caso normal: salida derecha, baja a corredor, avanza derecha, baja a y2
+    const ex = x1 + off;
+    const en = x2 - off;
+    const cr1 = Math.min(r, Math.abs(corridorY - y1) / 2, (en - ex) / 2 + 0.01);
+    const cr2 = Math.min(r, Math.abs(y2 - corridorY) / 2, (en - ex) / 2 + 0.01);
+
+    // → salida derecha
+    ctx.lineTo(ex - cr1, y1);
+    _qcurve(ctx, ex, y1, ex, y1 + dy1 * cr1);
+    // ↓ hasta corredor
+    ctx.lineTo(ex, corridorY - dy1 * cr1);
+    _qcurve(ctx, ex, corridorY, ex + cr1, corridorY);
+    // → avanza derecho por corredor
+    ctx.lineTo(en - cr2, corridorY);
+    _qcurve(ctx, en, corridorY, en, corridorY + dy2 * cr2);
+    // ↓ hasta y2
+    ctx.lineTo(en, y2 - dy2 * cr2);
+    _qcurve(ctx, en, y2, en + cr2, y2);
     ctx.lineTo(x2, y2);
   } else {
-    const mx = x1 + off, ex = x2 - off, my = (y1 + y2) / 2;
-    const hdx = ex <= mx ? -1 : 1;
-    ctx.lineTo(mx - r, y1);
-    _qcurve(ctx, mx, y1, mx, y1 + dy * r);
-    ctx.lineTo(mx, my - dy * r);
-    _qcurve(ctx, mx, my, mx + hdx * r, my);
-    ctx.lineTo(ex - hdx * r, my);
-    _qcurve(ctx, ex, my, ex, my + dy * r);
-    ctx.lineTo(ex, y2 - dy * r);
-    _qcurve(ctx, ex, y2, ex + r, y2);
+    // Overlap/U-turn: pasa a la derecha de ambas barras, baja al corredor, entra al destino
+    const mx  = Math.max(x1, x2) + off;
+    const ix  = x2 - off;
+    const cr1 = Math.min(r, Math.abs(corridorY - y1) / 2);
+    const cr2 = Math.min(r, Math.abs(y2 - corridorY) / 2);
+
+    ctx.lineTo(mx - cr1, y1);
+    _qcurve(ctx, mx, y1, mx, y1 + dy1 * cr1);
+    ctx.lineTo(mx, corridorY - dy1 * cr1);
+    _qcurve(ctx, mx, corridorY, mx - cr1, corridorY);
+    ctx.lineTo(ix + cr2, corridorY);
+    _qcurve(ctx, ix, corridorY, ix, corridorY + dy2 * cr2);
+    ctx.lineTo(ix, y2 - dy2 * cr2);
+    _qcurve(ctx, ix, y2, ix + cr2, y2);
     ctx.lineTo(x2, y2);
   }
+
   ctx.stroke(); _arrowHead(ctx, x2, y2, false);
 }
 

@@ -80,7 +80,7 @@ export function printGantt(rows) {
 
   const { renderGanttSvg } = /** @type {any} */ ({ renderGanttSvg: null });
 
-  import('./gantt-svg.js?v=6').then(({ renderGanttSvg }) => {
+  import('./gantt-svg.js?v=7').then(({ renderGanttSvg }) => {
     const cal       = new Calendar(calDef);
     const startDate = isoToDate(project.start_date);
 
@@ -105,15 +105,15 @@ export function printGantt(rows) {
     const html    = `<!doctype html>
 <html lang="es"><head>
   <meta charset="UTF-8">
-  <title>Gantt — ${_esc(project.name)}</title>
-  <style id="page-style">@page { size: landscape; margin: 10mm; }</style>
+  <title>${_esc(project.name)}</title>
+  <style id="page-style">@page { size: landscape; margin: 0; }</style>
   <style>
     * { box-sizing: border-box; }
-    body  { margin: 0; font-family: 'Segoe UI', system-ui, sans-serif; }
-    .header { display: flex; justify-content: space-between; align-items: center;
-              padding: 0 0 8px; border-bottom: 2px solid #1976D2; margin-bottom: 10px; }
+    body  { margin: 0; padding: 8mm 10mm; font-family: 'Segoe UI', system-ui, sans-serif; }
+    .header { display: flex; align-items: center; padding: 0 0 6px;
+              border-bottom: 2px solid #1976D2; margin-bottom: 8px; }
     .proj-name { font-size: 16px; font-weight: 700; color: #1976D2; }
-    .meta      { font-size: 11px; color: #78909C; }
+    .gantt-frame { border: 1px solid #546E7A; display: inline-block; width: 100%; }
     svg { width: var(--gantt-zoom, 100%); max-width: none; height: auto; display: block; }
     .controls { display: flex; align-items: center; gap: 12px; padding: 8px 0 10px;
                 font-family: 'Segoe UI', system-ui, sans-serif; font-size: 12px; flex-wrap: wrap; }
@@ -144,9 +144,10 @@ export function printGantt(rows) {
   </div>
   <div class="header">
     <div class="proj-name">${_esc(project.name)}</div>
-    <div class="meta">v9 Gantt — autoajuste + columnas configurables</div>
   </div>
-  ${svgStr}
+  <div class="gantt-frame">
+    ${svgStr}
+  </div>
   <script>
     const zoom = document.getElementById('zoom');
     const zoomVal = document.getElementById('zoom-val');
@@ -156,7 +157,7 @@ export function printGantt(rows) {
       svg.style.width = zoom.value + '%';
     });
     function setOrient(o) {
-      document.getElementById('page-style').textContent = '@page { size: ' + o + '; margin: 10mm; }';
+      document.getElementById('page-style').textContent = '@page { size: ' + o + '; margin: 0; }';
       document.getElementById('btn-land').classList.toggle('active', o === 'landscape');
       document.getElementById('btn-port').classList.toggle('active', o === 'portrait');
     }

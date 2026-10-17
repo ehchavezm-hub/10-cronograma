@@ -17,7 +17,7 @@ import { openDB, listProjects, loadProject, saveProjectSnapshot, putMany, put as
 import { t }             from './i18n.js';
 import { DEMO_DATA }     from './demo-data.js';
 import { exportJson, importJson, exportCsv, exportMspXml, exportSvg } from './io.js';
-import { printWbsTable, printGantt, getPrintCols, setPrintCols } from './print.js?v=6';
+import { printWbsTable, printGantt, getPrintCols, setPrintCols } from './print.js?v=7';
 import { SyncEngine }     from './sync.js';
 import { outboxAdd }      from './storage.js?v=4';
 import { EvmPanel }       from './evm.js';

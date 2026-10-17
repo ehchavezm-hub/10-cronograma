@@ -329,28 +329,44 @@ export function renderGanttSvg({ tasks, deps, cpmResult, calendar, projectStart,
     const y1 = HDR_H + pi * ROW_H + ROW_H / 2;
     const y2 = HDR_H + si * ROW_H + ROW_H / 2;
 
-    // Flecha FS con curvas bezier suaves (igual que el canvas)
+    // Flecha FS ortogonal que NO cruza barras.
+    // Corredor horizontal en el límite de fila del destino (espacio entre filas).
     const OFF = 10;
-    const R   = 6;  // radio de esquinas redondeadas
+    const R   = 6;
+
+    const corridorY = pi === si ? y1
+      : si > pi ? HDR_H + si * ROW_H       // justo encima de la fila destino
+      : HDR_H + (si + 1) * ROW_H;          // justo debajo de la fila destino
+
+    const dy1 = corridorY >= y1 ? 1 : -1;
+    const dy2 = y2 >= corridorY ? 1 : -1;
+
     let d;
-    if (x2 >= x1 + OFF * 2) {
-      // Caso normal: S-curve bezier suave
-      const mx = (x1 + x2) / 2;
-      d = `M ${x1},${y1} C ${mx},${y1} ${mx},${y2} ${x2},${y2}`;
-    } else {
-      // Caso overlap: U-turn con esquinas redondeadas (Q quadratic bezier)
-      const rx  = x1 + OFF;
-      const lx  = Math.min(x2 - OFF, x1 - OFF);
-      const mid = (y1 + y2) / 2;
-      const dir = y2 >= y1 ? 1 : -1;
-      const clampR = v => Math.min(R, Math.abs(v) / 2);
-      const r1 = clampR(mid - y1);
-      const r2 = clampR(y2 - mid);
+    if (pi === si) {
+      d = `M ${x1},${y1} L ${x2},${y2}`;
+    } else if (x2 >= x1 + OFF * 2) {
+      // Normal: salida derecha → baja a corredor → derecha → baja a y2
+      const ex = x1 + OFF;
+      const en = x2 - OFF;
+      const cr1 = Math.min(R, Math.abs(corridorY - y1) / 2, (en - ex) / 2 + 0.1);
+      const cr2 = Math.min(R, Math.abs(y2 - corridorY) / 2, (en - ex) / 2 + 0.1);
       d = `M ${x1},${y1} ` +
-          `L ${rx - R},${y1} Q ${rx},${y1} ${rx},${y1 + dir * r1} ` +
-          `L ${rx},${mid - dir * r1} Q ${rx},${mid} ${rx - R},${mid} ` +
-          `L ${lx + R},${mid} Q ${lx},${mid} ${lx},${mid + dir * r2} ` +
-          `L ${lx},${y2 - dir * r2} Q ${lx},${y2} ${lx + R},${y2} ` +
+          `L ${ex - cr1},${y1} Q ${ex},${y1} ${ex},${y1 + dy1 * cr1} ` +
+          `L ${ex},${corridorY - dy1 * cr1} Q ${ex},${corridorY} ${ex + cr1},${corridorY} ` +
+          `L ${en - cr2},${corridorY} Q ${en},${corridorY} ${en},${corridorY + dy2 * cr2} ` +
+          `L ${en},${y2 - dy2 * cr2} Q ${en},${y2} ${en + cr2},${y2} ` +
+          `L ${x2},${y2}`;
+    } else {
+      // Overlap/U-turn: pasa a la derecha, baja al corredor, entra al destino
+      const mx  = Math.max(x1, x2) + OFF;
+      const ix  = x2 - OFF;
+      const cr1 = Math.min(R, Math.abs(corridorY - y1) / 2);
+      const cr2 = Math.min(R, Math.abs(y2 - corridorY) / 2);
+      d = `M ${x1},${y1} ` +
+          `L ${mx - cr1},${y1} Q ${mx},${y1} ${mx},${y1 + dy1 * cr1} ` +
+          `L ${mx},${corridorY - dy1 * cr1} Q ${mx},${corridorY} ${mx - cr1},${corridorY} ` +
+          `L ${ix + cr2},${corridorY} Q ${ix},${corridorY} ${ix},${corridorY + dy2 * cr2} ` +
+          `L ${ix},${y2 - dy2 * cr2} Q ${ix},${y2} ${ix + cr2},${y2} ` +
           `L ${x2},${y2}`;
     }
     out.push(`<path d="${d}" fill="none" stroke="${arrowClr}" stroke-width="1.5"
