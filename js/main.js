@@ -2982,10 +2982,11 @@ function _exportCpmNetwork(fmt, dlg) {
     clone.removeAttribute('height');
     clone.setAttribute('preserveAspectRatio', 'xMidYMid meet');
 
-    const win = window.open('', '_blank', 'width=1300,height=900');
-    if (!win) { alert('El navegador bloqueó la ventana emergente. Permítala e intente de nuevo.'); return; }
+    // Serializar el SVG para incrustar directamente en el HTML
+    // Se usa blob URL en lugar de document.write para evitar que el parser HTML
+    // reordene el DOM al encontrar SVG (problema histórico con document.write + SVG)
+    const svgInline = serializer.serializeToString(clone);
 
-    // Escribir HTML shell SIN el SVG (evita que document.write reordene el DOM al parsear SVG)
     const html = `<!doctype html>
 <html lang="es"><head>
   <meta charset="UTF-8">
@@ -2993,14 +2994,14 @@ function _exportCpmNetwork(fmt, dlg) {
   <style id="page-style">@page { size: landscape; margin: 10mm; }</style>
   <style>
     * { box-sizing: border-box; }
-    body  { margin: 0; padding: 0; font-family: 'Segoe UI', system-ui, sans-serif; }
+    body  { margin: 0; padding: 8px 12px; font-family: 'Segoe UI', system-ui, sans-serif; }
     .header { display: flex; align-items: center; padding: 0 0 6px;
               border-bottom: 2px solid #1976D2; margin-bottom: 8px; }
     .proj-name { font-size: 16px; font-weight: 700; color: #1976D2; }
     .gantt-frame { border: 0.25px solid #546E7A; display: block; width: 100%; overflow: hidden; }
-    .gantt-frame svg { width: 100%; height: auto; display: block; }
+    .gantt-frame svg { width: var(--zoom-w, 100%); height: auto; display: block; }
     .controls { display: flex; align-items: center; gap: 12px; padding: 8px 0 10px;
-                font-family: 'Segoe UI', system-ui, sans-serif; font-size: 12px; flex-wrap: wrap; }
+                font-size: 12px; flex-wrap: wrap; }
     .controls label { display: flex; align-items: center; gap: 6px; color: #455A64; }
     .controls input[type=range] { width: 120px; accent-color: #1976D2; }
     .btn-c { border: 1px solid #90A4AE; border-radius: 6px; padding: 5px 13px;
@@ -3022,17 +3023,17 @@ function _exportCpmNetwork(fmt, dlg) {
       <span id="zoom-val" style="min-width:40px">100%</span>
     </label>
     <div class="sep"></div>
-    <span style="color:#78909C">Orientación:</span>
-    <button class="btn-c active" id="btn-land" onclick="setOrient('landscape')">&#x2B1B; Horizontal</button>
-    <button class="btn-c" id="btn-port" onclick="setOrient('portrait')">&#x1F532; Vertical</button>
+    <span style="color:#78909C">Orientaci&#243;n:</span>
+    <button class="btn-c active" id="btn-land">&#x2B1B; Horizontal</button>
+    <button class="btn-c" id="btn-port">&#x1F532; Vertical</button>
     <div class="sep"></div>
-    <button class="btn-print" onclick="window.print()">Imprimir</button>
+    <button class="btn-print" id="btn-print">&#x1F5A8; Imprimir</button>
     <span style="color:#78909C;font-size:11px">${today}</span>
   </div>
   <div class="header">
     <div class="proj-name">${projDisplayName}</div>
   </div>
-  <div class="gantt-frame" id="cpm-frame"></div>
+  <div class="gantt-frame">${svgInline}</div>
   <div class="legend-wrap">
     <div class="legend-item"><div class="legend-swatch" style="background:#e74c3c"></div>Cr&#237;tica</div>
     <div class="legend-item"><div class="legend-swatch" style="background:#f39c12"></div>Casi cr&#237;tica</div>
@@ -3042,37 +3043,30 @@ function _exportCpmNetwork(fmt, dlg) {
   <script>
     const zoom = document.getElementById('zoom');
     const zoomVal = document.getElementById('zoom-val');
+    const frame = document.querySelector('.gantt-frame');
     zoom.addEventListener('input', () => {
       zoomVal.textContent = zoom.value + '%';
-      const s = document.querySelector('.gantt-frame svg');
-      if (s) s.style.width = zoom.value + '%';
+      frame.style.setProperty('--zoom-w', zoom.value + '%');
     });
     function setOrient(o) {
       document.getElementById('page-style').textContent = '@page { size: ' + o + '; margin: 10mm; }';
       document.getElementById('btn-land').classList.toggle('active', o === 'landscape');
       document.getElementById('btn-port').classList.toggle('active', o === 'portrait');
     }
+    document.getElementById('btn-land').addEventListener('click', () => setOrient('landscape'));
+    document.getElementById('btn-port').addEventListener('click', () => setOrient('portrait'));
+    document.getElementById('btn-print').addEventListener('click', () => window.print());
   <\/script>
 </body></html>`;
 
-    win.document.write(html);
-    win.document.close();
-
-    // Inyectar el SVG vía DOM (evita el problema del parser HTML con SVG inline en document.write)
-    try {
-      const frame = win.document.getElementById('cpm-frame');
-      if (frame) {
-        const imported = win.document.importNode(clone, true);
-        imported.style.width = '100%';
-        imported.style.height = 'auto';
-        imported.style.display = 'block';
-        frame.appendChild(imported);
-      }
-    } catch (e) {
-      // fallback: serializar e inyectar vía innerHTML
-      const frame = win.document.getElementById('cpm-frame');
-      if (frame) frame.innerHTML = serializer.serializeToString(clone);
-    }
+    // Usar blob URL: el navegador carga el documento completo de forma normal,
+    // sin document.write, sin reordenamiento del parser al encontrar SVG inline
+    const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+    const blobUrl = URL.createObjectURL(blob);
+    const win = window.open(blobUrl, '_blank', 'width=1300,height=900');
+    if (!win) { URL.revokeObjectURL(blobUrl); alert('El navegador bloqueó la ventana emergente. Permítala e intente de nuevo.'); return; }
+    // Liberar blob URL después de que la ventana haya cargado
+    setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
   }
 }
 
