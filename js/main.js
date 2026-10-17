@@ -603,9 +603,8 @@ async function _openResourceManager() {
   if (!dlg) {
     dlg = document.createElement('dialog');
     dlg.id = 'dlg-resources';
-    dlg.style.cssText = 'border:none;border-radius:12px;padding:0;width:600px;max-width:96vw;box-shadow:0 8px 40px rgba(0,0,0,0.3);overflow:hidden';
+    dlg.style.cssText = 'border:none;border-radius:12px;padding:0;width:600px;max-width:96vw;box-shadow:0 8px 40px rgba(0,0,0,0.3);overflow:hidden;position:fixed;margin:0;top:80px;left:max(8px,calc(50vw - 300px));z-index:1000';
     document.body.appendChild(dlg);
-    dlg.addEventListener('click', e => { if (e.target === dlg) dlg.close(); });
   }
 
   const { getAll } = await import('./storage.js?v=4');
@@ -629,12 +628,12 @@ async function _openResourceManager() {
   }).join('') || '<tr><td colspan="6" style="padding:16px;text-align:center;color:var(--clr-text-3)">Sin recursos en el catálogo</td></tr>';
 
   dlg.innerHTML = `
-    <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid var(--clr-border);background:var(--clr-surface-2)">
+    <div id="dlg-res-hdr" style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid var(--clr-border);background:var(--clr-surface-2);cursor:move;user-select:none" title="Arrastrar para mover">
       <div>
         <div style="font-weight:700;font-size:15px">Catálogo de Recursos</div>
         <div style="font-size:11px;color:var(--clr-text-3);margin-top:2px">Recursos disponibles para asignar a actividades</div>
       </div>
-      <button id="dlg-res-close" class="btn btn-icon btn-sm">✕</button>
+      <button id="dlg-res-close" class="btn btn-icon btn-sm" style="cursor:default">✕</button>
     </div>
     <div style="padding:16px;max-height:45vh;overflow-y:auto">
       <table style="width:100%;border-collapse:collapse">
@@ -672,6 +671,27 @@ async function _openResourceManager() {
     </div>`;
 
   dlg.querySelector('#dlg-res-close').addEventListener('click', () => dlg.close());
+
+  // ---- Drag-to-move ----
+  { const hdr = dlg.querySelector('#dlg-res-hdr');
+    let _ox = 0, _oy = 0, _drag = false;
+    const onMove = e => {
+      if (!_drag) return;
+      dlg.style.left = Math.max(0, e.clientX - _ox) + 'px';
+      dlg.style.top  = Math.max(0, e.clientY - _oy) + 'px';
+    };
+    const onUp = () => { _drag = false; hdr.style.cursor = 'move'; };
+    hdr.addEventListener('mousedown', e => {
+      if (e.target.closest('button')) return;
+      const r = dlg.getBoundingClientRect();
+      _ox = e.clientX - r.left; _oy = e.clientY - r.top;
+      _drag = true; hdr.style.cursor = 'grabbing'; e.preventDefault();
+    });
+    if (dlg.__rmClean) dlg.__rmClean();
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+    dlg.__rmClean = () => { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); };
+  }
   dlg.querySelector('#rm-add').addEventListener('click', async () => {
     const name = /** @type {HTMLInputElement} */ (dlg.querySelector('#rm-name')).value.trim();
     if (!name) { _showToast('Nombre requerido', 'warn'); return; }
@@ -706,7 +726,7 @@ async function _openResourceManager() {
     }
   });
 
-  dlg.showModal();
+  if (!dlg.open) dlg.show();
 }
 
 // ============================================================
