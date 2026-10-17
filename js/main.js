@@ -2123,7 +2123,6 @@ function _showOrgChart() {
       const onU=()=>{_d=false;if(hdr)/** @type {HTMLElement} */(hdr).style.cursor='move';};
       hdr?.addEventListener('mousedown',e=>{if(/** @type {HTMLElement} */(e.target).closest('button'))return;const r=dlg.getBoundingClientRect();_ox=e.clientX-r.left;_oy=e.clientY-r.top;_d=true;/** @type {HTMLElement} */(hdr).style.cursor='grabbing';e.preventDefault();});
       document.addEventListener('mousemove',onM);document.addEventListener('mouseup',onU);
-      dlg.addEventListener('close',()=>{document.removeEventListener('mousemove',onM);document.removeEventListener('mouseup',onU);},{once:true});
     }
 
     dlg.querySelector('#oc-add-pf')  ?.addEventListener('click', () => _ocOpenForm(dlg, 'portfolio', null));
@@ -2846,7 +2845,6 @@ function _showCpmNetwork() {
     const onU=()=>{_d=false;if(hdr)hdr.style.cursor='move';};
     hdr?.addEventListener('mousedown',e=>{if(/** @type {HTMLElement} */(e.target).closest('button'))return;const r=dlg.getBoundingClientRect();_ox=e.clientX-r.left;_oy=e.clientY-r.top;_d=true;if(hdr)hdr.style.cursor='grabbing';e.preventDefault();});
     document.addEventListener('mousemove',onM);document.addEventListener('mouseup',onU);
-    dlg.addEventListener('close',()=>{document.removeEventListener('mousemove',onM);document.removeEventListener('mouseup',onU);},{once:true});
   }
 
   // Zoom + pan state (accessible to zoom-fit button after render)
