@@ -187,6 +187,11 @@ html, body {
 }
 .resizer:hover,
 .resizer.dragging { background: var(--clr-primary); }
+.resizer:focus-visible {
+  outline: 2px solid var(--clr-primary);
+  outline-offset: 1px;
+  background: var(--clr-primary);
+}
 
 /* ---- Barra de estado ---- */
 #statusbar {
