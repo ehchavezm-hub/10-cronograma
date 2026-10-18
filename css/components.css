@@ -1041,6 +1041,10 @@
   background: var(--clr-surface-3, #f3f4f6);
   border-color: var(--clr-primary, #4f46e5);
 }
+.filter-btn:focus-visible {
+  outline: 2px solid var(--clr-primary, #4f46e5);
+  outline-offset: 2px;
+}
 .filter-btn.active,
 .filter-btn[aria-pressed="true"] {
   background: var(--clr-primary, #4f46e5);

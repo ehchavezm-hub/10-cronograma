@@ -2503,6 +2503,19 @@ function _bindResizer() {
 
   document.addEventListener('mousemove', _onMove);
   document.addEventListener('mouseup', _onUp);
+
+  // Teclado: flechas para ajuste fino (ArrowLeft = más ancho Gantt, ArrowRight = más angosto)
+  resizer.addEventListener('keydown', e => {
+    const step = e.shiftKey ? 20 : 5;
+    const w = ganttPanel.getBoundingClientRect().width;
+    const minW = 180;
+    const maxW = window.innerWidth - 280;
+    if (e.key === 'ArrowLeft')  { ganttPanel.style.width = Math.min(maxW, w + step) + 'px'; e.preventDefault(); }
+    if (e.key === 'ArrowRight') { ganttPanel.style.width = Math.max(minW, w - step) + 'px'; e.preventDefault(); }
+    localStorage.setItem('gantt-panel-width', ganttPanel.style.width);
+    _syncAria();
+    _ganttCanvas?.requestRender();
+  });
 }
 
 function _bindResizerExplorer() {
