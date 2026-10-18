@@ -312,7 +312,8 @@ export class WbsTable {
     const countEl = document.getElementById('filter-bar-count');
     if (countEl) {
       if (this._filter === 'all') {
-        countEl.textContent = '';
+        const total = allRows.filter(r => !r.isSummary).length;
+        countEl.textContent = total ? `${total} ${total === 1 ? 'tarea' : 'tareas'}` : '';
       } else {
         const leaf = rows.filter(r => !r.isSummary).length;
         const total = allRows.filter(r => !r.isSummary).length;

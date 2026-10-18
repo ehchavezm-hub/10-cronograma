@@ -2038,6 +2038,19 @@ function _bindToolbar() {
     if (appState.redo()) _showToast(t('redone'));
     else _showToast(t('noMoreRedo'));
   });
+  document.addEventListener('keydown', (e) => {
+    const tag = /** @type {HTMLElement} */ (document.activeElement)?.tagName?.toLowerCase();
+    if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
+    if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+      e.preventDefault();
+      if (appState.undo()) _showToast(t('undone'));
+      else _showToast(t('noMoreUndo'));
+    } else if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) {
+      e.preventDefault();
+      if (appState.redo()) _showToast(t('redone'));
+      else _showToast(t('noMoreRedo'));
+    }
+  });
   document.getElementById('btn-add-task')?.addEventListener('click', () => {
     _wbsTable?.addTaskAfterSelected('task');
   });
@@ -2988,7 +3001,7 @@ function _ocOpenForm(dlg, type, data) {
     try {
       if (type === 'portfolio') await deletePortfolio(data.id);
       else if (type === 'program') await deleteProgram(data.id);
-      else await dbRemove('projects', data.id);
+      else await _deleteProject(data.id);
       overlay.style.display = 'none';
       await _renderOrgChart();
       _renderProjectList();
