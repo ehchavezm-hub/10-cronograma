@@ -368,6 +368,24 @@
   letter-spacing: .06em;
   color: var(--clr-text-3);
 }
+.explorer-section-title.has-toggle {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  padding-top: var(--sp-2);
+  padding-bottom: var(--sp-2);
+  cursor: default;
+}
+.explorer-toggle {
+  padding: 0 !important;
+  width: 16px;
+  height: 16px;
+  font-size: 10px;
+  flex-shrink: 0;
+  color: var(--clr-text-3);
+  line-height: 1;
+}
+.explorer-toggle:hover { color: var(--clr-text-1); }
 
 /* ---- Panel Gantt (placeholder Fase 1) ---- */
 .gantt-placeholder {

@@ -1523,10 +1523,11 @@ async function _renderProjectList() {
       ? progProjects.map(p => _projItem(p, indent + 1)).join('')
       : `<div style="padding:3px 8px 3px ${24 + indent * 16}px;font-size:11px;color:var(--clr-text-3);font-style:italic">Sin proyectos</div>`;
     return `<div class="explorer-group">
-      <div class="explorer-section-title" style="padding-left:${4 + indent * 16}px;display:flex;align-items:center;gap:3px">
-        <button class="btn btn-ghost explorer-toggle" data-exptoggle="${gid}" title="${isCol ? 'Expandir' : 'Colapsar'}"
-          style="padding:0;width:16px;height:16px;font-size:10px;flex-shrink:0;color:var(--clr-text-3)">${isCol ? '▶' : '▼'}</button>
-        <span>📦</span>
+      <div class="explorer-section-title has-toggle" style="padding-left:${4 + indent * 16}px">
+        <button class="btn btn-ghost explorer-toggle" data-exptoggle="${gid}"
+          aria-expanded="${isCol ? 'false' : 'true'}" aria-label="${isCol ? 'Expandir' : 'Colapsar'} ${_escAttr(prog.name)}"
+          title="${isCol ? 'Expandir' : 'Colapsar'}">${isCol ? '▶' : '▼'}</button>
+        <span aria-hidden="true">📦</span>
         <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${_escHtml(prog.name)}</span>
         ${prog.code ? `<span style="font-size:10px;opacity:0.55;flex-shrink:0">${_escHtml(prog.code)}</span>` : ''}
       </div>
@@ -1547,10 +1548,11 @@ async function _renderProjectList() {
       ...pfProjects.map(p => _projItem(p, 1)),
     ].join('') || `<div style="padding:3px 8px 3px 24px;font-size:11px;color:var(--clr-text-3);font-style:italic">Sin contenido</div>`;
     rows.push(`<div class="explorer-group">
-      <div class="explorer-section-title" style="display:flex;align-items:center;gap:3px;padding-left:4px">
-        <button class="btn btn-ghost explorer-toggle" data-exptoggle="${gid}" title="${isCol ? 'Expandir' : 'Colapsar'}"
-          style="padding:0;width:16px;height:16px;font-size:10px;flex-shrink:0;color:var(--clr-text-3)">${isCol ? '▶' : '▼'}</button>
-        <span>🗂</span>
+      <div class="explorer-section-title has-toggle" style="padding-left:4px">
+        <button class="btn btn-ghost explorer-toggle" data-exptoggle="${gid}"
+          aria-expanded="${isCol ? 'false' : 'true'}" aria-label="${isCol ? 'Expandir' : 'Colapsar'} ${_escAttr(pf.name)}"
+          title="${isCol ? 'Expandir' : 'Colapsar'}">${isCol ? '▶' : '▼'}</button>
+        <span aria-hidden="true">🗂</span>
         <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${_escHtml(pf.name)}</span>
         ${pf.code ? `<span style="font-size:10px;opacity:0.55;flex-shrink:0">${_escHtml(pf.code)}</span>` : ''}
       </div>
@@ -1579,6 +1581,7 @@ async function _renderProjectList() {
       /** @type {HTMLElement} */ (childEl).style.display = nowCollapsing ? 'none' : '';
       btn.textContent = nowCollapsing ? '▶' : '▼';
       btn.title = nowCollapsing ? 'Expandir' : 'Colapsar';
+      btn.setAttribute('aria-expanded', nowCollapsing ? 'false' : 'true');
       if (nowCollapsing) collapsed.add(gid); else collapsed.delete(gid);
       try { localStorage.setItem('explorer-collapsed', JSON.stringify([...collapsed])); } catch { /* ignore */ }
     });
