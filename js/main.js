@@ -6,20 +6,20 @@
 
 import { IS_LOCAL_MODE } from './config.js';
 import { appState }      from './state.js';
-import { WbsTable }      from './wbs-table.js?v=16';
-import { GanttCanvas }   from './gantt-canvas.js?v=31';
+import { WbsTable }      from './wbs-table.js';
+import { GanttCanvas }   from './gantt-canvas.js';
 import { GanttScene }    from './scene.js';
 import { DcmaPanel }     from './dcma.js';
 import { Calendar, isoToDate } from './calendar.js';
 import { computeCPM }    from './cpm.js';
 import { openDB, listProjects, loadProject, saveProjectSnapshot, putMany, put as dbPut, getByIndex, remove as dbRemove,
-         listPortfolios, savePortfolio, deletePortfolio, listPrograms, saveProgram, deleteProgram, loadHierarchy } from './storage.js?v=4';
+         listPortfolios, savePortfolio, deletePortfolio, listPrograms, saveProgram, deleteProgram, loadHierarchy } from './storage.js';
 import { t }             from './i18n.js';
 import { DEMO_DATA }     from './demo-data.js';
 import { exportJson, importJson, exportCsv, exportMspXml, exportSvg } from './io.js';
-import { printWbsTable, printGantt, getPrintCols, setPrintCols } from './print.js?v=7';
+import { printWbsTable, printGantt, getPrintCols, setPrintCols } from './print.js';
 import { SyncEngine }     from './sync.js';
-import { outboxAdd }      from './storage.js?v=4';
+import { outboxAdd }      from './storage.js';
 import { EvmPanel }       from './evm.js';
 import { ChangeLogPanel, logCommand } from './change-log.js';
 import { saveBaseline, listBaselines, loadBaselineData, deleteBaseline, setPrimaryBaseline, getBaseline } from './baseline.js';
@@ -377,7 +377,7 @@ async function _openTaskDetail(taskId) {
   let taskResources = [];
   let allResources = [];
   try {
-    const { getAll, getByIndex } = await import('./storage.js?v=4');
+    const { getAll, getByIndex } = await import('./storage.js');
     [allResources, taskResources] = await Promise.all([
       getAll('resources').then(r => r.filter(x => !x.deleted_at)),
       getByIndex('task_resources', 'task_id', taskId).then(r => r.filter(x => !x.deleted_at)),
@@ -578,7 +578,7 @@ async function _tdpAddResource(taskId) {
   const sel = /** @type {HTMLSelectElement} */ (document.getElementById('tdp-res-select'));
   if (!sel?.value) return;
   const resId = sel.value;
-  const { getAll } = await import('./storage.js?v=4');
+  const { getAll } = await import('./storage.js');
   const allRes = await getAll('resources').then(r => r.filter(x => !x.deleted_at));
   const res = allRes.find(r => r.id === resId);
   if (!res) return;
@@ -654,7 +654,7 @@ async function _saveTaskDetail() {
   // Persistir task_resources
   const proj = appState.state.project;
   if (proj) {
-    const { getByIndex, put: dbPutSt, remove: dbRemoveSt } = await import('./storage.js?v=4');
+    const { getByIndex, put: dbPutSt, remove: dbRemoveSt } = await import('./storage.js');
     // Eliminar los marcados
     const toRemove = (panel.dataset['removeRes'] || '').split(',').filter(Boolean);
     await Promise.all(toRemove.map(trid => dbRemoveSt('task_resources', trid).catch(() => {})));
@@ -736,7 +736,7 @@ async function _openResourceManager() {
     dlg.setAttribute('aria-modal', 'true');
   }
 
-  const { getAll } = await import('./storage.js?v=4');
+  const { getAll } = await import('./storage.js');
   const [resources, allTaskRes] = await Promise.all([
     getAll('resources').then(r => r.filter(x => !x.deleted_at)),
     getAll('task_resources').then(r => r.filter(x => !x.deleted_at)).catch(() => []),
@@ -975,7 +975,7 @@ async function _openResourceManager() {
     const unitLabel  = /** @type {HTMLInputElement} */ (dlg.querySelector('#rm-unit-label')).value.trim() || null;
     const maxUnitsRaw = /** @type {HTMLInputElement} */ (dlg.querySelector('#rm-max-units')).value;
     const maxUnits   = maxUnitsRaw ? parseFloat(maxUnitsRaw) : (type === 'work' ? 100 : null);
-    const { put: dbPutSt } = await import('./storage.js?v=4');
+    const { put: dbPutSt } = await import('./storage.js');
     const rec = {
       id: crypto.randomUUID(), name, role, rate_per_hour: rate, type,
       unit_label: (type === 'material' || type === 'equipment') ? unitLabel : null,
@@ -994,7 +994,7 @@ async function _openResourceManager() {
     if (btn) {
       const rid = btn.dataset.rid;
       _confirmDialog('¿Eliminar este recurso? Esta acción no se puede deshacer.', async () => {
-        const { remove: dbRemoveSt, getAll: dbGetAllSt } = await import('./storage.js?v=4');
+        const { remove: dbRemoveSt, getAll: dbGetAllSt } = await import('./storage.js');
         await dbRemoveSt('resources', rid);
         // Limpiar asignaciones huérfanas
         const taskRes = await dbGetAllSt('task_resources').catch(() => []);
@@ -1013,7 +1013,7 @@ async function _openResourceManager() {
 // ============================================================
 
 async function _openResourceAssign(preSelectedId = null) {
-  const { getAll, getByIndex, put: dbPut, remove: dbRemove } = await import('./storage.js?v=4');
+  const { getAll, getByIndex, put: dbPut, remove: dbRemove } = await import('./storage.js');
   const [resources, allTaskResRaw] = await Promise.all([
     getAll('resources').then(r => r.filter(x => !x.deleted_at)),
     getAll('task_resources').then(r => r.filter(x => !x.deleted_at)).catch(() => []),
@@ -1423,7 +1423,7 @@ async function _openCalendarEditor() {
       created_at: cal?.created_at ?? now, updated_at: now, deleted_at: null,
     };
 
-    const { put: dbPutSt } = await import('./storage.js?v=4');
+    const { put: dbPutSt } = await import('./storage.js');
 
     // Guardar calendario
     await dbPutSt('calendars', updatedCal);

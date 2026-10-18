@@ -100,7 +100,7 @@ export function printGantt(rows) {
           .map(e => ({ on_date: e.on_date, is_working: e.is_working })) }
     : { work_week: [1,2,3,4,5], exceptions: [] };
 
-  import('./gantt-svg.js?v=7').then(({ renderGanttSvg }) => {
+  import('./gantt-svg.js').then(({ renderGanttSvg }) => {
     const cal       = new Calendar(calDef);
     const startDate = isoToDate(project.start_date);
 

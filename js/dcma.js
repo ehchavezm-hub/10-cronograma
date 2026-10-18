@@ -459,7 +459,7 @@ export class DcmaPanel {
 
     let taskResources = [];
     try {
-      const { getByIndex } = await import('./storage.js?v=4');
+      const { getByIndex } = await import('./storage.js');
       taskResources = await getByIndex('task_resources', 'project_id', project.id);
     } catch { /* sin recursos */ }
 
@@ -521,9 +521,14 @@ export class DcmaPanel {
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+    // Read theme-aware colors
+    const _cs     = getComputedStyle(document.documentElement);
+    const _cTrack = _cs.getPropertyValue('--clr-border').trim()   || '#E0E0E0';
+    const _cSub   = _cs.getPropertyValue('--clr-text-3').trim()   || '#78909C';
+
     // Fondo del arco
     ctx.beginPath(); ctx.arc(cx, cy, r, start, end);
-    ctx.strokeStyle = '#E0E0E0'; ctx.lineWidth = 14; ctx.lineCap = 'round';
+    ctx.strokeStyle = _cTrack; ctx.lineWidth = 14; ctx.lineCap = 'round';
     ctx.stroke();
 
     // Arco del valor
@@ -540,7 +545,7 @@ export class DcmaPanel {
 
     // Etiqueta
     const label = score >= 80 ? 'BUENO' : score >= 60 ? 'REGULAR' : 'CRÍTICO';
-    ctx.fillStyle = '#78909C';
+    ctx.fillStyle = _cSub;
     ctx.font = '600 11px "Urbanist", system-ui';
     ctx.fillText(label, cx, cy + 18);
   }

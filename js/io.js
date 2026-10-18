@@ -13,7 +13,7 @@
 
 import { appState }      from './state.js';
 import { isoToDate, Calendar } from './calendar.js';
-import { renderGanttSvg } from './gantt-svg.js?v=2';
+import { renderGanttSvg } from './gantt-svg.js';
 
 // ============================================================
 // Helpers de descarga
@@ -341,8 +341,8 @@ export function exportSvg(rows) {
 
   let ganttExtraCols = [];
   try {
-    const saved = JSON.parse(localStorage.getItem('print-cols') || '[]');
-    ganttExtraCols = ['dur','start','finish','pct','tf'].filter(c => saved.includes(c));
+    const saved = JSON.parse(localStorage.getItem('wbs-col-visibility') || '[]');
+    ganttExtraCols = ['wbs','dur','start','finish','pct','tf','ff','pred'].filter(c => saved.includes(c));
   } catch { /* ignore */ }
   const svgStr = renderGanttSvg({
     tasks, deps, cpmResult, calendar: cal,

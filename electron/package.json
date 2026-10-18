@@ -1,7 +1,7 @@
 {
   "name": "ecm-cronograma",
   "productName": "ECM Cronograma",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Gestión de cronogramas y proyectos ECM",
   "main": "main.js",
   "author": "E. Chávez",
@@ -33,11 +33,7 @@
     "win": {
       "target": [
         {
-          "target": "nsis",
-          "arch": ["x64"]
-        },
-        {
-          "target": "portable",
+          "target": "zip",
           "arch": ["x64"]
         }
       ],
