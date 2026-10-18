@@ -72,7 +72,6 @@ const ES_PE = {
 
   // Mensajes
   confirmDelete: '¿Eliminar esta tarea? Los datos se pueden recuperar con Deshacer.',
-  confirmDeleteDep: '¿Eliminar esta dependencia?',
   cyclicDep: (chain) => `La dependencia crea un ciclo: ${chain}`,
   summaryHasDep: 'La tarea resumen no puede tener dependencias; muévalas a sus subtareas.',
   milestoneHasChildren: 'Un hito no puede tener subtareas.',
