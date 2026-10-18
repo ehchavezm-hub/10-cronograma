@@ -112,7 +112,7 @@
     </nav>
 
     <!-- Diálogo: Nuevo Proyecto -->
-    <dialog id="dlg-new-item" aria-labelledby="dlg-ni-title" style="
+    <dialog id="dlg-new-item" aria-labelledby="dlg-ni-title" aria-modal="true" style="
       border:none;border-radius:12px;padding:0;
       box-shadow:0 8px 40px rgba(0,0,0,0.25);
       min-width:380px;max-width:500px;width:90vw;">
@@ -177,7 +177,7 @@
     </dialog>
 
     <!-- Diálogo: Línea base -->
-    <dialog id="dlg-baseline" aria-labelledby="dlg-bl-title" style="
+    <dialog id="dlg-baseline" aria-labelledby="dlg-bl-title" aria-modal="true" style="
       border:none;border-radius:12px;padding:0;
       box-shadow:0 8px 40px rgba(0,0,0,0.25);
       min-width:360px;max-width:500px;width:92vw;
@@ -193,7 +193,7 @@
       <div style="padding:14px 18px;display:flex;flex-direction:column;gap:12px;">
         <!-- Guardar nueva LB -->
         <div style="display:flex;gap:8px;align-items:center;">
-          <input id="bl-name-input" type="text" class="input-sm" placeholder="Nombre (ej: LB-0 Contrato)"
+          <input id="bl-name-input" type="text" class="input-sm" placeholder="Nombre (ej: LB-0 Contrato)" aria-label="Nombre de la línea base"
             style="flex:1;border:1px solid var(--clr-border);border-radius:6px;padding:6px 10px;font-size:var(--text-sm)">
           <button id="btn-bl-save" class="btn btn-primary btn-sm" title="Captura ES/EF actuales del CPM">💾 Guardar</button>
         </div>
@@ -427,7 +427,7 @@
     <span style="position:absolute;left:50%;transform:translateX(-50%);font-size:var(--text-xs);color:var(--clr-text-3);white-space:nowrap">ECM Project v1.0.0 | © 2026 E. Chávez</span>
     <span style="flex:1"></span>
     <span id="status-warnings" style="font-size:var(--text-xs);color:var(--clr-text-3)"></span>
-    <span>v60</span>
+    <span>v61</span>
   </footer>
 
   <!-- Pestañas inferiores (solo móvil) -->
@@ -458,7 +458,7 @@
 <!-- ============================================================
      Módulo principal (ES Module)
      ============================================================ -->
-<script type="module" src="js/main.js?v=60"></script>
+<script type="module" src="js/main.js?v=61"></script>
 
 <!-- Atajos de teclado globales -->
 <script type="module">
