@@ -91,7 +91,7 @@ html, body {
   align-items: center;
   gap: var(--sp-2);
   padding: var(--sp-2) var(--sp-4);
-  background: var(--clr-surface);
+  background: var(--clr-toolbar-row2, #e0f2fe);
   border-bottom: 1px solid var(--clr-border-2);
   min-height: 40px;
   flex-wrap: wrap;
