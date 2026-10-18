@@ -2129,11 +2129,41 @@ function _bindToolbar() {
   document.getElementById('btn-auto-calc')?.addEventListener('change', e => {
     appState.setAutoCalc(/** @type {HTMLInputElement} */ (e.target).checked);
   });
-  document.getElementById('btn-theme')?.addEventListener('click', () => {
-    const html = document.documentElement;
-    const cur = html.getAttribute('data-theme');
-    html.setAttribute('data-theme', cur === 'dark' ? 'light' : 'dark');
-  });
+  // ---- Theme picker: 7 temas ----
+  {
+    const _THEMES = [
+      { id: 'light',     label: 'Claro',           bg: '#f7f8fa', primary: '#4f46e5' },
+      { id: 'dark',      label: 'Oscuro',           bg: '#0f1117', primary: '#818cf8' },
+      { id: 'blue-gray', label: 'Azul y gris',      bg: '#f0f4f8', primary: '#2563eb' },
+      { id: 'emerald',   label: 'Verde esmeralda',   bg: '#f0fdf6', primary: '#059669' },
+      { id: 'warm-gray', label: 'Gris cálido',       bg: '#fafaf9', primary: '#c2853a' },
+      { id: 'purple',    label: 'Morado elegante',   bg: '#f5f0ff', primary: '#7c3aed' },
+      { id: 'petrol',    label: 'Azul petróleo',     bg: '#f0f7fa', primary: '#0891b2' },
+    ];
+    const _tp = document.createElement('div');
+    _tp.id = 'theme-picker-dropdown';
+    _tp.style.cssText = 'position:fixed;right:8px;top:44px;background:var(--clr-surface);border:1px solid var(--clr-border);border-radius:10px;box-shadow:0 4px 20px rgba(0,0,0,.18);padding:6px;z-index:var(--z-dropdown);min-width:190px;display:none';
+    _tp.innerHTML = _THEMES.map(th => `<button class="theme-opt" data-tid="${th.id}" style="display:flex;align-items:center;gap:10px;width:100%;padding:7px 10px;border:none;background:transparent;cursor:pointer;border-radius:6px;font-size:12px;color:var(--clr-text);font-family:var(--font-ui);text-align:left"><span style="display:inline-flex;gap:3px;flex-shrink:0"><span style="width:14px;height:14px;border-radius:3px;background:${th.bg};border:1px solid rgba(0,0,0,.12);display:inline-block"></span><span style="width:14px;height:14px;border-radius:3px;background:${th.primary};display:inline-block"></span></span><span>${th.label}</span></button>`).join('');
+    document.body.appendChild(_tp);
+    _tp.addEventListener('click', e => {
+      const btn = /** @type {HTMLElement} */ (e.target)?.closest?.('.theme-opt');
+      if (!btn) return;
+      const tid = /** @type {HTMLElement} */ (btn).dataset.tid;
+      if (!tid) return;
+      document.documentElement.setAttribute('data-theme', tid);
+      try { localStorage.setItem('app-theme', tid); } catch { /* ignore */ }
+      _tp.style.display = 'none';
+    });
+    document.addEventListener('click', e => {
+      const tgt = /** @type {HTMLElement} */ (e.target);
+      if (!_tp.contains(tgt) && tgt.id !== 'btn-theme') _tp.style.display = 'none';
+    }, true);
+    document.getElementById('btn-theme')?.addEventListener('click', e => {
+      e.stopPropagation();
+      _tp.style.display = _tp.style.display === 'none' ? 'block' : 'none';
+    });
+    try { const s = localStorage.getItem('app-theme'); if (s) document.documentElement.setAttribute('data-theme', s); } catch { /* ignore */ }
+  }
   document.getElementById('btn-dcma')?.addEventListener('click', () => {
     const panel = document.getElementById('dcma-panel');
     const btn   = document.getElementById('btn-dcma');
