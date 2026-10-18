@@ -149,7 +149,11 @@ export function printGantt(rows) {
                  padding: 6px 16px; font-size: 13px; cursor: pointer; }
     .btn-print:hover { background: #1565C0; }
     .sep { width: 1px; height: 22px; background: #CFD8DC; }
-    @media print { .controls { display: none !important; } }
+    @media print { .controls { display: none !important; }
+      footer.ecm-footer { display: block; font-size: 7pt; color: #9E9E9E; text-align: center;
+        margin-top: 6mm; border-top: 1px solid #E0E0E0; padding-top: 3px; }
+    }
+    footer.ecm-footer { display: none; }
   </style>
 </head><body>
   <div class="controls">
@@ -171,6 +175,7 @@ export function printGantt(rows) {
   <div class="gantt-frame">
     ${svgStr}
   </div>
+  <footer class="ecm-footer">ECM Project v1.0.0 | &#169; 2026 E. Ch&#225;vez</footer>
   <script>
     const zoom = document.getElementById('zoom');
     const zoomVal = document.getElementById('zoom-val');
