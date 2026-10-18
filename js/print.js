@@ -129,7 +129,7 @@ export function printGantt(rows) {
 <html lang="es"><head>
   <meta charset="UTF-8">
   <title>${_gTitle}</title>
-  <style id="page-style">@page { size: landscape; margin: 10mm; }</style>
+  <style id="page-style">@page { size: landscape; margin: 10mm 10mm 15mm; }</style>
   <style>
     * { box-sizing: border-box; }
     body  { margin: 0; padding: 0; font-family: 'Segoe UI', system-ui, sans-serif; }
@@ -150,8 +150,10 @@ export function printGantt(rows) {
     .btn-print:hover { background: #1565C0; }
     .sep { width: 1px; height: 22px; background: #CFD8DC; }
     @media print { .controls { display: none !important; }
-      footer.ecm-footer { display: block; font-size: 7pt; color: #9E9E9E; text-align: center;
-        margin-top: 6mm; border-top: 1px solid #E0E0E0; padding-top: 3px; }
+      footer.ecm-footer { display: block; position: fixed; bottom: 0; left: 0; right: 0;
+        font-size: 7pt; color: #9E9E9E; text-align: center;
+        border-top: 1px solid #E0E0E0; padding-top: 3px; padding-bottom: 2px;
+        background: white; }
     }
     footer.ecm-footer { display: none; }
   </style>
@@ -185,7 +187,7 @@ export function printGantt(rows) {
       svg.style.width = zoom.value + '%';
     });
     function setOrient(o) {
-      document.getElementById('page-style').textContent = '@page { size: ' + o + '; margin: 10mm; }';
+      document.getElementById('page-style').textContent = '@page { size: ' + o + '; margin: 10mm 10mm 15mm; }';
       document.getElementById('btn-land').classList.toggle('active', o === 'landscape');
       document.getElementById('btn-port').classList.toggle('active', o === 'portrait');
     }

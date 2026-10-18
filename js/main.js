@@ -401,7 +401,7 @@ async function _openTaskDetail(taskId) {
       <td style="padding:4px 8px;font-size:12px">${_escHtml(res?.role ?? '')}</td>
       <td style="padding:4px 8px;font-size:12px"><input type="number" class="tdp-res-units" data-trid="${tr.id}" value="${tr.units ?? 100}" min="1" max="100000" style="width:64px;padding:2px 6px;border:1px solid var(--clr-border);border-radius:4px;font-size:11px;background:var(--clr-surface);color:var(--clr-text)">${unitSuffix}</td>
       <td style="padding:4px 8px;font-size:11px;color:var(--clr-text-2);white-space:nowrap">${_fmtCost(cost)}</td>
-      <td style="padding:4px 8px"><button class="btn btn-icon btn-sm tdp-res-remove" data-trid="${tr.id}" title="Quitar" style="color:var(--clr-danger,#e74c3c);padding:0 6px">✕</button></td>
+      <td style="padding:4px 8px"><button class="btn btn-icon btn-sm tdp-res-remove" data-trid="${tr.id}" title="Quitar" aria-label="Quitar recurso" style="color:var(--clr-danger,#e74c3c);padding:0 6px">✕</button></td>
     </tr>`;
   }).join('');
 
@@ -593,7 +593,7 @@ async function _tdpAddResource(taskId) {
     <td style="padding:4px 8px;font-size:12px">${_escHtml(res.role ?? '')}</td>
     <td style="padding:4px 8px;font-size:12px"><input type="number" class="tdp-res-units" data-trid="${trid}" value="100" min="1" max="100000" style="width:64px;padding:2px 6px;border:1px solid var(--clr-border);border-radius:4px;font-size:11px;background:var(--clr-surface);color:var(--clr-text)">${_escHtml(newUnitSuffix)}</td>
     <td style="padding:4px 8px;font-size:11px;color:var(--clr-text-2);white-space:nowrap" class="tdp-cost-cell">${_fmtCostNew(_costNew)}</td>
-    <td style="padding:4px 8px"><button class="btn btn-icon btn-sm tdp-res-remove" data-trid="${trid}" title="Quitar" style="color:var(--clr-danger,#e74c3c);padding:0 6px">✕</button></td>`;
+    <td style="padding:4px 8px"><button class="btn btn-icon btn-sm tdp-res-remove" data-trid="${trid}" title="Quitar" aria-label="Quitar recurso" style="color:var(--clr-danger,#e74c3c);padding:0 6px">✕</button></td>`;
   if (tbody) {
     const empty = tbody.querySelector('td[colspan]');
     if (empty) empty.closest('tr')?.remove();
@@ -2035,7 +2035,7 @@ async function init() {
 
     // El motor de sync ya fue iniciado dentro de _loadProject.
 
-    console.log('[Cronogramas] v61 completo — modo', IS_LOCAL_MODE ? 'local' : 'Supabase');
+    console.log('[Cronogramas] v62 completo — modo', IS_LOCAL_MODE ? 'local' : 'Supabase');
   } catch (err) {
     console.error('[init]', err);
     _showToast('Error al iniciar: ' + err.message, 'error');
@@ -2864,7 +2864,7 @@ function _printOrgChart() {
 <html lang="es"><head>
   <meta charset="UTF-8">
   <title>${_ocFileTitle}</title>
-  <style id="page-style">@page { size: landscape; margin: 10mm; }</style>
+  <style id="page-style">@page { size: landscape; margin: 10mm 10mm 15mm; }</style>
   <style>
     :root { --clr-primary:#1976D2; --clr-bg:#f8f9fc; --clr-surface:#fff;
             --clr-surface-2:#f5f7fa; --clr-text:#1a1d23; --clr-text-2:#4a5568;
@@ -2887,8 +2887,10 @@ function _printOrgChart() {
     .btn-print:hover { background:#1565C0; }
     .sep { width:1px; height:22px; background:#CFD8DC; }
     @media print { .controls { display:none !important; }
-      footer.ecm-footer { display:block; font-size:7pt; color:#9E9E9E; text-align:center;
-        margin-top:6mm; border-top:1px solid #E0E0E0; padding-top:3px; }
+      footer.ecm-footer { display:block; position:fixed; bottom:0; left:0; right:0;
+        font-size:7pt; color:#9E9E9E; text-align:center;
+        border-top:1px solid #E0E0E0; padding-top:3px; padding-bottom:2px;
+        background:white; }
     }
     footer.ecm-footer { display:none; }
   </style>
@@ -3507,9 +3509,9 @@ function _showCpmNetwork() {
       <div id="cpm-dlg-hdr" style="display:flex;align-items:center;justify-content:space-between;padding:10px 16px;border-bottom:1px solid var(--clr-border);background:var(--clr-surface-2);flex-shrink:0;cursor:move">
         <span id="cpm-dlg-title" style="font-weight:700;font-size:15px">Red CPM</span>
         <div style="display:flex;gap:6px;align-items:center">
-          <button id="btn-cpm-zoomfit" class="btn btn-ghost btn-sm" title="Zoom extendido — ver toda la red" style="font-size:16px;padding:2px 8px;line-height:1">⤢</button>
-          <button id="btn-cpm-zoomin"  class="btn btn-ghost btn-sm" title="Acercar" style="font-size:16px;padding:2px 8px;line-height:1">＋</button>
-          <button id="btn-cpm-zoomout" class="btn btn-ghost btn-sm" title="Alejar"  style="font-size:16px;padding:2px 8px;line-height:1">－</button>
+          <button id="btn-cpm-zoomfit" class="btn btn-ghost btn-sm" title="Zoom extendido — ver toda la red" aria-label="Zoom extendido — ver toda la red" style="font-size:16px;padding:2px 8px;line-height:1">⤢</button>
+          <button id="btn-cpm-zoomin"  class="btn btn-ghost btn-sm" title="Acercar" aria-label="Acercar" style="font-size:16px;padding:2px 8px;line-height:1">＋</button>
+          <button id="btn-cpm-zoomout" class="btn btn-ghost btn-sm" title="Alejar"  aria-label="Alejar" style="font-size:16px;padding:2px 8px;line-height:1">－</button>
           <span style="width:1px;height:18px;background:var(--clr-border);margin:0 4px;display:inline-block"></span>
           <span style="display:inline-block;width:11px;height:11px;background:#e74c3c;border-radius:2px"></span><span style="font-size:11px">Crítica</span>
           <span style="display:inline-block;width:11px;height:11px;background:#f39c12;border-radius:2px;margin-left:5px"></span><span style="font-size:11px">Casi crítica</span>
@@ -3781,8 +3783,10 @@ function _exportCpmNetwork(fmt, dlg) {
     @media print { .controls { display: none !important; }
       .legend-swatch { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
       * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-      footer.ecm-footer { display: block; font-size: 7pt; color: #9E9E9E; text-align: center;
-        margin-top: 6mm; border-top: 1px solid #E0E0E0; padding-top: 3px; }
+      footer.ecm-footer { display: block; position: fixed; bottom: 0; left: 0; right: 0;
+        font-size: 7pt; color: #9E9E9E; text-align: center;
+        border-top: 1px solid #E0E0E0; padding-top: 3px; padding-bottom: 2px;
+        background: white; }
     }
     footer.ecm-footer { display: none; }
   </style>
