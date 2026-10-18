@@ -838,8 +838,8 @@ async function _openResourceManager() {
       <div style="padding:14px 16px;border-top:1px solid var(--clr-border);background:var(--clr-surface-2)">
         <div style="font-size:12px;font-weight:700;color:var(--clr-text-2);margin-bottom:10px">Agregar recurso al catálogo</div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
-          <input id="rm-name" type="text" placeholder="Nombre *" style="padding:7px 10px;border:1px solid var(--clr-border);border-radius:7px;font-size:12px;background:var(--clr-surface);color:var(--clr-text)">
-          <select id="rm-type" style="padding:7px 10px;border:1px solid var(--clr-border);border-radius:7px;font-size:12px;background:var(--clr-surface);color:var(--clr-text)">
+          <input id="rm-name" type="text" placeholder="Nombre *" aria-label="Nombre del recurso (requerido)" style="padding:7px 10px;border:1px solid var(--clr-border);border-radius:7px;font-size:12px;background:var(--clr-surface);color:var(--clr-text)">
+          <select id="rm-type" aria-label="Tipo de recurso" style="padding:7px 10px;border:1px solid var(--clr-border);border-radius:7px;font-size:12px;background:var(--clr-surface);color:var(--clr-text)">
             <option value="work">Trabajo (mano de obra)</option>
             <option value="material">Material</option>
             <option value="equipment">Equipo / Maquinaria</option>
@@ -847,11 +847,11 @@ async function _openResourceManager() {
           </select>
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:10px">
-          <input id="rm-role" type="text" placeholder="Rol / Especialidad" title="Ej: Ing. Civil, Operario, Albañil" style="padding:7px 10px;border:1px solid var(--clr-border);border-radius:7px;font-size:12px;background:var(--clr-surface);color:var(--clr-text)">
-          <input id="rm-rate" type="number" min="0" step="0.01" placeholder="Precio/Unidad (S/)" title="Tasa estándar. Para trabajo: S/h. Para material: S/unidad." style="padding:7px 10px;border:1px solid var(--clr-border);border-radius:7px;font-size:12px;background:var(--clr-surface);color:var(--clr-text)">
+          <input id="rm-role" type="text" placeholder="Rol / Especialidad" aria-label="Rol o especialidad del recurso" title="Ej: Ing. Civil, Operario, Albañil" style="padding:7px 10px;border:1px solid var(--clr-border);border-radius:7px;font-size:12px;background:var(--clr-surface);color:var(--clr-text)">
+          <input id="rm-rate" type="number" min="0" step="0.01" placeholder="Precio/Unidad (S/)" aria-label="Precio por unidad (S/)" title="Tasa estándar. Para trabajo: S/h. Para material: S/unidad." style="padding:7px 10px;border:1px solid var(--clr-border);border-radius:7px;font-size:12px;background:var(--clr-surface);color:var(--clr-text)">
           <span id="rm-fields-extra" style="display:contents">
-            <input id="rm-unit-label" type="text" placeholder="Unidad (m³, kg, und…)" title="Unidad de medida — para material y equipo" style="padding:7px 10px;border:1px solid var(--clr-border);border-radius:7px;font-size:12px;background:var(--clr-surface);color:var(--clr-text)">
-            <input id="rm-max-units" type="number" min="1" max="100000" step="1" placeholder="Disponib. máx (%)" title="Disponibilidad máxima para recursos de trabajo (%). Ej: 100 = jornada completa, 50 = medio tiempo." style="padding:7px 10px;border:1px solid var(--clr-border);border-radius:7px;font-size:12px;background:var(--clr-surface);color:var(--clr-text);display:none">
+            <input id="rm-unit-label" type="text" placeholder="Unidad (m³, kg, und…)" aria-label="Unidad de medida" title="Unidad de medida — para material y equipo" style="padding:7px 10px;border:1px solid var(--clr-border);border-radius:7px;font-size:12px;background:var(--clr-surface);color:var(--clr-text)">
+            <input id="rm-max-units" type="number" min="1" max="100000" step="1" placeholder="Disponib. máx (%)" aria-label="Disponibilidad máxima (%)" title="Disponibilidad máxima para recursos de trabajo (%). Ej: 100 = jornada completa, 50 = medio tiempo." style="padding:7px 10px;border:1px solid var(--clr-border);border-radius:7px;font-size:12px;background:var(--clr-surface);color:var(--clr-text);display:none">
           </span>
         </div>
         <div style="display:flex;gap:8px;align-items:center">

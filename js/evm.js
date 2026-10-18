@@ -386,11 +386,11 @@ function _buildPanelHtml() {
 </div>
 <div id="evm-no-date-warn" style="display:none;padding:6px 16px;background:var(--clr-warn-bg,#fff3cd);color:var(--clr-warn-text,#856404);font-size:12px;border-bottom:1px solid var(--clr-warn-border,#ffc107);align-items:center;gap:8px;flex-wrap:wrap">
   <span>⚠️ El proyecto no tiene <strong>Fecha de datos</strong> configurada. PV se calcula con la fecha actual.</span>
-  <label style="display:flex;align-items:center;gap:4px;margin-left:auto">
-    <span>Establecer fecha:</span>
-    <input id="evm-data-date-input" type="date" style="font-size:11px;padding:2px 4px;border:1px solid var(--clr-warn-border,#ffc107);border-radius:3px;background:var(--clr-surface,#fff);color:var(--clr-text,#333)">
-    <button id="evm-data-date-save" style="font-size:11px;padding:2px 8px;background:var(--clr-warn-text,#856404);color:#fff;border:none;border-radius:3px;cursor:pointer">Guardar</button>
-  </label>
+  <div style="display:flex;align-items:center;gap:4px;margin-left:auto">
+    <label for="evm-data-date-input" style="font-size:12px">Establecer fecha:</label>
+    <input id="evm-data-date-input" type="date" aria-label="Fecha de datos del proyecto" style="font-size:11px;padding:2px 4px;border:1px solid var(--clr-warn-border,#ffc107);border-radius:3px;background:var(--clr-surface,#fff);color:var(--clr-text,#333)">
+    <button id="evm-data-date-save" aria-label="Guardar fecha de datos" style="font-size:11px;padding:2px 8px;background:var(--clr-warn-text,#856404);color:#fff;border:none;border-radius:3px;cursor:pointer">Guardar</button>
+  </div>
 </div>
 <div id="evm-content">
   <!-- KPIs principales -->
