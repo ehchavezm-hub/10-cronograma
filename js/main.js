@@ -1838,8 +1838,9 @@ async function init() {
     appState.onRequestCpm = _requestCpm;
 
     // ---- Cargar proyecto ----
-    const projectId = new URLSearchParams(location.search).get('p')
-                   || localStorage.getItem('last-project-id');
+    let _lastProjId = null;
+    try { _lastProjId = localStorage.getItem('last-project-id'); } catch {}
+    const projectId = new URLSearchParams(location.search).get('p') || _lastProjId;
     if (projectId) {
       try {
         await _loadProject(projectId);
@@ -2584,7 +2585,8 @@ function _bindResizer() {
   resizer.dataset.bound = '1';
 
   // Restaurar ancho guardado
-  const saved = localStorage.getItem('gantt-panel-width');
+  let saved = null;
+  try { saved = localStorage.getItem('gantt-panel-width'); } catch {}
   if (saved) ganttPanel.style.width = saved;
 
   const _syncAria = () => {
@@ -3388,6 +3390,7 @@ function _showPrintColConfig() {
     dlg.id = 'dlg-print-cols';
     dlg.style.cssText = 'border:none;border-radius:12px;padding:0;width:440px;max-width:95vw;box-shadow:0 8px 40px rgba(0,0,0,0.25);overflow:hidden';
     dlg.setAttribute('aria-labelledby', 'pcc-title');
+    dlg.setAttribute('aria-modal', 'true');
     dlg.innerHTML = `
       <div style="background:var(--clr-surface-2);padding:16px 20px;border-bottom:1px solid var(--clr-border)">
         <div id="pcc-title" style="font-weight:700;font-size:15px">⚙ Columnas de exportación</div>
@@ -3413,12 +3416,7 @@ function _showPrintColConfig() {
       const checked = [...dlg.querySelectorAll('input[type=checkbox]:checked')].map(el => /** @type {HTMLInputElement} */ (el).value);
       setPrintCols(checked);
       dlg.close();
-      // Mostrar confirmación
-      const toast = document.createElement('div');
-      toast.className = 'toast toast-success';
-      toast.textContent = '✓ Columnas guardadas';
-      document.body.appendChild(toast);
-      setTimeout(() => toast.remove(), 2500);
+      _showToast('Columnas guardadas', 'success');
     });
   }
 

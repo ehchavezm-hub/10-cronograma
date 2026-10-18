@@ -262,7 +262,7 @@
         <button class="filter-btn active" data-filter="all"      aria-pressed="true">Todas las tareas</button>
         <button class="filter-btn"        data-filter="critical" aria-pressed="false">⚠ Ruta crítica</button>
         <button class="filter-btn"        data-filter="progress" aria-pressed="false">📋 En progreso</button>
-        <span id="filter-bar-count" class="filter-bar-count"></span>
+        <span id="filter-bar-count" class="filter-bar-count" aria-live="polite" aria-atomic="true"></span>
         <div class="tq-spacer"></div>
         <!-- Menú Exportar / Importar -->
         <div class="dropdown" id="export-menu-wrap">
@@ -427,7 +427,7 @@
     <span style="position:absolute;left:50%;transform:translateX(-50%);font-size:var(--text-xs);color:var(--clr-text-3);white-space:nowrap">ECM Project v1.0.0 | © 2026 E. Chávez</span>
     <span style="flex:1"></span>
     <span id="status-warnings" style="font-size:var(--text-xs);color:var(--clr-text-3)"></span>
-    <span>v56</span>
+    <span>v57</span>
   </footer>
 
   <!-- Pestañas inferiores (solo móvil) -->
@@ -458,7 +458,7 @@
 <!-- ============================================================
      Módulo principal (ES Module)
      ============================================================ -->
-<script type="module" src="js/main.js?v=56"></script>
+<script type="module" src="js/main.js?v=57"></script>
 
 <!-- Atajos de teclado globales -->
 <script type="module">
