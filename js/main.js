@@ -240,6 +240,34 @@ function _applyWbsColVisibility(visible) {
   }
 }
 
+/** Diálogo de confirmación accesible (reemplaza confirm() nativo). @param {string} msg @param {()=>void} onConfirm */
+function _confirmDialog(msg, onConfirm) {
+  let dlg = /** @type {HTMLDialogElement|null} */ (document.getElementById('dlg-confirm-generic'));
+  if (!dlg) {
+    dlg = document.createElement('dialog');
+    dlg.id = 'dlg-confirm-generic';
+    dlg.setAttribute('role', 'alertdialog');
+    dlg.setAttribute('aria-modal', 'true');
+    dlg.setAttribute('aria-labelledby', 'dlg-confirm-generic-msg');
+    dlg.style.cssText = 'padding:20px 24px;border-radius:8px;border:1px solid var(--clr-border);box-shadow:0 8px 24px rgba(0,0,0,.35);min-width:280px;max-width:360px;background:var(--clr-surface);color:var(--clr-text);font-family:var(--font-ui)';
+    dlg.innerHTML = `<p id="dlg-confirm-generic-msg" style="margin:0 0 16px;font-size:14px;line-height:1.5"></p>
+      <div style="display:flex;justify-content:flex-end;gap:8px">
+        <button id="dlg-confirm-generic-no"  class="btn btn-secondary btn-sm">Cancelar</button>
+        <button id="dlg-confirm-generic-yes" class="btn btn-sm" style="background:var(--clr-danger,#e74c3c);color:#fff;border:none">Eliminar</button>
+      </div>`;
+    document.body.appendChild(dlg);
+    dlg.querySelector('#dlg-confirm-generic-no')?.addEventListener('click', () => dlg?.close());
+  }
+  /** @type {HTMLElement|null} */ (dlg.querySelector('#dlg-confirm-generic-msg')).textContent = msg;
+  const yesBtn = dlg.querySelector('#dlg-confirm-generic-yes');
+  if (yesBtn) {
+    const fresh = /** @type {HTMLElement} */ (yesBtn.cloneNode(true));
+    yesBtn.replaceWith(fresh);
+    fresh.addEventListener('click', () => { dlg?.close(); onConfirm(); });
+  }
+  dlg.showModal();
+}
+
 /** @param {string} msg @param {'success'|'error'|'warn'|''} type */
 function _showToast(msg, type = '') {
   const container = document.getElementById('toast-container');
@@ -1962,6 +1990,11 @@ async function init() {
       _openTaskDetail(e.detail.taskId);
     });
 
+    // Confirmación accesible de borrado de tarea (reemplaza confirm() nativo)
+    document.addEventListener('wbs-confirm-delete', (/** @type {any} */ e) => {
+      _confirmDialog(t('confirmDelete'), e.detail.fn);
+    });
+
     // ---- Inicializar panel EVM ----
     const evmEl = document.getElementById('evm-panel');
     if (evmEl) {
@@ -1996,7 +2029,7 @@ async function init() {
 
     // El motor de sync ya fue iniciado dentro de _loadProject.
 
-    console.log('[Cronogramas] v28 completo — modo', IS_LOCAL_MODE ? 'local' : 'Supabase');
+    console.log('[Cronogramas] v58 completo — modo', IS_LOCAL_MODE ? 'local' : 'Supabase');
   } catch (err) {
     console.error('[init]', err);
     _showToast('Error al iniciar: ' + err.message, 'error');
@@ -2846,7 +2879,11 @@ function _printOrgChart() {
                  padding:6px 16px; font-size:13px; cursor:pointer; }
     .btn-print:hover { background:#1565C0; }
     .sep { width:1px; height:22px; background:#CFD8DC; }
-    @media print { .controls { display:none !important; } }
+    @media print { .controls { display:none !important; }
+      footer.ecm-footer { display:block; font-size:7pt; color:#9E9E9E; text-align:center;
+        margin-top:6mm; border-top:1px solid #E0E0E0; padding-top:3px; }
+    }
+    footer.ecm-footer { display:none; }
   </style>
 </head><body>
   <div class="controls">
@@ -2870,6 +2907,7 @@ function _printOrgChart() {
       ${canvasHtml}
     </div>
   </div>
+  <footer class="ecm-footer">ECM Project v1.0.0 | &#169; 2026 E. Ch&#225;vez</footer>
   <script>
     const inner = document.getElementById('oc-inner');
     const frame = document.getElementById('oc-frame');
@@ -3734,7 +3772,10 @@ function _exportCpmNetwork(fmt, dlg) {
     @media print { .controls { display: none !important; }
       .legend-swatch { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
       * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      footer.ecm-footer { display: block; font-size: 7pt; color: #9E9E9E; text-align: center;
+        margin-top: 6mm; border-top: 1px solid #E0E0E0; padding-top: 3px; }
     }
+    footer.ecm-footer { display: none; }
   </style>
 </head><body>
   <div class="controls">
@@ -3760,6 +3801,7 @@ function _exportCpmNetwork(fmt, dlg) {
     <div class="legend-item"><div class="legend-swatch" style="background:#2980b9"></div>Normal</div>
     <div class="legend-item"><div class="legend-swatch" style="background:#27ae60"></div>Completa</div>
   </div>
+  <footer class="ecm-footer">ECM Project v1.0.0 | &#169; 2026 E. Ch&#225;vez</footer>
   <script>
     const zoom = document.getElementById('zoom');
     const zoomVal = document.getElementById('zoom-val');
