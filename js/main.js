@@ -1251,7 +1251,7 @@ async function _openCalendarEditor() {
       <td style="padding:4px 8px;font-size:12px">${_escHtml(ex.on_date)}</td>
       <td style="padding:4px 8px;font-size:12px">${_escHtml(ex.name || '—')}</td>
       <td style="padding:4px 8px;font-size:12px">${ex.is_working ? 'Laborable' : 'No laborable'}</td>
-      <td style="padding:4px 8px"><button class="btn btn-icon btn-sm cal-del-ex" data-exid="${_escAttr(ex.id)}" title="Eliminar" style="color:var(--clr-danger,#e74c3c);padding:0 6px">✕</button></td>
+      <td style="padding:4px 8px"><button class="btn btn-icon btn-sm cal-del-ex" data-exid="${_escAttr(ex.id)}" title="Eliminar excepción" aria-label="Eliminar excepción" style="color:var(--clr-danger,#e74c3c);padding:0 6px">✕</button></td>
     </tr>`).join('') || '<tr id="cal-ex-empty"><td colspan="4" style="padding:8px;text-align:center;color:var(--clr-text-3);font-size:12px">Sin excepciones registradas</td></tr>';
 
   dlg.innerHTML = `
@@ -1382,7 +1382,7 @@ async function _openCalendarEditor() {
       <td style="padding:4px 8px;font-size:12px">${date}</td>
       <td style="padding:4px 8px;font-size:12px">${_escHtml(name || '—')}</td>
       <td style="padding:4px 8px;font-size:12px">${isWorking ? 'Laborable' : 'No laborable'}</td>
-      <td style="padding:4px 8px"><button class="btn btn-icon btn-sm cal-del-ex" data-exid="${newId}" title="Eliminar" style="color:var(--clr-danger,#e74c3c);padding:0 6px">✕</button></td>`;
+      <td style="padding:4px 8px"><button class="btn btn-icon btn-sm cal-del-ex" data-exid="${newId}" title="Eliminar excepción" aria-label="Eliminar excepción" style="color:var(--clr-danger,#e74c3c);padding:0 6px">✕</button></td>`;
     body.appendChild(tr);
     dateEl.value = '';
     nameEl.value = '';
@@ -2935,7 +2935,7 @@ function _printOrgChart() {
       applyZoom(parseInt(zoom.value));
     });
     function setOrient(o) {
-      document.getElementById('page-style').textContent = '@page { size: ' + o + '; margin: 10mm; }';
+      document.getElementById('page-style').textContent = '@page { size: ' + o + '; margin: 10mm 10mm 15mm; }';
       document.getElementById('btn-land').classList.toggle('active', o === 'landscape');
       document.getElementById('btn-port').classList.toggle('active', o === 'portrait');
     }
@@ -3757,7 +3757,7 @@ function _exportCpmNetwork(fmt, dlg) {
 <html lang="es"><head>
   <meta charset="UTF-8">
   <title>${fileTitle}</title>
-  <style id="page-style">@page { size: landscape; margin: 10mm; }</style>
+  <style id="page-style">@page { size: landscape; margin: 10mm 10mm 15mm; }</style>
   <style>
     * { box-sizing: border-box; }
     body  { margin: 0; padding: 8px 12px; font-family: 'Segoe UI', system-ui, sans-serif; }
@@ -3824,7 +3824,7 @@ function _exportCpmNetwork(fmt, dlg) {
       frame.style.setProperty('--zoom-w', zoom.value + '%');
     });
     function setOrient(o) {
-      document.getElementById('page-style').textContent = '@page { size: ' + o + '; margin: 10mm; }';
+      document.getElementById('page-style').textContent = '@page { size: ' + o + '; margin: 10mm 10mm 15mm; }';
       document.getElementById('btn-land').classList.toggle('active', o === 'landscape');
       document.getElementById('btn-port').classList.toggle('active', o === 'portrait');
     }

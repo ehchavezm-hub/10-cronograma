@@ -195,7 +195,7 @@
         <div style="display:flex;gap:8px;align-items:center;">
           <input id="bl-name-input" type="text" class="input-sm" placeholder="Nombre (ej: LB-0 Contrato)" aria-label="Nombre de la línea base"
             style="flex:1;border:1px solid var(--clr-border);border-radius:6px;padding:6px 10px;font-size:var(--text-sm)">
-          <button id="btn-bl-save" class="btn btn-primary btn-sm" title="Captura ES/EF actuales del CPM">💾 Guardar</button>
+          <button id="btn-bl-save" class="btn btn-primary btn-sm" title="Captura ES/EF actuales del CPM" aria-label="Guardar línea base">💾 Guardar</button>
         </div>
 
         <!-- Lista de líneas base -->
@@ -267,7 +267,7 @@
         <!-- Menú Exportar / Importar -->
         <div class="dropdown" id="export-menu-wrap">
           <button id="btn-export" class="btn btn-ghost btn-sm" aria-haspopup="true" aria-expanded="false"
-                  title="Exportar o importar proyecto">⬇ Exportar ▾</button>
+                  title="Exportar o importar proyecto" aria-label="Exportar o importar proyecto">⬇ Exportar ▾</button>
           <ul id="export-menu" class="dropdown-menu" hidden role="menu">
             <li role="menuitem"><button data-action="json">📦 JSON (proyecto completo)</button></li>
             <li role="menuitem"><button data-action="csv">📊 CSV (actividades)</button></li>
@@ -318,7 +318,7 @@
         <!-- Menú etiquetas de barras Gantt -->
         <div class="dropdown" id="bar-labels-wrap" style="position:relative">
           <button id="btn-bar-labels" class="btn btn-ghost btn-sm" aria-haspopup="true" aria-expanded="false"
-                  title="Propiedades visibles en las barras Gantt">🏷 Etiquetas ▾</button>
+                  title="Propiedades visibles en las barras Gantt" aria-label="Propiedades visibles en las barras Gantt">🏷 Etiquetas ▾</button>
           <div id="bar-labels-menu" class="dropdown-menu" hidden style="min-width:180px;padding:6px 0">
             <label class="bar-label-opt" style="display:flex;align-items:center;gap:8px;padding:4px 12px;cursor:pointer;font-size:var(--text-xs)">
               <input type="checkbox" value="name" checked> Nombre
@@ -344,7 +344,7 @@
         <!-- Menú columnas tabla EDT -->
         <div class="dropdown" id="wbs-cols-wrap" style="position:relative">
           <button id="btn-wbs-cols" class="btn btn-ghost btn-sm" aria-haspopup="true" aria-expanded="false"
-                  title="Columnas visibles en la tabla EDT">🗂 Columnas ▾</button>
+                  title="Columnas visibles en la tabla EDT" aria-label="Columnas visibles en la tabla EDT">🗂 Columnas ▾</button>
           <div id="wbs-cols-menu" class="dropdown-menu" hidden style="min-width:180px;padding:6px 0">
             <label class="wbs-col-opt" style="display:flex;align-items:center;gap:8px;padding:4px 12px;cursor:pointer;font-size:var(--text-xs)">
               <input type="checkbox" value="wbs" checked> EDT
