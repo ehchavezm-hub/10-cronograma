@@ -1023,7 +1023,7 @@ export class GanttCanvas {
       const sFin   = scene._dateToXAbs(calendar.finishDate(succCpm.ef, projectStart)) - scene.scrollX + scene.pixPerDay;
 
       const crit = predCpm.is_critical && succCpm.is_critical;
-      ctx.strokeStyle = crit ? C.arrowCrit : C.arrow;
+      ctx.strokeStyle = crit ? C.arrowCrit : (this._TC?.arrow ?? C.arrow);
       ctx.fillStyle   = ctx.strokeStyle;
       ctx.lineWidth   = 1.5;
       ctx.setLineDash([]);
