@@ -422,7 +422,7 @@ export class WbsTable {
     const pctStr = isDeleted ? '' : `${task.percent_complete ?? 0}%`;
 
     return `
-      <td data-col="wbs" style="text-align:center;color:var(--clr-text-3);font-size:var(--text-xs)">${wbs}</td>
+      <td data-col="wbs" style="text-align:center;color:var(--clr-text-3);font-size:var(--text-xs);cursor:pointer" title="Clic para reubicar tarea (código EDT)">${wbs}</td>
       <td data-col="name" style="cursor:pointer" title="Clic para editar" class="${this._editingCell?.rowId === task.id && this._editingCell?.col === 'name' ? 'editing' : ''}">
         <div class="td-name">
           <span class="indent-spacer" style="width:${depth * INDENT_PX}px;display:inline-block"></span>
@@ -432,7 +432,7 @@ export class WbsTable {
           <span class="task-name-text ${isSummary ? 'summary' : ''} ${task.type === 'milestone' ? 'milestone' : ''}" title="${_esc(task.name)}">${_esc(task.name)}</span>
         </div>
       </td>
-      <td data-col="type" style="text-align:center">${typeBadge}</td>
+      <td data-col="type" style="text-align:center${!isSummary ? ';cursor:pointer' : ''}" title="${!isSummary ? 'Clic para cambiar tipo' : ''}">${typeBadge}</td>
       <td data-col="dur"  style="text-align:right;cursor:${isSummary || task.type==='milestone'?'default':'pointer'}" title="${isSummary||task.type==='milestone'?'':'Clic para editar duración'}">${isSummary ? (cpm?.ef != null && cpm?.es != null ? (cpm.ef - cpm.es) + ' d' : '—') : task.duration_days + ' d'}</td>
       <td data-col="start"  style="text-align:center;font-size:var(--text-xs);cursor:${isSummary?'default':'pointer'}" title="${isSummary?'':'Clic para editar fecha inicio'}">${startStr}${task.constraint_date && task.constraint_type==='SNET' ? ' 📌' : ''}</td>
       <td data-col="finish" style="text-align:center;font-size:var(--text-xs)">${finishStr}</td>
@@ -588,6 +588,14 @@ export class WbsTable {
         this._startEdit(id, col, cell);
         return;
       }
+      if (col === 'wbs' && task) {
+        this._startEdit(id, col, cell);
+        return;
+      }
+      if (col === 'type' && task && !this._isSummary(id)) {
+        this._startEdit(id, col, cell);
+        return;
+      }
     }
     // Seleccionar fila
     if (row) {
@@ -601,7 +609,7 @@ export class WbsTable {
     if (!cell || !row) return;
     const col  = cell.dataset.col;
     const id   = row.dataset.id;
-    if (['name','dur','pct','start'].includes(col)) {
+    if (['name','dur','pct','start','wbs','type'].includes(col)) {
       this._startEdit(id, col, cell);
     }
   }
@@ -672,6 +680,24 @@ export class WbsTable {
         const lag = d.lag ?? d.lag_days ?? 0;
         return `${predWbs}${d.type}${lag !== 0 ? (lag > 0 ? '+' + lag : lag) : ''}`;
       }).join(', ');
+    } else if (col === 'wbs') {
+      const wbsCodes = _calcWbsCodes(appState.state.tasks);
+      val = wbsCodes.get(rowId) ?? '';
+    } else if (col === 'type') {
+      // Select — flujo especial, retorno anticipado
+      cell.classList.add('editing');
+      cell.innerHTML = `<select class="inline-input" aria-label="Tipo de actividad" style="width:100%;box-sizing:border-box;font-size:var(--text-xs)">
+        <option value="task" ${task.type === 'task' ? 'selected' : ''}>Tarea</option>
+        <option value="milestone" ${task.type === 'milestone' ? 'selected' : ''}>Hito</option>
+      </select>`;
+      const sel = cell.querySelector('select');
+      sel.focus();
+      const commitSel = () => { if (!this._editingCell) return; this._commitEdit(rowId, 'type', sel.value); };
+      sel.addEventListener('change', commitSel);
+      sel.addEventListener('blur',   commitSel);
+      sel.addEventListener('keydown', ev => { if (ev.key === 'Escape') { ev.preventDefault(); this._cancelEdit(); } });
+      this._editingCell = { rowId, col: 'type', cell };
+      return;
     } else if (col === 'start') {
       inputType = 'date';
       // Use constraint_date if set, otherwise use CPM early start
@@ -780,6 +806,46 @@ export class WbsTable {
         fields.constraint_type = 'SNET';
         fields.constraint_date = rawVal;
       }
+    } else if (col === 'wbs') {
+      if (!rawVal.trim()) { this.render(); return; }
+      const wbsCodes = _calcWbsCodes(appState.state.tasks);
+      const wbsToId  = new Map([...wbsCodes.entries()].map(([id, wbs]) => [wbs, id]));
+      const parts    = rawVal.trim().split('.');
+      const pos      = parseInt(parts[parts.length - 1]);
+      if (isNaN(pos) || pos < 1) { this.render(); return; }
+      let newParentId = null;
+      if (parts.length > 1) {
+        const parentWbs = parts.slice(0, -1).join('.');
+        newParentId = wbsToId.get(parentWbs) ?? null;
+        if (!newParentId) { this.render(); return; }
+      }
+      if (newParentId === rowId) { this.render(); return; }
+      // Evitar mover una tarea dentro de sus propios descendientes
+      const isDescendant = (candidateId, ancestorId) => {
+        let cur = appState.state.tasks.get(candidateId);
+        while (cur?.parent_id) {
+          if (cur.parent_id === ancestorId) return true;
+          cur = appState.state.tasks.get(cur.parent_id);
+        }
+        return false;
+      };
+      if (newParentId && isDescendant(newParentId, rowId)) { this.render(); return; }
+      const siblings = [...appState.state.tasks.values()]
+        .filter(t => !t.deleted_at && t.id !== rowId && t.parent_id === newParentId)
+        .sort((a, b) => a.sort_order - b.sort_order);
+      let newSortOrder;
+      if (!siblings.length)           newSortOrder = 1000;
+      else if (pos <= 1)              newSortOrder = siblings[0].sort_order - 1;
+      else if (pos > siblings.length) newSortOrder = siblings[siblings.length - 1].sort_order + 1;
+      else                            newSortOrder = (siblings[pos - 2].sort_order + siblings[pos - 1].sort_order) / 2;
+      appState.dispatch({ type: 'MOVE_TASK', payload: { id: rowId, newParentId, newSortOrder } });
+      return;
+    } else if (col === 'type') {
+      if (!rawVal || rawVal === task.type) { this.render(); return; }
+      const typeFields = { type: rawVal };
+      if (rawVal === 'milestone') typeFields.duration_days = 0;
+      appState.dispatch({ type: 'UPDATE_TASK', payload: { id: rowId, fields: typeFields } });
+      return;
     }
 
     if (Object.keys(fields).length) {
