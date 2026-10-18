@@ -49,6 +49,9 @@ export class WbsTable {
     this._colWidths = this._loadColWidths();
     /** @type {'all'|'critical'|'progress'} */
     this._filter = 'all';
+    /** @type {Set<string>} */
+    this._selectedIds = new Set();
+    this._lastClickedId = /** @type {string|null} */ (null);
 
     this._buildDOM();
     this._attachEvents();
@@ -109,6 +112,11 @@ export class WbsTable {
         .bl-var-pos { color: #dc2626; font-weight: 600; }
         .bl-var-neg { color: #16a34a; font-weight: 600; }
         .bl-var-zero { color: var(--clr-text-3); }
+        .wbs-row-selected { background: rgba(25,118,210,0.13) !important; outline: 1px solid rgba(25,118,210,0.35); outline-offset: -1px; }
+        [data-theme="dark"] .wbs-row-selected,:root.dark .wbs-row-selected { background: rgba(100,160,255,0.18) !important; }
+        #wbs-bulk-bar { display:none; align-items:center; gap:6px; padding:5px 12px; background:var(--clr-primary,#1976D2); color:#fff; font-size:12px; flex-shrink:0; border-bottom:1px solid rgba(0,0,0,.1); }
+        .wbs-bulk-btn { padding:3px 10px; border:1px solid rgba(255,255,255,0.45); border-radius:5px; background:rgba(255,255,255,0.12); color:#fff; font-size:11px; cursor:pointer; white-space:nowrap; }
+        .wbs-bulk-btn:hover { background:rgba(255,255,255,0.28); }
       `;
       document.head.appendChild(style);
     }
@@ -124,6 +132,16 @@ export class WbsTable {
     }).join('');
 
     this._container.innerHTML = `
+      <div id="wbs-bulk-bar">
+        <span id="wbs-bulk-count" style="font-weight:600;margin-right:4px"></span>
+        <button class="wbs-bulk-btn" data-bulk="edit" title="Editar campos en bloque para las filas seleccionadas">✏ Editar en bloque</button>
+        <button class="wbs-bulk-btn" data-bulk="indent" title="Indentar todas las filas seleccionadas">→ Indentar</button>
+        <button class="wbs-bulk-btn" data-bulk="outdent" title="Desindentar todas las filas seleccionadas">← Desindentar</button>
+        <button class="wbs-bulk-btn" data-bulk="up" title="Mover filas seleccionadas hacia arriba">↑ Subir</button>
+        <button class="wbs-bulk-btn" data-bulk="down" title="Mover filas seleccionadas hacia abajo">↓ Bajar</button>
+        <span style="flex:1"></span>
+        <button class="wbs-bulk-btn" data-bulk="clear" title="Limpiar selección múltiple (también: Esc)">✕ Limpiar</button>
+      </div>
       <div class="wbs-scroll" id="wbs-scroll" role="grid" aria-label="Tabla de actividades EDT">
         <table class="wbs-table" id="wbs-tbl">
           <thead>
@@ -136,9 +154,10 @@ export class WbsTable {
         </table>
       </div>`;
 
-    this._scroll  = this._container.querySelector('#wbs-scroll');
-    this._body    = this._container.querySelector('#wbs-body');
-    this._headRow = this._container.querySelector('#wbs-head-row');
+    this._scroll   = this._container.querySelector('#wbs-scroll');
+    this._body     = this._container.querySelector('#wbs-body');
+    this._headRow  = this._container.querySelector('#wbs-head-row');
+    this._bulkBar  = this._container.querySelector('#wbs-bulk-bar');
   }
 
   _attachColResizers() {
@@ -206,6 +225,12 @@ export class WbsTable {
     this._body.addEventListener('dblclick',    e => this._onBodyDblClick(e));
     this._body.addEventListener('contextmenu', e => this._onContextMenu(e));
     this._body.addEventListener('keydown',     e => this._onKeyDown(e));
+
+    // Bulk action bar
+    this._container.addEventListener('click', e => {
+      const btn = /** @type {HTMLElement|null} */ (e.target.closest('[data-bulk]'));
+      if (btn) { e.stopPropagation(); this._handleBulkAction(btn.dataset.bulk); }
+    });
 
     // Cerrar ctx-menu al hacer clic fuera
     document.addEventListener('click', e => {
@@ -368,6 +393,9 @@ export class WbsTable {
     const grid = document.getElementById('wbs-scroll');
     if (grid) grid.setAttribute('aria-rowcount', String(rows.length));
     this._body.querySelectorAll('tr[data-id]').forEach((tr, i) => tr.setAttribute('aria-rowindex', String(i + 1)));
+
+    // Restaurar selección múltiple
+    this._renderSelectionState();
 
     // Notificar al Gantt el orden de filas visibles
     document.dispatchEvent(new CustomEvent('gantt-rows-update', {
@@ -546,6 +574,34 @@ export class WbsTable {
   }
 
   _onBodyClick(e) {
+    // ---- Multi-select: Ctrl/Cmd+Click ----
+    if ((e.ctrlKey || e.metaKey) && !e.target.closest('.expand-btn') && !e.target.closest('.row-more-btn')) {
+      const mRow = e.target.closest('tr[data-id]');
+      if (mRow) {
+        e.preventDefault();
+        const mid = mRow.dataset.id;
+        if (this._selectedIds.has(mid)) this._selectedIds.delete(mid);
+        else { this._selectedIds.add(mid); this._lastClickedId = mid; }
+        this._renderSelectionState();
+        return;
+      }
+    }
+    // ---- Multi-select: Shift+Click (range) ----
+    if (e.shiftKey && this._lastClickedId && !e.target.closest('.expand-btn') && !e.target.closest('.row-more-btn')) {
+      const mRow = e.target.closest('tr[data-id]');
+      if (mRow) {
+        e.preventDefault();
+        const allRows = [...this._body.querySelectorAll('tr[data-id]')];
+        const lastIdx = allRows.findIndex(r => r.dataset.id === this._lastClickedId);
+        const thisIdx = allRows.indexOf(mRow);
+        if (lastIdx >= 0 && thisIdx >= 0) {
+          const [s, e2] = [Math.min(lastIdx, thisIdx), Math.max(lastIdx, thisIdx)];
+          for (let i = s; i <= e2; i++) this._selectedIds.add(allRows[i].dataset.id);
+          this._renderSelectionState();
+          return;
+        }
+      }
+    }
     // Expandir/colapsar
     const expandBtn = e.target.closest('[data-expand]');
     if (expandBtn) {
@@ -597,8 +653,11 @@ export class WbsTable {
         return;
       }
     }
-    // Seleccionar fila
+    // Seleccionar fila (click simple: limpia multi-selección)
     if (row) {
+      this._selectedIds.clear();
+      this._lastClickedId = row.dataset.id;
+      this._renderSelectionState();
       appState.selectTask(row.dataset.id);
     }
   }
@@ -630,7 +689,10 @@ export class WbsTable {
       const firstCell = row.querySelector('td[data-col="name"]');
       if (firstCell) this._startEdit(id, 'name', firstCell);
     }
-    if (e.key === 'Escape') this._cancelEdit();
+    if (e.key === 'Escape') {
+      if (this._selectedIds.size > 0) { this._selectedIds.clear(); this._lastClickedId = null; this._renderSelectionState(); }
+      else this._cancelEdit();
+    }
     if (e.key === 'Delete' && !this._editingCell) {
       document.dispatchEvent(new CustomEvent('wbs-confirm-delete', { detail: { taskId: id, fn: () => this._deleteTask(id) } }));
     }
@@ -861,6 +923,151 @@ export class WbsTable {
     this.render();
   }
 
+  // ---- Selección múltiple ----
+
+  _renderSelectionState() {
+    const n = this._selectedIds.size;
+    this._body.querySelectorAll('tr[data-id]').forEach(tr => {
+      tr.classList.toggle('wbs-row-selected', this._selectedIds.has(tr.dataset.id));
+    });
+    if (this._bulkBar) {
+      this._bulkBar.style.display = n > 0 ? 'flex' : 'none';
+      const cnt = this._bulkBar.querySelector('#wbs-bulk-count');
+      if (cnt) cnt.textContent = `${n} fila${n !== 1 ? 's' : ''} seleccionada${n !== 1 ? 's' : ''}`;
+    }
+  }
+
+  /** @param {string} action */
+  _handleBulkAction(action) {
+    const ids = [...this._selectedIds];
+    if (!ids.length && action !== 'clear') return;
+    switch (action) {
+      case 'edit':    this._openBulkEdit(ids); break;
+      case 'indent':  ids.forEach(id => this._indentTask(id));  break;
+      case 'outdent': ids.forEach(id => this._outdentTask(id)); break;
+      case 'up':      this._bulkMoveVertical(ids, -1); break;
+      case 'down':    this._bulkMoveVertical(ids,  1); break;
+      case 'clear':
+        this._selectedIds.clear();
+        this._lastClickedId = null;
+        this._renderSelectionState();
+        break;
+    }
+  }
+
+  /** @param {string[]} ids */
+  _openBulkEdit(ids) {
+    const tasks = ids.map(id => appState.state.tasks.get(id)).filter(t => t && !t.deleted_at);
+    if (!tasks.length) return;
+
+    let dlg = /** @type {HTMLDialogElement|null} */ (document.getElementById('dlg-bulk-edit'));
+    if (!dlg) {
+      dlg = document.createElement('dialog');
+      dlg.id = 'dlg-bulk-edit';
+      dlg.style.cssText = 'border:none;border-radius:12px;padding:0;min-width:320px;max-width:420px;box-shadow:0 8px 40px rgba(0,0,0,0.3);overflow:hidden;background:var(--clr-surface);color:var(--clr-text)';
+      document.body.appendChild(dlg);
+      dlg.setAttribute('aria-modal', 'true');
+      dlg.setAttribute('aria-labelledby', 'dlg-be-title');
+    }
+    dlg.innerHTML = `
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid var(--clr-border);background:var(--clr-surface-2)">
+        <span id="dlg-be-title" style="font-weight:700;font-size:14px">✏️ Editar en bloque — ${tasks.length} tarea${tasks.length!==1?'s':''}</span>
+        <button id="dlg-be-close" class="btn btn-icon btn-sm" aria-label="Cerrar">✕</button>
+      </div>
+      <div style="padding:16px;display:flex;flex-direction:column;gap:12px">
+        <p style="font-size:12px;color:var(--clr-text-3);margin:0">Deja vacío los campos que no deseas cambiar.</p>
+        <label style="font-size:12px;font-weight:600;color:var(--clr-text-2)">% Avance
+          <input id="dlg-be-pct" type="number" min="0" max="100" placeholder="— sin cambio —"
+            style="margin-top:4px;width:100%;padding:7px 10px;border:1px solid var(--clr-border);border-radius:7px;font-size:13px;background:var(--clr-surface-2);color:var(--clr-text);box-sizing:border-box">
+        </label>
+        <label style="font-size:12px;font-weight:600;color:var(--clr-text-2)">Duración (días) <small style="font-weight:400;color:var(--clr-text-3)">(solo tareas hoja)</small>
+          <input id="dlg-be-dur" type="number" min="1" placeholder="— sin cambio —"
+            style="margin-top:4px;width:100%;padding:7px 10px;border:1px solid var(--clr-border);border-radius:7px;font-size:13px;background:var(--clr-surface-2);color:var(--clr-text);box-sizing:border-box">
+        </label>
+        <label style="font-size:12px;font-weight:600;color:var(--clr-text-2)">Tipo <small style="font-weight:400;color:var(--clr-text-3)">(solo tareas hoja)</small>
+          <select id="dlg-be-type"
+            style="margin-top:4px;width:100%;padding:7px 10px;border:1px solid var(--clr-border);border-radius:7px;font-size:13px;background:var(--clr-surface-2);color:var(--clr-text)">
+            <option value="">— sin cambio —</option>
+            <option value="task">Tarea</option>
+            <option value="milestone">Hito</option>
+          </select>
+        </label>
+      </div>
+      <div style="padding:12px 16px;border-top:1px solid var(--clr-border);background:var(--clr-surface-2);display:flex;gap:8px;justify-content:flex-end">
+        <button id="dlg-be-cancel" class="btn btn-ghost btn-sm">Cancelar</button>
+        <button id="dlg-be-ok" class="btn btn-primary btn-sm">Aplicar cambios</button>
+      </div>`;
+
+    const close = () => dlg.close();
+    dlg.querySelector('#dlg-be-close').addEventListener('click', close, { once: true });
+    dlg.querySelector('#dlg-be-cancel').addEventListener('click', close, { once: true });
+    dlg.querySelector('#dlg-be-ok').addEventListener('click', () => {
+      const pctRaw  = /** @type {HTMLInputElement} */ (dlg.querySelector('#dlg-be-pct')).value;
+      const durRaw  = /** @type {HTMLInputElement} */ (dlg.querySelector('#dlg-be-dur')).value;
+      const typeRaw = /** @type {HTMLSelectElement} */ (dlg.querySelector('#dlg-be-type')).value;
+      let applied = 0;
+      for (const task of tasks) {
+        const isSummary = this._isSummary(task.id);
+        const fields = {};
+        if (pctRaw !== '') {
+          const v = parseFloat(pctRaw);
+          if (!isNaN(v) && v >= 0 && v <= 100) {
+            fields.percent_complete = v;
+            if (v === 100) fields.actual_finish = new Date().toISOString().slice(0, 10);
+          }
+        }
+        if (durRaw !== '' && !isSummary && task.type !== 'milestone') {
+          const v = parseFloat(durRaw);
+          if (!isNaN(v) && v > 0) fields.duration_days = v;
+        }
+        if (typeRaw && !isSummary) {
+          fields.type = typeRaw;
+          if (typeRaw === 'milestone') fields.duration_days = 0;
+        }
+        if (Object.keys(fields).length) {
+          appState.dispatch({ type: 'UPDATE_TASK', payload: { id: task.id, fields } });
+          applied++;
+        }
+      }
+      dlg.close();
+      if (applied > 0 && this._ariaLive)
+        this._ariaLive.textContent = `${applied} tarea${applied!==1?'s':''} actualizada${applied!==1?'s':''}`;
+    }, { once: true });
+
+    if (!dlg.open) dlg.showModal();
+    setTimeout(() => /** @type {HTMLElement|null} */ (dlg.querySelector('#dlg-be-pct'))?.focus(), 50);
+  }
+
+  /**
+   * Mueve las filas seleccionadas hacia arriba (dir=-1) o abajo (dir=1) dentro de su grupo padre.
+   * @param {string[]} ids
+   * @param {number} dir  -1 = subir, +1 = bajar
+   */
+  _bulkMoveVertical(ids, dir) {
+    const allRows = [...this._body.querySelectorAll('tr[data-id]')];
+    const visOrder = allRows.map(r => r.dataset.id);
+    const selectedSet = new Set(ids);
+    // Ordenar por posición visual; para subir proceso top→bottom, para bajar bottom→top
+    const sorted = ids
+      .map(id => ({ id, vi: visOrder.indexOf(id) }))
+      .filter(x => x.vi >= 0)
+      .sort((a, b) => dir < 0 ? a.vi - b.vi : b.vi - a.vi);
+
+    for (const { id } of sorted) {
+      const task = appState.state.tasks.get(id);
+      if (!task) continue;
+      const siblings = [...appState.state.tasks.values()]
+        .filter(t => !t.deleted_at && t.parent_id === task.parent_id)
+        .sort((a, b) => a.sort_order - b.sort_order);
+      const idx = siblings.findIndex(t => t.id === id);
+      if (idx < 0) continue;
+      const neighbor = siblings[idx + dir];
+      if (!neighbor || selectedSet.has(neighbor.id)) continue; // en el límite o vecino también seleccionado
+      const newOrder = dir < 0 ? neighbor.sort_order - 0.5 : neighbor.sort_order + 0.5;
+      appState.dispatch({ type: 'MOVE_TASK', payload: { id, newParentId: task.parent_id, newSortOrder: newOrder } });
+    }
+  }
+
   // ---- Operaciones de tarea ----
 
   _deleteTask(id) {
@@ -897,21 +1104,41 @@ export class WbsTable {
     const task = appState.state.tasks.get(taskId);
     if (!task) return;
 
+    const isMulti = this._selectedIds.size > 1 && this._selectedIds.has(taskId);
+    const multiCount = isMulti ? this._selectedIds.size : 0;
+
     const menu = document.createElement('div');
     menu.className = 'context-menu';
     menu.setAttribute('role', 'menu');
-    menu.innerHTML = `
-      <div class="context-menu-item" data-action="edit" role="menuitem" tabindex="0">✏️ Editar nombre</div>
-      <div class="context-menu-item" data-action="detail" role="menuitem" tabindex="0">🔍 Ver detalles</div>
-      <div class="context-menu-sep"></div>
-      <div class="context-menu-item" data-action="add-after" role="menuitem" tabindex="0">➕ Agregar tarea debajo</div>
-      <div class="context-menu-item" data-action="add-child" role="menuitem" tabindex="0">↳ Agregar subtarea</div>
-      <div class="context-menu-item" data-action="milestone" role="menuitem" tabindex="0">◆ Agregar hito debajo</div>
-      <div class="context-menu-sep"></div>
-      <div class="context-menu-item" data-action="indent" role="menuitem" tabindex="0">→ Indentar</div>
-      <div class="context-menu-item" data-action="outdent" role="menuitem" tabindex="0">← Desindentar</div>
-      <div class="context-menu-sep"></div>
-      <div class="context-menu-item danger" data-action="delete" role="menuitem" tabindex="0">🗑 Eliminar</div>`;
+
+    if (isMulti) {
+      menu.innerHTML = `
+        <div class="context-menu-item" style="font-size:11px;color:var(--clr-text-3);padding:4px 16px;cursor:default" role="none">
+          ${multiCount} filas seleccionadas
+        </div>
+        <div class="context-menu-sep"></div>
+        <div class="context-menu-item" data-action="bulk-edit"    role="menuitem" tabindex="0">✏️ Editar en bloque</div>
+        <div class="context-menu-sep"></div>
+        <div class="context-menu-item" data-action="bulk-indent"  role="menuitem" tabindex="0">→ Indentar todas</div>
+        <div class="context-menu-item" data-action="bulk-outdent" role="menuitem" tabindex="0">← Desindentar todas</div>
+        <div class="context-menu-item" data-action="bulk-up"      role="menuitem" tabindex="0">↑ Mover todas arriba</div>
+        <div class="context-menu-item" data-action="bulk-down"    role="menuitem" tabindex="0">↓ Mover todas abajo</div>
+        <div class="context-menu-sep"></div>
+        <div class="context-menu-item danger" data-action="bulk-delete" role="menuitem" tabindex="0">🗑 Eliminar seleccionadas</div>`;
+    } else {
+      menu.innerHTML = `
+        <div class="context-menu-item" data-action="edit" role="menuitem" tabindex="0">✏️ Editar nombre</div>
+        <div class="context-menu-item" data-action="detail" role="menuitem" tabindex="0">🔍 Ver detalles</div>
+        <div class="context-menu-sep"></div>
+        <div class="context-menu-item" data-action="add-after" role="menuitem" tabindex="0">➕ Agregar tarea debajo</div>
+        <div class="context-menu-item" data-action="add-child" role="menuitem" tabindex="0">↳ Agregar subtarea</div>
+        <div class="context-menu-item" data-action="milestone" role="menuitem" tabindex="0">◆ Agregar hito debajo</div>
+        <div class="context-menu-sep"></div>
+        <div class="context-menu-item" data-action="indent" role="menuitem" tabindex="0">→ Indentar</div>
+        <div class="context-menu-item" data-action="outdent" role="menuitem" tabindex="0">← Desindentar</div>
+        <div class="context-menu-sep"></div>
+        <div class="context-menu-item danger" data-action="delete" role="menuitem" tabindex="0">🗑 Eliminar</div>`;
+    }
 
     menu.style.left = x + 'px';
     menu.style.top  = y + 'px';
@@ -948,6 +1175,27 @@ export class WbsTable {
   }
 
   _handleCtxAction(action, taskId) {
+    // Bulk actions (multi-select context menu)
+    if (action.startsWith('bulk-')) {
+      const ids = [...this._selectedIds];
+      switch (action) {
+        case 'bulk-edit':   this._openBulkEdit(ids); break;
+        case 'bulk-indent': ids.forEach(id => this._indentTask(id));  break;
+        case 'bulk-outdent':ids.forEach(id => this._outdentTask(id)); break;
+        case 'bulk-up':     this._bulkMoveVertical(ids, -1); break;
+        case 'bulk-down':   this._bulkMoveVertical(ids,  1); break;
+        case 'bulk-delete':
+          document.dispatchEvent(new CustomEvent('wbs-confirm-delete', {
+            detail: {
+              taskId,
+              msg: `¿Eliminar las ${ids.length} filas seleccionadas? Esta acción no se puede deshacer.`,
+              fn: () => ids.forEach(id => this._deleteTask(id)),
+            },
+          }));
+          break;
+      }
+      return;
+    }
     const task = appState.state.tasks.get(taskId);
     if (!task) return;
     switch (action) {
