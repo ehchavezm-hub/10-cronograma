@@ -7,7 +7,9 @@ const fs    = require('fs');
 const path  = require('path');
 const url   = require('url');
 
-const APP_ROOT = path.join(__dirname, '..');
+// In dev: main.js lives in electron/, app files are one level up.
+// In packaged asar: main.js is at asar root alongside index.html/css/js.
+const APP_ROOT = app.isPackaged ? __dirname : path.join(__dirname, '..');
 const PORT     = 0; // OS assigns a free port
 
 // ── MIME types ────────────────────────────────────────────────
