@@ -55,7 +55,12 @@
     "directories": {
       "output": "../dist-win",
       "buildResources": ".."
-    }
+    },
+    "publish": null
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ehchavezm-hub/10-cronograma"
   },
   "devDependencies": {
     "electron": "^32.3.3",
