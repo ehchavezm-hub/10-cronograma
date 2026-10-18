@@ -22,6 +22,7 @@ import { SyncEngine }     from './sync.js';
 import { outboxAdd }      from './storage.js';
 import { EvmPanel }       from './evm.js';
 import { ChangeLogPanel, logCommand } from './change-log.js';
+import { ResourceHistogramPanel } from './resource-histogram.js';
 import { saveBaseline, listBaselines, loadBaselineData, deleteBaseline, setPrimaryBaseline, getBaseline } from './baseline.js';
 
 // ============================================================
@@ -1519,12 +1520,20 @@ function _updateUndoRedoBtns() {
 
 async function _ensureDemoData() {
   const projects = await listProjects();
-  if (projects.some(p => p.is_template !== true)) {
-    return projects[0]; // ya existe
+  const demoExists = projects.some(p => p.is_template !== true);
+  if (!demoExists) {
+    await saveProjectSnapshot(DEMO_DATA);
   }
-  // Guardar datos demo en IndexedDB
-  await saveProjectSnapshot(DEMO_DATA);
-  return DEMO_DATA.project;
+  // Siempre garantizar que los recursos demo existan
+  if (DEMO_DATA.resources?.length) {
+    const { getAll, putMany } = await import('./storage.js');
+    const existingRes = await getAll('resources').then(r => r.filter(x => !x.deleted_at));
+    if (!existingRes.length) {
+      await putMany('resources',      DEMO_DATA.resources);
+      await putMany('task_resources', DEMO_DATA.task_resources);
+    }
+  }
+  return demoExists ? projects[0] : DEMO_DATA.project;
 }
 
 async function _loadProject(projectId) {
@@ -1871,6 +1880,7 @@ let _ganttCanvas    = null;
 let _dcmaPanel      = null;
 let _evmPanel       = null;
 let _changeLogPanel = null;
+let _rhPanel        = null;
 let _syncEngine     = null;
 let _ganttFitPending = false; // true tras cargar proyecto → auto-ajusta al primer CPM
 let _activeBaselineId   = null;
@@ -2048,6 +2058,12 @@ async function init() {
           document.getElementById('btn-changelog')?.removeAttribute('aria-pressed');
         }
       });
+    }
+
+    // ---- Inicializar panel Histograma de Recursos ----
+    const rhEl = document.getElementById('resource-histogram-panel');
+    if (rhEl) {
+      _rhPanel = new ResourceHistogramPanel(rhEl);
     }
 
     // El motor de sync ya fue iniciado dentro de _loadProject.
@@ -2446,6 +2462,21 @@ function _bindToolbar() {
     btn?.setAttribute('aria-pressed', String(isOpen));
     if (isOpen) {
       _changeLogPanel?.refresh();
+      btn.style.background = 'var(--clr-primary)';
+      btn.style.color = '#fff';
+    } else {
+      btn.style.background = '';
+      btn.style.color = '';
+    }
+  });
+
+  document.getElementById('btn-resource-histogram')?.addEventListener('click', () => {
+    const panel = document.getElementById('resource-histogram-panel');
+    const btn   = document.getElementById('btn-resource-histogram');
+    const isOpen = panel?.classList.toggle('open');
+    btn?.setAttribute('aria-pressed', String(isOpen));
+    if (isOpen) {
+      _rhPanel?.refresh();
       btn.style.background = 'var(--clr-primary)';
       btn.style.color = '#fff';
     } else {
@@ -4301,7 +4332,7 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('btn-orgchart-view')?.addEventListener('click', _showOrgChart);
   document.getElementById('btn-cpm-network')?.addEventListener('click', _showCpmNetwork);
   // Keyboard activation for static view items (role="button")
-  ['btn-orgchart-view','btn-cpm-network','btn-edt-view','btn-gantt-view','btn-dcma-view','btn-sync-view','btn-evm-view'].forEach(id => {
+  ['btn-orgchart-view','btn-cpm-network','btn-edt-view','btn-gantt-view','btn-dcma-view','btn-sync-view','btn-evm-view','btn-resource-histogram-view'].forEach(id => {
     document.getElementById(id)?.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); document.getElementById(id)?.click(); } });
   });
 
@@ -4337,6 +4368,10 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('btn-evm-view')?.addEventListener('click', () => {
     _closeExplorer();
     document.getElementById('btn-evm')?.click();
+  });
+  document.getElementById('btn-resource-histogram-view')?.addEventListener('click', () => {
+    _closeExplorer();
+    document.getElementById('btn-resource-histogram')?.click();
   });
 
   init();

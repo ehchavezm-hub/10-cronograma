@@ -9,8 +9,10 @@ const ORG_ID    = '00000000-0000-0000-0000-000000000001';
 const PROJ_ID   = '00000000-0000-0000-0000-000000000010';
 const CAL_ID    = '00000000-0000-0000-0000-000000000020';
 
-const T = (n) => `task-demo-${String(n).padStart(3,'0')}`;
-const D = (n) => `dep-demo-${String(n).padStart(3,'0')}`;
+const T  = (n) => `task-demo-${String(n).padStart(3,'0')}`;
+const D  = (n) => `dep-demo-${String(n).padStart(3,'0')}`;
+const R  = (n) => `res-demo-${String(n).padStart(3,'0')}`;
+const TR = (n) => `taskres-demo-${String(n).padStart(3,'0')}`;
 
 /** @type {any} */
 export const DEMO_DATA = {
@@ -182,6 +184,86 @@ export const DEMO_DATA = {
     _dep(D(49), T(53), T(54), 'FS', 0),
     _dep(D(50), T(54), T(55), 'FS', 0),
   ],
+
+  resources: [
+    _res(R(1), 'Maestro de Obra',          'work', 100, 45.00),
+    _res(R(2), 'Oficial',                  'work', 100, 28.00),
+    _res(R(3), 'Peón',                     'work', 100, 18.00),
+    _res(R(4), 'Operador de Maquinaria',   'work', 100, 55.00),
+  ],
+
+  task_resources: [
+    // ── FASE 1: Trabajos Preliminares ──
+    _tr(TR(1),  T(2),  R(1), 100),  // Maestro → Movilización
+    _tr(TR(2),  T(2),  R(3), 100),  // Peón    → Movilización
+    _tr(TR(3),  T(3),  R(1), 50),   // Maestro → Replanteo
+    _tr(TR(4),  T(5),  R(1), 100),  // Maestro → Instalación servicios
+    _tr(TR(5),  T(5),  R(2), 100),  // Oficial → Instalación servicios
+    _tr(TR(6),  T(5),  R(3), 100),  // Peón    → Instalación servicios
+
+    // ── FASE 2: Cimentación ──
+    _tr(TR(7),  T(11), R(1), 100),  // Maestro → Excavación masiva
+    _tr(TR(8),  T(11), R(3), 100),  // Peón    → Excavación masiva
+    _tr(TR(9),  T(11), R(4), 100),  // Operador → Excavación masiva
+    _tr(TR(10), T(12), R(1), 100),  // Maestro → Excavación zanjas
+    _tr(TR(11), T(12), R(3), 100),  // Peón    → Excavación zanjas
+    _tr(TR(12), T(12), R(4), 100),  // Operador → Excavación zanjas
+    _tr(TR(13), T(13), R(1), 100),  // Maestro → Hab. acero cimientos
+    _tr(TR(14), T(13), R(2), 100),  // Oficial → Hab. acero cimientos
+    _tr(TR(15), T(13), R(3), 100),  // Peón    → Hab. acero cimientos
+    _tr(TR(16), T(14), R(1), 100),  // Maestro → Encofrado cimientos
+    _tr(TR(17), T(14), R(2), 100),  // Oficial → Encofrado cimientos
+    _tr(TR(18), T(15), R(1), 100),  // Maestro → Vaciado concreto
+    _tr(TR(19), T(15), R(2), 100),  // Oficial → Vaciado concreto
+    _tr(TR(20), T(15), R(3), 100),  // Peón    → Vaciado concreto
+
+    // ── FASE 3: Estructura ──
+    _tr(TR(21), T(21), R(1), 100),  // Maestro → Encofrado columnas P1
+    _tr(TR(22), T(21), R(2), 100),  // Oficial → Encofrado columnas P1
+    _tr(TR(23), T(22), R(1), 100),  // Maestro → Hab. acero columnas
+    _tr(TR(24), T(22), R(2), 100),  // Oficial → Hab. acero columnas
+    _tr(TR(25), T(22), R(3), 100),  // Peón    → Hab. acero columnas
+    _tr(TR(26), T(23), R(1), 100),  // Maestro → Vaciado columnas P1
+    _tr(TR(27), T(23), R(2), 100),  // Oficial → Vaciado columnas P1
+    _tr(TR(28), T(24), R(1), 100),  // Maestro → Encofrado vigas losa P1
+    _tr(TR(29), T(24), R(2), 100),  // Oficial → Encofrado vigas losa P1
+    _tr(TR(30), T(24), R(3), 100),  // Peón    → Encofrado vigas losa P1
+    _tr(TR(31), T(25), R(1), 100),  // Maestro → Vaciado losa P1
+    _tr(TR(32), T(25), R(2), 100),  // Oficial → Vaciado losa P1
+    _tr(TR(33), T(27), R(1), 100),  // Maestro → Encofrado columnas P2
+    _tr(TR(34), T(27), R(2), 100),  // Oficial → Encofrado columnas P2
+    _tr(TR(35), T(28), R(1), 100),  // Maestro → Vaciado columnas P2
+    _tr(TR(36), T(28), R(2), 100),  // Oficial → Vaciado columnas P2
+    _tr(TR(37), T(29), R(1), 100),  // Maestro → Vaciado losa P2
+    _tr(TR(38), T(29), R(2), 100),  // Oficial → Vaciado losa P2
+
+    // ── FASE 4+5: Albañilería + Instalaciones (paralelas) ──
+    _tr(TR(39), T(31), R(1), 100),  // Maestro → Ladrillo P1
+    _tr(TR(40), T(31), R(3), 100),  // Peón    → Ladrillo P1
+    _tr(TR(41), T(32), R(1), 100),  // Maestro → Tarrajeo P1
+    _tr(TR(42), T(32), R(2), 100),  // Oficial → Tarrajeo P1
+    _tr(TR(43), T(33), R(1), 100),  // Maestro → Ladrillo P2
+    _tr(TR(44), T(33), R(3), 100),  // Peón    → Ladrillo P2
+    _tr(TR(45), T(34), R(1), 100),  // Maestro → Tarrajeo P2
+    _tr(TR(46), T(34), R(2), 100),  // Oficial → Tarrajeo P2
+    _tr(TR(47), T(41), R(2), 100),  // Oficial → Instalaciones sanitarias P1
+    _tr(TR(48), T(42), R(2), 100),  // Oficial → Instalaciones eléctricas P1
+    _tr(TR(49), T(43), R(2), 100),  // Oficial → Instalaciones sanitarias P2
+    _tr(TR(50), T(44), R(2), 100),  // Oficial → Instalaciones eléctricas P2
+    _tr(TR(51), T(41), R(3), 100),  // Peón    → Instalaciones sanitarias P1
+    _tr(TR(52), T(43), R(3), 100),  // Peón    → Instalaciones sanitarias P2
+
+    // ── FASE 6: Acabados ──
+    _tr(TR(53), T(51), R(1), 100),  // Maestro → Pisos y pavimentos
+    _tr(TR(54), T(51), R(2), 100),  // Oficial → Pisos y pavimentos
+    _tr(TR(55), T(51), R(3), 100),  // Peón    → Pisos y pavimentos
+    _tr(TR(56), T(52), R(1), 100),  // Maestro → Pintado general
+    _tr(TR(57), T(52), R(2), 100),  // Oficial → Pintado general
+    _tr(TR(58), T(53), R(1), 100),  // Maestro → Carpintería y aluminio
+    _tr(TR(59), T(53), R(2), 100),  // Oficial → Carpintería y aluminio
+    _tr(TR(60), T(54), R(1), 100),  // Maestro → Limpieza final
+    _tr(TR(61), T(54), R(3), 100),  // Peón    → Limpieza final
+  ],
 };
 
 // ---- Helpers para construir tareas ----
@@ -212,6 +294,27 @@ function _dep(id, pred_id, succ_id, type, lag_days) {
   return {
     id, org_id: ORG_ID, project_id: PROJ_ID,
     pred_id, succ_id, type, lag_days,
+    created_at: '2026-01-01T00:00:00Z',
+    updated_at: '2026-01-01T00:00:00Z',
+    deleted_at: null,
+  };
+}
+
+function _res(id, name, type, max_units, rate_per_hour) {
+  return {
+    id, org_id: ORG_ID, project_id: PROJ_ID,
+    name, type, max_units, rate_per_hour,
+    unit_label: null, role: null,
+    created_at: '2026-01-01T00:00:00Z',
+    updated_at: '2026-01-01T00:00:00Z',
+    deleted_at: null,
+  };
+}
+
+function _tr(id, task_id, resource_id, units) {
+  return {
+    id, org_id: ORG_ID, project_id: PROJ_ID,
+    task_id, resource_id, units,
     created_at: '2026-01-01T00:00:00Z',
     updated_at: '2026-01-01T00:00:00Z',
     deleted_at: null,

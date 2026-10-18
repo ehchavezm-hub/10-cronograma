@@ -109,6 +109,10 @@
           <span class="item-icon">📈</span>
           <span class="item-label">Valor Ganado ✓</span>
         </div>
+        <div class="explorer-item" id="btn-resource-histogram-view" role="button" tabindex="0" style="cursor:pointer" title="Histograma de Recursos — carga por período" aria-label="Histograma de Recursos">
+          <span class="item-icon">📊</span>
+          <span class="item-label">Histograma Recursos ✓</span>
+        </div>
       </div>
     </nav>
 
@@ -257,6 +261,9 @@
         </button>
         <button id="btn-changelog" class="btn btn-ghost btn-sm" title="Historial de cambios" aria-label="Abrir historial de cambios" aria-pressed="false">
           📋 Historial
+        </button>
+        <button id="btn-resource-histogram" class="btn btn-ghost btn-sm" title="Histograma de Recursos" aria-label="Abrir histograma de recursos" aria-pressed="false">
+          📊 Histograma
         </button>
         <div class="toolbar-sep"></div>
         <span class="filter-bar-label">Filtrar:</span>
@@ -414,6 +421,9 @@
 
         <!-- Panel Historial de Cambios (Fase 6) -->
         <div id="changelog-panel" role="region" aria-label="Historial de cambios de la sesión"></div>
+
+        <!-- Panel Histograma de Recursos -->
+        <div id="resource-histogram-panel" role="region" aria-label="Histograma de Recursos"></div>
       </div>
     </div>
 
