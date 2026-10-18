@@ -976,7 +976,7 @@ async function _openResourceManager() {
     const btn = /** @type {HTMLElement} */ (e.target).closest('.rm-del');
     if (btn) {
       const rid = btn.dataset.rid;
-      if (confirm('¿Eliminar este recurso?')) {
+      _confirmDialog('¿Eliminar este recurso? Esta acción no se puede deshacer.', async () => {
         const { remove: dbRemoveSt, getAll: dbGetAllSt } = await import('./storage.js?v=4');
         await dbRemoveSt('resources', rid);
         // Limpiar asignaciones huérfanas
@@ -984,7 +984,7 @@ async function _openResourceManager() {
         await Promise.all(taskRes.filter(tr => tr.resource_id === rid).map(tr => dbRemoveSt('task_resources', tr.id)));
         btn.closest('tr')?.remove();
         _showToast('Recurso eliminado', 'success');
-      }
+      });
     }
   });
 
@@ -2029,7 +2029,7 @@ async function init() {
 
     // El motor de sync ya fue iniciado dentro de _loadProject.
 
-    console.log('[Cronogramas] v58 completo — modo', IS_LOCAL_MODE ? 'local' : 'Supabase');
+    console.log('[Cronogramas] v59 completo — modo', IS_LOCAL_MODE ? 'local' : 'Supabase');
   } catch (err) {
     console.error('[init]', err);
     _showToast('Error al iniciar: ' + err.message, 'error');
@@ -2311,7 +2311,7 @@ function _bindToolbar() {
   _barLabelsMenu?.addEventListener('change', () => {
     const checked = [..._barLabelsMenu.querySelectorAll('input:checked')].map(/** @type {HTMLInputElement} */ (i) => i.value);
     const labels  = checked.length ? checked : ['name'];
-    localStorage.setItem('gantt-bar-labels', JSON.stringify(labels));
+    try { localStorage.setItem('gantt-bar-labels', JSON.stringify(labels)); } catch {}
     _ganttCanvas?.setBarLabels(labels);
     _syncBarLabelsUI(labels);
   });
@@ -2348,7 +2348,7 @@ function _bindToolbar() {
     const checked = [..._wbsColsMenu.querySelectorAll('input:checked')].map(/** @type {HTMLInputElement} */ (i) => i.value);
     const visible = checked.length ? checked : ['name'];
     if (!visible.includes('name')) visible.push('name');
-    localStorage.setItem('wbs-col-visibility', JSON.stringify(visible));
+    try { localStorage.setItem('wbs-col-visibility', JSON.stringify(visible)); } catch {}
     _applyWbsColVisibility(visible);
   });
   document.addEventListener('click', (e) => {
@@ -2659,7 +2659,7 @@ function _bindResizer() {
     resizer.classList.remove('dragging');
     document.body.style.cursor = '';
     document.body.style.userSelect = '';
-    localStorage.setItem('gantt-panel-width', ganttPanel.style.width);
+    try { localStorage.setItem('gantt-panel-width', ganttPanel.style.width); } catch {}
     _syncAria();
     // Forzar redibujado con el nuevo tamaño del canvas
     setTimeout(() => _ganttCanvas?.requestRender(), 50);
@@ -2676,7 +2676,7 @@ function _bindResizer() {
     const maxW = window.innerWidth - 280;
     if (e.key === 'ArrowLeft')  { ganttPanel.style.width = Math.min(maxW, w + step) + 'px'; e.preventDefault(); }
     if (e.key === 'ArrowRight') { ganttPanel.style.width = Math.max(minW, w - step) + 'px'; e.preventDefault(); }
-    localStorage.setItem('gantt-panel-width', ganttPanel.style.width);
+    try { localStorage.setItem('gantt-panel-width', ganttPanel.style.width); } catch {}
     _syncAria();
     _ganttCanvas?.requestRender();
   });
@@ -2729,7 +2729,7 @@ function _bindResizerExplorer() {
     resizer.classList.remove('dragging');
     document.body.style.cursor = '';
     document.body.style.userSelect = '';
-    localStorage.setItem('explorer-panel-width', explorer.style.width);
+    try { localStorage.setItem('explorer-panel-width', explorer.style.width); } catch {}
     _syncAria();
   };
 
@@ -2742,7 +2742,7 @@ function _bindResizerExplorer() {
     const w = explorer.getBoundingClientRect().width;
     if (e.key === 'ArrowRight') { explorer.style.width = Math.min(400, w + step) + 'px'; e.preventDefault(); }
     if (e.key === 'ArrowLeft')  { explorer.style.width = Math.max(160, w - step) + 'px'; e.preventDefault(); }
-    localStorage.setItem('explorer-panel-width', explorer.style.width);
+    try { localStorage.setItem('explorer-panel-width', explorer.style.width); } catch {}
     _syncAria();
   });
 }
@@ -2760,7 +2760,7 @@ function _ocGetPos() { try { return JSON.parse(localStorage.getItem('oc-pos') ||
 function _getCpmNodePos() { const k='cpm-pos-'+(appState.state.project?.id??'x'); try{return JSON.parse(localStorage.getItem(k)||'{}')}catch{return{}} }
 function _setCpmNodePos(m) { const k='cpm-pos-'+(appState.state.project?.id??'x'); try{localStorage.setItem(k,JSON.stringify(m))}catch{} }
 /** Guarda posiciones */
-function _ocSetPos(pos) { localStorage.setItem('oc-pos', JSON.stringify(pos)); }
+function _ocSetPos(pos) { try { localStorage.setItem('oc-pos', JSON.stringify(pos)); } catch {} }
 
 function _showOrgChart() {
   let dlg = /** @type {HTMLDialogElement|null} */ (document.getElementById('dlg-org-chart'));
@@ -2937,7 +2937,7 @@ function _printOrgChart() {
 </body></html>`;
 
   const win = window.open('', '_blank', 'width=1200,height=800');
-  if (!win) { alert('El navegador bloqueó la ventana emergente. Permítala e intente de nuevo.'); return; }
+  if (!win) { _showToast('El navegador bloqueó la ventana emergente. Permítala e intente de nuevo.', 'warn'); return; }
   win.document.write(html);
   win.document.close();
 }
@@ -3648,7 +3648,7 @@ function _exportCpmNetwork(fmt, dlg) {
   if (!svgEl) return;
 
   const bb = svgEl.getBBox();
-  if (!bb.width || !bb.height) { alert('La red está vacía.'); return; }
+  if (!bb.width || !bb.height) { _showToast('La red está vacía.', 'warn'); return; }
   const PAD = 40;
   const vbX = bb.x - PAD, vbY = bb.y - PAD;
   const vbW = bb.width  + PAD * 2;
@@ -3719,7 +3719,7 @@ function _exportCpmNetwork(fmt, dlg) {
       URL.revokeObjectURL(url);
       cv.toBlob(blob => _dlUrl(blob, projName + '_red-cpm.png'), 'image/png');
     };
-    img.onerror = () => { URL.revokeObjectURL(url); alert('Error al generar PNG.'); };
+    img.onerror = () => { URL.revokeObjectURL(url); _showToast('Error al generar PNG.', 'error'); };
     img.src = url;
     return;
   }
@@ -3826,7 +3826,7 @@ function _exportCpmNetwork(fmt, dlg) {
     const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
     const blobUrl = URL.createObjectURL(blob);
     const win = window.open(blobUrl, '_blank', 'width=1300,height=900');
-    if (!win) { URL.revokeObjectURL(blobUrl); alert('El navegador bloqueó la ventana emergente. Permítala e intente de nuevo.'); return; }
+    if (!win) { URL.revokeObjectURL(blobUrl); _showToast('El navegador bloqueó la ventana emergente. Permítala e intente de nuevo.', 'warn'); return; }
     // Liberar blob URL después de que la ventana haya cargado
     setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
   }
