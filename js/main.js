@@ -492,7 +492,7 @@ async function _openTaskDetail(taskId) {
       <div id="tdp-resources-section">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
           <span style="font-size:12px;font-weight:700;color:var(--clr-text-2)">Recursos asignados</span>
-          <button id="tdp-open-catalog" class="btn btn-ghost btn-sm" title="Gestionar catálogo global de recursos" style="font-size:11px;padding:3px 8px">📚 Catálogo</button>
+          <button id="tdp-open-catalog" class="btn btn-ghost btn-sm" title="Gestionar catálogo global de recursos" aria-label="Gestionar catálogo global de recursos" style="font-size:11px;padding:3px 8px">📚 Catálogo</button>
         </div>
         <table id="tdp-res-table" style="width:100%;border-collapse:collapse;font-size:12px">
           <thead>
@@ -510,7 +510,7 @@ async function _openTaskDetail(taskId) {
         <div style="display:flex;align-items:center;justify-content:space-between;margin-top:6px;padding:6px 8px;background:var(--clr-surface-2);border-radius:6px;font-size:12px">
           <span style="color:var(--clr-text-3)">Costo total recursos:</span>
           <span style="font-weight:700;color:var(--clr-text)">${_fmtCost(_totalResCost)}</span>
-          <button id="tdp-use-res-cost" data-cost="${_totalResCost.toFixed(2)}" class="btn btn-ghost btn-sm" style="font-size:10px;padding:2px 8px" title="Copiar al campo Costo planificado">↓ Usar como costo planificado</button>
+          <button id="tdp-use-res-cost" data-cost="${_totalResCost.toFixed(2)}" class="btn btn-ghost btn-sm" style="font-size:10px;padding:2px 8px" title="Copiar al campo Costo planificado" aria-label="Copiar al campo Costo planificado">↓ Usar como costo planificado</button>
         </div>` : ''}
         ${allResources.length ? `
         <div style="display:flex;gap:6px;margin-top:8px;align-items:center">
@@ -764,7 +764,7 @@ async function _openResourceManager() {
       <td style="padding:6px 10px;font-size:12px;color:var(--clr-text-3)">${dispMax}</td>
       <td style="padding:6px 10px">${overAllocCell}</td>
       <td style="padding:5px 8px;white-space:nowrap">
-        <button class="btn btn-sm rm-assign" data-rid="${r.id}" title="Asignar este recurso a actividades" style="font-size:11px;padding:3px 8px;background:#1976D2;color:#fff;border:none;border-radius:5px;cursor:pointer;margin-right:4px">▶ Asignar</button>
+        <button class="btn btn-sm rm-assign" data-rid="${r.id}" title="Asignar este recurso a actividades" aria-label="Asignar este recurso a actividades" style="font-size:11px;padding:3px 8px;background:#1976D2;color:#fff;border:none;border-radius:5px;cursor:pointer;margin-right:4px">▶ Asignar</button>
         <button class="btn btn-icon btn-sm rm-del" data-rid="${r.id}" title="Eliminar" aria-label="Eliminar recurso" style="color:var(--clr-danger,#e74c3c)">🗑</button>
       </td>
     </tr>`;
@@ -810,7 +810,7 @@ async function _openResourceManager() {
         <div style="font-size:11px;color:var(--clr-text-3);margin-top:2px">Catálogo, asignación y uso de recursos del proyecto</div>
       </div>
       <div style="display:flex;gap:6px;align-items:center">
-        <button id="btn-open-assign-dlg" class="btn btn-primary btn-sm" title="Asignar recursos a actividades (masivo)" style="cursor:pointer">📌 Asignar Recursos</button>
+        <button id="btn-open-assign-dlg" class="btn btn-primary btn-sm" title="Asignar recursos a actividades (masivo)" aria-label="Asignar recursos a actividades" style="cursor:pointer">📌 Asignar Recursos</button>
         <button id="dlg-res-close" class="btn btn-icon btn-sm" style="cursor:default" aria-label="Cerrar gestión de recursos">✕</button>
       </div>
     </div>
@@ -2035,7 +2035,7 @@ async function init() {
 
     // El motor de sync ya fue iniciado dentro de _loadProject.
 
-    console.log('[Cronogramas] v62 completo — modo', IS_LOCAL_MODE ? 'local' : 'Supabase');
+    console.log('[Cronogramas] v63 completo — modo', IS_LOCAL_MODE ? 'local' : 'Supabase');
   } catch (err) {
     console.error('[init]', err);
     _showToast('Error al iniciar: ' + err.message, 'error');
@@ -2786,7 +2786,7 @@ function _showOrgChart() {
             <button id="oc-add-prog" class="btn btn-ghost btn-sm">＋ Programa</button>
             <button id="oc-add-proj" class="btn btn-ghost btn-sm">＋ Proyecto</button>
             <span style="width:1px;height:18px;background:var(--clr-border)"></span>
-            <button id="oc-reset-layout" class="btn btn-ghost btn-sm" title="Restablecer posiciones">↺ Organizar</button>
+            <button id="oc-reset-layout" class="btn btn-ghost btn-sm" title="Restablecer posiciones" aria-label="Restablecer posiciones">↺ Organizar</button>
             <button id="oc-print" class="btn btn-ghost btn-sm">🖨 Imprimir</button>
             <button id="btn-orgchart-close" class="btn btn-ghost btn-sm">✕ Cerrar</button>
           </div>
@@ -3244,8 +3244,8 @@ async function _renderOrgChart() {
 
     card.innerHTML = `
       <div class="oc-drag-handle" style="position:absolute;top:4px;left:6px;font-size:12px;opacity:0.25;cursor:grab;line-height:1" title="Arrastrar">⠿</div>
-      <button class="oc-btn-edit" title="Editar" style="position:absolute;top:4px;right:26px;background:none;border:none;cursor:pointer;font-size:12px;opacity:0.3;padding:0;line-height:1">✎</button>
-      <button class="oc-btn-add" title="Agregar hijo" style="position:absolute;top:4px;right:6px;background:none;border:none;cursor:pointer;font-size:12px;opacity:0.3;padding:0;line-height:1;font-weight:700">＋</button>
+      <button class="oc-btn-edit" title="Editar" aria-label="Editar nodo" style="position:absolute;top:4px;right:26px;background:none;border:none;cursor:pointer;font-size:12px;opacity:0.3;padding:0;line-height:1">✎</button>
+      <button class="oc-btn-add" title="Agregar hijo" aria-label="Agregar nodo hijo" style="position:absolute;top:4px;right:6px;background:none;border:none;cursor:pointer;font-size:12px;opacity:0.3;padding:0;line-height:1;font-weight:700">＋</button>
       <div style="width:22px;height:22px;margin-top:2px;display:flex;align-items:center;justify-content:center">${icons[type]}</div>
       <div style="font-size:11px;font-weight:700;word-break:break-word;text-align:center;line-height:1.3;color:${colors[type]};margin-top:2px">${_escHtml(data.name)}</div>
       ${data.code ? `<div style="font-size:9px;opacity:0.55;background:rgba(0,0,0,0.06);border-radius:4px;padding:1px 6px;margin-top:1px">${_escHtml(data.code)}</div>` : ''}
