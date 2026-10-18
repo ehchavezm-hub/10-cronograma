@@ -269,18 +269,18 @@
           <button id="btn-export" class="btn btn-ghost btn-sm" aria-haspopup="true" aria-expanded="false"
                   title="Exportar o importar proyecto" aria-label="Exportar o importar proyecto">⬇ Exportar ▾</button>
           <ul id="export-menu" class="dropdown-menu" hidden role="menu">
-            <li role="menuitem"><button data-action="json">📦 JSON (proyecto completo)</button></li>
-            <li role="menuitem"><button data-action="csv">📊 CSV (actividades)</button></li>
-            <li role="menuitem"><button data-action="xml">📁 MS Project XML</button></li>
-            <li role="menuitem"><button data-action="svg">🖼 SVG (diagrama Gantt)</button></li>
+            <li role="none"><button data-action="json" role="menuitem" tabindex="-1">📦 JSON (proyecto completo)</button></li>
+            <li role="none"><button data-action="csv" role="menuitem" tabindex="-1">📊 CSV (actividades)</button></li>
+            <li role="none"><button data-action="xml" role="menuitem" tabindex="-1">📁 MS Project XML</button></li>
+            <li role="none"><button data-action="svg" role="menuitem" tabindex="-1">🖼 SVG (diagrama Gantt)</button></li>
             <li class="dropdown-sep" role="separator"></li>
-            <li role="menuitem"><button data-action="col-config">⚙ Columnas de exportación…</button></li>
-            <li role="menuitem"><button data-action="print-table">🖨 Imprimir tabla EDT</button></li>
-            <li role="menuitem"><button data-action="print-gantt">🖨 Imprimir Gantt</button></li>
-            <li role="menuitem"><button data-action="print-pdf">📄 Informe completo PDF</button></li>
+            <li role="none"><button data-action="col-config" role="menuitem" tabindex="-1">⚙ Columnas de exportación…</button></li>
+            <li role="none"><button data-action="print-table" role="menuitem" tabindex="-1">🖨 Imprimir tabla EDT</button></li>
+            <li role="none"><button data-action="print-gantt" role="menuitem" tabindex="-1">🖨 Imprimir Gantt</button></li>
+            <li role="none"><button data-action="print-pdf" role="menuitem" tabindex="-1">📄 Informe completo PDF</button></li>
             <li class="dropdown-sep" role="separator"></li>
-            <li role="menuitem">
-              <label for="import-file" class="menu-import-label">📂 Importar JSON…</label>
+            <li role="none">
+              <label for="import-file" class="menu-import-label" role="menuitem" tabindex="-1">📂 Importar JSON…</label>
               <input type="file" id="import-file" accept=".json" hidden aria-label="Importar archivo JSON">
             </li>
           </ul>
@@ -427,7 +427,7 @@
     <span style="position:absolute;left:50%;transform:translateX(-50%);font-size:var(--text-xs);color:var(--clr-text-3);white-space:nowrap">ECM Project v1.0.0 | © 2026 E. Chávez</span>
     <span style="flex:1"></span>
     <span id="status-warnings" style="font-size:var(--text-xs);color:var(--clr-text-3)"></span>
-    <span>v64</span>
+    <span>v65</span>
   </footer>
 
   <!-- Pestañas inferiores (solo móvil) -->
@@ -458,7 +458,7 @@
 <!-- ============================================================
      Módulo principal (ES Module)
      ============================================================ -->
-<script type="module" src="js/main.js?v=64"></script>
+<script type="module" src="js/main.js?v=65"></script>
 
 <!-- Atajos de teclado globales -->
 <script type="module">

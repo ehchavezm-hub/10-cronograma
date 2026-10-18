@@ -1,0 +1,64 @@
+{
+  "name": "ecm-cronograma",
+  "productName": "ECM Cronograma",
+  "version": "1.0.0",
+  "description": "Gestión de cronogramas y proyectos ECM",
+  "main": "main.js",
+  "author": "E. Chávez",
+  "license": "UNLICENSED",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "dist:win": "electron-builder --win --x64"
+  },
+  "build": {
+    "appId": "com.ecm.cronograma",
+    "productName": "ECM Cronograma",
+    "copyright": "© 2026 E. Chávez",
+    "asar": true,
+    "files": [
+      "main.js",
+      "../index.html",
+      "../manifest.json",
+      "../sw.js",
+      "../css/**/*",
+      "../js/**/*",
+      "!../js/**/*.test.*",
+      "!../tests/**",
+      "!../sql/**",
+      "!../.git/**",
+      "!../electron/**"
+    ],
+    "extraFiles": [],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        },
+        {
+          "target": "portable",
+          "arch": ["x64"]
+        }
+      ],
+      "icon": "../icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "installerIcon": "../icon.ico",
+      "uninstallerIcon": "../icon.ico",
+      "shortcutName": "ECM Cronograma"
+    },
+    "directories": {
+      "output": "../dist-win",
+      "buildResources": ".."
+    }
+  },
+  "devDependencies": {
+    "electron": "^32.3.3",
+    "electron-builder": "^25.1.8"
+  }
+}
