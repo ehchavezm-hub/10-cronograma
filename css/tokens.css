@@ -190,6 +190,155 @@
   --clr-danger:      #f87171;
 }
 
+/* ============================================================
+   Temas adicionales — 5 nuevas vistas de color
+   ============================================================ */
+
+/* ---------- Azul y gris minimalista ---------- */
+:root[data-theme="blue-gray"] {
+  --clr-bg:          #f0f4f8;
+  --clr-surface:     #ffffff;
+  --clr-surface-2:   #e4eaf2;
+  --clr-surface-3:   #d5dde9;
+  --clr-toolbar-row2:#dbeafe;
+  --clr-border:      #c4cdd8;
+  --clr-border-2:    #dae0ea;
+  --clr-text:        #1a2535;
+  --clr-text-1:      #283447;
+  --clr-text-2:      #3d4f65;
+  --clr-text-3:      #5f7692;
+  --clr-text-inv:    #ffffff;
+  --clr-hover:       rgba(37,99,235,.06);
+  --clr-primary:     #2563eb;
+  --clr-primary-h:   #1d4ed8;
+  --clr-primary-l:   #dbeafe;
+  --clr-ok-bg:       #dbeafe;
+  --clr-warn-bg:     #fef9c3;
+  --clr-error-bg:    #fee2e2;
+  --clr-normal-bg:   #dbeafe;
+  --clr-done-bg:     #dcfce7;
+  --clr-critical-bg: #fee2e2;
+  --clr-near-bg:     #ffedd5;
+  --clr-milestone-bg:#fef9c3;
+  --clr-pending-bg:  #f1f5f9;
+}
+
+/* ---------- Verde esmeralda minimalista ---------- */
+:root[data-theme="emerald"] {
+  --clr-bg:          #f0fdf6;
+  --clr-surface:     #ffffff;
+  --clr-surface-2:   #dcfce7;
+  --clr-surface-3:   #bbf7d0;
+  --clr-toolbar-row2:#d1fae5;
+  --clr-border:      #a7d9b8;
+  --clr-border-2:    #c8edda;
+  --clr-text:        #0f2418;
+  --clr-text-1:      #1a3a28;
+  --clr-text-2:      #2d5a40;
+  --clr-text-3:      #4a7d60;
+  --clr-text-inv:    #ffffff;
+  --clr-hover:       rgba(5,150,105,.06);
+  --clr-primary:     #059669;
+  --clr-primary-h:   #047857;
+  --clr-primary-l:   #d1fae5;
+  --clr-ok-bg:       #d1fae5;
+  --clr-warn-bg:     #fef9c3;
+  --clr-error-bg:    #fee2e2;
+  --clr-normal-bg:   #d1fae5;
+  --clr-done-bg:     #bbf7d0;
+  --clr-critical-bg: #fee2e2;
+  --clr-near-bg:     #ffedd5;
+  --clr-milestone-bg:#fef9c3;
+  --clr-pending-bg:  #f0fdf4;
+}
+
+/* ---------- Gris cálido minimalista ---------- */
+:root[data-theme="warm-gray"] {
+  --clr-bg:          #fafaf9;
+  --clr-surface:     #ffffff;
+  --clr-surface-2:   #f5f5f4;
+  --clr-surface-3:   #e7e5e4;
+  --clr-toolbar-row2:#fef3c7;
+  --clr-border:      #d6d3d1;
+  --clr-border-2:    #e7e5e4;
+  --clr-text:        #1c1917;
+  --clr-text-1:      #292524;
+  --clr-text-2:      #44403c;
+  --clr-text-3:      #78716c;
+  --clr-text-inv:    #ffffff;
+  --clr-hover:       rgba(120,113,108,.07);
+  --clr-primary:     #c2853a;
+  --clr-primary-h:   #a86b28;
+  --clr-primary-l:   #fde68a;
+  --clr-ok-bg:       #d1fae5;
+  --clr-warn-bg:     #fef9c3;
+  --clr-error-bg:    #fee2e2;
+  --clr-normal-bg:   #fef3c7;
+  --clr-done-bg:     #d1fae5;
+  --clr-critical-bg: #fee2e2;
+  --clr-near-bg:     #ffedd5;
+  --clr-milestone-bg:#fef9c3;
+  --clr-pending-bg:  #f5f5f4;
+}
+
+/* ---------- Morado elegante minimalista ---------- */
+:root[data-theme="purple"] {
+  --clr-bg:          #f5f0ff;
+  --clr-surface:     #ffffff;
+  --clr-surface-2:   #ede8ff;
+  --clr-surface-3:   #ddd5fc;
+  --clr-toolbar-row2:#ede9fe;
+  --clr-border:      #c4a8e8;
+  --clr-border-2:    #ddd0f5;
+  --clr-text:        #1a0f3e;
+  --clr-text-1:      #2e1a5e;
+  --clr-text-2:      #4a307d;
+  --clr-text-3:      #6e52a0;
+  --clr-text-inv:    #ffffff;
+  --clr-hover:       rgba(124,58,237,.06);
+  --clr-primary:     #7c3aed;
+  --clr-primary-h:   #6d28d9;
+  --clr-primary-l:   #ede9fe;
+  --clr-ok-bg:       #d1fae5;
+  --clr-warn-bg:     #fef9c3;
+  --clr-error-bg:    #fee2e2;
+  --clr-normal-bg:   #ede9fe;
+  --clr-done-bg:     #d1fae5;
+  --clr-critical-bg: #fee2e2;
+  --clr-near-bg:     #ffedd5;
+  --clr-milestone-bg:#fef9c3;
+  --clr-pending-bg:  #f3f0ff;
+}
+
+/* ---------- Azul petróleo y blanco ---------- */
+:root[data-theme="petrol"] {
+  --clr-bg:          #f0f7fa;
+  --clr-surface:     #ffffff;
+  --clr-surface-2:   #daedf5;
+  --clr-surface-3:   #bde0ee;
+  --clr-toolbar-row2:#cffafe;
+  --clr-border:      #9ecedd;
+  --clr-border-2:    #c2dfe9;
+  --clr-text:        #09303e;
+  --clr-text-1:      #0d4159;
+  --clr-text-2:      #1a637f;
+  --clr-text-3:      #3a8ba9;
+  --clr-text-inv:    #ffffff;
+  --clr-hover:       rgba(8,145,178,.06);
+  --clr-primary:     #0891b2;
+  --clr-primary-h:   #0e7490;
+  --clr-primary-l:   #cffafe;
+  --clr-ok-bg:       #d1fae5;
+  --clr-warn-bg:     #fef9c3;
+  --clr-error-bg:    #fee2e2;
+  --clr-normal-bg:   #cffafe;
+  --clr-done-bg:     #d1fae5;
+  --clr-critical-bg: #fee2e2;
+  --clr-near-bg:     #ffedd5;
+  --clr-milestone-bg:#fef9c3;
+  --clr-pending-bg:  #f0f7fa;
+}
+
 /* ---------- Reducir movimiento ---------- */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
