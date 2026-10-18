@@ -17,7 +17,7 @@ html, body {
 /* ---- Raíz de la app ---- */
 #app {
   display: grid;
-  grid-template-rows: auto auto auto auto 1fr auto;
+  grid-template-rows: auto auto 1fr auto;
   height: 100vh;
   height: 100dvh;
   overflow: hidden;
@@ -110,6 +110,22 @@ html, body {
   display: flex;
   overflow: hidden;
   position: relative;
+}
+
+/* ---- Contenedor derecho (toolbar + filtro + contenido) ---- */
+#right-wrapper {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-width: 0;
+}
+
+/* ---- Contenido derecho (EDT + Gantt) ---- */
+#right-content {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
 }
 
 /* ---- Panel explorador ---- */
