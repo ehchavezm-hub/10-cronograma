@@ -399,7 +399,7 @@ async function _openTaskDetail(taskId) {
     return `<tr data-trid="${tr.id}">
       <td style="padding:4px 8px;font-size:12px">${_escHtml(res?.name ?? '—')}<br><span style="font-size:10px;color:var(--clr-text-3)">${typeTag[res?.type ?? 'work'] ?? ''}</span></td>
       <td style="padding:4px 8px;font-size:12px">${_escHtml(res?.role ?? '')}</td>
-      <td style="padding:4px 8px;font-size:12px"><input type="number" class="tdp-res-units" data-trid="${tr.id}" value="${tr.units ?? 100}" min="1" max="100000" style="width:64px;padding:2px 6px;border:1px solid var(--clr-border);border-radius:4px;font-size:11px;background:var(--clr-surface);color:var(--clr-text)">${unitSuffix}</td>
+      <td style="padding:4px 8px;font-size:12px"><input type="number" class="tdp-res-units" data-trid="${tr.id}" value="${tr.units ?? 100}" min="1" max="100000" aria-label="Unidades asignadas" style="width:64px;padding:2px 6px;border:1px solid var(--clr-border);border-radius:4px;font-size:11px;background:var(--clr-surface);color:var(--clr-text)">${unitSuffix}</td>
       <td style="padding:4px 8px;font-size:11px;color:var(--clr-text-2);white-space:nowrap">${_fmtCost(cost)}</td>
       <td style="padding:4px 8px"><button class="btn btn-icon btn-sm tdp-res-remove" data-trid="${tr.id}" title="Quitar" aria-label="Quitar recurso" style="color:var(--clr-danger,#e74c3c);padding:0 6px">✕</button></td>
     </tr>`;
@@ -591,7 +591,7 @@ async function _tdpAddResource(taskId) {
   tr.innerHTML = `
     <td style="padding:4px 8px;font-size:12px">${_escHtml(res.name)}<br><span style="font-size:10px;color:var(--clr-text-3)">${newTypeTag[res.type ?? 'work'] ?? ''}</span></td>
     <td style="padding:4px 8px;font-size:12px">${_escHtml(res.role ?? '')}</td>
-    <td style="padding:4px 8px;font-size:12px"><input type="number" class="tdp-res-units" data-trid="${trid}" value="100" min="1" max="100000" style="width:64px;padding:2px 6px;border:1px solid var(--clr-border);border-radius:4px;font-size:11px;background:var(--clr-surface);color:var(--clr-text)">${_escHtml(newUnitSuffix)}</td>
+    <td style="padding:4px 8px;font-size:12px"><input type="number" class="tdp-res-units" data-trid="${trid}" value="100" min="1" max="100000" aria-label="Unidades asignadas" style="width:64px;padding:2px 6px;border:1px solid var(--clr-border);border-radius:4px;font-size:11px;background:var(--clr-surface);color:var(--clr-text)">${_escHtml(newUnitSuffix)}</td>
     <td style="padding:4px 8px;font-size:11px;color:var(--clr-text-2);white-space:nowrap" class="tdp-cost-cell">${_fmtCostNew(_costNew)}</td>
     <td style="padding:4px 8px"><button class="btn btn-icon btn-sm tdp-res-remove" data-trid="${trid}" title="Quitar" aria-label="Quitar recurso" style="color:var(--clr-danger,#e74c3c);padding:0 6px">✕</button></td>`;
   if (tbody) {
@@ -1284,9 +1284,9 @@ async function _openCalendarEditor() {
           <tbody id="cal-ex-body">${exRows}</tbody>
         </table>
         <div style="display:flex;gap:8px;margin-top:10px;align-items:center;flex-wrap:wrap">
-          <input id="cal-ex-date" type="date" style="padding:6px 10px;border:1px solid var(--clr-border);border-radius:6px;font-size:12px;background:var(--clr-surface-2);color:var(--clr-text)">
-          <input id="cal-ex-name" type="text" placeholder="Descripción (ej: Año Nuevo)" style="flex:1;min-width:120px;padding:6px 10px;border:1px solid var(--clr-border);border-radius:6px;font-size:12px;background:var(--clr-surface-2);color:var(--clr-text)">
-          <select id="cal-ex-type" style="padding:6px 10px;border:1px solid var(--clr-border);border-radius:6px;font-size:12px;background:var(--clr-surface-2);color:var(--clr-text)">
+          <input id="cal-ex-date" type="date" aria-label="Fecha de excepción" style="padding:6px 10px;border:1px solid var(--clr-border);border-radius:6px;font-size:12px;background:var(--clr-surface-2);color:var(--clr-text)">
+          <input id="cal-ex-name" type="text" aria-label="Descripción de excepción" placeholder="Descripción (ej: Año Nuevo)" style="flex:1;min-width:120px;padding:6px 10px;border:1px solid var(--clr-border);border-radius:6px;font-size:12px;background:var(--clr-surface-2);color:var(--clr-text)">
+          <select id="cal-ex-type" aria-label="Tipo de excepción" style="padding:6px 10px;border:1px solid var(--clr-border);border-radius:6px;font-size:12px;background:var(--clr-surface-2);color:var(--clr-text)">
             <option value="false">No laborable</option>
             <option value="true">Laborable</option>
           </select>
@@ -2035,7 +2035,7 @@ async function init() {
 
     // El motor de sync ya fue iniciado dentro de _loadProject.
 
-    console.log('[Cronogramas] v63 completo — modo', IS_LOCAL_MODE ? 'local' : 'Supabase');
+    console.log('[Cronogramas] v64 completo — modo', IS_LOCAL_MODE ? 'local' : 'Supabase');
   } catch (err) {
     console.error('[init]', err);
     _showToast('Error al iniciar: ' + err.message, 'error');
