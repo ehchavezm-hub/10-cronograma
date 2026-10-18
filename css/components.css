@@ -1222,7 +1222,7 @@
 /* ---- Chart area (canvas parent) ---- */
 .rh-chart-area {
   flex: 1;
-  min-height: 300px;
+  min-height: 260px;
   overflow: hidden;
   position: relative;
 }
