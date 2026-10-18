@@ -88,6 +88,7 @@ export class ResourceHistogramPanel {
     });
     this._el.querySelector('#btn-rh-close')?.addEventListener('click', () => {
       this._el.classList.remove('open');
+      document.getElementById('right-content')?.classList.remove('has-histogram');
       const btn = document.getElementById('btn-resource-histogram');
       if (btn) {
         btn.removeAttribute('aria-pressed');
