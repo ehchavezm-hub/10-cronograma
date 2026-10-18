@@ -7,7 +7,11 @@ const fs    = require('fs');
 const path  = require('path');
 const url   = require('url');
 
-const APP_ROOT = path.join(__dirname, '..');
+// In dev: main.js is in electron/, web files are one level up.
+// Packaged: electron-builder places extraResources at resources/app/ on disk.
+const APP_ROOT = app.isPackaged
+  ? path.join(process.resourcesPath, 'app')
+  : path.join(__dirname, '..');
 const PORT     = 0; // OS assigns a free port
 
 // ── MIME types ────────────────────────────────────────────────

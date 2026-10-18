@@ -17,19 +17,30 @@
     "copyright": "© 2026 E. Chávez",
     "asar": true,
     "files": [
-      "main.js",
-      "../index.html",
-      "../manifest.json",
-      "../sw.js",
-      "../css/**/*",
-      "../js/**/*",
-      "!../js/**/*.test.*",
-      "!../tests/**",
-      "!../sql/**",
-      "!../.git/**",
-      "!../electron/**"
+      "main.js"
     ],
-    "extraFiles": [],
+    "extraResources": [
+      {
+        "from": "..",
+        "to": "app",
+        "filter": [
+          "index.html",
+          "manifest.json",
+          "sw.js",
+          "icon.png",
+          "css/**/*",
+          "js/**/*",
+          "!js/**/*.test.*",
+          "!js/test*",
+          "!electron/**",
+          "!dist-win/**",
+          "!node_modules/**",
+          "!.git/**",
+          "!sql/**",
+          "!tests/**"
+        ]
+      }
+    ],
     "win": {
       "target": [
         {
