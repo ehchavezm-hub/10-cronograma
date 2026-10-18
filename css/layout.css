@@ -126,6 +126,38 @@ html, body {
   overflow: hidden;
 }
 
+/* ---- Gantt host (wraps WBS + resizer + Gantt + overlays) ---- */
+#gantt-host {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+  position: relative;
+  min-height: 0;
+  min-width: 0;
+}
+
+/* When histogram split is active, stack right-content vertically */
+#right-content.has-histogram {
+  flex-direction: column;
+}
+#right-content.has-histogram #gantt-host {
+  flex: 1 1 0%;
+  min-height: 180px;
+}
+
+/* Horizontal resizer between Gantt and Histogram */
+.resizer-h {
+  height: 5px;
+  cursor: row-resize;
+  background: var(--clr-border);
+  flex-shrink: 0;
+  display: none;
+  z-index: 20;
+}
+#right-content.has-histogram .resizer-h {
+  display: block;
+}
+
 /* ---- Panel explorador ---- */
 #explorer-panel {
   width: 220px;

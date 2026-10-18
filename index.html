@@ -393,36 +393,42 @@
 
       <!-- ── Right content row ── -->
       <div id="right-content">
-        <!-- Panel WBS (tabla EDT) -->
-        <section id="wbs-panel" aria-label="Tabla de actividades EDT">
-          <!-- La tabla WBS se inyecta aquí por wbs-table.js -->
-          <div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--clr-text-3);font-family:var(--font-ui);">
-            <div class="spinner"></div>&nbsp; Cargando…
-          </div>
-        </section>
+        <!-- ─── Gantt host (wbs + resizer + gantt + overlays) ─── -->
+        <div id="gantt-host">
+          <!-- Panel WBS (tabla EDT) -->
+          <section id="wbs-panel" aria-label="Tabla de actividades EDT">
+            <!-- La tabla WBS se inyecta aquí por wbs-table.js -->
+            <div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--clr-text-3);font-family:var(--font-ui);">
+              <div class="spinner"></div>&nbsp; Cargando…
+            </div>
+          </section>
 
-        <!-- Divisor redimensionable -->
-        <div class="resizer" id="resizer-gantt" role="separator" aria-orientation="vertical" aria-label="Redimensionar panel Gantt" aria-valuemin="180" aria-valuemax="1000" aria-valuenow="500" tabindex="0"></div>
+          <!-- Divisor redimensionable -->
+          <div class="resizer" id="resizer-gantt" role="separator" aria-orientation="vertical" aria-label="Redimensionar panel Gantt" aria-valuemin="180" aria-valuemax="1000" aria-valuenow="500" tabindex="0"></div>
 
-        <!-- Panel Gantt — Canvas 2D (Fase 2) -->
-        <section id="gantt-panel" aria-label="Diagrama Gantt">
-          <canvas id="gantt-canvas"
-            style="display:block;cursor:grab;touch-action:none"
-            aria-label="Diagrama de Gantt interactivo — arrastrar para desplazar, Ctrl+rueda para zoom"
-            role="img">
-          </canvas>
-        </section>
+          <!-- Panel Gantt — Canvas 2D (Fase 2) -->
+          <section id="gantt-panel" aria-label="Diagrama Gantt">
+            <canvas id="gantt-canvas"
+              style="display:block;cursor:grab;touch-action:none"
+              aria-label="Diagrama de Gantt interactivo — arrastrar para desplazar, Ctrl+rueda para zoom"
+              role="img">
+            </canvas>
+          </section>
 
-        <!-- Panel DCMA (overlay sobre el área principal) -->
-        <div id="dcma-panel" role="region" aria-label="Panel de evaluación DCMA 14 puntos"></div>
+          <!-- Panel DCMA (overlay sobre el área principal) -->
+          <div id="dcma-panel" role="region" aria-label="Panel de evaluación DCMA 14 puntos"></div>
 
-        <!-- Panel EVM — Valor Ganado (Fase 6) -->
-        <div id="evm-panel" role="region" aria-label="Panel de Valor Ganado EVM"></div>
+          <!-- Panel EVM — Valor Ganado (Fase 6) -->
+          <div id="evm-panel" role="region" aria-label="Panel de Valor Ganado EVM"></div>
 
-        <!-- Panel Historial de Cambios (Fase 6) -->
-        <div id="changelog-panel" role="region" aria-label="Historial de cambios de la sesión"></div>
+          <!-- Panel Historial de Cambios (Fase 6) -->
+          <div id="changelog-panel" role="region" aria-label="Historial de cambios de la sesión"></div>
+        </div>
 
-        <!-- Panel Histograma de Recursos -->
+        <!-- ─── Divisor horizontal (solo visible cuando histograma abierto) ─── -->
+        <div id="resizer-histogram" class="resizer-h" role="separator" aria-orientation="horizontal" aria-label="Redimensionar histograma" tabindex="0"></div>
+
+        <!-- Panel Histograma de Recursos (panel inferior, no overlay) -->
         <div id="resource-histogram-panel" role="region" aria-label="Histograma de Recursos"></div>
       </div>
     </div>

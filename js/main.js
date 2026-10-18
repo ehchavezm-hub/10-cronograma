@@ -2473,7 +2473,9 @@ function _bindToolbar() {
   document.getElementById('btn-resource-histogram')?.addEventListener('click', () => {
     const panel = document.getElementById('resource-histogram-panel');
     const btn   = document.getElementById('btn-resource-histogram');
+    const rc    = document.getElementById('right-content');
     const isOpen = panel?.classList.toggle('open');
+    rc?.classList.toggle('has-histogram', !!isOpen);
     btn?.setAttribute('aria-pressed', String(isOpen));
     if (isOpen) {
       _rhPanel?.refresh();
@@ -2765,6 +2767,57 @@ function _bindResizer() {
     _ganttCanvas?.requestRender();
   });
 }
+
+// ── Horizontal resizer: Gantt / Histogram split ──
+(function _bindResizerHistogram() {
+  const rh   = document.getElementById('resizer-histogram');
+  const rc   = document.getElementById('right-content');
+  const ghEl = document.getElementById('gantt-host');
+  const hp   = document.getElementById('resource-histogram-panel');
+  if (!rh || !rc || !ghEl || !hp) return;
+
+  let dragging = false, startY = 0, startGHH = 0;
+
+  rh.addEventListener('mousedown', (e) => {
+    dragging  = true;
+    startY    = e.clientY;
+    startGHH  = ghEl.getBoundingClientRect().height;
+    document.body.style.cursor     = 'row-resize';
+    document.body.style.userSelect = 'none';
+    e.preventDefault();
+  });
+
+  window.addEventListener('mousemove', (e) => {
+    if (!dragging) return;
+    const totalH = rc.getBoundingClientRect().height;
+    const newGH  = Math.max(150, Math.min(totalH - 150, startGHH + (e.clientY - startY)));
+    ghEl.style.flex   = 'none';
+    ghEl.style.height = newGH + 'px';
+    hp.style.height   = Math.max(150, totalH - newGH - 5) + 'px';
+  });
+
+  window.addEventListener('mouseup', () => {
+    if (!dragging) return;
+    dragging = false;
+    document.body.style.cursor     = '';
+    document.body.style.userSelect = '';
+  });
+
+  rh.addEventListener('touchstart', (e) => {
+    dragging = true; startY = e.touches[0].clientY;
+    startGHH = ghEl.getBoundingClientRect().height;
+    e.preventDefault();
+  }, { passive: false });
+  window.addEventListener('touchmove', (e) => {
+    if (!dragging) return;
+    const totalH = rc.getBoundingClientRect().height;
+    const newGH  = Math.max(150, Math.min(totalH - 150, startGHH + (e.touches[0].clientY - startY)));
+    ghEl.style.flex   = 'none';
+    ghEl.style.height = newGH + 'px';
+    hp.style.height   = Math.max(150, totalH - newGH - 5) + 'px';
+  }, { passive: false });
+  window.addEventListener('touchend', () => { dragging = false; });
+})();
 
 function _bindResizerExplorer() {
   const resizer  = document.getElementById('resizer-explorer');

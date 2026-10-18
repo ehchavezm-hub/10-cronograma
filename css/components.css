@@ -1083,11 +1083,13 @@
 
 #resource-histogram-panel {
   display: none;
-  position: absolute;
-  inset: 0;
-  z-index: 11;
   background: #111111;
   overflow: hidden;
+  flex-shrink: 0;
+  height: 38%;
+  min-height: 180px;
+  max-height: 65%;
+  border-top: 2px solid #333333;
 }
 #resource-histogram-panel.open { display: flex; flex-direction: column; }
 
