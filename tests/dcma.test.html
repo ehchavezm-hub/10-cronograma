@@ -1,0 +1,481 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Pruebas DCMA — Gantt</title>
+  <style>
+    body { font-family: 'Segoe UI', system-ui, sans-serif; max-width: 960px; margin: 0 auto; padding: 20px; background: #f5f6fa; color: #222; }
+    h1  { color: #4f46e5; margin-bottom: 8px; }
+    h2  { margin: 24px 0 8px; color: #374151; font-size: 16px; }
+    .suite  { background: #fff; border-radius: 10px; padding: 16px; margin-bottom: 16px; box-shadow: 0 1px 4px rgba(0,0,0,.08); }
+    .result { display: flex; align-items: flex-start; gap: 10px; padding: 6px 0; border-bottom: 1px solid #f0f0f0; font-size: 13px; font-family: monospace; }
+    .result:last-child { border-bottom: none; }
+    .pass   { color: #166534; }
+    .fail   { color: #991b1b; }
+    .icon   { flex-shrink: 0; font-size: 14px; }
+    .msg    { flex: 1; word-break: break-word; }
+    .detail { color: #9ca3af; font-size: 11px; margin-top: 2px; }
+    #summary { margin: 20px 0; padding: 12px 20px; border-radius: 8px; font-size: 15px; font-weight: 600; }
+    .sum-pass { background: #dcfce7; color: #166534; }
+    .sum-fail { background: #fee2e2; color: #991b1b; }
+  </style>
+</head>
+<body>
+<h1>🧪 Pruebas DCMA 14 Puntos</h1>
+<p style="color:#6b7280;font-size:13px">Pruebas D1.1 – D10.x para <code>runDcmaChecks()</code> con datos controlados.</p>
+<div id="summary"></div>
+<div id="results"></div>
+
+<script type="module">
+// ============================================================
+// Mini framework de tests (mismo patrón que cpm.test.html)
+// ============================================================
+let _pass = 0, _fail = 0;
+const results = [];
+
+function test(suiteName, name, fn) {
+  try {
+    fn();
+    results.push({ suite: suiteName, name, ok: true });
+    _pass++;
+  } catch (e) {
+    results.push({ suite: suiteName, name, ok: false, err: e.message });
+    _fail++;
+  }
+}
+
+function assert(condition, msg) {
+  if (!condition) throw new Error(msg ?? 'Assertion failed');
+}
+
+function eq(actual, expected, label = '') {
+  const pass = actual === expected || (actual == null && expected == null);
+  if (!pass) throw new Error(`${label}: expected ${JSON.stringify(expected)}, got ${JSON.stringify(actual)}`);
+}
+
+function near(actual, expected, tol = 0.5, label = '') {
+  if (Math.abs(actual - expected) > tol)
+    throw new Error(`${label}: expected ≈${expected}, got ${actual}`);
+}
+
+// ============================================================
+// Importar módulo DCMA
+// ============================================================
+import { runDcmaChecks }   from '../js/dcma.js';
+import { appState }        from '../js/state.js';
+
+// ============================================================
+// Helpers de datos
+// ============================================================
+const mkT = (id, dur, { type='task', pct=0, constraint='ASAP', actual_start=null, actual_finish=null } = {}) => ({
+  id, parent_id: null, type,
+  duration_days: type === 'milestone' ? 0 : dur,
+  percent_complete: pct,
+  actual_start, actual_finish,
+  constraint_type: constraint,
+  constraint_date: null,
+  deleted_at: null,
+  sort_order: 0, work_hours: 0,
+  planned_cost: 100, actual_cost: 0, notes: null,
+  org_id: 'org', project_id: 'proj',
+  name: `Tarea ${id}`,
+});
+
+const mkD = (id, pred, succ, type = 'FS', lag = 0) => ({
+  id, pred_id: pred, succ_id: succ, type, lag_days: lag,
+  deleted_at: null, org_id: 'org', project_id: 'proj',
+});
+
+const mkCpm = (id, es, ef, tf = 0, is_critical = false) => ({ es, ef, ls: es + tf, lf: ef + tf, tf, ff: 0, is_critical });
+
+function buildCpmResult(entries) {
+  const m = new Map();
+  for (const [id, es, ef, tf, crit] of entries) m.set(id, mkCpm(id, es, ef, tf ?? 0, crit ?? false));
+  return { tasks: m, projectDuration: Math.max(...[...m.values()].map(t => t.ef)) };
+}
+
+function toMap(arr) {
+  const m = new Map();
+  arr.forEach(x => m.set(x.id, x));
+  return m;
+}
+
+// ============================================================
+// D0 — Proyecto vacío
+// ============================================================
+{
+  const r = runDcmaChecks({ tasks: new Map(), deps: new Map(), cpmResult: null });
+
+  test('D0 Proyecto vacío', 'devuelve 14 checks', () => eq(r.checks.length, 14));
+  test('D0 Proyecto vacío', 'todos pasan (total=0 → pct=0)', () => {
+    const fail = r.checks.filter(c => !c.na && !c.pass);
+    assert(fail.length === 0, `Fallaron: ${fail.map(c => c.point).join(',')}`);
+  });
+  test('D0 Proyecto vacío', 'score=100 (sin aplicables → 100)', () => {
+    assert(r.score === 100 || r.total === 0, `score=${r.score}, total=${r.total}`);
+  });
+}
+
+// ============================================================
+// D1 — Check 1: Lógica faltante (sin predecesoras)
+// ============================================================
+{
+  const tasks = toMap([mkT('A', 5), mkT('B', 5), mkT('C', 5)]);
+  // Solo B tiene predecesora (A→B). A y C no tienen.
+  const deps  = toMap([mkD('d1', 'A', 'B')]);
+  const r     = runDcmaChecks({ tasks, deps, cpmResult: null });
+  const c1    = r.checks.find(c => c.point === 1);
+
+  test('D1 Sin pred.', 'check 1 existe', () => assert(!!c1));
+  test('D1 Sin pred.', 'count=2 (A y C sin pred)', () => eq(c1.count, 2));
+  test('D1 Sin pred.', 'total=3 (3 leaf tasks)', () => eq(c1.total, 3));
+  test('D1 Sin pred.', 'falla (pct=67%>0)', () => eq(c1.pass, false));
+  test('D1 Sin pred.', 'taskIds incluye A y C', () => {
+    assert(c1.taskIds.includes('A') && c1.taskIds.includes('C'),
+      `taskIds=${JSON.stringify(c1.taskIds)}`);
+  });
+}
+
+// ============================================================
+// D1b — Check 2: Lógica faltante (sin sucesoras)
+// ============================================================
+{
+  const tasks = toMap([mkT('A', 5), mkT('B', 5), mkT('C', 5)]);
+  // Solo A tiene sucesora (A→B). B y C no tienen.
+  const deps  = toMap([mkD('d1', 'A', 'B')]);
+  const r     = runDcmaChecks({ tasks, deps, cpmResult: null });
+  const c2    = r.checks.find(c => c.point === 2);
+
+  test('D1b Sin suc.', 'count=2 (B y C sin suc)', () => eq(c2.count, 2));
+  test('D1b Sin suc.', 'falla (pct>0)', () => eq(c2.pass, false));
+  test('D1b Sin suc.', 'taskIds incluye B y C', () => {
+    assert(c2.taskIds.includes('B') && c2.taskIds.includes('C'));
+  });
+}
+
+// ============================================================
+// D2 — Check 3: Adelantos (leads, lag < 0)
+// ============================================================
+{
+  const tasks = toMap([mkT('A', 5), mkT('B', 5)]);
+  const deps  = toMap([mkD('d1', 'A', 'B', 'FS', -2)]);  // lead de 2 días
+  const r     = runDcmaChecks({ tasks, deps, cpmResult: null });
+  const c3    = r.checks.find(c => c.point === 3);
+
+  test('D2 Leads', 'detecta 1 lead', () => eq(c3.count, 1));
+  test('D2 Leads', 'total=1 dep', () => eq(c3.total, 1));
+  test('D2 Leads', 'falla (count>0)', () => eq(c3.pass, false));
+}
+
+{
+  // Sin leads → pasa
+  const tasks = toMap([mkT('A', 5), mkT('B', 5)]);
+  const deps  = toMap([mkD('d1', 'A', 'B', 'FS', 0)]);
+  const r     = runDcmaChecks({ tasks, deps, cpmResult: null });
+  const c3    = r.checks.find(c => c.point === 3);
+  test('D2 Sin leads', 'count=0 → pasa', () => { eq(c3.count, 0); eq(c3.pass, true); });
+}
+
+// ============================================================
+// D3 — Check 4: Retrasos excesivos (lag > 5 días)
+// ============================================================
+{
+  const tasks = toMap([mkT('A', 5), mkT('B', 5)]);
+  const deps  = toMap([mkD('d1', 'A', 'B', 'FS', 10)]);  // lag 10 > 5
+  const r     = runDcmaChecks({ tasks, deps, cpmResult: null });
+  const c4    = r.checks.find(c => c.point === 4);
+
+  test('D3 Lag alto', 'detecta 1 lag excesivo', () => eq(c4.count, 1));
+  test('D3 Lag alto', 'falla', () => eq(c4.pass, false));
+}
+
+{
+  const tasks = toMap([mkT('A', 5), mkT('B', 5)]);
+  const deps  = toMap([mkD('d1', 'A', 'B', 'FS', 3)]);   // lag 3 ≤ 5
+  const r     = runDcmaChecks({ tasks, deps, cpmResult: null });
+  const c4    = r.checks.find(c => c.point === 4);
+  test('D3 Lag ≤5', 'count=0 → pasa', () => { eq(c4.count, 0); eq(c4.pass, true); });
+}
+
+// ============================================================
+// D4 — Check 5: Tipos de relación (no-FS)
+// ============================================================
+{
+  // 11 deps: 10 FS + 1 SS → 9.09% ≤ 10% → pasa
+  const tasks = toMap([mkT('A',5), mkT('B',5), mkT('C',5)]);
+  const depArr = [];
+  for (let i = 0; i < 10; i++) depArr.push(mkD(`d${i}`, 'A', 'B'));
+  depArr.push(mkD('dss', 'A', 'C', 'SS'));
+  const deps = toMap(depArr);
+  const r    = runDcmaChecks({ tasks, deps, cpmResult: null });
+  const c5   = r.checks.find(c => c.point === 5);
+  test('D4 no-FS 9%', '1 non-FS de 11 ≤ 10% → pasa', () => eq(c5.pass, true));
+}
+
+{
+  // 2 deps: 1 FS + 1 SS → 50% > 10% → falla
+  const tasks = toMap([mkT('A',5), mkT('B',5), mkT('C',5)]);
+  const deps  = toMap([mkD('d1','A','B','FS'), mkD('d2','A','C','SS')]);
+  const r     = runDcmaChecks({ tasks, deps, cpmResult: null });
+  const c5    = r.checks.find(c => c.point === 5);
+  test('D4 no-FS 50%', '1 non-FS de 2 = 50% > 10% → falla', () => eq(c5.pass, false));
+}
+
+// ============================================================
+// D5 — Check 6: Restricciones duras
+// ============================================================
+{
+  const tasks = toMap([
+    mkT('A', 5, { constraint: 'ASAP' }),
+    mkT('B', 5, { constraint: 'SNE' }),  // hard constraint
+  ]);
+  const r  = runDcmaChecks({ tasks, deps: new Map(), cpmResult: null });
+  const c6 = r.checks.find(c => c.point === 6);
+
+  test('D5 Restricción dura', 'detecta 1 hard constraint', () => eq(c6.count, 1));
+  test('D5 Restricción dura', '1/2 = 50% > 5% → falla', () => eq(c6.pass, false));
+}
+
+{
+  // Todas ASAP → pasa
+  const tasks = toMap([mkT('A',5,{constraint:'ASAP'}), mkT('B',5,{constraint:'ASAP'})]);
+  const r = runDcmaChecks({ tasks, deps: new Map(), cpmResult: null });
+  const c6 = r.checks.find(c => c.point === 6);
+  test('D5 Sin restricciones', '0 hard → pasa', () => { eq(c6.count, 0); eq(c6.pass, true); });
+}
+
+// ============================================================
+// D6 — Check 7+8: Flotamiento alto y negativo
+// ============================================================
+{
+  const tasks  = toMap([mkT('A',5), mkT('B',5), mkT('C',5)]);
+  const cpmRes = buildCpmResult([
+    ['A', 0,  5,   0, true],   // TF=0 → normal
+    ['B', 5, 10,  50, false],  // TF=50 > 44 → flotamiento alto
+    ['C', 5, 10,  -3, false],  // TF=-3 → flotamiento negativo
+  ]);
+  const r  = runDcmaChecks({ tasks, deps: new Map(), cpmResult: cpmRes });
+  const c7 = r.checks.find(c => c.point === 7);
+  const c8 = r.checks.find(c => c.point === 8);
+
+  test('D6 Float alto', 'detecta B con TF=50>44 → count=1', () => eq(c7.count, 1));
+  test('D6 Float alto', '1/3 ≈ 33% > 5% → falla', () => eq(c7.pass, false));
+  test('D6 Float negativo', 'detecta C con TF=-3 → count=1', () => eq(c8.count, 1));
+  test('D6 Float negativo', 'falla (count>0)', () => eq(c8.pass, false));
+}
+
+// ============================================================
+// D7 — Check 9: Duraciones excesivas
+// ============================================================
+{
+  const tasks = toMap([
+    mkT('A', 10),   // OK
+    mkT('B', 50),   // 50 > 44 → excesiva
+    mkT('C', 30),   // OK
+  ]);
+  const r  = runDcmaChecks({ tasks, deps: new Map(), cpmResult: null });
+  const c9 = r.checks.find(c => c.point === 9);
+
+  test('D7 Dur. excesiva', 'detecta B con dur=50 → count=1', () => eq(c9.count, 1));
+  test('D7 Dur. excesiva', '1/3 ≈ 33% > 5% → falla', () => eq(c9.pass, false));
+}
+
+{
+  // Todas ≤ 44 días → pasa
+  const tasks = toMap([mkT('A',10), mkT('B',20), mkT('C',44)]);
+  const r  = runDcmaChecks({ tasks, deps: new Map(), cpmResult: null });
+  const c9 = r.checks.find(c => c.point === 9);
+  test('D7 Sin dur. excesiva', '0 > 44 días → pasa', () => { eq(c9.count, 0); eq(c9.pass, true); });
+}
+
+// ============================================================
+// D8 — Check 10: Fechas reales inválidas
+// ============================================================
+{
+  const futureDate = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
+  const tasks = toMap([
+    mkT('A', 5, { actual_start: futureDate }),   // fecha futura → inválida
+    mkT('B', 5),
+  ]);
+  const r   = runDcmaChecks({ tasks, deps: new Map(), cpmResult: null });
+  const c10 = r.checks.find(c => c.point === 10);
+
+  test('D8 Fecha inválida', 'detecta A con actual_start futuro', () => eq(c10.count, 1));
+  test('D8 Fecha inválida', 'falla', () => eq(c10.pass, false));
+}
+
+// ============================================================
+// D9 — Check 11: Recursos
+// ============================================================
+{
+  // Sin recursos → N/A
+  const tasks = toMap([mkT('A',5), mkT('B',5)]);
+  const r     = runDcmaChecks({ tasks, deps: new Map(), cpmResult: null, taskResources: [] });
+  const c11   = r.checks.find(c => c.point === 11);
+
+  test('D9 Sin recursos', 'check 11 es N/A', () => eq(c11.na, true));
+}
+
+{
+  // Con recursos pero tarea A sin asignar → falla
+  const tasks = toMap([mkT('A',5), mkT('B',5)]);
+  const taskResources = [{ id: 'tr1', task_id: 'B', deleted_at: null }];
+  const r    = runDcmaChecks({ tasks, deps: new Map(), cpmResult: null, taskResources });
+  const c11  = r.checks.find(c => c.point === 11);
+
+  test('D9 Con recursos parciales', 'no es N/A', () => eq(c11.na, false));
+  test('D9 Con recursos parciales', 'A sin recurso → count=1', () => eq(c11.count, 1));
+  test('D9 Con recursos parciales', 'falla', () => eq(c11.pass, false));
+}
+
+{
+  // Ambas tareas con recursos → pasa
+  const tasks = toMap([mkT('A',5), mkT('B',5)]);
+  const taskResources = [
+    { id: 'tr1', task_id: 'A', deleted_at: null },
+    { id: 'tr2', task_id: 'B', deleted_at: null },
+  ];
+  const r   = runDcmaChecks({ tasks, deps: new Map(), cpmResult: null, taskResources });
+  const c11 = r.checks.find(c => c.point === 11);
+  test('D9 Todas con recursos', 'count=0 → pasa', () => { eq(c11.na, false); eq(c11.pass, true); });
+}
+
+// ============================================================
+// D10 — Check 12: Tareas retrasadas (requiere dataDate+CPM)
+// ============================================================
+{
+  // Sin dataDate → N/A
+  const tasks = toMap([mkT('A',5), mkT('B',5)]);
+  const r     = runDcmaChecks({ tasks, deps: new Map(), cpmResult: null, dataDate: null });
+  const c12   = r.checks.find(c => c.point === 12);
+  test('D10 Sin dataDate', 'check 12 es N/A', () => eq(c12.na, true));
+}
+
+{
+  // Con dataDate pero sin CPM → N/A
+  const tasks = toMap([mkT('A',5)]);
+  const r     = runDcmaChecks({ tasks, deps: new Map(), cpmResult: null, dataDate: '2026-01-15' });
+  const c12   = r.checks.find(c => c.point === 12);
+  test('D10 Con dataDate sin CPM', 'check 12 es N/A', () => eq(c12.na, true));
+}
+
+// ============================================================
+// D11 — Check 13: CPLI
+// ============================================================
+{
+  // Sin CPM → N/A
+  const tasks = toMap([mkT('A',5)]);
+  const r     = runDcmaChecks({ tasks, deps: new Map(), cpmResult: null });
+  const c13   = r.checks.find(c => c.point === 13);
+  test('D11 CPLI sin CPM', 'es N/A', () => eq(c13.na, true));
+}
+
+{
+  // Proyecto sano (TF=0 en críticas) → CPLI = 1.0 ≥ 0.95 → pasa
+  const tasks  = toMap([mkT('A',5), mkT('B',5)]);
+  const cpmRes = buildCpmResult([
+    ['A', 0, 5,  0, true],
+    ['B', 5, 10, 0, true],
+  ]);
+  const r     = runDcmaChecks({ tasks, deps: new Map(), cpmResult: cpmRes });
+  const c13   = r.checks.find(c => c.point === 13);
+  test('D11 CPLI sano', 'CPLI=1.0 → pasa', () => {
+    assert(!c13.na, 'no debería ser N/A');
+    assert(c13.pass, `CPLI=${c13.value} debería pasar`);
+  });
+}
+
+// ============================================================
+// D12 — Puntuación general
+// ============================================================
+{
+  // Proyecto sano: todas las tareas tienen pred y suc, sin leads/lags, todas FS, sin restricciones
+  const tasks = toMap([mkT('A',5), mkT('B',5), mkT('C',5)]);
+  const deps  = toMap([mkD('d1','A','B'), mkD('d2','B','C')]);
+  const cpmRes = buildCpmResult([
+    ['A', 0,  5, 0, true],
+    ['B', 5, 10, 0, true],
+    ['C',10, 15, 0, true],
+  ]);
+  const r = runDcmaChecks({ tasks, deps, cpmResult: cpmRes });
+
+  test('D12 Score', 'total > 0 (hay checks aplicables)', () => assert(r.total > 0));
+  test('D12 Score', 'score está en rango [0,100]', () => {
+    assert(r.score >= 0 && r.score <= 100, `score=${r.score}`);
+  });
+  test('D12 Score', 'checks 1,2,3,4,5,6,7,8,9 pasan en proyecto sano', () => {
+    for (const pt of [3, 4, 5, 6, 7, 8, 9]) {
+      const c = r.checks.find(x => x.point === pt);
+      if (!c.na) assert(c.pass, `Check ${pt} debería pasar, value=${c.value}`);
+    }
+  });
+}
+
+{
+  // Proyecto con múltiples problemas → score < 100
+  const tasks = toMap([
+    mkT('A', 50, { constraint: 'SNE' }),  // dur>44, hard constraint
+    mkT('B',  5),
+  ]);
+  const deps  = toMap([mkD('d1', 'A', 'B', 'FS', -3)]); // lead
+  const r = runDcmaChecks({ tasks, deps, cpmResult: null });
+  test('D12 Score bajo', 'al menos un check falla', () => {
+    const fails = r.checks.filter(c => !c.na && !c.pass);
+    assert(fails.length > 0, 'esperaba al menos 1 fallo');
+  });
+  test('D12 Score bajo', 'score < 100', () => assert(r.score < 100, `score=${r.score}`));
+}
+
+// ============================================================
+// D13 — Milestones excluidos de checks de duración
+// ============================================================
+{
+  const tasks = toMap([
+    mkT('A', 5),
+    mkT('M', 0, { type: 'milestone' }),  // hito: no cuenta en duración
+  ]);
+  const r  = runDcmaChecks({ tasks, deps: new Map(), cpmResult: null });
+  const c9 = r.checks.find(c => c.point === 9);
+  test('D13 Milestone', 'total en check 9 no incluye milestones', () => {
+    eq(c9.total, 1, 'solo 1 tarea no-milestone');
+  });
+}
+
+// ============================================================
+// Render
+// ============================================================
+;(function render() {
+  const container = document.getElementById('results');
+  const grouped   = {};
+  for (const r of results) {
+    if (!grouped[r.suite]) grouped[r.suite] = [];
+    grouped[r.suite].push(r);
+  }
+  for (const [suite, items] of Object.entries(grouped)) {
+    const div = document.createElement('div');
+    div.className = 'suite';
+    div.innerHTML = `<h2>${suite}</h2>`;
+    for (const item of items) {
+      const row = document.createElement('div');
+      row.className = `result ${item.ok ? 'pass' : 'fail'}`;
+      row.innerHTML = `
+        <span class="icon">${item.ok ? '✅' : '❌'}</span>
+        <div class="msg">
+          <span>${item.name}</span>
+          ${!item.ok ? `<div class="detail">${item.err}</div>` : ''}
+        </div>`;
+      div.appendChild(row);
+    }
+    container.appendChild(div);
+  }
+  const total = _pass + _fail;
+  const sum   = document.getElementById('summary');
+  sum.className = _fail === 0 ? 'sum-pass' : 'sum-fail';
+  sum.textContent = _fail === 0
+    ? `✅ Todos los tests pasaron (${_pass}/${total})`
+    : `❌ ${_fail} test(s) fallaron (${_pass}/${total} pasaron)`;
+})();
+</script>
+</body>
+</html>

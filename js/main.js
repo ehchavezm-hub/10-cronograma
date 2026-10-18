@@ -6,8 +6,8 @@
 
 import { IS_LOCAL_MODE } from './config.js';
 import { appState }      from './state.js';
-import { WbsTable }      from './wbs-table.js?v=9';
-import { GanttCanvas }   from './gantt-canvas.js?v=28';
+import { WbsTable }      from './wbs-table.js?v=10';
+import { GanttCanvas }   from './gantt-canvas.js?v=30';
 import { GanttScene }    from './scene.js';
 import { DcmaPanel }     from './dcma.js';
 import { Calendar, isoToDate } from './calendar.js';
@@ -22,6 +22,7 @@ import { SyncEngine }     from './sync.js';
 import { outboxAdd }      from './storage.js?v=4';
 import { EvmPanel }       from './evm.js';
 import { ChangeLogPanel, logCommand } from './change-log.js';
+import { saveBaseline, listBaselines, loadBaselineData, deleteBaseline, setPrimaryBaseline, getBaseline } from './baseline.js';
 
 // ============================================================
 // Detectar file://
@@ -337,16 +338,32 @@ async function _openTaskDetail(taskId) {
   const resOpts = allResources.map(r =>
     `<option value="${r.id}">${_escHtml(r.name)}${r.role ? ' ('+_escHtml(r.role)+')' : ''}</option>`).join('');
 
+  // Cálculo de costo estimado por recurso (inspirado en MS Project / P6)
+  const _hpd = _calState?.hours_per_day ?? 8;
+  const _taskDur = cpmTask?.dur ?? task.duration_days ?? 0;
+  const _calcResCost = (units, res) => {
+    if (!res || res.rate_per_hour == null) return null;
+    const u = units ?? 100;
+    if (res.type === 'work')     return (u / 100) * res.rate_per_hour * _taskDur * _hpd;
+    if (res.type === 'cost')     return res.rate_per_hour;
+    return u * res.rate_per_hour; // material, equipment: units × rate
+  };
+  const _fmtCost = v => v != null ? `S/ ${v.toLocaleString('es-PE', {minimumFractionDigits:2, maximumFractionDigits:2})}` : '—';
+
+  let _totalResCost = 0;
   const resRows = taskResources.map(tr => {
     const res = allResources.find(r => r.id === tr.resource_id);
     const unitSuffix = res?.type === 'material' || res?.type === 'equipment'
       ? (res.unit_label ? ' ' + _escHtml(res.unit_label) : ' und')
       : ' %';
     const typeTag = { work: 'trabajo', material: 'material', equipment: 'equipo', cost: 'costo' };
+    const cost = _calcResCost(tr.units, res);
+    if (cost != null) _totalResCost += cost;
     return `<tr data-trid="${tr.id}">
       <td style="padding:4px 8px;font-size:12px">${_escHtml(res?.name ?? '—')}<br><span style="font-size:10px;color:var(--clr-text-3)">${typeTag[res?.type ?? 'work'] ?? ''}</span></td>
       <td style="padding:4px 8px;font-size:12px">${_escHtml(res?.role ?? '')}</td>
       <td style="padding:4px 8px;font-size:12px"><input type="number" class="tdp-res-units" data-trid="${tr.id}" value="${tr.units ?? 100}" min="1" max="100000" style="width:64px;padding:2px 6px;border:1px solid var(--clr-border);border-radius:4px;font-size:11px;background:var(--clr-surface);color:var(--clr-text)">${unitSuffix}</td>
+      <td style="padding:4px 8px;font-size:11px;color:var(--clr-text-2);white-space:nowrap">${_fmtCost(cost)}</td>
       <td style="padding:4px 8px"><button class="btn btn-icon btn-sm tdp-res-remove" data-trid="${tr.id}" title="Quitar" style="color:var(--clr-danger,#e74c3c);padding:0 6px">✕</button></td>
     </tr>`;
   }).join('');
@@ -446,11 +463,18 @@ async function _openTaskDetail(taskId) {
               <th style="padding:4px 8px;text-align:left;font-size:11px;color:var(--clr-text-3);font-weight:600">Recurso</th>
               <th style="padding:4px 8px;text-align:left;font-size:11px;color:var(--clr-text-3);font-weight:600">Rol</th>
               <th style="padding:4px 8px;text-align:left;font-size:11px;color:var(--clr-text-3);font-weight:600">Unidades</th>
+              <th style="padding:4px 8px;text-align:left;font-size:11px;color:var(--clr-text-3);font-weight:600" title="Costo estimado = Unidades × Tarifa × Duración">Costo est.</th>
               <th style="padding:4px 8px;width:32px"></th>
             </tr>
           </thead>
-          <tbody id="tdp-res-body">${resRows || '<tr><td colspan="4" style="padding:8px;color:var(--clr-text-3);font-size:12px;text-align:center">Sin recursos asignados</td></tr>'}</tbody>
+          <tbody id="tdp-res-body">${resRows || '<tr><td colspan="5" style="padding:8px;color:var(--clr-text-3);font-size:12px;text-align:center">Sin recursos asignados</td></tr>'}</tbody>
         </table>
+        ${_totalResCost > 0 ? `
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-top:6px;padding:6px 8px;background:var(--clr-surface-2);border-radius:6px;font-size:12px">
+          <span style="color:var(--clr-text-3)">Costo total recursos:</span>
+          <span style="font-weight:700;color:var(--clr-text)">${_fmtCost(_totalResCost)}</span>
+          <button id="tdp-use-res-cost" data-cost="${_totalResCost.toFixed(2)}" class="btn btn-ghost btn-sm" style="font-size:10px;padding:2px 8px" title="Copiar al campo Costo planificado">↓ Usar como costo planificado</button>
+        </div>` : ''}
         ${allResources.length ? `
         <div style="display:flex;gap:6px;margin-top:8px;align-items:center">
           <select id="tdp-res-select" style="flex:1;padding:6px 10px;border:1px solid var(--clr-border);border-radius:6px;font-size:12px;background:var(--clr-surface-2);color:var(--clr-text)">
@@ -474,6 +498,11 @@ async function _openTaskDetail(taskId) {
   body.querySelector('#tdp-res-add')?.addEventListener('click', () => _tdpAddResource(taskId), _bSig);
   body.querySelector('#tdp-open-resources')?.addEventListener('click', (e) => { e.preventDefault(); _openResourceManager(); }, _bSig);
   body.querySelector('#tdp-open-catalog')?.addEventListener('click', () => _openResourceManager(), _bSig);
+  body.querySelector('#tdp-use-res-cost')?.addEventListener('click', (e) => {
+    const cost = /** @type {HTMLElement} */ (e.currentTarget).dataset.cost;
+    const inp = /** @type {HTMLInputElement|null} */ (document.getElementById('tdp-cost-plan'));
+    if (inp && cost) { inp.value = cost; _showToast('Costo planificado actualizado desde recursos', 'success'); }
+  }, _bSig);
   body.addEventListener('click', (e) => {
     if (/** @type {HTMLElement} */ (e.target).classList.contains('tdp-res-remove')) {
       const trid = /** @type {HTMLElement} */ (e.target).dataset.trid;
@@ -507,10 +536,20 @@ async function _tdpAddResource(taskId) {
   const newUnitSuffix = res.type === 'material' || res.type === 'equipment'
     ? (res.unit_label ? ' ' + res.unit_label : ' und') : ' %';
   const newTypeTag = { work: 'trabajo', material: 'material', equipment: 'equipo', cost: 'costo' };
+  const _hpdNew = appState.state.calendar?.hours_per_day ?? 8;
+  const _durNew = appState.state.tasks?.get(taskId)?.duration_days ?? 0;
+  const _costNew = (() => {
+    if (res.rate_per_hour == null) return null;
+    if (res.type === 'work') return (100 / 100) * res.rate_per_hour * _durNew * _hpdNew;
+    if (res.type === 'cost') return res.rate_per_hour;
+    return 1 * res.rate_per_hour;
+  })();
+  const _fmtCostNew = v => v != null ? `S/ ${v.toLocaleString('es-PE', {minimumFractionDigits:2, maximumFractionDigits:2})}` : '—';
   tr.innerHTML = `
     <td style="padding:4px 8px;font-size:12px">${_escHtml(res.name)}<br><span style="font-size:10px;color:var(--clr-text-3)">${newTypeTag[res.type ?? 'work'] ?? ''}</span></td>
     <td style="padding:4px 8px;font-size:12px">${_escHtml(res.role ?? '')}</td>
     <td style="padding:4px 8px;font-size:12px"><input type="number" class="tdp-res-units" data-trid="${trid}" value="100" min="1" max="100000" style="width:64px;padding:2px 6px;border:1px solid var(--clr-border);border-radius:4px;font-size:11px;background:var(--clr-surface);color:var(--clr-text)">${_escHtml(newUnitSuffix)}</td>
+    <td style="padding:4px 8px;font-size:11px;color:var(--clr-text-2);white-space:nowrap" class="tdp-cost-cell">${_fmtCostNew(_costNew)}</td>
     <td style="padding:4px 8px"><button class="btn btn-icon btn-sm tdp-res-remove" data-trid="${trid}" title="Quitar" style="color:var(--clr-danger,#e74c3c);padding:0 6px">✕</button></td>`;
   if (tbody) {
     const empty = tbody.querySelector('td[colspan]');
@@ -558,40 +597,68 @@ async function _saveTaskDetail() {
     const { getByIndex, put: dbPutSt, remove: dbRemoveSt } = await import('./storage.js?v=4');
     // Eliminar los marcados
     const toRemove = (panel.dataset['removeRes'] || '').split(',').filter(Boolean);
-    for (const trid of toRemove) {
-      try { await dbRemoveSt('task_resources', trid); } catch {}
-    }
+    await Promise.all(toRemove.map(trid => dbRemoveSt('task_resources', trid).catch(() => {})));
     panel.dataset['removeRes'] = '';
 
     // Agregar nuevos
     const newRows = document.querySelectorAll('#tdp-res-body tr[data-new-res]');
-    for (const row of newRows) {
-      const resId = /** @type {HTMLElement} */ (row).dataset.newRes;
-      const units = /** @type {HTMLInputElement|null} */ (row.querySelector('.tdp-res-units'))?.value ?? '100';
-      const rec = {
-        id: /** @type {HTMLElement} */ (row).dataset.trid,
+    const newRecs = [...newRows].map(row => {
+      const r = /** @type {HTMLElement} */ (row);
+      return {
+        id: r.dataset.trid,
         project_id: proj.id,
         task_id: taskId,
-        resource_id: resId,
-        units: parseFloat(units) || 100,
+        resource_id: r.dataset.newRes,
+        units: parseFloat(/** @type {HTMLInputElement|null} */ (r.querySelector('.tdp-res-units'))?.value ?? '100') || 100,
         org_id: proj.org_id ?? null,
         deleted_at: null,
       };
-      await dbPutSt('task_resources', rec);
-      delete /** @type {HTMLElement} */ (row).dataset.newRes;
-    }
-    // Actualizar unidades de los existentes
+    });
+    await Promise.all(newRecs.map(rec => dbPutSt('task_resources', rec)));
+    newRows.forEach(row => delete /** @type {HTMLElement} */ (row).dataset.newRes);
+
+    // Actualizar unidades de los existentes (una sola consulta para todos)
     const unitInputs = document.querySelectorAll('#tdp-res-body .tdp-res-units:not([data-new-res])');
-    for (const inp of unitInputs) {
-      const trid = /** @type {HTMLElement} */ (inp).dataset.trid;
-      if (!trid) continue;
-      const existing = await getByIndex('task_resources', 'task_id', taskId).then(r => r.find(x => x.id === trid)).catch(() => null);
-      if (existing) { existing.units = parseFloat(/** @type {HTMLInputElement} */ (inp).value) || 100; await dbPutSt('task_resources', existing); }
+    if (unitInputs.length) {
+      const existingAll = await getByIndex('task_resources', 'task_id', taskId).catch(() => []);
+      await Promise.all([...unitInputs].map(inp => {
+        const trid = /** @type {HTMLElement} */ (inp).dataset.trid;
+        if (!trid) return;
+        const rec = existingAll.find(x => x.id === trid);
+        if (rec) { rec.units = parseFloat(/** @type {HTMLInputElement} */ (inp).value) || 100; return dbPutSt('task_resources', rec); }
+      }).filter(Boolean));
     }
   }
 
   _showToast('Guardado', 'success');
   _closeTaskDetail();
+}
+
+// ============================================================
+// WBS helper — computa códigos EDT desde la jerarquía de tareas
+// ============================================================
+
+/** @param {Map<string,any>} tasks @returns {Map<string,string>} */
+function _buildWbsMap(tasks) {
+  if (!tasks?.size) return new Map();
+  const byParent = /** @type {Map<string,any[]>} */ (new Map());
+  for (const t of tasks.values()) {
+    if (t.deleted_at) continue;
+    const pid = t.parent_id ?? '__root__';
+    if (!byParent.has(pid)) byParent.set(pid, []);
+    byParent.get(pid).push(t);
+  }
+  for (const arr of byParent.values()) arr.sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+  const result = new Map();
+  const walk = (parentId, prefix) => {
+    (byParent.get(parentId) ?? []).forEach((t, i) => {
+      const code = prefix ? `${prefix}.${i + 1}` : `${i + 1}`;
+      result.set(t.id, code);
+      walk(t.id, code);
+    });
+  };
+  walk('__root__', '');
+  return result;
 }
 
 // ============================================================
@@ -608,81 +675,176 @@ async function _openResourceManager() {
   }
 
   const { getAll } = await import('./storage.js?v=4');
-  const resources = await getAll('resources').then(r => r.filter(x => !x.deleted_at));
+  const [resources, allTaskRes] = await Promise.all([
+    getAll('resources').then(r => r.filter(x => !x.deleted_at)),
+    getAll('task_resources').then(r => r.filter(x => !x.deleted_at)).catch(() => []),
+  ]);
+
+  // Total units assigned per resource (for over-allocation indicator, P6 style)
+  const _resUnitsMap = {};
+  for (const tr of allTaskRes) {
+    _resUnitsMap[tr.resource_id] = (_resUnitsMap[tr.resource_id] ?? 0) + (tr.units ?? 100);
+  }
+  // Count tasks per resource (for usage summary)
+  const _resTaskCount = {};
+  for (const tr of allTaskRes) {
+    _resTaskCount[tr.resource_id] = (_resTaskCount[tr.resource_id] ?? 0) + 1;
+  }
 
   const typeLabel = { work: 'Trabajo', material: 'Material', equipment: 'Equipo', cost: 'Costo fijo' };
   const typeBadgeColor = { work:'#1976D2', material:'#7B1FA2', equipment:'#E65100', cost:'#2E7D32' };
   const rows = resources.map(r => {
     const typ = r.type ?? 'work';
-    // Precio/Unidad: para trabajo → S/XX/h; material/equipo → S/XX/<unidad>; costo → S/XX
     const unitSuffix = typ === 'work' ? '/h' : (r.unit_label ? '/'+r.unit_label : '');
     const priceCell = r.rate_per_hour != null ? `S/ ${r.rate_per_hour}${unitSuffix}` : '—';
-    // Disponibilidad máxima solo para trabajo
     const dispMax = typ === 'work' ? `${r.max_units ?? 100}%` : (r.unit_label ? r.unit_label : '—');
+    // Over-allocation indicator (P6: red when assigned > max)
+    const totalAssigned = _resUnitsMap[r.id] ?? 0;
+    const maxU = r.max_units ?? 100;
+    const taskCount = _resTaskCount[r.id] ?? 0;
+    let overAllocCell = '';
+    if (typ === 'work') {
+      const isOver = totalAssigned > maxU;
+      const color = isOver ? '#dc2626' : (totalAssigned > 0 ? '#16a34a' : 'var(--clr-text-3)');
+      const icon = isOver ? '⚠️' : (totalAssigned > 0 ? '✓' : '');
+      overAllocCell = `<span style="font-size:11px;color:${color}" title="${taskCount} actividad(es) asignadas, total ${totalAssigned}%${isOver?' — SOBREASIGNADO':''}">${icon} ${totalAssigned > 0 ? totalAssigned+'%' : '—'} <span style="font-size:10px;color:var(--clr-text-3)">(${taskCount})</span></span>`;
+    } else {
+      overAllocCell = `<span style="font-size:11px;color:var(--clr-text-3)">${taskCount > 0 ? taskCount+' act.' : '—'}</span>`;
+    }
     return `<tr style="border-bottom:1px solid var(--clr-border)">
       <td style="padding:6px 10px;font-size:13px;font-weight:500">${_escHtml(r.name)}</td>
       <td style="padding:6px 10px"><span style="font-size:10px;font-weight:600;padding:2px 6px;border-radius:4px;color:#fff;background:${typeBadgeColor[typ]??'#607D8B'}">${typeLabel[typ]??typ}</span></td>
       <td style="padding:6px 10px;font-size:12px;color:var(--clr-text-3)">${_escHtml(r.role ?? '—')}</td>
       <td style="padding:6px 10px;font-size:12px;color:var(--clr-text-3)">${priceCell}</td>
       <td style="padding:6px 10px;font-size:12px;color:var(--clr-text-3)">${dispMax}</td>
+      <td style="padding:6px 10px">${overAllocCell}</td>
       <td style="padding:5px 8px;white-space:nowrap">
         <button class="btn btn-sm rm-assign" data-rid="${r.id}" title="Asignar este recurso a actividades" style="font-size:11px;padding:3px 8px;background:#1976D2;color:#fff;border:none;border-radius:5px;cursor:pointer;margin-right:4px">▶ Asignar</button>
         <button class="btn btn-icon btn-sm rm-del" data-rid="${r.id}" title="Eliminar" style="color:var(--clr-danger,#e74c3c)">🗑</button>
       </td>
     </tr>`;
-  }).join('') || '<tr><td colspan="6" style="padding:16px;text-align:center;color:var(--clr-text-3)">Sin recursos en el catálogo</td></tr>';
+  }).join('') || '<tr><td colspan="7" style="padding:16px;text-align:center;color:var(--clr-text-3)">Sin recursos en el catálogo</td></tr>';
+
+  // Build resource usage rows (P6: Resource Usage Sheet / MS Project: Resource Usage view)
+  const _tasks = appState.state.tasks;
+  const _wbsMap = _buildWbsMap(_tasks);
+  const _usageRows = resources.map(r => {
+    const assignments = allTaskRes.filter(tr => tr.resource_id === r.id);
+    if (!assignments.length) return `
+      <tr style="border-bottom:1px solid var(--clr-border)">
+        <td style="padding:7px 10px;font-size:13px;font-weight:500">${_escHtml(r.name)}</td>
+        <td style="padding:7px 10px;font-size:12px;color:var(--clr-text-3)" colspan="4">Sin asignaciones</td>
+      </tr>`;
+    const taskRows = assignments.map(tr => {
+      const t = _tasks?.get(tr.task_id);
+      const unitSufx = (r.type === 'material' || r.type === 'equipment') ? (r.unit_label ?? 'und') : '%';
+      const cpm = appState.state.cpmResult?.tasks?.get(tr.task_id);
+      const dur = t?.duration_days ?? cpm?.dur ?? '—';
+      return `<tr style="background:var(--clr-surface-2)">
+        <td style="padding:4px 10px 4px 28px;font-size:12px;color:var(--clr-text)">${_escHtml(t?.name ?? tr.task_id)}</td>
+        <td style="padding:4px 10px;font-size:12px;color:var(--clr-text-2)">${tr.units ?? 100} ${_escHtml(unitSufx)}</td>
+        <td style="padding:4px 10px;font-size:12px;color:var(--clr-text-3)">${dur !== '—' ? dur+' días' : '—'}</td>
+        <td style="padding:4px 10px;font-size:12px;color:var(--clr-text-3)">${_escHtml(_wbsMap.get(tr.task_id) ?? '')}</td>
+      </tr>`;
+    }).join('');
+    const totalU = assignments.reduce((s, tr) => s + (tr.units ?? 100), 0);
+    const isOver = r.type === 'work' && totalU > (r.max_units ?? 100);
+    return `
+      <tr style="border-bottom:1px solid var(--clr-border);${isOver?'background:rgba(220,38,38,0.04)':''}">
+        <td style="padding:7px 10px;font-size:13px;font-weight:600">${_escHtml(r.name)} ${isOver?'<span style="color:#dc2626;font-size:11px">⚠️ sobreasignado</span>':''}</td>
+        <td style="padding:7px 10px;font-size:12px;color:var(--clr-text-3)">${assignments.length} actividad(es)</td>
+        <td style="padding:7px 10px;font-size:12px;color:var(--clr-text-3)">${r.type === 'work' ? totalU + '% total' : ''}</td>
+        <td style="padding:7px 10px"></td>
+      </tr>${taskRows}`;
+  }).join('') || '<tr><td colspan="4" style="padding:16px;text-align:center;color:var(--clr-text-3)">Sin asignaciones en el proyecto</td></tr>';
 
   dlg.innerHTML = `
     <div id="dlg-res-hdr" style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid var(--clr-border);background:var(--clr-surface-2);cursor:move;user-select:none" title="Arrastrar para mover">
       <div>
-        <div style="font-weight:700;font-size:15px">Catálogo de Recursos</div>
-        <div style="font-size:11px;color:var(--clr-text-3);margin-top:2px">Recursos disponibles para asignar a actividades</div>
+        <div style="font-weight:700;font-size:15px">Gestión de Recursos</div>
+        <div style="font-size:11px;color:var(--clr-text-3);margin-top:2px">Catálogo, asignación y uso de recursos del proyecto</div>
       </div>
       <div style="display:flex;gap:6px;align-items:center">
-        <button id="dlg-res-assign" class="btn btn-primary btn-sm" title="Asignar recursos a actividades (masivo)" style="cursor:pointer">📌 Asignar Recursos</button>
+        <button id="btn-open-assign-dlg" class="btn btn-primary btn-sm" title="Asignar recursos a actividades (masivo)" style="cursor:pointer">📌 Asignar Recursos</button>
         <button id="dlg-res-close" class="btn btn-icon btn-sm" style="cursor:default">✕</button>
       </div>
     </div>
-    <div style="padding:16px;max-height:45vh;overflow-y:auto">
+    <!-- Tabs -->
+    <div style="display:flex;gap:0;border-bottom:1px solid var(--clr-border);background:var(--clr-surface-2)">
+      <button id="rm-tab-catalog" class="rm-tab" data-tab="catalog" style="padding:8px 18px;border:none;background:transparent;font-size:12px;font-weight:600;color:var(--clr-primary);border-bottom:2px solid var(--clr-primary);cursor:pointer">📋 Catálogo</button>
+      <button id="rm-tab-usage" class="rm-tab" data-tab="usage" style="padding:8px 18px;border:none;background:transparent;font-size:12px;font-weight:600;color:var(--clr-text-3);border-bottom:2px solid transparent;cursor:pointer">📊 Uso de Recursos</button>
+    </div>
+    <!-- Tab: Catálogo -->
+    <div id="rm-panel-catalog">
+      <div style="padding:16px;max-height:42vh;overflow-y:auto">
+        <table style="width:100%;border-collapse:collapse">
+          <thead><tr style="background:var(--clr-surface-2)">
+            <th style="padding:6px 10px;text-align:left;font-size:11px;color:var(--clr-text-3);font-weight:600">Nombre</th>
+            <th style="padding:6px 10px;text-align:left;font-size:11px;color:var(--clr-text-3);font-weight:600">Tipo</th>
+            <th style="padding:6px 10px;text-align:left;font-size:11px;color:var(--clr-text-3);font-weight:600">Rol</th>
+            <th style="padding:6px 10px;text-align:left;font-size:11px;color:var(--clr-text-3);font-weight:600">Precio/Ud.</th>
+            <th style="padding:6px 10px;text-align:left;font-size:11px;color:var(--clr-text-3);font-weight:600" title="Disponibilidad máxima (Trabajo) o Unidad de medida (Material/Equipo)">Unid./Disp.Máx</th>
+            <th style="padding:6px 10px;text-align:left;font-size:11px;color:var(--clr-text-3);font-weight:600" title="Total % asignado en el proyecto (⚠️ = sobreasignado)">Asignado</th>
+            <th style="width:130px"></th>
+          </tr></thead>
+          <tbody id="rm-body">${rows}</tbody>
+        </table>
+      </div>
+      <div style="padding:14px 16px;border-top:1px solid var(--clr-border);background:var(--clr-surface-2)">
+        <div style="font-size:12px;font-weight:700;color:var(--clr-text-2);margin-bottom:10px">Agregar recurso al catálogo</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+          <input id="rm-name" type="text" placeholder="Nombre *" style="padding:7px 10px;border:1px solid var(--clr-border);border-radius:7px;font-size:12px;background:var(--clr-surface);color:var(--clr-text)">
+          <select id="rm-type" style="padding:7px 10px;border:1px solid var(--clr-border);border-radius:7px;font-size:12px;background:var(--clr-surface);color:var(--clr-text)">
+            <option value="work">Trabajo (mano de obra)</option>
+            <option value="material">Material</option>
+            <option value="equipment">Equipo / Maquinaria</option>
+            <option value="cost">Costo fijo</option>
+          </select>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:10px">
+          <input id="rm-role" type="text" placeholder="Rol / Especialidad" title="Ej: Ing. Civil, Operario, Albañil" style="padding:7px 10px;border:1px solid var(--clr-border);border-radius:7px;font-size:12px;background:var(--clr-surface);color:var(--clr-text)">
+          <input id="rm-rate" type="number" min="0" step="0.01" placeholder="Precio/Unidad (S/)" title="Tasa estándar. Para trabajo: S/h. Para material: S/unidad." style="padding:7px 10px;border:1px solid var(--clr-border);border-radius:7px;font-size:12px;background:var(--clr-surface);color:var(--clr-text)">
+          <span id="rm-fields-extra" style="display:contents">
+            <input id="rm-unit-label" type="text" placeholder="Unidad (m³, kg, und…)" title="Unidad de medida — para material y equipo" style="padding:7px 10px;border:1px solid var(--clr-border);border-radius:7px;font-size:12px;background:var(--clr-surface);color:var(--clr-text)">
+            <input id="rm-max-units" type="number" min="1" max="100000" step="1" placeholder="Disponib. máx (%)" title="Disponibilidad máxima para recursos de trabajo (%). Ej: 100 = jornada completa, 50 = medio tiempo." style="padding:7px 10px;border:1px solid var(--clr-border);border-radius:7px;font-size:12px;background:var(--clr-surface);color:var(--clr-text);display:none">
+          </span>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <button id="rm-add" class="btn btn-primary btn-sm">＋ Agregar al catálogo</button>
+          <span id="rm-type-hint" style="font-size:11px;color:var(--clr-text-3)">Tipo Trabajo: define rol y disponibilidad máxima (%)</span>
+        </div>
+      </div>
+    </div>
+    <!-- Tab: Uso de Recursos -->
+    <div id="rm-panel-usage" style="display:none;padding:16px;max-height:60vh;overflow-y:auto">
+      <div style="font-size:11px;color:var(--clr-text-3);margin-bottom:10px">Vista de uso de recursos por actividad — similar a MS Project Resource Usage y P6 Resource Usage Sheet.</div>
       <table style="width:100%;border-collapse:collapse">
         <thead><tr style="background:var(--clr-surface-2)">
-          <th style="padding:6px 10px;text-align:left;font-size:11px;color:var(--clr-text-3);font-weight:600">Nombre</th>
-          <th style="padding:6px 10px;text-align:left;font-size:11px;color:var(--clr-text-3);font-weight:600">Tipo</th>
-          <th style="padding:6px 10px;text-align:left;font-size:11px;color:var(--clr-text-3);font-weight:600">Rol</th>
-          <th style="padding:6px 10px;text-align:left;font-size:11px;color:var(--clr-text-3);font-weight:600">Precio/Ud.</th>
-          <th style="padding:6px 10px;text-align:left;font-size:11px;color:var(--clr-text-3);font-weight:600" title="Disponibilidad máxima (Trabajo) o Unidad de medida (Material/Equipo)">Unid./Disp.Máx</th>
-          <th style="width:130px"></th>
+          <th style="padding:6px 10px;text-align:left;font-size:11px;color:var(--clr-text-3);font-weight:600">Recurso / Actividad</th>
+          <th style="padding:6px 10px;text-align:left;font-size:11px;color:var(--clr-text-3);font-weight:600">Unidades</th>
+          <th style="padding:6px 10px;text-align:left;font-size:11px;color:var(--clr-text-3);font-weight:600">Duración</th>
+          <th style="padding:6px 10px;text-align:left;font-size:11px;color:var(--clr-text-3);font-weight:600">WBS</th>
         </tr></thead>
-        <tbody id="rm-body">${rows}</tbody>
+        <tbody>${_usageRows}</tbody>
       </table>
-    </div>
-    <div style="padding:14px 16px;border-top:1px solid var(--clr-border);background:var(--clr-surface-2)">
-      <div style="font-size:12px;font-weight:700;color:var(--clr-text-2);margin-bottom:10px">Agregar recurso al catálogo</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
-        <input id="rm-name" type="text" placeholder="Nombre *" style="padding:7px 10px;border:1px solid var(--clr-border);border-radius:7px;font-size:12px;background:var(--clr-surface);color:var(--clr-text)">
-        <select id="rm-type" style="padding:7px 10px;border:1px solid var(--clr-border);border-radius:7px;font-size:12px;background:var(--clr-surface);color:var(--clr-text)">
-          <option value="work">Trabajo (mano de obra)</option>
-          <option value="material">Material</option>
-          <option value="equipment">Equipo / Maquinaria</option>
-          <option value="cost">Costo fijo</option>
-        </select>
-      </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:10px">
-        <input id="rm-role" type="text" placeholder="Rol / Especialidad" title="Ej: Ing. Civil, Operario, Albañil" style="padding:7px 10px;border:1px solid var(--clr-border);border-radius:7px;font-size:12px;background:var(--clr-surface);color:var(--clr-text)">
-        <input id="rm-rate" type="number" min="0" step="0.01" placeholder="Precio/Unidad (S/)" title="Tasa estándar. Para trabajo: S/h. Para material: S/unidad." style="padding:7px 10px;border:1px solid var(--clr-border);border-radius:7px;font-size:12px;background:var(--clr-surface);color:var(--clr-text)">
-        <span id="rm-fields-extra" style="display:contents">
-          <input id="rm-unit-label" type="text" placeholder="Unidad (m³, kg, und…)" title="Unidad de medida — para material y equipo" style="padding:7px 10px;border:1px solid var(--clr-border);border-radius:7px;font-size:12px;background:var(--clr-surface);color:var(--clr-text)">
-          <input id="rm-max-units" type="number" min="1" max="100000" step="1" placeholder="Disponib. máx (%)" title="Disponibilidad máxima para recursos de trabajo (%). Ej: 100 = jornada completa, 50 = medio tiempo." style="padding:7px 10px;border:1px solid var(--clr-border);border-radius:7px;font-size:12px;background:var(--clr-surface);color:var(--clr-text);display:none">
-        </span>
-      </div>
-      <div style="display:flex;gap:8px;align-items:center">
-        <button id="rm-add" class="btn btn-primary btn-sm">＋ Agregar al catálogo</button>
-        <span id="rm-type-hint" style="font-size:11px;color:var(--clr-text-3)">Tipo Trabajo: define rol y disponibilidad máxima (%)</span>
-      </div>
     </div>`;
 
   dlg.querySelector('#dlg-res-close').addEventListener('click', () => dlg.close());
-  dlg.querySelector('#dlg-res-assign').addEventListener('click', () => { dlg.close(); _openResourceAssign(); });
+  dlg.querySelector('#btn-open-assign-dlg').addEventListener('click', () => { dlg.close(); _openResourceAssign(); });
+
+  // ---- Tab switching ----
+  dlg.querySelectorAll('.rm-tab').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const tab = btn.dataset.tab;
+      dlg.querySelectorAll('.rm-tab').forEach(b => {
+        const active = b.dataset.tab === tab;
+        b.style.color = active ? 'var(--clr-primary)' : 'var(--clr-text-3)';
+        b.style.borderBottom = active ? '2px solid var(--clr-primary)' : '2px solid transparent';
+      });
+      dlg.querySelector('#rm-panel-catalog').style.display = tab === 'catalog' ? '' : 'none';
+      dlg.querySelector('#rm-panel-usage').style.display   = tab === 'usage'   ? '' : 'none';
+    });
+  });
 
   // ---- Mostrar/ocultar campos según tipo ----
   const _rmTypeChange = () => {
@@ -770,8 +932,11 @@ async function _openResourceManager() {
     if (btn) {
       const rid = btn.dataset.rid;
       if (confirm('¿Eliminar este recurso?')) {
-        const { remove: dbRemoveSt } = await import('./storage.js?v=4');
+        const { remove: dbRemoveSt, getAll: dbGetAllSt } = await import('./storage.js?v=4');
         await dbRemoveSt('resources', rid);
+        // Limpiar asignaciones huérfanas
+        const taskRes = await dbGetAllSt('task_resources').catch(() => []);
+        await Promise.all(taskRes.filter(tr => tr.resource_id === rid).map(tr => dbRemoveSt('task_resources', tr.id)));
         btn.closest('tr')?.remove();
         _showToast('Recurso eliminado', 'success');
       }
@@ -787,7 +952,10 @@ async function _openResourceManager() {
 
 async function _openResourceAssign(preSelectedId = null) {
   const { getAll, getByIndex, put: dbPut, remove: dbRemove } = await import('./storage.js?v=4');
-  const resources = await getAll('resources').then(r => r.filter(x => !x.deleted_at));
+  const [resources, allTaskResRaw] = await Promise.all([
+    getAll('resources').then(r => r.filter(x => !x.deleted_at)),
+    getAll('task_resources').then(r => r.filter(x => !x.deleted_at)).catch(() => []),
+  ]);
   if (!resources.length) {
     _showToast('Agrega recursos al catálogo primero', 'warn');
     _openResourceManager();
@@ -795,6 +963,13 @@ async function _openResourceAssign(preSelectedId = null) {
   }
   const tasks = [...(appState.state.tasks?.values() ?? [])].filter(t => !t.deleted_at && t.type !== 'milestone');
   if (!tasks.length) { _showToast('No hay actividades en el proyecto', 'warn'); return; }
+
+  // Build lookup: existingAssign[rid][tid] = units (for current assignment badges)
+  const existingAssign = {};
+  for (const tr of allTaskResRaw) {
+    if (!existingAssign[tr.resource_id]) existingAssign[tr.resource_id] = {};
+    existingAssign[tr.resource_id][tr.task_id] = tr.units ?? 100;
+  }
 
   let dlg = document.getElementById('dlg-res-assign');
   if (!dlg) {
@@ -807,20 +982,23 @@ async function _openResourceAssign(preSelectedId = null) {
   const typeLabel = { work:'Trabajo', material:'Material', equipment:'Equipo', cost:'Costo' };
   const typeBadge = { work:'#1976D2', material:'#7B1FA2', equipment:'#E65100', cost:'#2E7D32' };
 
-  const resItems = resources.map(r =>
-    `<label class="ra-res-item" data-rid="${r.id}" style="display:flex;align-items:center;gap:8px;padding:7px 10px;cursor:pointer;border-radius:6px;margin-bottom:2px;border:1px solid transparent">
+  const resItems = resources.map(r => {
+    const assignedCount = Object.keys(existingAssign[r.id] ?? {}).length;
+    return `<label class="ra-res-item" data-rid="${r.id}" style="display:flex;align-items:center;gap:8px;padding:7px 10px;cursor:pointer;border-radius:6px;margin-bottom:2px;border:1px solid transparent">
       <input type="radio" name="ra-res" value="${r.id}" style="accent-color:#1976D2">
       <span style="flex:1;font-size:12px;font-weight:500">${_escHtml(r.name)}</span>
+      ${assignedCount > 0 ? `<span style="font-size:10px;color:var(--clr-text-3)">${assignedCount}</span>` : ''}
       <span style="font-size:10px;font-weight:600;padding:1px 6px;border-radius:4px;color:#fff;background:${typeBadge[r.type??'work']??'#607D8B'}">${typeLabel[r.type??'work']??r.type}</span>
-    </label>`).join('');
+    </label>`;
+  }).join('');
 
-  const wbsMap = {};
-  tasks.forEach(t => { wbsMap[t.id] = t; });
+  const _raWbsMap = _buildWbsMap(appState.state.tasks);
   const taskItems = tasks.map(t =>
     `<label class="ra-task-item" data-tid="${t.id}" style="display:flex;align-items:center;gap:8px;padding:5px 8px;cursor:pointer;border-radius:5px;margin-bottom:1px">
       <input type="checkbox" class="ra-task-cb" value="${t.id}" style="accent-color:#1976D2">
-      <span style="font-size:11px;color:var(--clr-text-3);min-width:32px">${_escHtml(t.wbs_code??'')}</span>
+      <span style="font-size:11px;color:var(--clr-text-3);min-width:32px">${_escHtml(_raWbsMap.get(t.id)??'')}</span>
       <span style="font-size:12px;flex:1">${_escHtml(t.name)}</span>
+      <span class="ra-cur-badge" data-tid="${t.id}" style="display:none;font-size:10px;padding:1px 6px;border-radius:4px;background:#e0f2fe;color:#0369a1;white-space:nowrap"></span>
     </label>`).join('');
 
   dlg.innerHTML = `
@@ -888,6 +1066,20 @@ async function _openResourceAssign(preSelectedId = null) {
     dlg.querySelector('#ra-btn-remove').disabled = !(hasRes && n > 0);
   };
 
+  // Update assignment badges for a given resource
+  const _updateBadges = (rid) => {
+    const assignments = rid ? (existingAssign[rid] ?? {}) : {};
+    dlg.querySelectorAll('.ra-cur-badge').forEach(badge => {
+      const tid = badge.dataset.tid;
+      if (tid && assignments[tid] != null) {
+        badge.textContent = 'ya: ' + assignments[tid] + (resources.find(r=>r.id===rid)?.type==='work' ? '%' : '');
+        badge.style.display = '';
+      } else {
+        badge.style.display = 'none';
+      }
+    });
+  };
+
   // Resaltar recurso seleccionado
   dlg.querySelectorAll('input[name="ra-res"]').forEach(rb => {
     rb.addEventListener('change', () => {
@@ -897,6 +1089,7 @@ async function _openResourceAssign(preSelectedId = null) {
       const res = resources.find(r => r.id === sel?.value);
       dlg.querySelector('#ra-unit-suffix').textContent =
         res?.type === 'work' ? '%' : (res?.unit_label ?? 'und');
+      _updateBadges(sel?.value ?? null);
       _updateCount();
     });
   });
@@ -941,21 +1134,13 @@ async function _openResourceAssign(preSelectedId = null) {
     const units = parseFloat(dlg.querySelector('#ra-units').value) || 100;
     const statusEl = dlg.querySelector('#ra-status');
     statusEl.textContent = 'Asignando…';
-    let count = 0;
-    for (const tid of tids) {
+    await Promise.all(tids.map(async tid => {
       const existing = await getByIndex('task_resources', 'task_id', tid)
         .then(r => r.find(x => !x.deleted_at && x.resource_id === rid)).catch(() => null);
-      if (existing) {
-        existing.units = units;
-        await dbPut('task_resources', existing);
-      } else {
-        await dbPut('task_resources', {
-          id: crypto.randomUUID(), task_id: tid, resource_id: rid,
-          units, deleted_at: null
-        });
-      }
-      count++;
-    }
+      if (existing) { existing.units = units; await dbPut('task_resources', existing); }
+      else await dbPut('task_resources', { id: crypto.randomUUID(), task_id: tid, resource_id: rid, units, deleted_at: null });
+    }));
+    const count = tids.length;
     statusEl.textContent = `✓ ${count} actividades asignadas`;
     _showToast(`Recurso asignado a ${count} actividades`, 'success');
   });
@@ -967,12 +1152,13 @@ async function _openResourceAssign(preSelectedId = null) {
     if (!rid || !tids.length) return;
     const statusEl = dlg.querySelector('#ra-status');
     statusEl.textContent = 'Quitando…';
-    let count = 0;
-    for (const tid of tids) {
+    const removals = await Promise.all(tids.map(async tid => {
       const existing = await getByIndex('task_resources', 'task_id', tid)
         .then(r => r.find(x => !x.deleted_at && x.resource_id === rid)).catch(() => null);
-      if (existing) { await dbRemove('task_resources', existing.id); count++; }
-    }
+      if (existing) { await dbRemove('task_resources', existing.id); return true; }
+      return false;
+    }));
+    const count = removals.filter(Boolean).length;
     statusEl.textContent = count ? `✓ Quitado de ${count} actividades` : 'Sin asignación previa';
     if (count) _showToast(`Recurso quitado de ${count} actividades`, 'success');
   });
@@ -1250,9 +1436,42 @@ async function _loadProject(projectId) {
   try { localStorage.setItem('last-project-id', projectId); } catch { /* ignore */ }
   history.replaceState(null, '', location.pathname + '?p=' + encodeURIComponent(projectId));
   _renderProjectList();
+
+  // Mostrar barra de filtros al tener proyecto cargado
+  const filterBar = document.getElementById('gantt-filter-bar');
+  if (filterBar) filterBar.style.display = 'flex';
+
+  // Resetear filtro al cambiar de proyecto
+  if (_wbsTable) {
+    _wbsTable.setFilter('all');
+    document.querySelectorAll('#gantt-filter-bar .filter-btn').forEach(b => {
+      const isAll = /** @type {HTMLElement} */ (b).dataset.filter === 'all';
+      b.classList.toggle('active', isAll);
+      b.setAttribute('aria-pressed', String(isAll));
+    });
+  }
   if (!data.project.start_date) {
     _showToast('Sin fecha de inicio — edita el proyecto para configurarla', 'warn');
   }
+
+  // Resetear línea base activa al cambiar de proyecto
+  _activeBaselineId   = null;
+  _activeBaselineName = '';
+  appState.setBaselineData(null);
+  appState.setBaselineMeta(null);
+
+  // Auto-cargar línea base primaria si existe (P6: auto-load primary baseline)
+  try {
+    const baselines = await listBaselines(projectId);
+    const primary = baselines.find(b => b.is_primary);
+    if (primary) {
+      const blData = await loadBaselineData(primary.id);
+      appState.setBaselineData(blData);
+      appState.setBaselineMeta({ id: primary.id, name: primary.name, isPrimary: true });
+      _activeBaselineId   = primary.id;
+      _activeBaselineName = primary.name;
+    }
+  } catch (e) { console.warn('[baseline] Error al cargar línea base primaria:', e); }
 
   // Arrancar engine de sync para el nuevo proyecto (solo modo Supabase)
   if (!IS_LOCAL_MODE && data.project) {
@@ -1273,50 +1492,68 @@ async function _renderProjectList() {
   const { portfolios, programs, projects } = await loadHierarchy();
   const currentId = appState.state.project?.id;
 
+  // Estado de colapso persistido en localStorage
+  let collapsed = new Set();
+  try { collapsed = new Set(JSON.parse(localStorage.getItem('explorer-collapsed') || '[]')); } catch { /* ignore */ }
+
   const rows = [];
 
-  // Proyectos sin portafolio ni programa (nivel raíz)
-  const rootProjects  = projects.filter(p => !p.settings?.portfolio_id && !p.settings?.program_id);
-  // Programas sin portafolio (nivel raíz)
-  const rootPrograms  = programs.filter(p => !p.portfolio_id);
+  const rootProjects = projects.filter(p => !p.settings?.portfolio_id && !p.settings?.program_id);
+  const rootPrograms = programs.filter(p => !p.portfolio_id);
 
   function _projItem(p, indent = 0) {
     return `<div class="explorer-item ${p.id === currentId ? 'active' : ''}" data-project-id="${p.id}"
       title="${_escAttr(p.name)}" style="padding-left:${8 + indent * 16}px">
       <span class="item-icon">📋</span>
       <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px">${_escHtml(p.name)}</span>
-      ${p.id !== currentId ? `<button class="btn btn-ghost" data-del-project="${p.id}" title="Eliminar"
-        style="padding:0 4px;font-size:10px;line-height:1;opacity:0.5;flex-shrink:0">✕</button>` : ''}
     </div>`;
   }
 
   function _progItem(prog, indent = 0) {
     const progProjects = projects.filter(p => p.settings?.program_id === prog.id);
-    return `<div class="explorer-section-title" style="padding-left:${8 + indent * 16}px;display:flex;align-items:center;gap:4px">
-        <span>📦</span><span>${_escHtml(prog.name)}</span>
-        ${prog.code ? `<span style="font-size:10px;opacity:0.6">${_escHtml(prog.code)}</span>` : ''}
-        <button class="btn btn-ghost" data-add-to-program="${prog.id}" data-prog-code="${_escAttr(prog.code||'')}" title="Nuevo proyecto en este programa"
-          style="padding:0 5px;font-size:11px;line-height:1;color:var(--clr-primary);margin-left:auto" tabindex="0">＋</button>
-        <button class="btn btn-ghost" data-del-program="${prog.id}" title="Eliminar programa"
-          style="padding:0 4px;font-size:10px;line-height:1;opacity:0.4">✕</button>
+    const gid = 'prog-' + prog.id;
+    const isCol = collapsed.has(gid);
+    const childHtml = progProjects.length
+      ? progProjects.map(p => _projItem(p, indent + 1)).join('')
+      : `<div style="padding:3px 8px 3px ${24 + indent * 16}px;font-size:11px;color:var(--clr-text-3);font-style:italic">Sin proyectos</div>`;
+    return `<div class="explorer-group">
+      <div class="explorer-section-title has-toggle" style="padding-left:${4 + indent * 16}px">
+        <button class="btn btn-ghost explorer-toggle" data-exptoggle="${gid}"
+          aria-expanded="${isCol ? 'false' : 'true'}" aria-label="${isCol ? 'Expandir' : 'Colapsar'} ${_escAttr(prog.name)}"
+          title="${isCol ? 'Expandir' : 'Colapsar'}">${isCol ? '▶' : '▼'}</button>
+        <span aria-hidden="true">📦</span>
+        <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${_escHtml(prog.name)}</span>
+        ${prog.code ? `<span style="font-size:10px;opacity:0.55;flex-shrink:0">${_escHtml(prog.code)}</span>` : ''}
       </div>
-      ${progProjects.map(p => _projItem(p, indent + 1)).join('')}`;
+      <div data-expchildren="${gid}" style="${isCol ? 'display:none' : ''}">
+        ${childHtml}
+      </div>
+    </div>`;
   }
 
   // Portafolios
   portfolios.forEach(pf => {
-    const pfPrograms  = programs.filter(p => p.portfolio_id === pf.id);
-    const pfProjects  = projects.filter(p => p.settings?.portfolio_id === pf.id && !p.settings?.program_id);
-    rows.push(`<div class="explorer-section-title" style="display:flex;align-items:center;gap:4px">
-        <span>🗂</span><span>${_escHtml(pf.name)}</span>
-        ${pf.code ? `<span style="font-size:10px;opacity:0.6">${_escHtml(pf.code)}</span>` : ''}
-        <button class="btn btn-ghost" data-add-to-portfolio="${pf.id}" data-pf-code="${_escAttr(pf.code||'')}" title="Nuevo programa/proyecto en este portafolio"
-          style="padding:0 5px;font-size:11px;line-height:1;color:var(--clr-primary);margin-left:auto" tabindex="0">＋</button>
-        <button class="btn btn-ghost" data-del-portfolio="${pf.id}" title="Eliminar portafolio"
-          style="padding:0 4px;font-size:10px;line-height:1;opacity:0.4">✕</button>
-      </div>`);
-    pfPrograms.forEach(prog => rows.push(_progItem(prog, 1)));
-    pfProjects.forEach(p   => rows.push(_projItem(p, 1)));
+    const pfPrograms = programs.filter(p => p.portfolio_id === pf.id);
+    const pfProjects = projects.filter(p => p.settings?.portfolio_id === pf.id && !p.settings?.program_id);
+    const gid = 'pf-' + pf.id;
+    const isCol = collapsed.has(gid);
+    const childHtml = [
+      ...pfPrograms.map(prog => _progItem(prog, 1)),
+      ...pfProjects.map(p => _projItem(p, 1)),
+    ].join('') || `<div style="padding:3px 8px 3px 24px;font-size:11px;color:var(--clr-text-3);font-style:italic">Sin contenido</div>`;
+    rows.push(`<div class="explorer-group">
+      <div class="explorer-section-title has-toggle" style="padding-left:4px">
+        <button class="btn btn-ghost explorer-toggle" data-exptoggle="${gid}"
+          aria-expanded="${isCol ? 'false' : 'true'}" aria-label="${isCol ? 'Expandir' : 'Colapsar'} ${_escAttr(pf.name)}"
+          title="${isCol ? 'Expandir' : 'Colapsar'}">${isCol ? '▶' : '▼'}</button>
+        <span aria-hidden="true">🗂</span>
+        <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${_escHtml(pf.name)}</span>
+        ${pf.code ? `<span style="font-size:10px;opacity:0.55;flex-shrink:0">${_escHtml(pf.code)}</span>` : ''}
+      </div>
+      <div data-expchildren="${gid}" style="${isCol ? 'display:none' : ''}">
+        ${childHtml}
+      </div>
+    </div>`);
   });
 
   // Programas raíz (sin portafolio)
@@ -1327,9 +1564,27 @@ async function _renderProjectList() {
 
   list.innerHTML = rows.join('');
 
+  // Toggle colapsar / expandir
+  list.querySelectorAll('[data-exptoggle]').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const gid = /** @type {HTMLElement} */ (btn).dataset.exptoggle;
+      const childEl = list.querySelector(`[data-expchildren="${gid}"]`);
+      if (!childEl) return;
+      const nowCollapsing = /** @type {HTMLElement} */ (childEl).style.display !== 'none';
+      /** @type {HTMLElement} */ (childEl).style.display = nowCollapsing ? 'none' : '';
+      btn.textContent = nowCollapsing ? '▶' : '▼';
+      btn.title = nowCollapsing ? 'Expandir' : 'Colapsar';
+      btn.setAttribute('aria-expanded', nowCollapsing ? 'false' : 'true');
+      if (nowCollapsing) collapsed.add(gid); else collapsed.delete(gid);
+      try { localStorage.setItem('explorer-collapsed', JSON.stringify([...collapsed])); } catch { /* ignore */ }
+    });
+  });
+
+  // Click en proyecto → cargar
   list.querySelectorAll('[data-project-id]').forEach(el => {
     el.addEventListener('click', async (e) => {
-      if (/** @type {HTMLElement} */ (e.target).closest('[data-del-project]')) return;
+      if (/** @type {HTMLElement} */ (e.target).closest('[data-exptoggle]')) return;
       const pid = /** @type {HTMLElement} */ (el).dataset.projectId;
       if (pid && pid !== appState.state.project?.id) {
         try {
@@ -1341,71 +1596,19 @@ async function _renderProjectList() {
       }
     });
   });
-
-  list.querySelectorAll('[data-del-project]').forEach(delBtn => {
-    delBtn.addEventListener('click', async (e) => {
-      e.stopPropagation();
-      const pid = /** @type {HTMLElement} */ (delBtn).dataset.delProject;
-      const { projects: projs } = await loadHierarchy();
-      const proj = projs.find(p => p.id === pid);
-      if (!proj) return;
-      if (!confirm(`¿Eliminar el proyecto "${proj.name}"?\nEsta acción no se puede deshacer.`)) return;
-      try {
-        await _deleteProject(pid);
-        _showToast('Proyecto eliminado', 'success');
-        _renderProjectList();
-      } catch (err) {
-        _showToast('Error al eliminar: ' + err.message, 'error');
-      }
-    });
-  });
-
-  list.querySelectorAll('[data-del-portfolio]').forEach(delBtn => {
-    delBtn.addEventListener('click', async (e) => {
-      e.stopPropagation();
-      const id = /** @type {HTMLElement} */ (delBtn).dataset.delPortfolio;
-      if (!confirm('¿Eliminar este portafolio? Los proyectos y programas dentro quedarán sin asignar.')) return;
-      try { await deletePortfolio(id); _showToast('Portafolio eliminado', 'success'); _renderProjectList(); }
-      catch (err) { _showToast('Error: ' + err.message, 'error'); }
-    });
-  });
-
-  list.querySelectorAll('[data-del-program]').forEach(delBtn => {
-    delBtn.addEventListener('click', async (e) => {
-      e.stopPropagation();
-      const id = /** @type {HTMLElement} */ (delBtn).dataset.delProgram;
-      if (!confirm('¿Eliminar este programa? Los proyectos dentro quedarán sin asignar.')) return;
-      try { await deleteProgram(id); _showToast('Programa eliminado', 'success'); _renderProjectList(); }
-      catch (err) { _showToast('Error: ' + err.message, 'error'); }
-    });
-  });
-
-  // "+" junto a programa → nuevo proyecto heredando código
-  list.querySelectorAll('[data-add-to-program]').forEach(btn => {
-    btn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      const id   = /** @type {HTMLElement} */ (btn).dataset.addToProgram;
-      const code = /** @type {HTMLElement} */ (btn).dataset.progCode;
-      _openNewItemWithParent('project', 'program', id, code);
-    });
-  });
-
-  // "+" junto a portafolio → nuevo programa o proyecto directo
-  list.querySelectorAll('[data-add-to-portfolio]').forEach(btn => {
-    btn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      const id   = /** @type {HTMLElement} */ (btn).dataset.addToPortfolio;
-      const code = /** @type {HTMLElement} */ (btn).dataset.pfCode;
-      _openNewItemWithParent('project', 'portfolio', id, code);
-    });
-  });
 }
 
 async function _deleteProject(projectId) {
-  const tasks = await getByIndex('tasks', 'project_id', projectId);
-  const deps  = await getByIndex('task_dependencies', 'project_id', projectId);
-  for (const t of tasks) await dbRemove('tasks', t.id);
-  for (const d of deps)  await dbRemove('task_dependencies', d.id);
+  const [tasks, deps, taskResources] = await Promise.all([
+    getByIndex('tasks', 'project_id', projectId),
+    getByIndex('task_dependencies', 'project_id', projectId),
+    getByIndex('task_resources', 'project_id', projectId),
+  ]);
+  await Promise.all([
+    ...tasks.map(t  => dbRemove('tasks', t.id)),
+    ...deps.map(d   => dbRemove('task_dependencies', d.id)),
+    ...taskResources.map(tr => dbRemove('task_resources', tr.id)),
+  ]);
   await dbRemove('projects', projectId);
 }
 
@@ -1561,6 +1764,8 @@ let _evmPanel       = null;
 let _changeLogPanel = null;
 let _syncEngine     = null;
 let _ganttFitPending = false; // true tras cargar proyecto → auto-ajusta al primer CPM
+let _activeBaselineId   = null;
+let _activeBaselineName = '';
 
 async function init() {
   try {
@@ -1589,6 +1794,18 @@ async function init() {
     if (wbsPanel) {
       _wbsTable = new WbsTable(wbsPanel);
     }
+
+    // ---- Filtros del Gantt ----
+    document.querySelectorAll('#gantt-filter-bar .filter-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const filter = /** @type {HTMLElement} */ (btn).dataset.filter ?? 'all';
+        _wbsTable?.setFilter(filter);
+        document.querySelectorAll('#gantt-filter-bar .filter-btn').forEach(b => {
+          b.classList.toggle('active', b === btn);
+          b.setAttribute('aria-pressed', String(b === btn));
+        });
+      });
+    });
 
     // ---- Inicializar Gantt Canvas ----
     const ganttCanvas = /** @type {HTMLCanvasElement|null} */ (document.getElementById('gantt-canvas'));
@@ -1803,7 +2020,7 @@ function _bindToolbar() {
     const selectedId = appState.state.selectedTaskId;
     if (selectedId) {
       // Abrir detalle de actividad y desplazarse a la sección de recursos
-      _openTaskDetailPanel(selectedId).then(() => {
+      _openTaskDetail(selectedId).then(() => {
         setTimeout(() => {
           document.getElementById('tdp-resources-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }, 120);
@@ -1814,7 +2031,126 @@ function _bindToolbar() {
   });
 
   document.getElementById('btn-calendar')?.addEventListener('click', () => _openCalendarEditor());
-  document.getElementById('btn-gantt-fit')?.addEventListener('click', () => _ganttCanvas?.fitToView());
+  document.getElementById('btn-gantt-fit')?.addEventListener('click',      () => _ganttCanvas?.fitToView());
+  document.getElementById('btn-gantt-zoom-in')?.addEventListener('click',  () => _ganttCanvas?.zoomIn());
+  document.getElementById('btn-gantt-zoom-out')?.addEventListener('click', () => _ganttCanvas?.zoomOut());
+
+  // ---- Línea base ----
+  {
+
+    const dlg         = /** @type {HTMLDialogElement} */ (document.getElementById('dlg-baseline'));
+    const listEl      = document.getElementById('bl-list');
+    const emptyMsg    = document.getElementById('bl-empty-msg');
+    const activeInd   = document.getElementById('bl-active-indicator');
+    const activeName  = document.getElementById('bl-active-name');
+    const nameInput   = /** @type {HTMLInputElement} */ (document.getElementById('bl-name-input'));
+
+    async function _refreshBaselineList() {
+      const pid = appState.state.project?.id;
+      if (!pid || !listEl) return;
+      const rows = await listBaselines(pid);
+      if (emptyMsg) emptyMsg.style.display = rows.length ? 'none' : 'block';
+
+      listEl.innerHTML = rows.map(b => {
+        const isActive  = b.id === _activeBaselineId;
+        const isPrimary = !!b.is_primary;
+        const primaryBadge = isPrimary
+          ? `<span title="Línea base primaria (plan aprobado)" style="font-size:13px;line-height:1" aria-label="Línea base primaria">⭐</span>`
+          : `<button class="btn btn-ghost btn-sm" data-bl-primary="${b.id}" title="Marcar como línea base primaria" style="opacity:.5;font-size:12px;padding:0 4px" aria-label="Marcar como primaria">☆</button>`;
+        const activeClass = isActive ? 'background:var(--clr-primary-subtle,#eef2ff);border-radius:4px;' : '';
+        return `
+        <div class="bl-row" style="display:flex;align-items:center;gap:6px;padding:6px 4px;border-bottom:1px solid var(--clr-border-2);${activeClass}">
+          ${primaryBadge}
+          <span style="flex:1;font-size:var(--text-sm);color:var(--clr-text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${_escAttr(b.name)}">${_escHtml(b.name)}${isActive ? ' <span style="font-size:10px;color:var(--clr-primary)">▶ activa</span>' : ''}</span>
+          <span style="font-size:var(--text-xs);color:var(--clr-text-3);white-space:nowrap">${b.created_at.slice(0,10)}</span>
+          <button class="btn btn-ghost btn-sm" data-bl-apply="${b.id}" data-bl-name="${_escAttr(b.name)}" data-bl-primary="${isPrimary}" title="Aplicar como referencia de comparación (P6: Set as Primary)" style="font-size:13px;padding:0 5px" aria-label="Aplicar línea base">📌</button>
+          <button class="btn btn-ghost btn-sm" data-bl-delete="${b.id}" title="Eliminar línea base" style="font-size:13px;padding:0 5px" aria-label="Eliminar">🗑</button>
+        </div>`;
+      }).join('');
+
+      // Aplicar
+      listEl.querySelectorAll('[data-bl-apply]').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const el        = /** @type {HTMLElement} */ (btn);
+          const id        = el.dataset.blApply;
+          const name      = el.dataset.blName;
+          const isPrimary = el.dataset.blPrimary === 'true';
+          _activeBaselineId   = id;
+          _activeBaselineName = name;
+          const data = await loadBaselineData(id);
+          appState.setBaselineData(data);
+          appState.setBaselineMeta({ id, name, isPrimary });
+          if (activeInd) activeInd.style.display = 'block';
+          if (activeName) {
+            activeName.textContent = name + (isPrimary ? ' ⭐' : '');
+          }
+          dlg?.close();
+          _showToast('Línea base aplicada — varianzas visibles en la tabla', 'success');
+        });
+      });
+
+      // Marcar como primaria
+      listEl.querySelectorAll('[data-bl-primary]').forEach(btn => {
+        if (/** @type {HTMLElement} */ (btn).tagName !== 'BUTTON') return;
+        btn.addEventListener('click', async () => {
+          const id = /** @type {HTMLElement} */ (btn).dataset.blPrimary;
+          await setPrimaryBaseline(pid, id);
+          // Si era la activa, actualizar meta
+          if (id === _activeBaselineId) {
+            appState.setBaselineMeta({ id, name: _activeBaselineName, isPrimary: true });
+            if (activeName) activeName.textContent = _activeBaselineName + ' ⭐';
+          }
+          await _refreshBaselineList();
+          _showToast('Línea base primaria definida', 'success');
+        });
+      });
+
+      // Eliminar
+      listEl.querySelectorAll('[data-bl-delete]').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const id = /** @type {HTMLElement} */ (btn).dataset.blDelete;
+          await deleteBaseline(id);
+          if (id === _activeBaselineId) {
+            _activeBaselineId = null;
+            _activeBaselineName = '';
+            appState.setBaselineData(null);
+            appState.setBaselineMeta(null);
+            if (activeInd) activeInd.style.display = 'none';
+          }
+          await _refreshBaselineList();
+        });
+      });
+    }
+
+    document.getElementById('btn-baseline')?.addEventListener('click', async () => {
+      await _refreshBaselineList();
+      if (activeInd) activeInd.style.display = _activeBaselineId ? 'block' : 'none';
+      if (activeName) activeName.textContent = _activeBaselineName;
+      dlg?.showModal();
+    });
+    document.getElementById('dlg-bl-close')?.addEventListener('click', () => dlg?.close());
+    document.getElementById('btn-bl-save')?.addEventListener('click', async () => {
+      const name = nameInput?.value.trim() || '';
+      if (!appState.state.project) { _showToast('Abre un proyecto primero', 'warn'); return; }
+      if (!appState.state.cpmResult) { _showToast('CPM aún calculando…', 'warn'); return; }
+      try {
+        await saveBaseline(name || `Línea base ${new Date().toISOString().slice(0,10)}`);
+        if (nameInput) nameInput.value = '';
+        await _refreshBaselineList();
+        _showToast('Línea base guardada', 'success');
+      } catch (err) {
+        _showToast('Error al guardar: ' + err.message, 'error');
+      }
+    });
+    document.getElementById('btn-bl-clear')?.addEventListener('click', () => {
+      _activeBaselineId = null;
+      _activeBaselineName = '';
+      appState.setBaselineData(null);
+      appState.setBaselineMeta(null);
+      if (activeInd) activeInd.style.display = 'none';
+      _showToast('Línea base limpiada', 'success');
+    });
+  }
 
   // ---- Menú etiquetas de barras Gantt ----
   const _barLabelsBtn  = document.getElementById('btn-bar-labels');
@@ -2000,6 +2336,7 @@ function _bindToolbar() {
       case 'svg':         exportSvg(rows);           break;
       case 'print-table': printWbsTable();           break;
       case 'print-gantt': printGantt(rows);          break;
+      case 'print-pdf':   window.print();            break;
       case 'col-config':  _showPrintColConfig();     break;
     }
   });
@@ -2375,13 +2712,13 @@ function _ocOpenForm(dlg, type, data) {
     ${inp('code', 'Código', data?.code ?? '', 'Ej: PF-001')}
     ${inp('desc', 'Descripción', data?.description ?? '', 'Opcional')}
     ${extraHtml}
-    ${!isNew ? `<div id="oc-del-zone" style="display:none;background:rgba(231,76,60,0.08);border:1px solid rgba(231,76,60,0.3);border-radius:8px;padding:12px;margin-bottom:12px">
-      <div style="font-size:12px;font-weight:600;color:#c0392b;margin-bottom:6px">⚠ Esta acción no se puede deshacer</div>
-      <button id="ocf-del-confirm" style="background:#e74c3c;color:#fff;border:none;border-radius:6px;padding:6px 14px;cursor:pointer;font-size:12px;font-weight:600">Eliminar definitivamente</button>
+    ${!isNew ? `<div id="oc-del-zone" style="display:none;background:rgba(var(--clr-danger-rgb,231,76,60),0.08);border:1px solid rgba(var(--clr-danger-rgb,231,76,60),0.3);border-radius:8px;padding:12px;margin-bottom:12px">
+      <div style="font-size:12px;font-weight:600;color:var(--clr-danger,#e74c3c);margin-bottom:6px">⚠ Esta acción no se puede deshacer</div>
+      <button id="ocf-del-confirm" style="background:var(--clr-danger,#e74c3c);color:#fff;border:none;border-radius:6px;padding:6px 14px;cursor:pointer;font-size:12px;font-weight:600">Eliminar definitivamente</button>
       <button id="ocf-del-cancel" style="margin-left:8px;background:none;border:1px solid var(--clr-border);border-radius:6px;padding:6px 14px;cursor:pointer;font-size:12px">Cancelar</button>
     </div>` : ''}
     <div style="display:flex;gap:8px;justify-content:space-between;align-items:center;margin-top:16px">
-      <div>${!isNew ? `<button id="ocf-del-init" style="background:none;border:1px solid #e74c3c;color:#e74c3c;border-radius:6px;padding:5px 12px;cursor:pointer;font-size:12px">🗑 Eliminar</button>` : ''}</div>
+      <div>${!isNew ? `<button id="ocf-del-init" style="background:none;border:1px solid var(--clr-danger,#e74c3c);color:var(--clr-danger,#e74c3c);border-radius:6px;padding:5px 12px;cursor:pointer;font-size:12px">🗑 Eliminar</button>` : ''}</div>
       <div style="display:flex;gap:8px">
         <button id="ocf-cancel" class="btn btn-ghost btn-sm">Cancelar</button>
         <button id="ocf-save" class="btn btn-primary btn-sm">Guardar</button>
@@ -2435,7 +2772,7 @@ function _ocOpenForm(dlg, type, data) {
   box.querySelector('#ocf-save').addEventListener('click', async () => {
     const nameEl = box.querySelector('#ocf-name');
     const name = nameEl?.value.trim();
-    if (!name) { nameEl.style.borderColor = '#e74c3c'; nameEl.focus(); return; }
+    if (!name) { nameEl.style.borderColor = 'var(--clr-danger,#e74c3c)'; nameEl.focus(); return; }
     nameEl.style.borderColor = '';
 
     const code     = box.querySelector('#ocf-code')?.value.trim() || null;

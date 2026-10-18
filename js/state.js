@@ -32,6 +32,8 @@ const MAX_UNDO = 50;
  * @property {number}          outboxCount
  * @property {boolean}         autoCalc
  * @property {number}          nearThreshold
+ * @property {Map<string,{es:number,ef:number,dur:number}>|null} baselineData
+ * @property {{id:string,name:string,isPrimary:boolean}|null} baselineMeta
  */
 
 /** @typedef {import('./calendar.js').Calendar} Calendar_ */
@@ -65,6 +67,10 @@ export class AppStateManager {
       outboxCount:   0,
       autoCalc:      true,
       nearThreshold: 5,
+      /** @type {Map<string,{es:number,ef:number,dur:number}>|null} */
+      baselineData:  null,
+      /** @type {{id:string, name:string, isPrimary:boolean}|null} */
+      baselineMeta:  null,
     };
 
     /** @type {Array<{cmd:Command, inverse:Command}>} */
@@ -173,6 +179,18 @@ export class AppStateManager {
     this._notify(['syncStatus']);
   }
 
+  /** @param {Map<string,{es:number,ef:number,dur:number}>|null} data */
+  setBaselineData(data) {
+    this._state.baselineData = data;
+    this._notify(['baselineData']);
+  }
+
+  /** @param {{id:string, name:string, isPrimary:boolean}|null} meta */
+  setBaselineMeta(meta) {
+    this._state.baselineMeta = meta;
+    this._notify(['baselineMeta']);
+  }
+
   /** @param {boolean} v */
   setAutoCalc(v) {
     this._state.autoCalc = v;
@@ -197,6 +215,8 @@ export class AppStateManager {
     s.selectedTaskId = null;
     // Auto-expandir nivel 1
     s.expandedIds   = new Set(data.tasks.filter(t => !t.parent_id && !t.deleted_at).map(t => t.id));
+    s.baselineData  = null;
+    s.baselineMeta  = null;
     this._past   = [];
     this._future = [];
     this._notify(['all']);

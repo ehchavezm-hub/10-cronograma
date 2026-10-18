@@ -16,22 +16,25 @@ import { fmtDate, isoToDate, Calendar } from './calendar.js';
 // ============================================================
 
 const COLS = [
-  { id: 'wbs',    label: 'EDT',        w: 56,   align: 'center', sortable: false },
-  { id: 'name',   label: 'Nombre',     w: 260,  align: 'left',   sortable: true  },
-  { id: 'type',   label: 'Tipo',       w: 70,   align: 'center', sortable: false },
-  { id: 'dur',    label: 'Dur (d)',    w: 64,   align: 'right',  sortable: true  },
-  { id: 'start',  label: 'Inicio',     w: 90,   align: 'center', sortable: true  },
-  { id: 'finish', label: 'Fin',        w: 90,   align: 'center', sortable: true  },
-  { id: 'pct',    label: '%',          w: 56,   align: 'right',  sortable: false },
-  { id: 'tf',     label: 'HT',         w: 52,   align: 'right',  sortable: true  },
-  { id: 'ff',     label: 'HL',         w: 52,   align: 'right',  sortable: true  },
-  { id: 'pred',   label: 'Pred.',      w: 80,   align: 'left',   sortable: false },
-  { id: 'alerts', label: 'Alertas',    w: 100,  align: 'left',   sortable: false },
+  { id: 'wbs',    label: 'EDT',        w: 52,   align: 'center', sortable: false },
+  { id: 'name',   label: 'Nombre',     w: 240,  align: 'left',   sortable: true  },
+  { id: 'type',   label: 'Tipo',       w: 64,   align: 'center', sortable: false },
+  { id: 'dur',    label: 'Dur (d)',    w: 58,   align: 'right',  sortable: true  },
+  { id: 'start',  label: 'Inicio',     w: 82,   align: 'center', sortable: true  },
+  { id: 'finish', label: 'Fin',        w: 82,   align: 'center', sortable: true  },
+  { id: 'pct',    label: '%',          w: 48,   align: 'right',  sortable: false },
+  { id: 'tf',     label: 'HT',         w: 46,   align: 'right',  sortable: true  },
+  { id: 'ff',     label: 'HL',         w: 46,   align: 'right',  sortable: true  },
+  { id: 'bl_vi',  label: 'ΔI (d)',     w: 54,   align: 'right',  sortable: false, blOnly: true },
+  { id: 'bl_vf',  label: 'ΔF (d)',     w: 54,   align: 'right',  sortable: false, blOnly: true },
+  { id: 'bl_vd',  label: 'ΔD (d)',     w: 48,   align: 'right',  sortable: false, blOnly: true },
+  { id: 'pred',   label: 'Pred.',      w: 72,   align: 'left',   sortable: false },
+  { id: 'alerts', label: 'Alertas',    w: 90,   align: 'left',   sortable: false },
 ];
 
-const COL_WIDTHS_KEY = 'wbs-col-widths';
+const COL_WIDTHS_KEY = 'wbs-col-widths-v2';
 
-const INDENT_PX = 16;
+const INDENT_PX = 12;
 
 // ============================================================
 // Clase principal
@@ -44,6 +47,8 @@ export class WbsTable {
     this._editingCell = null;  // {rowId, col}
     this._ctxMenu = null;
     this._colWidths = this._loadColWidths();
+    /** @type {'all'|'critical'|'progress'} */
+    this._filter = 'all';
 
     this._buildDOM();
     this._attachEvents();
@@ -99,13 +104,20 @@ export class WbsTable {
         .col-resizer.resizing::after { background: var(--clr-primary, #1976D2); }
         .wbs-table td { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         body.col-resizing { cursor: col-resize !important; user-select: none !important; }
+        .col-bl { display: none; }
+        .wbs-table.has-baseline .col-bl { display: table-cell; }
+        .bl-var-pos { color: #dc2626; font-weight: 600; }
+        .bl-var-neg { color: #16a34a; font-weight: 600; }
+        .bl-var-zero { color: var(--clr-text-3); }
       `;
       document.head.appendChild(style);
     }
 
     const thHtml = COLS.map(c => {
       const w = this._colWidths[c.id] ?? c.w;
-      return `<th id="th-${c.id}" style="width:${w}px;min-width:${w}px" class="${c.sortable ? 'sortable' : ''}" data-col="${c.id}" scope="col">
+      const extra = c.blOnly ? ' col-bl' : '';
+      const title = c.blOnly ? ` title="${c.id === 'bl_vi' ? 'Varianza inicio vs línea base' : c.id === 'bl_vf' ? 'Varianza fin vs línea base' : 'Varianza duración vs línea base'}"` : '';
+      return `<th id="th-${c.id}" style="width:${w}px;min-width:${w}px" class="${c.sortable ? 'sortable' : ''}${extra}" data-col="${c.id}" scope="col"${title}>
         ${c.label}
         <span class="col-resizer" data-resizer="${c.id}" title="Arrastrar para redimensionar"></span>
       </th>`;
@@ -193,6 +205,77 @@ export class WbsTable {
     });
   }
 
+  // ---- Filtros ----
+
+  /**
+   * Cambia el filtro activo y re-renderiza.
+   * @param {'all'|'critical'|'progress'} filter
+   */
+  setFilter(filter) {
+    this._filter = filter;
+    this.render();
+  }
+
+  /**
+   * Aplica el filtro activo a una lista de rows ya construida.
+   * Para `critical`, también retiene los ancestros de tareas críticas
+   * para que el árbol sea coherente.
+   * @param {Array<{task:any, depth:number, isSummary:boolean}>} rows
+   * @returns {Array<{task:any, depth:number, isSummary:boolean}>}
+   */
+  _applyFilter(rows) {
+    if (this._filter === 'all') return rows;
+
+    const { cpmResult } = appState.state;
+
+    if (this._filter === 'critical') {
+      if (!cpmResult) return rows;  // CPM aún no disponible → mostrar todas
+      const cpmTasks = cpmResult.tasks;
+
+      // IDs de tareas hoja críticas
+      const criticalIds = new Set(
+        rows.filter(r => !r.isSummary && cpmTasks.get(r.task.id)?.is_critical).map(r => r.task.id)
+      );
+      if (criticalIds.size === 0) return rows;
+
+      // Para cada tarea crítica, incluir todos sus ancestros
+      const keepIds = new Set(criticalIds);
+      const idToTask = new Map(rows.map(r => [r.task.id, r.task]));
+      for (const id of criticalIds) {
+        let parentId = idToTask.get(id)?.parent_id;
+        while (parentId) {
+          keepIds.add(parentId);
+          parentId = idToTask.get(parentId)?.parent_id;
+        }
+      }
+      return rows.filter(r => keepIds.has(r.task.id));
+    }
+
+    if (this._filter === 'progress') {
+      // Tareas en progreso: pct > 0 y pct < 100, más sus ancestros
+      const inProgressIds = new Set(
+        rows.filter(r => {
+          const pct = r.task.percent_complete ?? 0;
+          return !r.isSummary && pct > 0 && pct < 100;
+        }).map(r => r.task.id)
+      );
+      if (inProgressIds.size === 0) return rows;
+
+      const keepIds = new Set(inProgressIds);
+      const idToTask = new Map(rows.map(r => [r.task.id, r.task]));
+      for (const id of inProgressIds) {
+        let parentId = idToTask.get(id)?.parent_id;
+        while (parentId) {
+          keepIds.add(parentId);
+          parentId = idToTask.get(parentId)?.parent_id;
+        }
+      }
+      return rows.filter(r => keepIds.has(r.task.id));
+    }
+
+    return rows;
+  }
+
   // ---- Renderizado ----
 
   render() {
@@ -203,8 +286,21 @@ export class WbsTable {
     const cal = this._getCalendar();
     const startDate = project.start_date ? isoToDate(project.start_date) : new Date();
 
-    // Construir árbol ordenado
-    const rows = this._buildRows(tasks, expandedIds);
+    // Construir árbol ordenado y aplicar filtro activo
+    const allRows = this._buildRows(tasks, expandedIds);
+    const rows    = this._applyFilter(allRows);
+
+    // Actualizar contador del filtro
+    const countEl = document.getElementById('filter-bar-count');
+    if (countEl) {
+      if (this._filter === 'all') {
+        countEl.textContent = '';
+      } else {
+        const leaf = rows.filter(r => !r.isSummary).length;
+        const total = allRows.filter(r => !r.isSummary).length;
+        countEl.textContent = `${leaf} de ${total} tareas`;
+      }
+    }
 
     // Calcular códigos WBS
     const wbsCodes = _calcWbsCodes(tasks);
@@ -214,8 +310,7 @@ export class WbsTable {
 
     // Renderizar filas
     const html = rows.map(({ task, depth, isSummary }) => {
-      const cpm   = cpmResult?.tasks?.find?.(r => r.id === task.id) ??
-                    (cpmResult?.tasks instanceof Map ? cpmResult.tasks.get(task.id) : null);
+      const cpm   = cpmResult?.tasks instanceof Map ? cpmResult.tasks.get(task.id) : null;
       const wbs   = wbsCodes.get(task.id) ?? '';
       const isSelected = task.id === selectedTaskId;
       const isDeleted  = !!task.deleted_at;
@@ -241,7 +336,7 @@ export class WbsTable {
     const ghostHtml = Array.from({ length: ghosts }, (_, i) =>
       `<tr data-ghost="${i}" class="ghost-row" title="Clic para agregar actividad" tabindex="-1">
         <td style="color:var(--clr-text-4,#ccc);text-align:center;font-size:var(--text-xs)">${rows.length + i + 1}</td>
-        <td colspan="9" style="color:var(--clr-text-4,#bbb);font-size:var(--text-xs);padding-left:8px">
+        <td colspan="12" style="color:var(--clr-text-4,#bbb);font-size:var(--text-xs);padding-left:8px">
           ${i === 0 ? '＋ Clic para agregar actividad…' : ''}
         </td>
         <td></td>
@@ -320,6 +415,7 @@ export class WbsTable {
       <td data-col="pct"  style="text-align:right">${pctStr}</td>
       <td data-col="tf"   style="text-align:right" class="${tfClass}">${tfStr}</td>
       <td data-col="ff"   style="text-align:right;color:var(--clr-text-2)">${ffStr}</td>
+      ${this._renderBlVarianceCells(task.id, cpm, isSummary)}
       <td data-col="pred" style="font-size:var(--text-xs);color:var(--clr-text-3);cursor:pointer" title="Clic para editar predecesoras (ej: 3FS, 4SS+2)">${preds}</td>
       <td data-col="alerts">${alerts}</td>`;
   }
@@ -338,6 +434,41 @@ export class WbsTable {
       }).join('') +
       (taskWarns.length > 3 ? `<span class="alert-icon warn" aria-label="+${taskWarns.length - 3} más">+${taskWarns.length - 3}</span>` : '') +
       `</div>`;
+  }
+
+  /** @returns {string} 3 celdas de varianza línea base (bl_vi, bl_vf, bl_vd) */
+  _renderBlVarianceCells(taskId, cpm, isSummary) {
+    const { baselineData } = appState.state;
+    if (!baselineData || isSummary) {
+      return `
+        <td data-col="bl_vi" class="col-bl" style="text-align:right">—</td>
+        <td data-col="bl_vf" class="col-bl" style="text-align:right">—</td>
+        <td data-col="bl_vd" class="col-bl" style="text-align:right">—</td>`;
+    }
+
+    const bl = baselineData.get(taskId);
+    if (!bl || !cpm || cpm.es == null) {
+      return `
+        <td data-col="bl_vi" class="col-bl" style="text-align:right">—</td>
+        <td data-col="bl_vf" class="col-bl" style="text-align:right">—</td>
+        <td data-col="bl_vd" class="col-bl" style="text-align:right">—</td>`;
+    }
+
+    const vi = cpm.es  - bl.es;
+    const vf = cpm.ef  - bl.ef;
+    const vd = (cpm.dur ?? (cpm.ef - cpm.es + 1)) - bl.dur;
+
+    const fmt = (v) => {
+      const cls  = v > 0 ? 'bl-var-pos' : v < 0 ? 'bl-var-neg' : 'bl-var-zero';
+      const sign = v > 0 ? '+' : '';
+      const tip  = v > 0 ? 'Atrasado vs línea base' : v < 0 ? 'Adelantado vs línea base' : 'En línea con la base';
+      return `<span class="${cls}" title="${tip}">${sign}${v}</span>`;
+    };
+
+    return `
+      <td data-col="bl_vi" class="col-bl" style="text-align:right;font-size:var(--text-xs)">${fmt(vi)}</td>
+      <td data-col="bl_vf" class="col-bl" style="text-align:right;font-size:var(--text-xs)">${fmt(vf)}</td>
+      <td data-col="bl_vd" class="col-bl" style="text-align:right;font-size:var(--text-xs)">${fmt(vd)}</td>`;
   }
 
   // ---- Construcción de lista ordenada de filas ----
@@ -382,7 +513,10 @@ export class WbsTable {
   // ---- Eventos ----
 
   _onStateChange(state, keys) {
-    if (!keys || keys.includes('all') || keys.some(k => ['tasks','deps','cpmResult','expandedIds','selectedTaskId','project'].includes(k))) {
+    if (!keys || keys.includes('all') || keys.some(k => ['tasks','deps','cpmResult','expandedIds','selectedTaskId','project','baselineData'].includes(k))) {
+      // Toggle clase has-baseline en el <table>
+      const tbl = this._container.querySelector('#wbs-tbl');
+      if (tbl) tbl.classList.toggle('has-baseline', !!state.baselineData);
       this.render();
     }
   }

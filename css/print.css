@@ -8,7 +8,7 @@
   #bottom-tabs, .resizer, .context-menu, .toast,
   .task-detail-panel, .modal-backdrop, #gantt-panel,
   #dcma-panel, .no-print, .row-more-btn,
-  .expand-btn.empty, .alert-icon { display: none !important; }
+  .alert-icon { display: none !important; }
 
   /* ---- Resetear layout para impresión ---- */
   html, body {

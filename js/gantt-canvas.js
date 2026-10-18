@@ -12,6 +12,8 @@ import { appState }   from './state.js';
 import { GanttScene } from './scene.js';
 import { fmtDate }    from './calendar.js';
 
+const _esc = (s) => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+
 // ---- Paleta de colores (coincide con css/tokens.css) ----
 const C = {
   critical:   '#D32F2F',
@@ -62,6 +64,9 @@ export class GanttCanvas {
     this._hoverHandle = null;  // {id, side:'end'|'start', x, y} — handle bajo el mouse
     this._mousePos    = { x: 0, y: 0 }; // posición actual del mouse
 
+    // Tooltip flotante
+    this._tooltip = this._createTooltip();
+
     this._bindEvents();
     this._initResizeObserver();
     // Primer resize tras construcción
@@ -109,18 +114,25 @@ export class GanttCanvas {
     c.addEventListener('click',      e => this._onClick(e));
 
     // Cancelar modo enlace con Escape
-    document.addEventListener('keydown', e => {
+    this._onKeyDown = (e) => {
       if (e.key === 'Escape' && this._linkMode) {
         this._pendingPred = null;
         this.requestRender();
       }
-    });
+    };
+    document.addEventListener('keydown', this._onKeyDown);
 
     // Sincronizar scrollY desde la tabla WBS
-    document.addEventListener('wbs-scroll-y', /** @type {any} */ (e) => {
+    this._onWbsScrollY = /** @type {any} */ ((e) => {
       this._scene.scrollY = e.detail.scrollY;
       this.requestRender();
     });
+    document.addEventListener('wbs-scroll-y', this._onWbsScrollY);
+  }
+
+  destroy() {
+    document.removeEventListener('keydown', this._onKeyDown);
+    document.removeEventListener('wbs-scroll-y', this._onWbsScrollY);
   }
 
   _onDown(e) {
@@ -148,15 +160,70 @@ export class GanttCanvas {
       return;
     }
 
-    if (!this._panning) return;
-    const dx = e.clientX - this._panStart.x;
-    const dy = e.clientY - this._panStart.y;
-    this._scene.scrollX = this._panStart.sx - dx;
-    this._scene.scrollY = this._panStart.sy - dy;
-    this._scene.clampScrollX(this._canvas.clientWidth);
-    this._scene.clampScrollY(this._canvas.clientHeight);
-    document.dispatchEvent(new CustomEvent('gantt-scroll-y', { detail: { scrollY: this._scene.scrollY } }));
-    this.requestRender();
+    if (this._panning) {
+      const dx = e.clientX - this._panStart.x;
+      const dy = e.clientY - this._panStart.y;
+      this._scene.scrollX = this._panStart.sx - dx;
+      this._scene.scrollY = this._panStart.sy - dy;
+      this._scene.clampScrollX(this._canvas.clientWidth);
+      this._scene.clampScrollY(this._canvas.clientHeight);
+      document.dispatchEvent(new CustomEvent('gantt-scroll-y', { detail: { scrollY: this._scene.scrollY } }));
+      this._hideTooltip();
+      this.requestRender();
+      return;
+    }
+
+    // Tooltip al pasar sobre una barra
+    const barId = this._getBarAt(cx, cy);
+    if (barId) {
+      const state = appState.state;
+      const task  = state.tasks.get(barId);
+      const cpm   = this._scene.cpmResult?.tasks.get(barId);
+      const cal   = this._scene.calendar;
+      const ps    = this._scene.projectStart;
+      if (task && cpm && cal && ps) {
+        const fmt = (/** @type {Date} */ d) => d.toLocaleDateString('es-PE', { day:'2-digit', month:'short', year:'numeric' });
+        let lines = `<strong>${_esc(task.name)}</strong>`;
+        if (task.type === 'milestone') {
+          const d = cal.idxToDate(cpm.es, ps);
+          lines += `\nFecha: ${fmt(d)}`;
+        } else {
+          if (cpm.es != null) lines += `\nInicio: ${fmt(cal.idxToDate(cpm.es, ps))}`;
+          if (cpm.ef != null) lines += `\nFin: ${fmt(cal.finishDate(cpm.ef, ps))}`;
+          if (cpm.dur != null) lines += `\nDuración: ${cpm.dur} d`;
+          if (cpm.tf != null) lines += `\nFloat: ${cpm.tf} d`;
+          if (task.percent_complete != null) lines += `\nAvance: ${task.percent_complete}%`;
+
+          // Comparativa línea base (P6 style: BL Inicio / BL Fin / Δ días)
+          const blData = appState.state.baselineData;
+          if (blData) {
+            const bl = blData.get(barId);
+            if (bl != null) {
+              const blMeta = appState.state.baselineMeta;
+              const blLabel = blMeta?.name ? _esc(blMeta.name) : 'Línea base';
+              lines += `\n─── ${blLabel} ───`;
+              if (bl.es != null) lines += `\nBL Inicio: ${fmt(cal.idxToDate(bl.es, ps))}`;
+              if (bl.ef != null) lines += `\nBL Fin: ${fmt(cal.finishDate(bl.ef, ps))}`;
+              if (bl.dur != null) lines += `\nBL Duración: ${bl.dur} d`;
+              // Varianza (días laborables)
+              if (cpm.es != null && bl.es != null) {
+                const vi = cpm.es - bl.es;
+                const icon = vi > 3 ? '🔴' : vi > 0 ? '🟡' : vi < 0 ? '🟢' : '🟢';
+                lines += `\n${icon} ΔInicio: ${vi > 0 ? '+' : ''}${vi} d`;
+              }
+              if (cpm.ef != null && bl.ef != null) {
+                const vf = cpm.ef - bl.ef;
+                const icon = vf > 3 ? '🔴' : vf > 0 ? '🟡' : vf < 0 ? '🟢' : '🟢';
+                lines += `\n${icon} ΔFin: ${vf > 0 ? '+' : ''}${vf} d`;
+              }
+            }
+          }
+        }
+        this._showTooltip(lines, e.clientX, e.clientY);
+      }
+    } else {
+      this._hideTooltip();
+    }
   }
 
   _onUp(_e) {
@@ -169,6 +236,93 @@ export class GanttCanvas {
     this._hoverHandle = null;
     if (this._linkMode) this.requestRender();
     this._canvas.style.cursor = 'grab';
+    this._hideTooltip();
+  }
+
+  // ---- Tooltip flotante ----
+
+  _createTooltip() {
+    const el = document.createElement('div');
+    el.id = 'gantt-bar-tooltip';
+    el.setAttribute('role', 'tooltip');
+    el.style.cssText = [
+      'position:fixed',
+      'z-index:200',
+      'display:none',
+      'pointer-events:none',
+      'background:var(--clr-surface,#fff)',
+      'border:1px solid var(--clr-border,#e5e7eb)',
+      'border-radius:var(--radius-sm,4px)',
+      'box-shadow:var(--shadow-md,0 4px 12px rgba(0,0,0,.15))',
+      'padding:6px 10px',
+      'font-family:var(--font-ui,sans-serif)',
+      'font-size:var(--text-xs,11px)',
+      'color:var(--clr-text,#111)',
+      'max-width:260px',
+      'line-height:1.5',
+      'white-space:pre-wrap',
+      'word-break:break-word',
+    ].join(';');
+    document.body.appendChild(el);
+    return el;
+  }
+
+  _showTooltip(html, clientX, clientY) {
+    const el = this._tooltip;
+    el.innerHTML = html;
+    el.style.display = 'block';
+    // Position near cursor, flipping if near right/bottom edge
+    const margin = 12;
+    const W = window.innerWidth, H = window.innerHeight;
+    let left = clientX + margin;
+    let top  = clientY + margin;
+    requestAnimationFrame(() => {
+      const tw = el.offsetWidth, th = el.offsetHeight;
+      if (left + tw > W - 8) left = clientX - tw - margin;
+      if (top  + th > H - 8) top  = clientY - th - margin;
+      el.style.left = Math.max(4, left) + 'px';
+      el.style.top  = Math.max(4, top)  + 'px';
+    });
+  }
+
+  _hideTooltip() {
+    this._tooltip.style.display = 'none';
+  }
+
+  /** Hit-test: devuelve el task.id de la barra bajo (cx,cy) en coordenadas canvas, o null */
+  _getBarAt(cx, cy) {
+    const scene = this._scene;
+    const { rows, headerHeight, rowHeight, scrollY, cpmResult, calendar, projectStart } = scene;
+    if (!cpmResult || !calendar || !projectStart || cy < headerHeight) return null;
+    const state = appState.state;
+    const W = this._canvas.clientWidth;
+
+    for (let i = 0; i < rows.length; i++) {
+      const rowY = headerHeight + i * rowHeight - scrollY;
+      if (cy < rowY || cy > rowY + rowHeight) continue;
+
+      const row  = rows[i];
+      const task = state.tasks.get(row.id);
+      const cpm  = cpmResult.tasks.get(row.id);
+      if (!task || !cpm || cpm.es == null) continue;
+
+      if (task.type === 'milestone') {
+        const d  = calendar.idxToDate(cpm.es, projectStart);
+        const mx = scene._dateToXAbs(d) - scene.scrollX;
+        const half = rowHeight * 0.4;
+        if (Math.abs(cx - mx) <= half && Math.abs(cy - (rowY + rowHeight / 2)) <= half) return row.id;
+        continue;
+      }
+
+      const startD = calendar.idxToDate(cpm.es, projectStart);
+      const endD   = calendar.finishDate(cpm.ef, projectStart);
+      const x1 = scene._dateToXAbs(startD) - scene.scrollX;
+      const x2 = scene._dateToXAbs(endD)   - scene.scrollX + scene.pixPerDay;
+      const cx1 = Math.max(0, Math.min(W, x1));
+      const cx2 = Math.max(0, Math.min(W, x2));
+      if (cx >= cx1 - 2 && cx <= cx2 + 2) return row.id;
+    }
+    return null;
   }
 
   _onWheel(e) {
@@ -361,6 +515,30 @@ export class GanttCanvas {
 
     this._scene.pixPerDay = pixPerDay;
     this._scene.scrollX   = Math.max(0, scrollX);
+    this.requestRender();
+  }
+
+  /** Ampliar zoom un paso (~20%) centrado en el canvas */
+  zoomIn() {
+    const W = this._canvas.clientWidth;
+    const cx = W / 2 + this._scene.scrollX;
+    const newPpd = Math.min(80, this._scene.pixPerDay * 1.2);
+    const scale  = newPpd / this._scene.pixPerDay;
+    this._scene.pixPerDay = newPpd;
+    this._scene.scrollX   = cx * scale - W / 2;
+    this._scene.clampScrollX(W);
+    this.requestRender();
+  }
+
+  /** Reducir zoom un paso (~20%) centrado en el canvas */
+  zoomOut() {
+    const W = this._canvas.clientWidth;
+    const cx = W / 2 + this._scene.scrollX;
+    const newPpd = Math.max(2, this._scene.pixPerDay / 1.2);
+    const scale  = newPpd / this._scene.pixPerDay;
+    this._scene.pixPerDay = newPpd;
+    this._scene.scrollX   = Math.max(0, cx * scale - W / 2);
+    this._scene.clampScrollX(W);
     this.requestRender();
   }
 
@@ -622,6 +800,37 @@ export class GanttCanvas {
 
       const color    = this._barColor(task, cpm);
       const selected = task.id === selectedId;
+
+      // ---- Línea base (doble barra: estilo MS Project + P6) ----
+      const baselineData = state.baselineData;
+      if (baselineData && !row.isSummary && task.type !== 'milestone') {
+        const bl = baselineData.get(row.id);
+        if (bl != null) {
+          const blStart = calendar.idxToDate(bl.es, projectStart);
+          const blEnd   = calendar.finishDate(bl.ef, projectStart);
+          const bx1 = scene._dateToXAbs(blStart) - scene.scrollX;
+          const bx2 = scene._dateToXAbs(blEnd)   - scene.scrollX + scene.pixPerDay;
+          if (bx2 > 0 && bx1 < W) {
+            const blW  = Math.max(bx2 - bx1, 3);
+            // Barra base: parte inferior de la fila (estilo MS Project doble barra)
+            const blH  = Math.max(5, Math.round(rowHeight * 0.25));
+            const blY  = y0 + rowHeight - blH - 2;
+            ctx.save();
+            // Relleno sólido índigo (P6: color distinto al bar actual)
+            ctx.globalAlpha = 0.72;
+            ctx.fillStyle   = '#6366f1';
+            _roundRect(ctx, bx1, blY, blW, blH, 2);
+            ctx.fill();
+            // Borde más oscuro para contraste
+            ctx.globalAlpha = 0.9;
+            ctx.strokeStyle = '#4338ca';
+            ctx.lineWidth   = 1;
+            _roundRect(ctx, bx1, blY, blW, blH, 2);
+            ctx.stroke();
+            ctx.restore();
+          }
+        }
+      }
 
       if (task.type === 'milestone') {
         this._drawMilestone(ctx, cpm.es, y0, rowHeight, color, selected, scene);
