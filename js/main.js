@@ -688,6 +688,7 @@ async function _openResourceManager() {
     dlg.style.cssText = 'border:none;border-radius:12px;padding:0;width:600px;max-width:96vw;box-shadow:0 8px 40px rgba(0,0,0,0.3);overflow:hidden;position:fixed;margin:0;top:80px;left:max(8px,calc(50vw - 300px));z-index:1000';
     document.body.appendChild(dlg);
     dlg.setAttribute('aria-labelledby', 'rm-dlg-title');
+    dlg.setAttribute('aria-modal', 'true');
   }
 
   const { getAll } = await import('./storage.js?v=4');
@@ -1197,6 +1198,9 @@ async function _openCalendarEditor() {
     dlg = document.createElement('dialog');
     dlg.id = 'dlg-calendar';
     dlg.style.cssText = 'border:none;border-radius:12px;padding:0;width:600px;max-width:96vw;box-shadow:0 8px 40px rgba(0,0,0,0.3);overflow:hidden';
+    dlg.setAttribute('role', 'dialog');
+    dlg.setAttribute('aria-modal', 'true');
+    dlg.setAttribute('aria-labelledby', 'dlg-cal-title');
     document.body.appendChild(dlg);
     dlg.addEventListener('click', e => { if (e.target === dlg) dlg.close(); });
   }
@@ -1223,7 +1227,7 @@ async function _openCalendarEditor() {
 
   dlg.innerHTML = `
     <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid var(--clr-border);background:var(--clr-surface-2)">
-      <span style="font-weight:700;font-size:15px">🗓 Calendario del proyecto</span>
+      <span id="dlg-cal-title" style="font-weight:700;font-size:15px">🗓 Calendario del proyecto</span>
       <button id="dlg-cal-close" class="btn btn-icon btn-sm" aria-label="Cerrar calendario">✕</button>
     </div>
     <div style="padding:16px;display:flex;flex-direction:column;gap:14px;max-height:68vh;overflow-y:auto">
@@ -2521,7 +2525,8 @@ function _bindToolbar() {
 
 function _bindLinkMode() {
   const btn = document.getElementById('btn-link');
-  if (!btn) return;
+  if (!btn || btn.dataset.linkBound) return;
+  btn.dataset.linkBound = '1';
 
   let _linkModeOn = false;
 
@@ -2563,7 +2568,7 @@ function _bindLinkMode() {
       deleted_at:  null,
     };
     appState.dispatch({ type: 'ADD_DEP', payload: { dep } });
-    _showToast('Dependencia FS creada', 'success');
+    _showToast(`Dependencia ${type ?? 'FS'} creada`, 'success');
   });
 }
 
@@ -2728,6 +2733,8 @@ function _showOrgChart() {
     dlg = document.createElement('dialog');
     dlg.id = 'dlg-org-chart';
     dlg.style.cssText = 'border:none;border-radius:12px;padding:0;width:96vw;max-width:1400px;height:92vh;box-shadow:0 8px 40px rgba(0,0,0,0.3);overflow:hidden;position:fixed;top:4vh;left:max(0px,calc(50vw - 700px));margin:0;z-index:99999';
+    dlg.setAttribute('aria-labelledby', 'oc-dlg-title');
+    dlg.setAttribute('aria-modal', 'true');
     dlg.innerHTML = `
       <div style="display:flex;flex-direction:column;height:100%;background:var(--clr-bg)">
         <div id="oc-dlg-hdr" style="display:flex;align-items:center;justify-content:space-between;padding:10px 16px;border-bottom:1px solid var(--clr-border);background:var(--clr-surface-2);flex-shrink:0;gap:8px;flex-wrap:wrap;cursor:move">
@@ -3441,7 +3448,7 @@ function _showPrintColConfig() {
 function _showCpmNetwork() {
   const { cpmResult, tasks: taskMap, deps: depMap } = appState.state;
   if (!cpmResult) {
-    alert('El CPM aún no ha calculado. Espera un momento y vuelve a intentarlo.');
+    _showToast('El CPM aún no ha calculado. Espera un momento y vuelve a intentarlo.', 'warn');
     return;
   }
 
