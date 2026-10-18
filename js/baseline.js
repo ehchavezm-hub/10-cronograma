@@ -108,12 +108,8 @@ export async function deleteBaseline(baselineId) {
  */
 export async function setPrimaryBaseline(projectId, baselineId) {
   const all = await getAll('baselines');
-  for (const b of all) {
-    if (b.project_id !== projectId) continue;
-    if (b.is_primary !== (b.id === baselineId)) {
-      await put('baselines', { ...b, is_primary: b.id === baselineId });
-    }
-  }
+  const toUpdate = all.filter(b => b.project_id === projectId && b.is_primary !== (b.id === baselineId));
+  await Promise.all(toUpdate.map(b => put('baselines', { ...b, is_primary: b.id === baselineId })));
 }
 
 /**
