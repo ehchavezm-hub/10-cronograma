@@ -624,7 +624,7 @@ export class WbsTable {
     }
     if (e.key === 'Escape') this._cancelEdit();
     if (e.key === 'Delete' && !this._editingCell) {
-      if (confirm(t('confirmDelete'))) this._deleteTask(id);
+      document.dispatchEvent(new CustomEvent('wbs-confirm-delete', { detail: { taskId: id, fn: () => this._deleteTask(id) } }));
     }
     // Indentación con Tab/Shift+Tab
     if (e.key === 'Tab' && !this._editingCell) {
@@ -908,7 +908,7 @@ export class WbsTable {
       case 'indent':  this._indentTask(taskId);  break;
       case 'outdent': this._outdentTask(taskId); break;
       case 'delete':
-        if (confirm(t('confirmDelete'))) this._deleteTask(taskId);
+        document.dispatchEvent(new CustomEvent('wbs-confirm-delete', { detail: { taskId, fn: () => this._deleteTask(taskId) } }));
         break;
     }
   }
