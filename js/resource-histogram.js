@@ -293,7 +293,7 @@ export class ResourceHistogramPanel {
     ctx.scale(dpr, dpr);
 
     // Layout
-    const PL = 56, PR = 16, PT = 28, PB = 52;
+    const PL = 56, PR = 36, PT = 28, PB = 52;
     const cW = W - PL - PR;
     const cH = H - PT - PB;
 
@@ -335,9 +335,30 @@ export class ResourceHistogramPanel {
       return;
     }
 
-    // Bars — positioned using Gantt viewport when available, else equal-width fallback
     const msPerDay = 86400000;
     const vp = this._ganttVp;
+
+    // Líneas verticales de semanas alineadas con el Gantt
+    if (vp && vp.projectStart && vp.pixPerDay > 0) {
+      ctx.strokeStyle = CLR_GRID;
+      ctx.lineWidth   = 0.5;
+      ctx.setLineDash([]);
+      const firstMon = _monday(vp.projectStart);
+      let weekDate = new Date(firstMon.getTime());
+      for (let safe = 0; safe < 500; safe++) {
+        const x = PL + (weekDate.getTime() - vp.projectStart.getTime()) / msPerDay * vp.pixPerDay - vp.scrollX;
+        if (x > PL + cW + 100) break;
+        if (x >= PL) {
+          ctx.beginPath();
+          ctx.moveTo(x, PT);
+          ctx.lineTo(x, PT + cH);
+          ctx.stroke();
+        }
+        weekDate = new Date(weekDate.getTime() + 7 * msPerDay);
+      }
+    }
+
+    // Bars — positioned using Gantt viewport when available, else equal-width fallback
 
     for (let pi = 0; pi < periods.length; pi++) {
       const p = periods[pi];
@@ -382,6 +403,82 @@ export class ResourceHistogramPanel {
         ctx.textAlign    = 'center';
         ctx.textBaseline = 'top';
         ctx.fillText(p.label, labelX, PT + cH + 5);
+      }
+    }
+
+    // Curva S — horas acumuladas (escala porcentual en eje derecho)
+    {
+      const CLR_SCURVE = _v('--clr-primary') || '#3b82f6';
+      const periodTotals = periods.map(p => {
+        let t = 0;
+        for (const r of activeRes) t += p.byResource.get(r.id) ?? 0;
+        return t;
+      });
+      const grandTotal = periodTotals.reduce((a, b) => a + b, 0);
+
+      if (grandTotal > 0) {
+        const scPts = [];
+        let cumHrs  = 0;
+
+        // Punto inicial: comienzo del primer período al 0%
+        const x0 = (vp && vp.projectStart && vp.pixPerDay > 0)
+          ? PL + (periods[0].sortKey.getTime() - vp.projectStart.getTime()) / msPerDay * vp.pixPerDay - vp.scrollX
+          : PL;
+        scPts.push({ x: x0, pct: 0 });
+
+        for (let pi = 0; pi < periods.length; pi++) {
+          const p = periods[pi];
+          cumHrs += periodTotals[pi];
+          const pct = cumHrs / grandTotal;
+          let cx;
+          if (vp && vp.projectStart && vp.pixPerDay > 0) {
+            const pEnd = this._groupBy === 'month'
+              ? new Date(p.sortKey.getFullYear(), p.sortKey.getMonth() + 1, 1)
+              : new Date(p.sortKey.getTime() + 7 * msPerDay);
+            cx = PL + (pEnd.getTime() - vp.projectStart.getTime()) / msPerDay * vp.pixPerDay - vp.scrollX;
+          } else {
+            cx = PL + (pi + 1) * (cW / periods.length);
+          }
+          scPts.push({ x: cx, pct });
+        }
+
+        // Línea curva S recortada al área del gráfico
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(PL, PT, cW, cH + 1);
+        ctx.clip();
+        ctx.strokeStyle = CLR_SCURVE;
+        ctx.lineWidth   = 2;
+        ctx.lineJoin    = 'round';
+        ctx.setLineDash([]);
+        ctx.beginPath();
+        for (let i = 0; i < scPts.length; i++) {
+          const y = PT + cH * (1 - scPts[i].pct);
+          if (i === 0) ctx.moveTo(scPts[i].x, y);
+          else ctx.lineTo(scPts[i].x, y);
+        }
+        ctx.stroke();
+        ctx.restore();
+
+        // Puntos en cada límite de período
+        ctx.fillStyle = CLR_SCURVE;
+        for (const { x, pct } of scPts) {
+          if (x < PL - 4 || x > PL + cW + 4) continue;
+          const y = PT + cH * (1 - pct);
+          ctx.beginPath();
+          ctx.arc(Math.max(PL, Math.min(PL + cW, x)), y, 2.5, 0, Math.PI * 2);
+          ctx.fill();
+        }
+
+        // Eje Y derecho: etiquetas de porcentaje
+        ctx.textAlign    = 'left';
+        ctx.textBaseline = 'middle';
+        ctx.font         = '9px Calibri,Arial';
+        ctx.fillStyle    = CLR_SCURVE;
+        for (const pct of [0, 0.25, 0.5, 0.75, 1.0]) {
+          const y = PT + cH * (1 - pct);
+          ctx.fillText(`${Math.round(pct * 100)}%`, PL + cW + 4, y);
+        }
       }
     }
 
