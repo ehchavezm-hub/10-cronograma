@@ -998,8 +998,20 @@ export class WbsTable {
     if (afterId) {
       const after = tasks.find(t => t.id === afterId);
       if (after) {
-        parent_id  = after.parent_id;
-        sort_order = after.sort_order + 1;
+        const isSum      = tasks.some(t => t.parent_id === after.id);
+        const isExpanded = appState.state.expandedIds.has(after.id);
+        if (isSum && isExpanded) {
+          // Resumen expandido: insertar como primer hijo para que aparezca
+          // en la fila inmediata siguiente (visual row + 1)
+          parent_id = after.id;
+          const firstChild = tasks
+            .filter(t => t.parent_id === after.id)
+            .sort((a, b) => a.sort_order - b.sort_order)[0];
+          sort_order = firstChild ? firstChild.sort_order - 1 : 1;
+        } else {
+          parent_id  = after.parent_id;
+          sort_order = after.sort_order + 1;
+        }
       }
     } else if (parentId) {
       const siblings = tasks.filter(t => t.parent_id === parentId).sort((a, b) => a.sort_order - b.sort_order);
