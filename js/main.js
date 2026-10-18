@@ -7,7 +7,7 @@
 import { IS_LOCAL_MODE } from './config.js';
 import { appState }      from './state.js';
 import { WbsTable }      from './wbs-table.js?v=10';
-import { GanttCanvas }   from './gantt-canvas.js?v=30';
+import { GanttCanvas }   from './gantt-canvas.js?v=31';
 import { GanttScene }    from './scene.js';
 import { DcmaPanel }     from './dcma.js';
 import { Calendar, isoToDate } from './calendar.js';
@@ -2666,6 +2666,7 @@ function _showOrgChart() {
       const onU=()=>{_d=false;if(hdr)/** @type {HTMLElement} */(hdr).style.cursor='move';};
       hdr?.addEventListener('mousedown',e=>{if(/** @type {HTMLElement} */(e.target).closest('button'))return;const r=dlg.getBoundingClientRect();_ox=e.clientX-r.left;_oy=e.clientY-r.top;_d=true;/** @type {HTMLElement} */(hdr).style.cursor='grabbing';e.preventDefault();});
       document.addEventListener('mousemove',onM);document.addEventListener('mouseup',onU);
+      dlg.addEventListener('close', () => { document.removeEventListener('mousemove', onM); document.removeEventListener('mouseup', onU); }, { once: true });
     }
 
     dlg.querySelector('#oc-add-pf')  ?.addEventListener('click', () => _ocOpenForm(dlg, 'portfolio', null));
@@ -3280,9 +3281,10 @@ function _showPrintColConfig() {
     dlg = document.createElement('dialog');
     dlg.id = 'dlg-print-cols';
     dlg.style.cssText = 'border:none;border-radius:12px;padding:0;width:440px;max-width:95vw;box-shadow:0 8px 40px rgba(0,0,0,0.25);overflow:hidden';
+    dlg.setAttribute('aria-labelledby', 'pcc-title');
     dlg.innerHTML = `
       <div style="background:var(--clr-surface-2);padding:16px 20px;border-bottom:1px solid var(--clr-border)">
-        <div style="font-weight:700;font-size:15px">⚙ Columnas de exportación</div>
+        <div id="pcc-title" style="font-weight:700;font-size:15px">⚙ Columnas de exportación</div>
         <div style="font-size:11px;opacity:0.6;margin-top:2px">Selecciona las columnas que aparecen al imprimir o exportar SVG.</div>
       </div>
       <div style="padding:16px 20px">
@@ -3364,14 +3366,14 @@ function _showCpmNetwork() {
           <span style="display:inline-block;width:11px;height:11px;background:#2980b9;border-radius:2px;margin-left:5px"></span><span style="font-size:11px">Normal</span>
           <span style="display:inline-block;width:11px;height:11px;background:#27ae60;border-radius:2px;margin-left:5px"></span><span style="font-size:11px">Completa</span>
           <div style="position:relative;margin-left:10px" id="cpm-export-wrap">
-            <button id="btn-cpm-export" class="btn btn-ghost btn-sm" title="Exportar red CPM" style="display:flex;align-items:center;gap:4px">🖨 Exportar ▾</button>
-            <div id="cpm-export-menu" style="display:none;position:absolute;right:0;top:calc(100% + 4px);background:var(--clr-surface);border:1px solid var(--clr-border);border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,0.15);z-index:9999;min-width:200px;overflow:hidden">
-              <button class="cpm-exp-item" data-fmt="pdf" style="display:block;width:100%;text-align:left;padding:10px 16px;background:none;border:none;cursor:pointer;font-size:13px">📄 PDF (imprimir)</button>
-              <button class="cpm-exp-item" data-fmt="png" style="display:block;width:100%;text-align:left;padding:10px 16px;background:none;border:none;cursor:pointer;font-size:13px">🖼 PNG (imagen)</button>
-              <button class="cpm-exp-item" data-fmt="svg" style="display:block;width:100%;text-align:left;padding:10px 16px;background:none;border:none;cursor:pointer;font-size:13px">📐 SVG (vectorial)</button>
+            <button id="btn-cpm-export" class="btn btn-ghost btn-sm" title="Exportar red CPM" aria-haspopup="menu" aria-expanded="false" aria-label="Exportar red CPM" style="display:flex;align-items:center;gap:4px">🖨 Exportar ▾</button>
+            <div id="cpm-export-menu" role="menu" style="display:none;position:absolute;right:0;top:calc(100% + 4px);background:var(--clr-surface);border:1px solid var(--clr-border);border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,0.15);z-index:9999;min-width:200px;overflow:hidden">
+              <button class="cpm-exp-item" data-fmt="pdf" role="menuitem" tabindex="-1" style="display:block;width:100%;text-align:left;padding:10px 16px;background:none;border:none;cursor:pointer;font-size:13px">📄 PDF (imprimir)</button>
+              <button class="cpm-exp-item" data-fmt="png" role="menuitem" tabindex="-1" style="display:block;width:100%;text-align:left;padding:10px 16px;background:none;border:none;cursor:pointer;font-size:13px">🖼 PNG (imagen)</button>
+              <button class="cpm-exp-item" data-fmt="svg" role="menuitem" tabindex="-1" style="display:block;width:100%;text-align:left;padding:10px 16px;background:none;border:none;cursor:pointer;font-size:13px">📐 SVG (vectorial)</button>
             </div>
           </div>
-          <button id="btn-cpm-net-close" class="btn btn-ghost btn-sm" style="margin-left:4px">✕ Cerrar</button>
+          <button id="btn-cpm-net-close" class="btn btn-ghost btn-sm" aria-label="Cerrar red CPM" style="margin-left:4px">✕ Cerrar</button>
         </div>
       </div>
       <div id="cpm-net-viewport" style="flex:1;overflow:hidden;position:relative;background:var(--clr-bg);cursor:grab">
@@ -3464,9 +3466,20 @@ function _showCpmNetwork() {
 
   exportBtn?.addEventListener('click', e => {
     e.stopPropagation();
-    exportMenu.style.display = exportMenu.style.display === 'none' ? 'block' : 'none';
+    const nowOpen = exportMenu.style.display === 'none';
+    exportMenu.style.display = nowOpen ? 'block' : 'none';
+    exportBtn.setAttribute('aria-expanded', String(nowOpen));
+    if (nowOpen) requestAnimationFrame(() => exportMenu.querySelector('[role="menuitem"]')?.focus());
   });
-  document.addEventListener('click', () => { if (exportMenu) exportMenu.style.display = 'none'; });
+  document.addEventListener('click', () => { if (exportMenu) { exportMenu.style.display = 'none'; exportBtn?.setAttribute('aria-expanded', 'false'); } });
+  exportMenu?.addEventListener('keydown', e => {
+    const items = [...exportMenu.querySelectorAll('[role="menuitem"]')];
+    const idx = items.indexOf(document.activeElement);
+    if (e.key === 'ArrowDown') { items[(idx + 1) % items.length]?.focus(); e.preventDefault(); }
+    else if (e.key === 'ArrowUp') { items[(idx - 1 + items.length) % items.length]?.focus(); e.preventDefault(); }
+    else if (e.key === 'Escape') { exportMenu.style.display = 'none'; exportBtn?.setAttribute('aria-expanded', 'false'); exportBtn?.focus(); e.preventDefault(); }
+    else if (e.key === 'Enter' || e.key === ' ') { /** @type {HTMLElement} */ (document.activeElement)?.click(); e.preventDefault(); }
+  });
 
   // Hover highlight for menu items
   dlg.querySelectorAll('.cpm-exp-item').forEach(btn => {
