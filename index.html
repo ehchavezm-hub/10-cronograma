@@ -66,51 +66,6 @@
   </header>
 
   <!-- ---- Fila 1: Acciones rápidas (derecha) ---- -->
-  <div id="toolbar-quick" role="toolbar" aria-label="Acciones rápidas">
-    <div class="tq-spacer"></div>
-    <label class="tq-autocalc">
-      <input id="btn-auto-calc" type="checkbox" checked aria-label="Cálculo automático">
-      Auto-calc
-    </label>
-    <div class="toolbar-sep"></div>
-    <button id="btn-dcma" class="btn btn-ghost btn-sm" title="Panel DCMA 14 Puntos" aria-label="Abrir panel DCMA" aria-pressed="false">
-      ✅ DCMA
-    </button>
-    <button id="btn-calendar" class="btn btn-ghost btn-sm" title="Editar calendario del proyecto" aria-label="Calendario">
-      🗓 Calendario
-    </button>
-    <div class="toolbar-sep"></div>
-    <button id="btn-evm" class="btn btn-ghost btn-sm" title="Panel de Valor Ganado (EVM)" aria-label="Abrir panel EVM" aria-pressed="false">
-      📈 EVM
-    </button>
-    <button id="btn-changelog" class="btn btn-ghost btn-sm" title="Historial de cambios" aria-label="Abrir historial de cambios" aria-pressed="false">
-      📋 Historial
-    </button>
-    <div class="toolbar-sep"></div>
-    <!-- Menú Exportar / Importar -->
-    <div class="dropdown" id="export-menu-wrap">
-      <button id="btn-export" class="btn btn-ghost btn-sm" aria-haspopup="true" aria-expanded="false"
-              title="Exportar o importar proyecto">⬇ Exportar ▾</button>
-      <ul id="export-menu" class="dropdown-menu" hidden role="menu">
-        <li role="menuitem"><button data-action="json">📦 JSON (proyecto completo)</button></li>
-        <li role="menuitem"><button data-action="csv">📊 CSV (actividades)</button></li>
-        <li role="menuitem"><button data-action="xml">📁 MS Project XML</button></li>
-        <li role="menuitem"><button data-action="svg">🖼 SVG (diagrama Gantt)</button></li>
-        <li class="dropdown-sep" role="separator"></li>
-        <li role="menuitem"><button data-action="col-config">⚙ Columnas de exportación…</button></li>
-        <li role="menuitem"><button data-action="print-table">🖨 Imprimir tabla EDT</button></li>
-        <li role="menuitem"><button data-action="print-gantt">🖨 Imprimir Gantt</button></li>
-        <li role="menuitem"><button data-action="print-pdf">📄 Informe completo PDF</button></li>
-        <li class="dropdown-sep" role="separator"></li>
-        <li role="menuitem">
-          <label for="import-file" class="menu-import-label">📂 Importar JSON…</label>
-          <input type="file" id="import-file" accept=".json" hidden aria-label="Importar archivo JSON">
-        </li>
-      </ul>
-    </div>
-  </div>
-
-
   <!-- ---- Área principal ---- -->
   <main id="main-area" role="main">
 
@@ -270,6 +225,9 @@
       </div>
     </dialog>
 
+    <!-- ── Divisor: PROYECTOS / EDT ── -->
+    <div class="resizer" id="resizer-explorer" role="separator" aria-label="Ajustar ancho del panel PROYECTOS" tabindex="0"></div>
+
     <!-- ── Right wrapper: toolbar + filter + content ── -->
     <div id="right-wrapper">
       <!-- ---- Fila 2: Barra de herramientas EDT ---- -->
@@ -384,6 +342,49 @@
         <button class="filter-btn"        data-filter="critical" aria-pressed="false">⚠ Ruta crítica</button>
         <button class="filter-btn"        data-filter="progress" aria-pressed="false">📋 En progreso</button>
         <span id="filter-bar-count" class="filter-bar-count"></span>
+      
+    <div class="tq-spacer"></div>
+    <label class="tq-autocalc">
+      <input id="btn-auto-calc" type="checkbox" checked aria-label="Cálculo automático">
+      Auto-calc
+    </label>
+    <div class="toolbar-sep"></div>
+    <button id="btn-dcma" class="btn btn-ghost btn-sm" title="Panel DCMA 14 Puntos" aria-label="Abrir panel DCMA" aria-pressed="false">
+      ✅ DCMA
+    </button>
+    <button id="btn-calendar" class="btn btn-ghost btn-sm" title="Editar calendario del proyecto" aria-label="Calendario">
+      🗓 Calendario
+    </button>
+    <div class="toolbar-sep"></div>
+    <button id="btn-evm" class="btn btn-ghost btn-sm" title="Panel de Valor Ganado (EVM)" aria-label="Abrir panel EVM" aria-pressed="false">
+      📈 EVM
+    </button>
+    <button id="btn-changelog" class="btn btn-ghost btn-sm" title="Historial de cambios" aria-label="Abrir historial de cambios" aria-pressed="false">
+      📋 Historial
+    </button>
+    <div class="toolbar-sep"></div>
+    <!-- Menú Exportar / Importar -->
+    <div class="dropdown" id="export-menu-wrap">
+      <button id="btn-export" class="btn btn-ghost btn-sm" aria-haspopup="true" aria-expanded="false"
+              title="Exportar o importar proyecto">⬇ Exportar ▾</button>
+      <ul id="export-menu" class="dropdown-menu" hidden role="menu">
+        <li role="menuitem"><button data-action="json">📦 JSON (proyecto completo)</button></li>
+        <li role="menuitem"><button data-action="csv">📊 CSV (actividades)</button></li>
+        <li role="menuitem"><button data-action="xml">📁 MS Project XML</button></li>
+        <li role="menuitem"><button data-action="svg">🖼 SVG (diagrama Gantt)</button></li>
+        <li class="dropdown-sep" role="separator"></li>
+        <li role="menuitem"><button data-action="col-config">⚙ Columnas de exportación…</button></li>
+        <li role="menuitem"><button data-action="print-table">🖨 Imprimir tabla EDT</button></li>
+        <li role="menuitem"><button data-action="print-gantt">🖨 Imprimir Gantt</button></li>
+        <li role="menuitem"><button data-action="print-pdf">📄 Informe completo PDF</button></li>
+        <li class="dropdown-sep" role="separator"></li>
+        <li role="menuitem">
+          <label for="import-file" class="menu-import-label">📂 Importar JSON…</label>
+          <input type="file" id="import-file" accept=".json" hidden aria-label="Importar archivo JSON">
+        </li>
+      </ul>
+    </div>
+  
       </div>
       <!-- ── Right content row ── -->
       <div id="right-content">

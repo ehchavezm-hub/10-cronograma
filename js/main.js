@@ -2487,6 +2487,54 @@ function _bindResizer() {
   });
 }
 
+function _bindResizerExplorer() {
+  const resizer  = document.getElementById('resizer-explorer');
+  const explorer = document.getElementById('explorer-panel');
+  if (!resizer || !explorer) return;
+
+  // Restaurar ancho guardado
+  const saved = localStorage.getItem('explorer-panel-width');
+  if (saved) explorer.style.width = saved;
+
+  let startX = 0, startW = 0, dragging = false;
+
+  resizer.addEventListener('mousedown', e => {
+    if (e.button !== 0) return;
+    startX   = e.clientX;
+    startW   = explorer.getBoundingClientRect().width;
+    dragging = true;
+    resizer.classList.add('dragging');
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+    e.preventDefault();
+  });
+
+  document.addEventListener('mousemove', e => {
+    if (!dragging) return;
+    const dx = e.clientX - startX;
+    const newW = Math.max(160, Math.min(400, startW + dx));
+    explorer.style.width = newW + 'px';
+  });
+
+  document.addEventListener('mouseup', () => {
+    if (!dragging) return;
+    dragging = false;
+    resizer.classList.remove('dragging');
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
+    localStorage.setItem('explorer-panel-width', explorer.style.width);
+  });
+
+  // Teclado: flechas para ajuste fino
+  resizer.addEventListener('keydown', e => {
+    const step = e.shiftKey ? 20 : 5;
+    const w = explorer.getBoundingClientRect().width;
+    if (e.key === 'ArrowRight') { explorer.style.width = Math.min(400, w + step) + 'px'; e.preventDefault(); }
+    if (e.key === 'ArrowLeft')  { explorer.style.width = Math.max(160, w - step) + 'px'; e.preventDefault(); }
+    localStorage.setItem('explorer-panel-width', explorer.style.width);
+  });
+}
+
 // ============================================================
 // Organigrama de jerarquía (portafolio→programa→proyecto)
 // ============================================================
@@ -3949,6 +3997,7 @@ document.addEventListener('DOMContentLoaded', () => {
   _bindNewProject();
   _bindLinkMode();
   _bindResizer();
+  _bindResizerExplorer();
   document.getElementById('btn-orgchart-view')?.addEventListener('click', _showOrgChart);
   document.getElementById('btn-cpm-network')?.addEventListener('click', _showCpmNetwork);
 

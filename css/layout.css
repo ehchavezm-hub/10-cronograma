@@ -17,7 +17,7 @@ html, body {
 /* ---- Raíz de la app ---- */
 #app {
   display: grid;
-  grid-template-rows: auto auto 1fr auto;
+  grid-template-rows: auto 1fr auto;
   height: 100vh;
   height: 100dvh;
   overflow: hidden;
@@ -65,18 +65,9 @@ html, body {
   margin: 0 4px;
   flex-shrink: 0;
 }
-/* ---- Barra de acciones rápidas (fila 1) ---- */
-#toolbar-quick {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-2);
-  padding: var(--sp-1) var(--sp-4);
-  background: var(--clr-surface);
-  border-bottom: 1px solid var(--clr-border-2);
-  min-height: 36px;
-}
-#toolbar-quick .tq-spacer { flex: 1; }
-#toolbar-quick .tq-autocalc {
+/* ---- Acciones rápidas dentro de gantt-filter-bar ---- */
+#gantt-filter-bar .tq-spacer { flex: 1; }
+#gantt-filter-bar .tq-autocalc {
   display: flex;
   align-items: center;
   gap: 5px;
@@ -85,8 +76,8 @@ html, body {
   cursor: pointer;
   color: var(--clr-text-2);
 }
-#toolbar-quick .tq-autocalc input { cursor: pointer; }
-#toolbar-quick .toolbar-sep {
+#gantt-filter-bar .tq-autocalc input { cursor: pointer; }
+#gantt-filter-bar .toolbar-sep {
   width: 1px;
   height: 18px;
   background: var(--clr-border);
@@ -139,7 +130,7 @@ html, body {
 #explorer-panel {
   width: 220px;
   min-width: 160px;
-  max-width: 320px;
+  max-width: 400px;
   flex-shrink: 0;
   background: var(--clr-surface);
   border-right: 1px solid var(--clr-border);
@@ -254,7 +245,6 @@ html, body {
    ============================ */
 @media (max-width: 599px) {
   #topbar .project-name { display: none; }
-  #toolbar-quick { display: none; }
   #app {
     grid-template-rows: auto 1fr auto;
   }
