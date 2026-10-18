@@ -158,6 +158,42 @@ html, body {
   display: block;
 }
 
+/* ---- Bottom split: P6-style 2×2 layout ---- */
+/* Tabla de recursos (izq) + Histograma (der), alineados con WBS y Gantt */
+#bottom-split {
+  display: none;
+  flex-direction: row;
+  flex-shrink: 0;
+  height: 38%;
+  min-height: 180px;
+  max-height: 65%;
+  overflow: hidden;
+  border-top: 2px solid var(--clr-border);
+}
+#right-content.has-histogram #bottom-split {
+  display: flex;
+}
+
+/* Resource table panel — below WBS/EDT */
+#resource-table-panel {
+  flex-shrink: 0;
+  background: var(--clr-surface);
+  border-right: 1px solid var(--clr-border);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+/* Histogram panel inside bottom-split takes remaining width */
+#bottom-split #resource-histogram-panel {
+  flex: 1;
+  height: auto !important;
+  max-height: none !important;
+  min-height: 0;
+  border-top: none !important;
+}
+
 /* ---- Panel explorador ---- */
 #explorer-panel {
   width: 220px;

@@ -2481,6 +2481,10 @@ function _bindToolbar() {
       _rhPanel?.refresh();
       btn.style.background = 'var(--clr-primary)';
       btn.style.color = '#fff';
+      // Sync resource-table-panel width to match wbs-panel (P6 2×2 layout)
+      const wbs = document.getElementById('wbs-panel');
+      const rt  = document.getElementById('resource-table-panel');
+      if (wbs && rt) rt.style.width = wbs.offsetWidth + 'px';
     } else {
       btn.style.background = '';
       btn.style.color = '';
@@ -2728,6 +2732,12 @@ function _bindResizer() {
     e.preventDefault();
   });
 
+  const _syncRtPanel = () => {
+    const wbs = document.getElementById('wbs-panel');
+    const rt  = document.getElementById('resource-table-panel');
+    if (wbs && rt) rt.style.width = wbs.offsetWidth + 'px';
+  };
+
   const _onMove = e => {
     if (!dragging) return;
     const dx = startX - e.clientX; // mover derecha → gantt se hace más pequeño
@@ -2736,6 +2746,7 @@ function _bindResizer() {
     const newW = Math.max(minW, Math.min(maxW, startW + dx));
     ganttPanel.style.width = newW + 'px';
     _syncAria();
+    _syncRtPanel();
     _ganttCanvas?.requestRender();
   };
 
@@ -2773,8 +2784,8 @@ function _bindResizer() {
   const rh   = document.getElementById('resizer-histogram');
   const rc   = document.getElementById('right-content');
   const ghEl = document.getElementById('gantt-host');
-  const hp   = document.getElementById('resource-histogram-panel');
-  if (!rh || !rc || !ghEl || !hp) return;
+  const bs   = document.getElementById('bottom-split');
+  if (!rh || !rc || !ghEl || !bs) return;
 
   let dragging = false, startY = 0, startGHH = 0;
 
@@ -2793,7 +2804,7 @@ function _bindResizer() {
     const newGH  = Math.max(150, Math.min(totalH - 150, startGHH + (e.clientY - startY)));
     ghEl.style.flex   = 'none';
     ghEl.style.height = newGH + 'px';
-    hp.style.height   = Math.max(150, totalH - newGH - 5) + 'px';
+    bs.style.height   = Math.max(150, totalH - newGH - 5) + 'px';
   });
 
   window.addEventListener('mouseup', () => {
@@ -2814,7 +2825,7 @@ function _bindResizer() {
     const newGH  = Math.max(150, Math.min(totalH - 150, startGHH + (e.touches[0].clientY - startY)));
     ghEl.style.flex   = 'none';
     ghEl.style.height = newGH + 'px';
-    hp.style.height   = Math.max(150, totalH - newGH - 5) + 'px';
+    bs.style.height   = Math.max(150, totalH - newGH - 5) + 'px';
   }, { passive: false });
   window.addEventListener('touchend', () => { dragging = false; });
 })();
