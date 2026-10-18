@@ -988,7 +988,7 @@ async function _openResourceManager() {
     }
   });
 
-  if (!dlg.open) dlg.show();
+  if (!dlg.open) dlg.showModal();
 }
 
 // ============================================================
@@ -1023,6 +1023,7 @@ async function _openResourceAssign(preSelectedId = null) {
     dlg.style.cssText = 'border:none;border-radius:12px;padding:0;width:min(860px,98vw);max-width:98vw;box-shadow:0 8px 40px rgba(0,0,0,0.3);overflow:hidden;position:fixed;margin:0;top:60px;left:clamp(4px,calc(50vw - 430px),calc(100vw - min(860px,98vw) - 4px));z-index:1100';
     document.body.appendChild(dlg);
     dlg.setAttribute('aria-labelledby', 'ra-dlg-title');
+    dlg.setAttribute('aria-modal', 'true');
   }
 
   const typeLabel = { work:'Trabajo', material:'Material', equipment:'Equipo', cost:'Costo' };
@@ -1210,7 +1211,7 @@ async function _openResourceAssign(preSelectedId = null) {
     if (count) _showToast(`Recurso quitado de ${count} actividades`, 'success');
   });
 
-  if (!dlg.open) dlg.show();
+  if (!dlg.open) dlg.showModal();
 }
 
 // ============================================================
@@ -2034,7 +2035,7 @@ async function init() {
 
     // El motor de sync ya fue iniciado dentro de _loadProject.
 
-    console.log('[Cronogramas] v60 completo — modo', IS_LOCAL_MODE ? 'local' : 'Supabase');
+    console.log('[Cronogramas] v61 completo — modo', IS_LOCAL_MODE ? 'local' : 'Supabase');
   } catch (err) {
     console.error('[init]', err);
     _showToast('Error al iniciar: ' + err.message, 'error');
@@ -2695,7 +2696,8 @@ function _bindResizerExplorer() {
   resizer.dataset.bound = '1';
 
   // Restaurar ancho guardado
-  const saved = localStorage.getItem('explorer-panel-width');
+  let saved = null;
+  try { saved = localStorage.getItem('explorer-panel-width'); } catch {}
   if (saved) explorer.style.width = saved;
 
   const _syncAria = () => {
@@ -2823,7 +2825,7 @@ function _showOrgChart() {
     dlg.querySelector('#oc-print')?.addEventListener('click', _printOrgChart);
   }
   _renderOrgChart();
-  if (!dlg.open) dlg.show();
+  if (!dlg.open) dlg.showModal();
 }
 
 function _printOrgChart() {
@@ -3432,6 +3434,7 @@ function _showPrintColConfig() {
     dlg = document.createElement('dialog');
     dlg.id = 'dlg-print-cols';
     dlg.style.cssText = 'border:none;border-radius:12px;padding:0;width:440px;max-width:95vw;box-shadow:0 8px 40px rgba(0,0,0,0.25);overflow:hidden';
+    dlg.setAttribute('role', 'dialog');
     dlg.setAttribute('aria-labelledby', 'pcc-title');
     dlg.setAttribute('aria-modal', 'true');
     dlg.innerHTML = `
@@ -3494,7 +3497,7 @@ function _showCpmNetwork() {
   }
 
   let dlg = /** @type {HTMLDialogElement|null} */ (document.getElementById('dlg-cpm-network'));
-  if (dlg) { if (!dlg.open) dlg.show(); _renderCpmNetwork(); setTimeout(() => dlg.querySelector('#btn-cpm-zoomfit')?.dispatchEvent(new Event('click')), 80); return; }
+  if (dlg) { if (!dlg.open) dlg.showModal(); _renderCpmNetwork(); setTimeout(() => dlg.querySelector('#btn-cpm-zoomfit')?.dispatchEvent(new Event('click')), 80); return; }
 
   dlg = document.createElement('dialog');
   dlg.id = 'dlg-cpm-network';
@@ -3530,6 +3533,7 @@ function _showCpmNetwork() {
     </div>`;
   document.body.appendChild(dlg);
   dlg.setAttribute('aria-labelledby', 'cpm-dlg-title');
+  dlg.setAttribute('aria-modal', 'true');
 
   dlg.querySelector('#btn-cpm-net-close')?.addEventListener('click', () => dlg.close());
   dlg.addEventListener('click', e => { if (e.target === dlg) dlg.close(); });
@@ -3641,7 +3645,7 @@ function _showCpmNetwork() {
     });
   });
 
-  if (!dlg.open) dlg.show();
+  if (!dlg.open) dlg.showModal();
   _renderCpmNetwork();
   // Auto fit after render (brief delay for SVG layout)
   setTimeout(zoomFit, 80);
