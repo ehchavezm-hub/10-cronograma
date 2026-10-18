@@ -1940,7 +1940,7 @@ async function init() {
     const wbsPanel = document.getElementById('wbs-panel');
     if (wbsPanel && !wbsPanel.querySelector('#wbs-scroll')) {
       wbsPanel.innerHTML = `<div style="padding:24px;color:var(--clr-danger,#e74c3c);font-family:var(--font-ui)">
-        Error al cargar: ${err.message}<br><small>Abre la consola del navegador para más detalles (F12).</small>
+        Error al cargar: ${_escHtml(err.message)}<br><small>Abre la consola del navegador para más detalles (F12).</small>
       </div>`;
     }
   }
