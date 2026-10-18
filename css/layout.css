@@ -158,6 +158,21 @@ html, body {
   display: block;
 }
 
+/* Bottom split — mirrors top gantt-host column widths */
+#bottom-split {
+  display: none;
+  flex-direction: row;
+  flex-shrink: 0;
+  height: 38%;
+  min-height: 180px;
+  max-height: 65%;
+  overflow: hidden;
+  border-top: 2px solid var(--clr-border);
+}
+#right-content.has-histogram #bottom-split {
+  display: flex;
+}
+
 /* ---- Panel explorador ---- */
 #explorer-panel {
   width: 220px;

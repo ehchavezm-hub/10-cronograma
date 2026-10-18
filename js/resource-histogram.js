@@ -121,6 +121,7 @@ export class ResourceHistogramPanel {
     }
 
     this._populateResSelect(this._data.resources);
+    this._renderResourceTable(this._data.resources);
     if (chartWrap) chartWrap.style.display = 'flex';
     this._render();
   }
@@ -400,6 +401,31 @@ export class ResourceHistogramPanel {
     ctx.textBaseline = 'middle';
     ctx.fillText('Horas', 0, 0);
     ctx.restore();
+  }
+
+  _renderResourceTable(resources) {
+    const panel = document.getElementById('resource-table-panel');
+    if (!panel) return;
+    panel.classList.toggle('open', !!(resources && resources.length));
+    if (!resources || !resources.length) {
+      panel.innerHTML = '';
+      return;
+    }
+    const rows = resources.map((r, i) => `
+      <tr>
+        <td class="rh-rt-name">
+          <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${PALETTE[i % PALETTE.length]};margin-right:5px;flex-shrink:0;vertical-align:middle"></span>${_esc(r.name)}
+        </td>
+        <td class="rh-rt-cap">${r.max_units ?? 100}%</td>
+      </tr>`).join('');
+    panel.innerHTML = `
+      <div class="rh-rt-header">Recursos</div>
+      <div class="rh-rt-scroll">
+        <table class="rh-rt-table">
+          <thead><tr><th>Nombre</th><th>Cap.</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>`;
   }
 
   _buildLegend(activeRes, allRes) {

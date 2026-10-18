@@ -428,8 +428,13 @@
         <!-- ─── Divisor horizontal (solo visible cuando histograma abierto) ─── -->
         <div id="resizer-histogram" class="resizer-h" role="separator" aria-orientation="horizontal" aria-label="Redimensionar histograma" tabindex="0"></div>
 
-        <!-- Panel Histograma de Recursos (panel inferior, no overlay) -->
-        <div id="resource-histogram-panel" role="region" aria-label="Histograma de Recursos"></div>
+        <!-- ─── Panel inferior dividido: Recursos (izq) + Histograma (der) ─── -->
+        <div id="bottom-split">
+          <!-- Tabla de recursos — alineada debajo del panel WBS -->
+          <div id="resource-table-panel" role="region" aria-label="Lista de Recursos"></div>
+          <!-- Histograma de Recursos — alineado debajo del Gantt -->
+          <div id="resource-histogram-panel" role="region" aria-label="Histograma de Recursos"></div>
+        </div>
       </div>
     </div>
 
