@@ -1,0 +1,3 @@
+dist-win/
+electron/node_modules/
+*.log

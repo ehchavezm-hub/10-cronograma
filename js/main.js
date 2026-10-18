@@ -1068,7 +1068,7 @@ async function _openResourceAssign(preSelectedId = null) {
       <div style="display:flex;flex-direction:column;overflow:hidden">
         <div style="padding:8px 10px;background:var(--clr-surface-2);border-bottom:1px solid var(--clr-border);display:flex;align-items:center;gap:8px">
           <span style="font-size:11px;font-weight:700;color:var(--clr-text-3)">ACTIVIDADES</span>
-          <input id="ra-filter" type="text" placeholder="Filtrar por nombre…" style="flex:1;padding:4px 8px;border:1px solid var(--clr-border);border-radius:6px;font-size:11px;background:var(--clr-surface);color:var(--clr-text)">
+          <input id="ra-filter" type="text" placeholder="Filtrar por nombre…" aria-label="Filtrar actividades por nombre" style="flex:1;padding:4px 8px;border:1px solid var(--clr-border);border-radius:6px;font-size:11px;background:var(--clr-surface);color:var(--clr-text)">
           <label style="font-size:11px;display:flex;align-items:center;gap:4px;cursor:pointer;white-space:nowrap">
             <input type="checkbox" id="ra-sel-all" style="accent-color:#1976D2"> Sel. todo
           </label>
@@ -2035,7 +2035,7 @@ async function init() {
 
     // El motor de sync ya fue iniciado dentro de _loadProject.
 
-    console.log('[Cronogramas] v64 completo — modo', IS_LOCAL_MODE ? 'local' : 'Supabase');
+    console.log('[Cronogramas] v65 completo — modo', IS_LOCAL_MODE ? 'local' : 'Supabase');
   } catch (err) {
     console.error('[init]', err);
     _showToast('Error al iniciar: ' + err.message, 'error');
