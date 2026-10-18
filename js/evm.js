@@ -78,10 +78,10 @@ export function calcEvm() {
       const taskStart  = cal.idxToDate(cpm.es, startDate);
       const taskFinish = cal.finishDate(cpm.ef, startDate);
       const dur        = Math.max(1, cpm.ef - cpm.es);
-      const elapsed    = _clamp(
-        (dataDate - taskStart) / (taskFinish - taskStart),
-        0, 1
-      );
+      const span       = taskFinish - taskStart;
+      const elapsed    = span > 0
+        ? _clamp((dataDate - taskStart) / span, 0, 1)
+        : (dataDate >= taskFinish ? 1 : 0);
       taskPv = taskBac * elapsed;
     } else if (cpm && cpm.ef != null) {
       // Hito o sin costo — si ya pasó la data date: PV = BAC
@@ -117,7 +117,10 @@ export function calcEvm() {
   const eac = cpi > 0 ? bac / cpi : bac;
   const etc = eac - ac;
   const vac = bac - eac;
-  const tcpi = (bac - ev) > 0 ? (bac - ev) / (bac - ac) : (bac > ev ? Infinity : 1);
+  const _tcpiDen = bac - ac;
+  const tcpi = (bac - ev) > 0
+    ? (_tcpiDen > 0 ? (bac - ev) / _tcpiDen : Infinity)
+    : 1;
   const pctComplete = bac > 0 ? (ev / bac) * 100 : 0;
 
   // Curva S
@@ -269,15 +272,22 @@ export class EvmPanel {
     const xOf  = (i) => PAD.l + i * xStep;
     const yOf  = (v) => PAD.t + cH - (v / maxVal) * cH;
 
+    // Read theme-aware colors from CSS variables
+    const _cs    = getComputedStyle(document.documentElement);
+    const _cGrid = _cs.getPropertyValue('--clr-border').trim()   || '#E0E0E0';
+    const _cAxis = _cs.getPropertyValue('--clr-text-3').trim()   || '#9E9E9E';
+    const _cLeg  = _cs.getPropertyValue('--clr-text-2').trim()   || '#616161';
+    const _cPv   = _cs.getPropertyValue('--clr-primary').trim()  || '#1976D2';
+
     // Grid horizontal
-    ctx.strokeStyle = '#E0E0E0';
+    ctx.strokeStyle = _cGrid;
     ctx.lineWidth   = 0.5;
     for (let g = 0; g <= 4; g++) {
       const y = PAD.t + (cH * g / 4);
       ctx.beginPath(); ctx.moveTo(PAD.l, y); ctx.lineTo(W - PAD.r, y); ctx.stroke();
       // Label
       const val = maxVal * (1 - g / 4);
-      ctx.fillStyle = '#9E9E9E';
+      ctx.fillStyle = _cAxis;
       ctx.font      = '10px system-ui';
       ctx.textAlign = 'right';
       ctx.fillText(_fmtK(val), PAD.l - 4, y + 4);
@@ -285,7 +295,7 @@ export class EvmPanel {
 
     // Labels eje X (cada ~6 puntos)
     const step = Math.max(1, Math.floor(n / 6));
-    ctx.fillStyle = '#9E9E9E';
+    ctx.fillStyle = _cAxis;
     ctx.font      = '10px system-ui';
     ctx.textAlign = 'center';
     for (let i = 0; i < n; i += step) {
@@ -296,7 +306,7 @@ export class EvmPanel {
 
     // Líneas PV / EV / AC
     const lines = [
-      { key: 'pv', color: '#1976D2', label: 'PV' },
+      { key: 'pv', color: _cPv,     label: 'PV' },
       { key: 'ev', color: '#388E3C', label: 'EV' },
       { key: 'ac', color: '#F57C00', label: 'AC' },
     ];
@@ -319,7 +329,7 @@ export class EvmPanel {
       const lx = LX + i * 64;
       ctx.fillStyle   = color;
       ctx.fillRect(lx, LY, 16, 3);
-      ctx.fillStyle   = '#616161';
+      ctx.fillStyle   = _cLeg;
       ctx.font        = '11px system-ui';
       ctx.textAlign   = 'left';
       ctx.fillText(label, lx + 20, LY + 7);

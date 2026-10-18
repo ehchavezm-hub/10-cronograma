@@ -19,7 +19,7 @@ import {
   outboxGetAll, outboxRemove, outboxCount,
   saveProjectSnapshot, getMeta, setMeta, putMany, put as dbPut,
   getByIndex,
-} from './storage.js?v=4';
+} from './storage.js';
 import { IS_LOCAL_MODE } from './config.js';
 
 // ============================================================

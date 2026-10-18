@@ -881,7 +881,7 @@ export class WbsTable {
         } else if (currentLagDays !== p.lag) {
           // Lag cambió: reemplazar la dep para actualizar lag_days
           // Guardar la dep vieja con deleted_at antes de dispatch (onPersist la busca por ID)
-          const { put: dbPutSt } = await import('./storage.js?v=4');
+          const { put: dbPutSt } = await import('./storage.js');
           await dbPutSt('task_dependencies', { ...existing, deleted_at: new Date().toISOString() });
           appState.dispatch({ type: 'REMOVE_DEP', payload: { id: existing.id } });
           appState.dispatch({ type: 'ADD_DEP', payload: { dep: {

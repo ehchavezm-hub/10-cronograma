@@ -965,7 +965,7 @@ export class GanttCanvas {
     const parts = [];
     if (bl.has('name'))     parts.push(task.name);
     if (bl.has('pct'))      parts.push(`${task.percent_complete ?? 0}%`);
-    if (bl.has('duration')) parts.push(`${task.duration ?? (cpm.ef - cpm.es + 1)}d`);
+    if (bl.has('duration')) parts.push(`${task.duration_days ?? (cpm.ef - cpm.es + 1)}d`);
     if (bl.has('start'))    parts.push(fmtDate(startDate));
     if (bl.has('finish'))   parts.push(fmtDate(endDate));
     if (bl.has('tf'))       parts.push(`HT:${cpm.tf}d`);

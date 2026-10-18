@@ -10,7 +10,7 @@
  *   baseline_tasks { id, baseline_id, task_id, es, ef, dur }
  */
 
-import { put, getAll, remove } from './storage.js?v=4';
+import { put, getAll, remove } from './storage.js';
 import { appState } from './state.js';
 
 // ---- Guardar línea base ----
