@@ -590,6 +590,17 @@ export class GanttCanvas {
     this._drawBars(W, H);
     if (this._linkMode) this._drawLinkOverlay(W, H);
     this._drawHeader(W);
+
+    // Notify histogram panel of current viewport for date-axis alignment
+    if (this._scene.projectStart) {
+      document.dispatchEvent(new CustomEvent('gantt-viewport', {
+        detail: {
+          pixPerDay:    this._scene.pixPerDay,
+          scrollX:      this._scene.scrollX,
+          projectStart: this._scene.projectStart,
+        }
+      }));
+    }
   }
 
   _drawPlaceholder(W, H) {
