@@ -16,6 +16,7 @@ import { fmtDate, isoToDate, Calendar } from './calendar.js';
 // ============================================================
 
 const COLS = [
+  { id: 'rownum', label: '#',          w: 36,   align: 'center', sortable: false },
   { id: 'wbs',    label: 'EDT',        w: 52,   align: 'center', sortable: false },
   { id: 'name',   label: 'NOMBRE DE LA ACTIVIDAD', w: 280,  align: 'left',   sortable: true  },
   { id: 'type',   label: 'Tipo',       w: 64,   align: 'center', sortable: false },
@@ -53,6 +54,8 @@ export class WbsTable {
     this._selectedIds = new Set();
     this._lastClickedId = /** @type {string|null} */ (null);
 
+    this._sortCol = /** @type {string|null} */ (null);
+    this._sortDir = /** @type {'asc'|'desc'} */ ('asc');
     this._buildDOM();
     this._attachEvents();
     this._attachColResizers();
@@ -117,6 +120,9 @@ export class WbsTable {
         #wbs-bulk-bar { display:none; align-items:center; gap:6px; padding:5px 12px; background:var(--clr-primary,#1976D2); color:#fff; font-size:12px; flex-shrink:0; border-bottom:1px solid rgba(0,0,0,.1); }
         .wbs-bulk-btn { padding:3px 10px; border:1px solid rgba(255,255,255,0.45); border-radius:5px; background:rgba(255,255,255,0.12); color:#fff; font-size:11px; cursor:pointer; white-space:nowrap; }
         .wbs-bulk-btn:hover { background:rgba(255,255,255,0.28); }
+        .task-notes-icon { opacity:0.55;font-size:10px;cursor:pointer;vertical-align:middle;margin-left:3px;line-height:1; }
+        .task-notes-icon:hover { opacity:1; }
+        .sort-indicator { font-size:9px;margin-left:2px;color:var(--clr-primary,#1976D2); }
       `;
       document.head.appendChild(style);
     }
@@ -126,7 +132,7 @@ export class WbsTable {
       const extra = c.blOnly ? ' col-bl' : '';
       const title = c.blOnly ? ` title="${c.id === 'bl_vi' ? 'Varianza inicio vs línea base' : c.id === 'bl_vf' ? 'Varianza fin vs línea base' : 'Varianza duración vs línea base'}"` : '';
       return `<th id="th-${c.id}" style="width:${w}px;min-width:${w}px" class="${c.sortable ? 'sortable' : ''}${extra}" data-col="${c.id}" scope="col"${title}>
-        ${c.label}
+        ${c.label}${c.sortable ? '<span class="sort-indicator"></span>' : ''}
         <span class="col-resizer" data-resizer="${c.id}" title="Arrastrar para redimensionar"></span>
       </th>`;
     }).join('');
@@ -330,8 +336,9 @@ export class WbsTable {
     const startDate = project.start_date ? isoToDate(project.start_date) : new Date();
 
     // Construir árbol ordenado y aplicar filtro activo
-    const allRows = this._buildRows(tasks, expandedIds);
-    const rows    = this._applyFilter(allRows);
+    const allRows    = this._buildRows(tasks, expandedIds);
+    const rows       = this._applyFilter(allRows);
+    const sortedRows = this._sortCol ? this._applySort(rows) : rows;
 
     // Actualizar contador del filtro
     const countEl = document.getElementById('filter-bar-count');
@@ -353,7 +360,7 @@ export class WbsTable {
     const predMap = _buildPredMap(deps);
 
     // Renderizar filas
-    const html = rows.map(({ task, depth, isSummary }) => {
+    const html = sortedRows.map(({ task, depth, isSummary }, rowIdx) => {
       const cpm   = cpmResult?.tasks instanceof Map ? cpmResult.tasks.get(task.id) : null;
       const wbs   = wbsCodes.get(task.id) ?? '';
       const isSelected = task.id === selectedTaskId;
@@ -367,7 +374,7 @@ export class WbsTable {
       ].filter(Boolean).join(' ');
 
       return `<tr data-id="${task.id}" data-depth="${depth}" tabindex="0" class="${classes}" aria-selected="${isSelected}" role="row">
-        ${this._renderCells(task, depth, isSummary, wbs, cpm, predMap, wbsCodes, cal, startDate)}
+        ${this._renderCells(task, depth, isSummary, wbs, cpm, predMap, wbsCodes, cal, startDate, rowIdx + 1)}
         <td class="td-actions" style="width:44px;padding:0 4px;">
           ${!isDeleted ? `<button class="btn btn-icon btn-sm row-more-btn" data-id="${task.id}" aria-label="Opciones" title="Opciones">⋯</button>` : ''}
         </td>
@@ -376,11 +383,11 @@ export class WbsTable {
 
     // Filas fantasma para efecto cuadrícula (mínimo 12 filas visibles)
     const GHOST_MIN = 12;
-    const ghosts = Math.max(0, GHOST_MIN - rows.length);
+    const ghosts = Math.max(0, GHOST_MIN - sortedRows.length);
     const ghostHtml = Array.from({ length: ghosts }, (_, i) =>
       `<tr data-ghost="${i}" class="ghost-row" title="Clic para agregar actividad" tabindex="-1">
-        <td style="color:var(--clr-text-4,#ccc);text-align:center;font-size:var(--text-xs)">${rows.length + i + 1}</td>
-        <td colspan="12" style="color:var(--clr-text-4,#bbb);font-size:var(--text-xs);padding-left:8px">
+        <td style="color:var(--clr-text-4,#ccc);text-align:center;font-size:var(--text-xs)">${sortedRows.length + i + 1}</td>
+        <td colspan="14" style="color:var(--clr-text-4,#bbb);font-size:var(--text-xs);padding-left:8px">
           ${i === 0 ? '＋ Clic para agregar actividad…' : ''}
         </td>
         <td></td>
@@ -397,14 +404,21 @@ export class WbsTable {
     // Restaurar selección múltiple
     this._renderSelectionState();
 
+    // Actualizar indicadores de orden en encabezados
+    COLS.filter(c => c.sortable).forEach(c => {
+      const th = this._headRow?.querySelector(`th[data-col="${c.id}"]`);
+      const ind = th?.querySelector('.sort-indicator');
+      if (ind) ind.textContent = this._sortCol === c.id ? (this._sortDir === 'asc' ? ' ▲' : ' ▼') : '';
+    });
+
     // Notificar al Gantt el orden de filas visibles
     document.dispatchEvent(new CustomEvent('gantt-rows-update', {
-      detail: { rows: rows.map(({ task, isSummary, depth }) => ({ id: task.id, isSummary, depth })) },
+      detail: { rows: sortedRows.map(({ task, isSummary, depth }) => ({ id: task.id, isSummary, depth })) },
     }));
   }
 
   /** @returns {string} HTML de las celdas de una fila */
-  _renderCells(task, depth, isSummary, wbs, cpm, predMap, wbsCodes, cal, startDate) {
+  _renderCells(task, depth, isSummary, wbs, cpm, predMap, wbsCodes, cal, startDate, rowNum = 0) {
     const isDeleted  = !!task.deleted_at;
     const isComplete = (task.percent_complete ?? 0) >= 100;
 
@@ -446,10 +460,21 @@ export class WbsTable {
         ? `<span class="badge badge-milestone" style="font-size:10px">▸ ${typeLabel}</span>`
         : `<span style="color:var(--clr-text-3);font-size:var(--text-xs)">${typeLabel}</span>`;
 
-    // % avance
-    const pctStr = isDeleted ? '' : `${task.percent_complete ?? 0}%`;
+    // % avance con barra visual
+    const pct0 = task.percent_complete ?? 0;
+    const pctBarColor = pct0 >= 100 ? '#16a34a' : (cpm?.is_critical ? '#dc2626' : 'var(--clr-primary,#1976D2)');
+    const pctCell = isDeleted ? '' : `<div style="display:flex;align-items:center;gap:3px;justify-content:flex-end"><div style="width:28px;height:4px;background:var(--clr-border,#e5e7eb);border-radius:3px;overflow:hidden;flex-shrink:0" title="${pct0}% completado"><div style="width:${pct0}%;height:100%;background:${pctBarColor};border-radius:3px"></div></div><span style="font-size:var(--text-xs)">${pct0}%</span></div>`;
+
+    // Indicador de notas
+    const notesIcon = task.notes ? `<span class="task-notes-icon" title="${_esc((task.notes).slice(0, 120))}">📝</span>` : '';
+
+    // Indicador de restricción
+    const constraintSuffix = _constraintIcon(task.constraint_type, task.constraint_date);
+    const constraintTip = task.constraint_date && task.constraint_type !== 'ASAP'
+      ? ` (${task.constraint_type}: ${_fmtISO(task.constraint_date)})` : '';
 
     return `
+      <td data-col="rownum" style="text-align:center;color:var(--clr-text-4,#aaa);font-size:var(--text-xs);user-select:none">${rowNum}</td>
       <td data-col="wbs" style="text-align:center;color:var(--clr-text-3);font-size:var(--text-xs);cursor:pointer" title="Clic para reubicar tarea (código EDT)">${wbs}</td>
       <td data-col="name" style="cursor:pointer" title="Clic para editar" class="${this._editingCell?.rowId === task.id && this._editingCell?.col === 'name' ? 'editing' : ''}">
         <div class="td-name">
@@ -457,14 +482,14 @@ export class WbsTable {
           <button class="expand-btn ${isSummary ? '' : 'empty'}" data-expand="${task.id}" aria-label="${appState.state.expandedIds.has(task.id) ? 'Colapsar' : 'Expandir'}">
             ${isSummary ? (appState.state.expandedIds.has(task.id) ? '▾' : '▸') : ''}
           </button>
-          <span class="task-name-text ${isSummary ? 'summary' : ''} ${task.type === 'milestone' ? 'milestone' : ''}" title="${_esc(task.name)}">${_esc(task.name)}</span>
+          <span class="task-name-text ${isSummary ? 'summary' : ''} ${task.type === 'milestone' ? 'milestone' : ''}" title="${_esc(task.name)}">${_esc(task.name)}</span>${notesIcon}
         </div>
       </td>
       <td data-col="type" style="text-align:center${!isSummary ? ';cursor:pointer' : ''}" title="${!isSummary ? 'Clic para cambiar tipo' : ''}">${typeBadge}</td>
       <td data-col="dur"  style="text-align:right;cursor:${isSummary || task.type==='milestone'?'default':'pointer'}" title="${isSummary||task.type==='milestone'?'':'Clic para editar duración'}">${isSummary ? (cpm?.ef != null && cpm?.es != null ? (cpm.ef - cpm.es) + ' d' : '—') : task.duration_days + ' d'}</td>
-      <td data-col="start"  style="text-align:center;font-size:var(--text-xs);cursor:${isSummary?'default':'pointer'}" title="${isSummary?'':'Clic para editar fecha inicio'}">${startStr}${task.constraint_date && task.constraint_type==='SNET' ? ' 📌' : ''}</td>
+      <td data-col="start"  style="text-align:center;font-size:var(--text-xs);cursor:${isSummary?'default':'pointer'}" title="${isSummary?'':'Clic para editar fecha inicio' + constraintTip}">${startStr}${constraintSuffix}</td>
       <td data-col="finish" style="text-align:center;font-size:var(--text-xs)">${finishStr}</td>
-      <td data-col="pct"  style="text-align:right">${pctStr}</td>
+      <td data-col="pct"  style="padding:3px 6px">${pctCell}</td>
       <td data-col="tf"   style="text-align:right" class="${tfClass}">${tfStr}</td>
       <td data-col="ff"   style="text-align:right;color:var(--clr-text-2)">${ffStr}</td>
       ${this._renderBlVarianceCells(task.id, cpm, isSummary)}
@@ -601,6 +626,14 @@ export class WbsTable {
           return;
         }
       }
+    }
+    // Clic en icono de notas
+    const notesIconEl = e.target.closest('.task-notes-icon');
+    if (notesIconEl) {
+      e.stopPropagation();
+      const noteRow = notesIconEl.closest('tr[data-id]');
+      if (noteRow) this._openNotesEdit(noteRow.dataset.id);
+      return;
     }
     // Expandir/colapsar
     const expandBtn = e.target.closest('[data-expand]');
@@ -1128,6 +1161,7 @@ export class WbsTable {
     } else {
       menu.innerHTML = `
         <div class="context-menu-item" data-action="edit" role="menuitem" tabindex="0">✏️ Editar nombre</div>
+        <div class="context-menu-item" data-action="notes" role="menuitem" tabindex="0">📝 Editar notas</div>
         <div class="context-menu-item" data-action="detail" role="menuitem" tabindex="0">🔍 Ver detalles</div>
         <div class="context-menu-sep"></div>
         <div class="context-menu-item" data-action="add-after" role="menuitem" tabindex="0">➕ Agregar tarea debajo</div>
@@ -1206,6 +1240,9 @@ export class WbsTable {
           const cell = row?.querySelector('td[data-col="name"]');
           if (cell) this._startEdit(taskId, 'name', cell);
         }, 50);
+        break;
+      case 'notes':
+        this._openNotesEdit(taskId);
         break;
       case 'detail':
         document.dispatchEvent(new CustomEvent('open-task-detail', { detail: { taskId } }));
@@ -1304,7 +1341,76 @@ export class WbsTable {
   }
 
   // ---- Sort ----
-  _toggleSort(col) { /* futuro */ }
+
+  _toggleSort(col) {
+    if (this._sortCol === col) {
+      this._sortDir = this._sortDir === 'asc' ? 'desc' : 'asc';
+    } else {
+      this._sortCol = col;
+      this._sortDir = 'asc';
+    }
+    this.render();
+  }
+
+  /** @param {Array<{task:any,depth:number,isSummary:boolean}>} rows */
+  _applySort(rows) {
+    const cpmResult = appState.state.cpmResult;
+    return [...rows].sort((a, b) => {
+      const ca = cpmResult?.tasks instanceof Map ? cpmResult.tasks.get(a.task.id) : null;
+      const cb = cpmResult?.tasks instanceof Map ? cpmResult.tasks.get(b.task.id) : null;
+      let va, vb;
+      switch (this._sortCol) {
+        case 'name':   va = (a.task.name ?? '').toLowerCase(); vb = (b.task.name ?? '').toLowerCase(); break;
+        case 'dur':    va = a.task.duration_days ?? 0;         vb = b.task.duration_days ?? 0;         break;
+        case 'start':  va = ca?.es ?? Infinity;                vb = cb?.es ?? Infinity;                break;
+        case 'finish': va = ca?.ef ?? Infinity;                vb = cb?.ef ?? Infinity;                break;
+        case 'tf':     va = ca?.tf ?? Infinity;                vb = cb?.tf ?? Infinity;                break;
+        case 'ff':     va = ca?.ff ?? Infinity;                vb = cb?.ff ?? Infinity;                break;
+        default: return 0;
+      }
+      const cmp = va < vb ? -1 : va > vb ? 1 : 0;
+      return this._sortDir === 'asc' ? cmp : -cmp;
+    });
+  }
+
+  // ---- Notas ----
+
+  _openNotesEdit(taskId) {
+    const task = appState.state.tasks.get(taskId);
+    if (!task) return;
+    let dlg = /** @type {HTMLDialogElement|null} */ (document.getElementById('dlg-notes-edit'));
+    if (!dlg) {
+      dlg = document.createElement('dialog');
+      dlg.id = 'dlg-notes-edit';
+      dlg.style.cssText = 'border:none;border-radius:12px;padding:0;min-width:360px;max-width:500px;box-shadow:0 8px 40px rgba(0,0,0,0.3);overflow:hidden;background:var(--clr-surface);color:var(--clr-text)';
+      document.body.appendChild(dlg);
+      dlg.setAttribute('aria-modal', 'true');
+      dlg.setAttribute('aria-labelledby', 'dlg-notes-title');
+    }
+    dlg.innerHTML = `
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid var(--clr-border);background:var(--clr-surface-2)">
+        <span id="dlg-notes-title" style="font-weight:700;font-size:14px">📝 Notas — ${_esc(task.name)}</span>
+        <button id="dlg-notes-close" class="btn btn-icon btn-sm" aria-label="Cerrar">✕</button>
+      </div>
+      <div style="padding:16px">
+        <textarea id="dlg-notes-ta" rows="6" placeholder="Escribe tus notas aquí…"
+          style="width:100%;box-sizing:border-box;padding:10px;border:1px solid var(--clr-border);border-radius:8px;font-size:13px;background:var(--clr-surface-2);color:var(--clr-text);resize:vertical;font-family:inherit">${_esc(task.notes ?? '')}</textarea>
+      </div>
+      <div style="padding:12px 16px;border-top:1px solid var(--clr-border);background:var(--clr-surface-2);display:flex;gap:8px;justify-content:flex-end">
+        <button id="dlg-notes-cancel" class="btn btn-ghost btn-sm">Cancelar</button>
+        <button id="dlg-notes-ok" class="btn btn-primary btn-sm">Guardar notas</button>
+      </div>`;
+    const close = () => dlg.close();
+    dlg.querySelector('#dlg-notes-close').addEventListener('click', close, { once: true });
+    dlg.querySelector('#dlg-notes-cancel').addEventListener('click', close, { once: true });
+    dlg.querySelector('#dlg-notes-ok').addEventListener('click', () => {
+      const notes = /** @type {HTMLTextAreaElement} */ (dlg.querySelector('#dlg-notes-ta')).value.trim() || null;
+      appState.dispatch({ type: 'UPDATE_TASK', payload: { id: taskId, fields: { notes } } });
+      dlg.close();
+    }, { once: true });
+    if (!dlg.open) dlg.showModal();
+    setTimeout(() => /** @type {HTMLElement|null} */ (dlg.querySelector('#dlg-notes-ta'))?.focus(), 50);
+  }
 }
 
 // ============================================================
@@ -1376,6 +1482,16 @@ function _buildPredMap(deps) {
     map.get(d.succ_id).push(d);
   }
   return map;
+}
+
+/**
+ * Retorna el icono correspondiente al tipo de restricción de la tarea.
+ * @param {string} constraintType @param {string|null} constraintDate
+ */
+function _constraintIcon(constraintType, constraintDate) {
+  if (!constraintDate || !constraintType || constraintType === 'ASAP') return '';
+  const icons = { SNET: '📌', SNLT: '⛔', MSO: '⚓', MFO: '⚓', FNET: '📌', FNLT: '⛔' };
+  return icons[constraintType] ? ` ${icons[constraintType]}` : '';
 }
 
 /** @param {HTMLElement} row @param {number} dir */
