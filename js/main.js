@@ -2305,7 +2305,7 @@ function _bindToolbar() {
     exportBtn.setAttribute('aria-expanded', String(!isOpen));
   });
 
-  // Cerrar menú al hacer clic fuera o con Escape
+  // Cerrar menú al hacer clic fuera o con Escape / navegar con flechas
   document.addEventListener('click', () => {
     if (exportMenu && !exportMenu.hidden) {
       exportMenu.hidden = true;
@@ -2317,6 +2317,23 @@ function _bindToolbar() {
       exportMenu.hidden = true;
       exportBtn?.setAttribute('aria-expanded', 'false');
       exportBtn?.focus();
+    }
+  });
+  exportMenu?.addEventListener('keydown', (e) => {
+    if (exportMenu.hidden) return;
+    const items = /** @type {HTMLElement[]} */ ([...exportMenu.querySelectorAll('button[data-action], label.menu-import-label')]);
+    if (!items.length) return;
+    const idx = items.indexOf(/** @type {HTMLElement} */ (document.activeElement));
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      items[(idx + 1) % items.length].focus();
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      items[(idx - 1 + items.length) % items.length].focus();
+    } else if (e.key === 'Home') {
+      e.preventDefault(); items[0].focus();
+    } else if (e.key === 'End') {
+      e.preventDefault(); items[items.length - 1].focus();
     }
   });
 

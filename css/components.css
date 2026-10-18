@@ -306,7 +306,7 @@
   box-shadow: var(--shadow-xl);
   display: flex;
   flex-direction: column;
-  z-index: 20;
+  z-index: var(--z-panel);
   transform: translateX(100%);
   transition: transform var(--dur-slow) var(--ease);
 }
@@ -927,7 +927,7 @@
   position: absolute;
   top: calc(100% + 4px);
   right: 0;
-  z-index: 200;
+  z-index: var(--z-dropdown);
   min-width: 230px;
   background: var(--clr-surface);
   border: 1px solid var(--clr-border);
@@ -1055,4 +1055,12 @@
 }
 @media (max-width: 599px) {
   #gantt-filter-bar { display: none !important; }
+}
+
+/* ---- EVM empty state ---- */
+.evm-empty-row td {
+  text-align: center;
+  color: var(--clr-text-3);
+  font-style: italic;
+  padding: var(--sp-4);
 }
