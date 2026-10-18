@@ -345,6 +345,11 @@ export class WbsTable {
 
     this._body.innerHTML = html + ghostHtml;
 
+    // Sync aria-rowcount and aria-rowindex for ARIA grid pattern
+    const grid = document.getElementById('wbs-scroll');
+    if (grid) grid.setAttribute('aria-rowcount', String(rows.length));
+    this._body.querySelectorAll('tr[data-id]').forEach((tr, i) => tr.setAttribute('aria-rowindex', String(i + 1)));
+
     // Notificar al Gantt el orden de filas visibles
     document.dispatchEvent(new CustomEvent('gantt-rows-update', {
       detail: { rows: rows.map(({ task, isSummary, depth }) => ({ id: task.id, isSummary, depth })) },
