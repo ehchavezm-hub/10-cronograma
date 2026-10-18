@@ -340,8 +340,8 @@ export class EvmPanel {
         <td class="num">${_fmtC(t.ac)}</td>
         <td class="num ${t.sv >= 0 ? 'evm-good' : 'evm-bad'}">${_fmtC(t.sv)}</td>
         <td class="num ${t.cv >= 0 ? 'evm-good' : 'evm-bad'}">${_fmtC(t.cv)}</td>
-        <td class="num ${t.spi >= 1 ? 'evm-good' : t.spi >= 0.9 ? 'evm-warn' : 'evm-bad'}">${t.spi.toFixed(2)}</td>
-        <td class="num ${t.cpi >= 1 ? 'evm-good' : t.cpi >= 0.9 ? 'evm-warn' : 'evm-bad'}">${t.cpi.toFixed(2)}</td>
+        <td class="num ${t.spi >= 1 ? 'evm-good' : t.spi >= 0.9 ? 'evm-warn' : 'evm-bad'}">${isFinite(t.spi) ? t.spi.toFixed(2) : 'N/A'}</td>
+        <td class="num ${t.cpi >= 1 ? 'evm-good' : t.cpi >= 0.9 ? 'evm-warn' : 'evm-bad'}">${isFinite(t.cpi) ? t.cpi.toFixed(2) : 'N/A'}</td>
       </tr>`).join('');
   }
 }
