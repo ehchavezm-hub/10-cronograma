@@ -1294,8 +1294,16 @@ export class WbsTable {
             .sort((a, b) => a.sort_order - b.sort_order)[0];
           sort_order = firstChild ? firstChild.sort_order - 1 : 1;
         } else {
-          parent_id  = after.parent_id;
-          sort_order = after.sort_order + 1;
+          // Hoja o resumen colapsado: insertar como hermano inmediato
+          parent_id = after.parent_id;
+          const sibs = tasks
+            .filter(t => t.parent_id === after.parent_id)
+            .sort((a, b) => a.sort_order - b.sort_order);
+          const afterIdx = sibs.findIndex(t => t.id === after.id);
+          const nextSib  = sibs[afterIdx + 1];
+          sort_order = nextSib
+            ? (after.sort_order + nextSib.sort_order) / 2
+            : after.sort_order + 1;
         }
       }
     } else if (parentId) {
