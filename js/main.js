@@ -2447,10 +2447,19 @@ function _bindResizer() {
   const resizer    = document.getElementById('resizer-gantt');
   const ganttPanel = document.getElementById('gantt-panel');
   if (!resizer || !ganttPanel) return;
+  if (resizer.dataset.bound) return;
+  resizer.dataset.bound = '1';
 
   // Restaurar ancho guardado
   const saved = localStorage.getItem('gantt-panel-width');
   if (saved) ganttPanel.style.width = saved;
+
+  const _syncAria = () => {
+    const w = Math.round(ganttPanel.getBoundingClientRect().width);
+    resizer.setAttribute('aria-valuenow', String(w));
+    resizer.setAttribute('aria-valuemax', String(Math.round(window.innerWidth - 280)));
+  };
+  _syncAria();
 
   let startX = 0, startW = 0, dragging = false;
 
@@ -2465,36 +2474,52 @@ function _bindResizer() {
     e.preventDefault();
   });
 
-  document.addEventListener('mousemove', e => {
+  const _onMove = e => {
     if (!dragging) return;
     const dx = startX - e.clientX; // mover derecha → gantt se hace más pequeño
     const minW = 180;
     const maxW = window.innerWidth - 280;
     const newW = Math.max(minW, Math.min(maxW, startW + dx));
     ganttPanel.style.width = newW + 'px';
+    _syncAria();
     _ganttCanvas?.requestRender();
-  });
+  };
 
-  document.addEventListener('mouseup', () => {
+  const _onUp = () => {
     if (!dragging) return;
     dragging = false;
     resizer.classList.remove('dragging');
     document.body.style.cursor = '';
     document.body.style.userSelect = '';
     localStorage.setItem('gantt-panel-width', ganttPanel.style.width);
+    _syncAria();
     // Forzar redibujado con el nuevo tamaño del canvas
     setTimeout(() => _ganttCanvas?.requestRender(), 50);
-  });
+  };
+
+  document.addEventListener('mousemove', _onMove);
+  document.addEventListener('mouseup', _onUp);
 }
 
 function _bindResizerExplorer() {
   const resizer  = document.getElementById('resizer-explorer');
   const explorer = document.getElementById('explorer-panel');
   if (!resizer || !explorer) return;
+  if (resizer.dataset.bound) return;
+  resizer.dataset.bound = '1';
 
   // Restaurar ancho guardado
   const saved = localStorage.getItem('explorer-panel-width');
   if (saved) explorer.style.width = saved;
+
+  const _syncAria = () => {
+    const w = Math.round(explorer.getBoundingClientRect().width);
+    resizer.setAttribute('aria-valuenow', String(w));
+    resizer.setAttribute('aria-valuetext', `${w} píxeles`);
+  };
+  resizer.setAttribute('aria-valuemin', '160');
+  resizer.setAttribute('aria-valuemax', '400');
+  _syncAria();
 
   let startX = 0, startW = 0, dragging = false;
 
@@ -2509,21 +2534,26 @@ function _bindResizerExplorer() {
     e.preventDefault();
   });
 
-  document.addEventListener('mousemove', e => {
+  const _onMoveExp = e => {
     if (!dragging) return;
     const dx = e.clientX - startX;
     const newW = Math.max(160, Math.min(400, startW + dx));
     explorer.style.width = newW + 'px';
-  });
+    _syncAria();
+  };
 
-  document.addEventListener('mouseup', () => {
+  const _onUpExp = () => {
     if (!dragging) return;
     dragging = false;
     resizer.classList.remove('dragging');
     document.body.style.cursor = '';
     document.body.style.userSelect = '';
     localStorage.setItem('explorer-panel-width', explorer.style.width);
-  });
+    _syncAria();
+  };
+
+  document.addEventListener('mousemove', _onMoveExp);
+  document.addEventListener('mouseup', _onUpExp);
 
   // Teclado: flechas para ajuste fino
   resizer.addEventListener('keydown', e => {
@@ -2532,6 +2562,7 @@ function _bindResizerExplorer() {
     if (e.key === 'ArrowRight') { explorer.style.width = Math.min(400, w + step) + 'px'; e.preventDefault(); }
     if (e.key === 'ArrowLeft')  { explorer.style.width = Math.max(160, w - step) + 'px'; e.preventDefault(); }
     localStorage.setItem('explorer-panel-width', explorer.style.width);
+    _syncAria();
   });
 }
 
