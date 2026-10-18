@@ -1610,9 +1610,11 @@ async function _deleteProject(projectId) {
     getByIndex('task_dependencies', 'project_id', projectId),
     getByIndex('task_resources', 'project_id', projectId),
   ]);
-  for (const t of tasks)        await dbRemove('tasks', t.id);
-  for (const d of deps)         await dbRemove('task_dependencies', d.id);
-  for (const tr of taskResources) await dbRemove('task_resources', tr.id);
+  await Promise.all([
+    ...tasks.map(t  => dbRemove('tasks', t.id)),
+    ...deps.map(d   => dbRemove('task_dependencies', d.id)),
+    ...taskResources.map(tr => dbRemove('task_resources', tr.id)),
+  ]);
   await dbRemove('projects', projectId);
 }
 
@@ -2024,7 +2026,7 @@ function _bindToolbar() {
     const selectedId = appState.state.selectedTaskId;
     if (selectedId) {
       // Abrir detalle de actividad y desplazarse a la sección de recursos
-      _openTaskDetailPanel(selectedId).then(() => {
+      _openTaskDetail(selectedId).then(() => {
         setTimeout(() => {
           document.getElementById('tdp-resources-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }, 120);
@@ -2716,13 +2718,13 @@ function _ocOpenForm(dlg, type, data) {
     ${inp('code', 'Código', data?.code ?? '', 'Ej: PF-001')}
     ${inp('desc', 'Descripción', data?.description ?? '', 'Opcional')}
     ${extraHtml}
-    ${!isNew ? `<div id="oc-del-zone" style="display:none;background:rgba(231,76,60,0.08);border:1px solid rgba(231,76,60,0.3);border-radius:8px;padding:12px;margin-bottom:12px">
-      <div style="font-size:12px;font-weight:600;color:#c0392b;margin-bottom:6px">⚠ Esta acción no se puede deshacer</div>
-      <button id="ocf-del-confirm" style="background:#e74c3c;color:#fff;border:none;border-radius:6px;padding:6px 14px;cursor:pointer;font-size:12px;font-weight:600">Eliminar definitivamente</button>
+    ${!isNew ? `<div id="oc-del-zone" style="display:none;background:rgba(var(--clr-danger-rgb,231,76,60),0.08);border:1px solid rgba(var(--clr-danger-rgb,231,76,60),0.3);border-radius:8px;padding:12px;margin-bottom:12px">
+      <div style="font-size:12px;font-weight:600;color:var(--clr-danger,#e74c3c);margin-bottom:6px">⚠ Esta acción no se puede deshacer</div>
+      <button id="ocf-del-confirm" style="background:var(--clr-danger,#e74c3c);color:#fff;border:none;border-radius:6px;padding:6px 14px;cursor:pointer;font-size:12px;font-weight:600">Eliminar definitivamente</button>
       <button id="ocf-del-cancel" style="margin-left:8px;background:none;border:1px solid var(--clr-border);border-radius:6px;padding:6px 14px;cursor:pointer;font-size:12px">Cancelar</button>
     </div>` : ''}
     <div style="display:flex;gap:8px;justify-content:space-between;align-items:center;margin-top:16px">
-      <div>${!isNew ? `<button id="ocf-del-init" style="background:none;border:1px solid #e74c3c;color:#e74c3c;border-radius:6px;padding:5px 12px;cursor:pointer;font-size:12px">🗑 Eliminar</button>` : ''}</div>
+      <div>${!isNew ? `<button id="ocf-del-init" style="background:none;border:1px solid var(--clr-danger,#e74c3c);color:var(--clr-danger,#e74c3c);border-radius:6px;padding:5px 12px;cursor:pointer;font-size:12px">🗑 Eliminar</button>` : ''}</div>
       <div style="display:flex;gap:8px">
         <button id="ocf-cancel" class="btn btn-ghost btn-sm">Cancelar</button>
         <button id="ocf-save" class="btn btn-primary btn-sm">Guardar</button>
@@ -2776,7 +2778,7 @@ function _ocOpenForm(dlg, type, data) {
   box.querySelector('#ocf-save').addEventListener('click', async () => {
     const nameEl = box.querySelector('#ocf-name');
     const name = nameEl?.value.trim();
-    if (!name) { nameEl.style.borderColor = '#e74c3c'; nameEl.focus(); return; }
+    if (!name) { nameEl.style.borderColor = 'var(--clr-danger,#e74c3c)'; nameEl.focus(); return; }
     nameEl.style.borderColor = '';
 
     const code     = box.querySelector('#ocf-code')?.value.trim() || null;
