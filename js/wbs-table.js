@@ -73,7 +73,7 @@ export class WbsTable {
       const th = this._headRow?.querySelector(`th[data-col="${c.id}"]`);
       if (th) widths[c.id] = th.offsetWidth;
     });
-    localStorage.setItem(COL_WIDTHS_KEY, JSON.stringify(widths));
+    try { localStorage.setItem(COL_WIDTHS_KEY, JSON.stringify(widths)); } catch {}
     this._colWidths = widths;
   }
 

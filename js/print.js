@@ -33,7 +33,7 @@ export function getPrintCols() {
 
 /** Guarda la selección de columnas. */
 export function setPrintCols(cols) {
-  localStorage.setItem('wbs-col-visibility', JSON.stringify(cols));
+  try { localStorage.setItem('wbs-col-visibility', JSON.stringify(cols)); } catch { /* ignore */ }
 }
 
 /** Imprime la tabla EDT completa mostrando solo las columnas seleccionadas. */
@@ -90,7 +90,7 @@ export function printWbsTable() {
 export function printGantt(rows) {
   const { project, tasks, deps, cpmResult, calendar, calExceptions } = appState.state;
   if (!project || !cpmResult) {
-    alert('No hay resultados CPM disponibles aún. Espere que se complete el cálculo.');
+    document.dispatchEvent(new CustomEvent('show-toast', { detail: { msg: 'No hay resultados CPM disponibles aún. Espere que se complete el cálculo.', type: 'warn' } }));
     return;
   }
 
@@ -193,7 +193,7 @@ export function printGantt(rows) {
 </body></html>`;
 
     const win = window.open('', '_blank', 'width=1200,height=800');
-    if (!win) { alert('El navegador bloqueó la ventana emergente. Permítala e intente de nuevo.'); return; }
+    if (!win) { document.dispatchEvent(new CustomEvent('show-toast', { detail: { msg: 'El navegador bloqueó la ventana emergente. Permítala e intente de nuevo.', type: 'warn' } })); return; }
     win.document.write(html);
     win.document.close();
   });
