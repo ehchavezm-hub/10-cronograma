@@ -597,35 +597,36 @@ async function _saveTaskDetail() {
     const { getByIndex, put: dbPutSt, remove: dbRemoveSt } = await import('./storage.js?v=4');
     // Eliminar los marcados
     const toRemove = (panel.dataset['removeRes'] || '').split(',').filter(Boolean);
-    for (const trid of toRemove) {
-      try { await dbRemoveSt('task_resources', trid); } catch {}
-    }
+    await Promise.all(toRemove.map(trid => dbRemoveSt('task_resources', trid).catch(() => {})));
     panel.dataset['removeRes'] = '';
 
     // Agregar nuevos
     const newRows = document.querySelectorAll('#tdp-res-body tr[data-new-res]');
-    for (const row of newRows) {
-      const resId = /** @type {HTMLElement} */ (row).dataset.newRes;
-      const units = /** @type {HTMLInputElement|null} */ (row.querySelector('.tdp-res-units'))?.value ?? '100';
-      const rec = {
-        id: /** @type {HTMLElement} */ (row).dataset.trid,
+    const newRecs = [...newRows].map(row => {
+      const r = /** @type {HTMLElement} */ (row);
+      return {
+        id: r.dataset.trid,
         project_id: proj.id,
         task_id: taskId,
-        resource_id: resId,
-        units: parseFloat(units) || 100,
+        resource_id: r.dataset.newRes,
+        units: parseFloat(/** @type {HTMLInputElement|null} */ (r.querySelector('.tdp-res-units'))?.value ?? '100') || 100,
         org_id: proj.org_id ?? null,
         deleted_at: null,
       };
-      await dbPutSt('task_resources', rec);
-      delete /** @type {HTMLElement} */ (row).dataset.newRes;
-    }
-    // Actualizar unidades de los existentes
+    });
+    await Promise.all(newRecs.map(rec => dbPutSt('task_resources', rec)));
+    newRows.forEach(row => delete /** @type {HTMLElement} */ (row).dataset.newRes);
+
+    // Actualizar unidades de los existentes (una sola consulta para todos)
     const unitInputs = document.querySelectorAll('#tdp-res-body .tdp-res-units:not([data-new-res])');
-    for (const inp of unitInputs) {
-      const trid = /** @type {HTMLElement} */ (inp).dataset.trid;
-      if (!trid) continue;
-      const existing = await getByIndex('task_resources', 'task_id', taskId).then(r => r.find(x => x.id === trid)).catch(() => null);
-      if (existing) { existing.units = parseFloat(/** @type {HTMLInputElement} */ (inp).value) || 100; await dbPutSt('task_resources', existing); }
+    if (unitInputs.length) {
+      const existingAll = await getByIndex('task_resources', 'task_id', taskId).catch(() => []);
+      await Promise.all([...unitInputs].map(inp => {
+        const trid = /** @type {HTMLElement} */ (inp).dataset.trid;
+        if (!trid) return;
+        const rec = existingAll.find(x => x.id === trid);
+        if (rec) { rec.units = parseFloat(/** @type {HTMLInputElement} */ (inp).value) || 100; return dbPutSt('task_resources', rec); }
+      }).filter(Boolean));
     }
   }
 
@@ -1133,21 +1134,13 @@ async function _openResourceAssign(preSelectedId = null) {
     const units = parseFloat(dlg.querySelector('#ra-units').value) || 100;
     const statusEl = dlg.querySelector('#ra-status');
     statusEl.textContent = 'Asignando…';
-    let count = 0;
-    for (const tid of tids) {
+    await Promise.all(tids.map(async tid => {
       const existing = await getByIndex('task_resources', 'task_id', tid)
         .then(r => r.find(x => !x.deleted_at && x.resource_id === rid)).catch(() => null);
-      if (existing) {
-        existing.units = units;
-        await dbPut('task_resources', existing);
-      } else {
-        await dbPut('task_resources', {
-          id: crypto.randomUUID(), task_id: tid, resource_id: rid,
-          units, deleted_at: null
-        });
-      }
-      count++;
-    }
+      if (existing) { existing.units = units; await dbPut('task_resources', existing); }
+      else await dbPut('task_resources', { id: crypto.randomUUID(), task_id: tid, resource_id: rid, units, deleted_at: null });
+    }));
+    const count = tids.length;
     statusEl.textContent = `✓ ${count} actividades asignadas`;
     _showToast(`Recurso asignado a ${count} actividades`, 'success');
   });
@@ -1159,12 +1152,13 @@ async function _openResourceAssign(preSelectedId = null) {
     if (!rid || !tids.length) return;
     const statusEl = dlg.querySelector('#ra-status');
     statusEl.textContent = 'Quitando…';
-    let count = 0;
-    for (const tid of tids) {
+    const removals = await Promise.all(tids.map(async tid => {
       const existing = await getByIndex('task_resources', 'task_id', tid)
         .then(r => r.find(x => !x.deleted_at && x.resource_id === rid)).catch(() => null);
-      if (existing) { await dbRemove('task_resources', existing.id); count++; }
-    }
+      if (existing) { await dbRemove('task_resources', existing.id); return true; }
+      return false;
+    }));
+    const count = removals.filter(Boolean).length;
     statusEl.textContent = count ? `✓ Quitado de ${count} actividades` : 'Sin asignación previa';
     if (count) _showToast(`Recurso quitado de ${count} actividades`, 'success');
   });
