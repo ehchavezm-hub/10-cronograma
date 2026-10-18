@@ -357,7 +357,7 @@ export class AppStateManager {
     if (!existing) return { ok: false, inverse: cmd, changed: [], error: 'Task not found' };
 
     const prev = { parent_id: existing.parent_id, sort_order: existing.sort_order };
-    this._state.tasks.set(id, { ...existing, parent_id: newParentId, sort_order: newSortOrder });
+    this._state.tasks.set(id, { ...existing, parent_id: newParentId, sort_order: newSortOrder, updated_at: new Date().toISOString() });
     return {
       ok: true,
       inverse: { type: 'MOVE_TASK', payload: { id, newParentId: prev.parent_id, newSortOrder: prev.sort_order } },

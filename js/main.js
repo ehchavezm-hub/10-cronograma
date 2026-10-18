@@ -148,6 +148,23 @@ appState.onPersist = async ({ cmd, isUndo }) => {
         }
       }
     }
+    if (cmd.type === 'MOVE_TASK') {
+      const { id } = cmd.payload;
+      const task = tasks.get(id);
+      if (task) {
+        await dbPut('tasks', task);
+        if (!IS_LOCAL_MODE) {
+          await outboxAdd({
+            id:            crypto.randomUUID(),
+            tabla:         'tasks',
+            fila:          id,
+            tipo:          'UPDATE',
+            campos:        task,
+            baseUpdatedAt: task.updated_at ?? null,
+          });
+        }
+      }
+    }
     if (cmd.type === 'ADD_DEP' || cmd.type === 'REMOVE_DEP') {
       const depId = cmd.payload.dep?.id ?? cmd.payload.id;
       const dep   = deps.get(depId);
