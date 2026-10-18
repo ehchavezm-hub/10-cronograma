@@ -35,7 +35,7 @@ const COLS = [
 
 const COL_WIDTHS_KEY = 'wbs-col-widths-v2';
 
-const INDENT_PX = 20;
+const INDENT_PX = 14;
 
 // ============================================================
 // Clase principal
@@ -479,7 +479,7 @@ export class WbsTable {
       <td data-col="name" style="cursor:pointer" title="Clic para editar" class="${this._editingCell?.rowId === task.id && this._editingCell?.col === 'name' ? 'editing' : ''}">
         <div class="td-name">
           <span class="indent-spacer" style="width:${depth * INDENT_PX}px;display:inline-block"></span>
-          <button class="expand-btn ${isSummary ? '' : 'empty'}" data-expand="${task.id}" aria-label="${appState.state.expandedIds.has(task.id) ? 'Colapsar' : 'Expandir'}">
+          <button class="expand-btn ${isSummary ? '' : 'empty'}" style="left:${depth * INDENT_PX - 14}px" data-expand="${task.id}" aria-label="${appState.state.expandedIds.has(task.id) ? 'Colapsar' : 'Expandir'}">
             ${isSummary ? (appState.state.expandedIds.has(task.id) ? '▾' : '▸') : ''}
           </button>
           <span class="task-name-text ${isSummary ? 'summary' : ''} ${task.type === 'milestone' ? 'milestone' : ''}" title="${_esc(task.name)}">${_esc(task.name)}</span>${notesIcon}

@@ -143,22 +143,25 @@
   text-overflow: ellipsis;
 }
 .wbs-table td:last-child { border-right: none; }
+/* Name column: extra left padding so the expand btn fits in the padding zone at depth=0 */
+.wbs-table td[data-col="name"] { padding-left: 16px; overflow: visible; }
 
 /* Celda de nombre con indent */
 .wbs-table .td-name {
   display: flex;
   align-items: center;
-  gap: var(--sp-1);
+  gap: 0;
   min-width: 0;
+  position: relative;
 }
 .wbs-table .indent-spacer {
   flex-shrink: 0;
   height: 100%;
 }
 .wbs-table .expand-btn {
+  position: absolute;
   width: 14px;
   height: 14px;
-  flex-shrink: 0;
   border: none;
   background: none;
   cursor: pointer;
@@ -171,7 +174,9 @@
   font-size: 10px;
 }
 .wbs-table .expand-btn:hover { color: var(--clr-text); }
-.wbs-table .expand-btn.empty { visibility: hidden; pointer-events: none; }
+.wbs-table .expand-btn.empty { display: none; }
+/* Small gap between task name text and adjacent notes icon */
+.wbs-table .task-notes-icon { margin-left: 4px; }
 .wbs-table tr:focus-visible { outline: 2px solid var(--clr-primary); outline-offset: -2px; }
 .wbs-table td:focus-visible  { outline: 2px solid var(--clr-primary); outline-offset: -2px; }
 
