@@ -27,6 +27,7 @@ const SHELL = [
   './js/io.js',
   './js/print.js',
   './js/sync.js',
+  './js/baseline.js',
   './js/change-log.js',
   './js/gantt-svg.js',
   './js/supabase.js',
