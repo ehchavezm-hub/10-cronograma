@@ -781,7 +781,7 @@ async function _openResourceManager() {
       </div>
       <div style="display:flex;gap:6px;align-items:center">
         <button id="btn-open-assign-dlg" class="btn btn-primary btn-sm" title="Asignar recursos a actividades (masivo)" style="cursor:pointer">📌 Asignar Recursos</button>
-        <button id="dlg-res-close" class="btn btn-icon btn-sm" style="cursor:default">✕</button>
+        <button id="dlg-res-close" class="btn btn-icon btn-sm" style="cursor:default" aria-label="Cerrar gestión de recursos">✕</button>
       </div>
     </div>
     <!-- Tabs -->
@@ -1022,7 +1022,7 @@ async function _openResourceAssign(preSelectedId = null) {
         <div style="font-weight:700;font-size:15px">📌 Asignar Recursos a Actividades</div>
         <div style="font-size:11px;color:var(--clr-text-3);margin-top:2px">Selecciona un recurso y las actividades. Puedes filtrar y seleccionar todo.</div>
       </div>
-      <button id="dlg-ra-close" class="btn btn-icon btn-sm">✕</button>
+      <button id="dlg-ra-close" class="btn btn-icon btn-sm" aria-label="Cerrar asignación de recursos">✕</button>
     </div>
     <div style="display:grid;grid-template-columns:260px 1fr;gap:0;height:420px;overflow:hidden">
       <!-- Panel izquierdo: Recursos -->
@@ -1069,6 +1069,7 @@ async function _openResourceAssign(preSelectedId = null) {
     if(dlg.__raClean)dlg.__raClean();
     document.addEventListener('mousemove',onM);document.addEventListener('mouseup',onU);
     dlg.__raClean=()=>{document.removeEventListener('mousemove',onM);document.removeEventListener('mouseup',onU);};
+    dlg.addEventListener('close', () => dlg.__raClean?.(), { once: true });
   }
 
   const _getSelectedRes = () => dlg.querySelector('input[name="ra-res"]:checked')?.value ?? null;
@@ -1221,7 +1222,7 @@ async function _openCalendarEditor() {
   dlg.innerHTML = `
     <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid var(--clr-border);background:var(--clr-surface-2)">
       <span style="font-weight:700;font-size:15px">🗓 Calendario del proyecto</span>
-      <button id="dlg-cal-close" class="btn btn-icon btn-sm">✕</button>
+      <button id="dlg-cal-close" class="btn btn-icon btn-sm" aria-label="Cerrar calendario">✕</button>
     </div>
     <div style="padding:16px;display:flex;flex-direction:column;gap:14px;max-height:68vh;overflow-y:auto">
       <label style="font-size:12px;font-weight:600;color:var(--clr-text-2)">Nombre del calendario
@@ -2200,6 +2201,12 @@ function _bindToolbar() {
       _barLabelsBtn?.focus();
     }
   });
+  _barLabelsMenu?.addEventListener('keydown', e => {
+    const items = /** @type {HTMLElement[]} */ ([..._barLabelsMenu.querySelectorAll('input[type="checkbox"]')]);
+    const idx = items.indexOf(/** @type {HTMLElement} */ (document.activeElement));
+    if (e.key === 'ArrowDown') { items[(idx + 1) % items.length]?.focus(); e.preventDefault(); }
+    else if (e.key === 'ArrowUp') { items[(idx - 1 + items.length) % items.length]?.focus(); e.preventDefault(); }
+  });
 
   // ---- Menú columnas tabla EDT ----
   const _wbsColsBtn  = document.getElementById('btn-wbs-cols');
@@ -2229,6 +2236,12 @@ function _bindToolbar() {
       _wbsColsBtn?.setAttribute('aria-expanded', 'false');
       _wbsColsBtn?.focus();
     }
+  });
+  _wbsColsMenu?.addEventListener('keydown', e => {
+    const items = /** @type {HTMLElement[]} */ ([..._wbsColsMenu.querySelectorAll('input[type="checkbox"]')]);
+    const idx = items.indexOf(/** @type {HTMLElement} */ (document.activeElement));
+    if (e.key === 'ArrowDown') { items[(idx + 1) % items.length]?.focus(); e.preventDefault(); }
+    else if (e.key === 'ArrowUp') { items[(idx - 1 + items.length) % items.length]?.focus(); e.preventDefault(); }
   });
 
   document.getElementById('btn-evm')?.addEventListener('click', () => {
@@ -3378,6 +3391,7 @@ function _showCpmNetwork() {
     const onU=()=>{_d=false;if(hdr)hdr.style.cursor='move';};
     hdr?.addEventListener('mousedown',e=>{if(/** @type {HTMLElement} */(e.target).closest('button'))return;const r=dlg.getBoundingClientRect();_ox=e.clientX-r.left;_oy=e.clientY-r.top;_d=true;if(hdr)hdr.style.cursor='grabbing';e.preventDefault();});
     document.addEventListener('mousemove',onM);document.addEventListener('mouseup',onU);
+    dlg.addEventListener('close', () => { document.removeEventListener('mousemove',onM); document.removeEventListener('mouseup',onU); }, { once: true });
   }
 
   // Zoom + pan state (accessible to zoom-fit button after render)
@@ -3422,13 +3436,16 @@ function _showCpmNetwork() {
     panning = true; px0 = e.clientX; py0 = e.clientY; tx0 = panX; ty0 = panY;
     vp.style.cursor = 'grabbing';
   });
-  document.addEventListener('mousemove', e => {
+  const panOnMove = e => {
     if (!panning) return;
     panX = tx0 + e.clientX - px0;
     panY = ty0 + e.clientY - py0;
     applyTransform();
-  });
-  document.addEventListener('mouseup', () => { panning = false; vp.style.cursor = 'grab'; });
+  };
+  const panOnUp = () => { panning = false; vp.style.cursor = 'grab'; };
+  document.addEventListener('mousemove', panOnMove);
+  document.addEventListener('mouseup', panOnUp);
+  dlg.addEventListener('close', () => { document.removeEventListener('mousemove', panOnMove); document.removeEventListener('mouseup', panOnUp); }, { once: true });
   vp.addEventListener('wheel', e => {
     e.preventDefault();
     const factor = e.deltaY < 0 ? 1.1 : 0.9;
@@ -4063,6 +4080,10 @@ document.addEventListener('DOMContentLoaded', () => {
   _bindResizerExplorer();
   document.getElementById('btn-orgchart-view')?.addEventListener('click', _showOrgChart);
   document.getElementById('btn-cpm-network')?.addEventListener('click', _showCpmNetwork);
+  // Keyboard activation for static view items (role="button")
+  ['btn-orgchart-view','btn-cpm-network','btn-edt-view','btn-gantt-view','btn-dcma-view','btn-sync-view','btn-evm-view'].forEach(id => {
+    document.getElementById(id)?.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); document.getElementById(id)?.click(); } });
+  });
 
   // Cerrar panel explorador y navegar a la vista seleccionada
   const _closeExplorer = () => {
