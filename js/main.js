@@ -1503,8 +1503,8 @@ async function _renderProjectList() {
 
   function _projItem(p, indent = 0) {
     return `<div class="explorer-item ${p.id === currentId ? 'active' : ''}" data-project-id="${p.id}"
-      title="${_escAttr(p.name)}" style="padding-left:${8 + indent * 16}px">
-      <span class="item-icon">📋</span>
+      role="button" tabindex="0" title="${_escAttr(p.name)}" style="padding-left:${8 + indent * 16}px">
+      <span class="item-icon" aria-hidden="true">📋</span>
       <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px">${_escHtml(p.name)}</span>
     </div>`;
   }
@@ -1583,7 +1583,7 @@ async function _renderProjectList() {
 
   // Click en proyecto → cargar
   list.querySelectorAll('[data-project-id]').forEach(el => {
-    el.addEventListener('click', async (e) => {
+    const _activate = async (e) => {
       if (/** @type {HTMLElement} */ (e.target).closest('[data-exptoggle]')) return;
       const pid = /** @type {HTMLElement} */ (el).dataset.projectId;
       if (pid && pid !== appState.state.project?.id) {
@@ -1594,6 +1594,10 @@ async function _renderProjectList() {
           _showToast('Error al cargar proyecto: ' + err.message, 'error');
         }
       }
+    };
+    el.addEventListener('click', _activate);
+    el.addEventListener('keydown', e => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); _activate(e); }
     });
   });
 }
