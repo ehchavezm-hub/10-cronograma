@@ -256,11 +256,15 @@ function _showToast(msg, type = '') {
 // ============================================================
 
 let _taskDetailPanel = null;
+let _taskDetailTrigger = null;
 
 function _initTaskDetailPanel() {
   if (_taskDetailPanel) return;
   const panel = document.createElement('div');
   panel.id = 'task-detail-panel';
+  panel.setAttribute('role', 'dialog');
+  panel.setAttribute('aria-modal', 'true');
+  panel.setAttribute('aria-labelledby', 'tdp-title');
   panel.style.cssText = `
     position:fixed;right:0;top:0;bottom:0;width:380px;max-width:100vw;
     background:var(--clr-surface);border-left:1px solid var(--clr-border);
@@ -270,8 +274,8 @@ function _initTaskDetailPanel() {
   `;
   panel.innerHTML = `
     <div id="tdp-header" style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid var(--clr-border);background:var(--clr-surface-2);flex-shrink:0">
-      <span style="font-weight:700;font-size:14px">Detalle de actividad</span>
-      <button id="tdp-close" class="btn btn-icon btn-sm" title="Cerrar">✕</button>
+      <span id="tdp-title" style="font-weight:700;font-size:14px">Detalle de actividad</span>
+      <button id="tdp-close" class="btn btn-icon btn-sm" title="Cerrar" aria-label="Cerrar detalle">✕</button>
     </div>
     <div id="tdp-body" style="flex:1;overflow-y:auto;padding:16px"></div>
     <div id="tdp-footer" style="padding:12px 16px;border-top:1px solid var(--clr-border);display:flex;gap:8px;justify-content:flex-end;background:var(--clr-surface-2);flex-shrink:0">
@@ -284,10 +288,15 @@ function _initTaskDetailPanel() {
   panel.querySelector('#tdp-close').addEventListener('click', _closeTaskDetail);
   panel.querySelector('#tdp-cancel').addEventListener('click', _closeTaskDetail);
   panel.querySelector('#tdp-save').addEventListener('click', _saveTaskDetail);
+  panel.addEventListener('keydown', e => {
+    if (e.key === 'Escape') { e.stopPropagation(); _closeTaskDetail(); }
+  });
 }
 
 function _closeTaskDetail() {
   if (_taskDetailPanel) _taskDetailPanel.style.transform = 'translateX(100%)';
+  _taskDetailTrigger?.focus();
+  _taskDetailTrigger = null;
 }
 
 async function _openTaskDetail(taskId) {
@@ -511,7 +520,13 @@ async function _openTaskDetail(taskId) {
     }
   }, _bSig);
 
+  _taskDetailTrigger = document.activeElement instanceof HTMLElement ? document.activeElement : null;
   _taskDetailPanel.style.transform = 'translateX(0)';
+  // Move focus into panel after transition
+  setTimeout(() => {
+    const first = _taskDetailPanel.querySelector('input, select, button');
+    first?.focus();
+  }, 240);
 }
 
 async function _tdpAddResource(taskId) {

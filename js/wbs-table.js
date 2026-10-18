@@ -834,10 +834,23 @@ export class WbsTable {
       this._handleCtxAction(item.dataset.action, taskId);
       this._closeCtxMenu();
     });
+    menu.addEventListener('keydown', e => {
+      const items = [...menu.querySelectorAll('[role="menuitem"]')];
+      const idx = items.indexOf(document.activeElement);
+      if (e.key === 'Escape') { e.stopPropagation(); this._closeCtxMenu(); }
+      else if (e.key === 'ArrowDown') { items[(idx + 1) % items.length]?.focus(); e.preventDefault(); }
+      else if (e.key === 'ArrowUp')   { items[(idx - 1 + items.length) % items.length]?.focus(); e.preventDefault(); }
+      else if (e.key === 'Enter' || e.key === ' ') {
+        const item = document.activeElement?.closest('[data-action]');
+        if (item) { this._handleCtxAction(item.dataset.action, taskId); this._closeCtxMenu(); e.preventDefault(); }
+      }
+    });
     // Asegurar que el menú no salga de la pantalla
     const rect = menu.getBoundingClientRect();
     if (rect.right > window.innerWidth)   menu.style.left = (x - rect.width) + 'px';
     if (rect.bottom > window.innerHeight) menu.style.top  = (y - rect.height) + 'px';
+    // Mover foco al primer ítem
+    requestAnimationFrame(() => menu.querySelector('[role="menuitem"]')?.focus());
   }
 
   _closeCtxMenu() {
