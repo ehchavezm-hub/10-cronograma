@@ -17,7 +17,7 @@ import { fmtDate, isoToDate, Calendar } from './calendar.js';
 
 const COLS = [
   { id: 'wbs',    label: 'EDT',        w: 52,   align: 'center', sortable: false },
-  { id: 'name',   label: 'Nombre',     w: 240,  align: 'left',   sortable: true  },
+  { id: 'name',   label: 'NOMBRE DE LA ACTIVIDAD', w: 280,  align: 'left',   sortable: true  },
   { id: 'type',   label: 'Tipo',       w: 64,   align: 'center', sortable: false },
   { id: 'dur',    label: 'Dur (d)',    w: 58,   align: 'right',  sortable: true  },
   { id: 'start',  label: 'Inicio',     w: 82,   align: 'center', sortable: true  },
@@ -129,7 +129,7 @@ export class WbsTable {
           <thead>
             <tr id="wbs-head-row">
               ${thHtml}
-              <th style="width:44px;min-width:44px" scope="col"></th>
+              <th style="width:44px;min-width:44px" scope="col" aria-label="Acciones"></th>
             </tr>
           </thead>
           <tbody id="wbs-body"></tbody>
@@ -173,6 +173,24 @@ export class WbsTable {
 
       document.addEventListener('mousemove', onMove);
       document.addEventListener('mouseup', onUp);
+    });
+
+    // Double-click resizer to auto-fit column
+    this._headRow.addEventListener('dblclick', e => {
+      const resizer = /** @type {HTMLElement} */ (e.target).closest('.col-resizer');
+      if (!resizer) return;
+      const colId = /** @type {HTMLElement} */ (resizer).dataset.resizer;
+      const th = this._headRow.querySelector(`th[data-col="${colId}"]`);
+      if (!th) return;
+      let maxW = th.querySelector('.col-resizer') ? (th.scrollWidth - 6) : th.scrollWidth;
+      this._body.querySelectorAll(`td[data-col="${colId}"]`).forEach(td => {
+        const w = /** @type {HTMLElement} */ (td).scrollWidth;
+        if (w > maxW) maxW = w;
+      });
+      const newW = Math.max(40, maxW + 8);
+      /** @type {HTMLElement} */ (th).style.width    = newW + 'px';
+      /** @type {HTMLElement} */ (th).style.minWidth = newW + 'px';
+      this._saveColWidths();
     });
   }
 

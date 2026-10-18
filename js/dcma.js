@@ -388,6 +388,7 @@ export class DcmaPanel {
             <h2>Evaluación DCMA 14 Puntos</h2>
           </div>
           <div class="dcma-meta" id="dcma-meta">—</div>
+          <button class="btn btn-ghost btn-sm dcma-close-btn" id="dcma-close-btn" aria-label="Cerrar panel DCMA" title="Cerrar panel DCMA" style="margin-left:auto;font-size:14px;padding:4px 10px">✕ Cerrar</button>
         </div>
         <div class="dcma-body">
           <div class="dcma-gauge-col">
@@ -425,6 +426,17 @@ export class DcmaPanel {
     this._taskSec = /** @type {HTMLElement}        */ (this._container.querySelector('#dcma-tasks-section'));
     this._taskTitle = /** @type {HTMLElement}      */ (this._container.querySelector('#dcma-tasks-title'));
     this._taskList  = /** @type {HTMLElement}      */ (this._container.querySelector('#dcma-tasks-list'));
+
+    const closeBtn = this._container.querySelector('#dcma-close-btn');
+    if (closeBtn) {
+      closeBtn.addEventListener('click', () => {
+        const panel = document.getElementById('dcma-panel');
+        const btn   = document.getElementById('btn-dcma');
+        panel?.classList.remove('open');
+        btn?.setAttribute('aria-pressed', 'false');
+        if (btn) { btn.style.background = ''; btn.style.color = ''; }
+      });
+    }
 
     this._rowsEl.addEventListener('click', e => {
       const tr = /** @type {HTMLElement} */ (e.target.closest('tr[data-check-id]'));

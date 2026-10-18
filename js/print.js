@@ -51,13 +51,31 @@ export function printWbsTable() {
   }
   // Vaciar title temporalmente para que el browser no muestre "Cronogramas" en la cabecera de impresión
   const origTitle = document.title;
-  document.title = '';
+  const _wProj = appState.state.project;
+  document.title = _wProj ? `${_wProj.name} — Tabla EDT` : 'Tabla EDT';
+  const _footerStyle = document.createElement('style');
+  _footerStyle.id = 'print-ecm-footer';
+  _footerStyle.textContent = `@media print {
+    #app::after {
+      content: "ECM Project v1.0.0 | © 2026 E. Chávez";
+      display: block;
+      font-size: 7pt;
+      color: #9E9E9E;
+      text-align: center;
+      margin-top: 4mm;
+      border-top: 1px solid #E0E0E0;
+      padding-top: 3px;
+    }
+    .wbs-table, .wbs-table th, .wbs-table td { font-family: 'Arial Narrow', Arial, sans-serif !important; }
+  }`;
+  document.head.appendChild(_footerStyle);
   document.body.classList.add('printing');
   window.print();
   setTimeout(() => {
     document.title = origTitle;
     document.body.classList.remove('printing');
     document.getElementById('print-col-override')?.remove();
+    document.getElementById('print-ecm-footer')?.remove();
   }, 1000);
 }
 
