@@ -1083,13 +1083,13 @@
 
 #resource-histogram-panel {
   display: none;
-  background: #111111;
+  background: var(--clr-bg);
   overflow: hidden;
   flex-shrink: 0;
   height: 38%;
   min-height: 180px;
   max-height: 65%;
-  border-top: 2px solid #333333;
+  border-top: 2px solid var(--clr-border);
 }
 #resource-histogram-panel.open { display: flex; flex-direction: column; }
 
@@ -1098,8 +1098,8 @@
   display: flex;
   flex-direction: column;
   height: 100%;
-  font-family: Calibri, Arial, sans-serif;
-  color: #fff;
+  font-family: var(--font-ui, 'Urbanist', system-ui, sans-serif);
+  color: var(--clr-text);
   overflow: hidden;
 }
 
@@ -1108,9 +1108,9 @@
   display: flex;
   align-items: center;
   gap: 16px;
-  padding: 10px 20px;
-  background: #1A1A1A;
-  border-bottom: 1px solid #444;
+  padding: 8px 16px;
+  background: var(--clr-surface);
+  border-bottom: 1px solid var(--clr-border);
   flex-shrink: 0;
 }
 .rh-title-area {
@@ -1120,15 +1120,15 @@
   flex: 1;
   min-width: 0;
 }
-.rh-icon { font-size: 20px; flex-shrink: 0; }
+.rh-icon { font-size: 18px; flex-shrink: 0; }
 .rh-heading {
   margin: 0;
-  font-size: 15px;
-  font-weight: 700;
-  color: #FFA028;
+  font-size: 14px;
+  font-weight: var(--fw-semi, 600);
+  color: var(--clr-primary);
   white-space: nowrap;
 }
-.rh-meta { margin: 0; font-size: 11px; color: #AAAAAA; }
+.rh-meta { margin: 0; font-size: 11px; color: var(--clr-text-3); }
 
 /* ---- Controls ---- */
 .rh-controls {
@@ -1139,34 +1139,35 @@
 }
 .rh-lbl {
   font-size: 11px;
-  color: #AAAAAA;
+  color: var(--clr-text-3);
   white-space: nowrap;
 }
 .rh-sel {
-  background: #2A2A2A;
-  color: #fff;
-  border: 1px solid #555;
-  border-radius: 4px;
+  background: var(--clr-surface-2);
+  color: var(--clr-text);
+  border: 1px solid var(--clr-border);
+  border-radius: var(--radius-sm, 4px);
   padding: 3px 6px;
   font-size: 12px;
   cursor: pointer;
   outline: none;
+  font-family: inherit;
 }
-.rh-sel:focus { border-color: #FFA028; }
+.rh-sel:focus { border-color: var(--clr-primary); }
 
 /* ---- Close button ---- */
 .rh-close {
   background: transparent;
-  border: 1px solid #555;
-  border-radius: 4px;
-  color: #AAAAAA;
+  border: 1px solid var(--clr-border);
+  border-radius: var(--radius-sm, 4px);
+  color: var(--clr-text-3);
   font-size: 13px;
   padding: 3px 8px;
   cursor: pointer;
   flex-shrink: 0;
-  transition: color .15s, border-color .15s;
+  transition: color var(--dur-base,.15s), border-color var(--dur-base,.15s);
 }
-.rh-close:hover { color: #fff; border-color: #FFA028; }
+.rh-close:hover { color: var(--clr-text); border-color: var(--clr-primary); }
 
 /* ---- Body ---- */
 .rh-body {
@@ -1185,13 +1186,13 @@
   justify-content: center;
   gap: 10px;
   font-size: 13px;
-  color: #AAAAAA;
+  color: var(--clr-text-3);
 }
 .rh-spinner {
   width: 18px;
   height: 18px;
-  border: 2px solid #444;
-  border-top-color: #FFA028;
+  border: 2px solid var(--clr-border);
+  border-top-color: var(--clr-primary);
   border-radius: 50%;
   animation: rh-spin .7s linear infinite;
 }
@@ -1209,8 +1210,8 @@
   gap: 8px;
 }
 .rh-empty-icon { font-size: 40px; }
-.rh-empty-msg  { font-size: 14px; color: #AAAAAA; margin: 0; }
-.rh-empty-hint { font-size: 12px; color: #777; margin: 0; }
+.rh-empty-msg  { font-size: 14px; color: var(--clr-text-3); margin: 0; }
+.rh-empty-hint { font-size: 12px; color: var(--clr-text-3); opacity: .7; margin: 0; }
 
 /* ---- Chart + legend wrapper ---- */
 .rh-chart-wrap {
@@ -1224,7 +1225,7 @@
 /* ---- Chart area (canvas parent) ---- */
 .rh-chart-area {
   flex: 1;
-  min-height: 260px;
+  min-height: 130px;
   overflow: hidden;
   position: relative;
 }
@@ -1238,10 +1239,10 @@
 .rh-legend {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px 16px;
-  padding: 8px 20px 10px;
-  background: #1A1A1A;
-  border-top: 1px solid #333;
+  gap: 6px 14px;
+  padding: 6px 16px 8px;
+  background: var(--clr-surface);
+  border-top: 1px solid var(--clr-border);
   flex-shrink: 0;
 }
 .rh-leg-item {
@@ -1256,5 +1257,5 @@
   border-radius: 2px;
   flex-shrink: 0;
 }
-.rh-leg-name { color: #fff; }
-.rh-leg-cap  { color: #AAAAAA; }
+.rh-leg-name { color: var(--clr-text); }
+.rh-leg-cap  { color: var(--clr-text-3); }

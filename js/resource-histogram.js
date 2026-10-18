@@ -1,21 +1,12 @@
 // @ts-check
 /**
  * resource-histogram.js — Histograma de Recursos
- * Estilo MS Project / Primavera P6 · Tema Bloomberg Dark
+ * Estilo MS Project / Primavera P6 · Colores dinámicos por tema
  */
 
 import { appState }  from './state.js';
 import { Calendar }  from './calendar.js';
 import { getAll }    from './storage.js';
-
-const CLR_BG        = '#111111';
-const CLR_SURFACE   = '#1A1A1A';
-const CLR_TEXT      = '#FFFFFF';
-const CLR_DIM       = '#AAAAAA';
-const CLR_ACCENT    = '#FFA028';
-const CLR_OVER      = '#E53935';
-const CLR_GRID      = '#333333';
-const CLR_BORDER    = '#555555';
 
 const PALETTE = [
   '#FFA028', '#4FC3F7', '#81C784', '#CE93D8',
@@ -258,6 +249,16 @@ export class ResourceHistogramPanel {
   _render() {
     if (!this._data) return;
     const { resources, periods, hoursPerDay } = this._data;
+
+    // Read theme colors at render time so all 7 themes are respected
+    const cs  = getComputedStyle(document.documentElement);
+    const _v  = (n) => cs.getPropertyValue(n).trim();
+    const CLR_BG      = _v('--clr-bg')        || '#f7f8fa';
+    const CLR_SURFACE = _v('--clr-surface-2')  || '#f0f2f5';
+    const CLR_DIM     = _v('--clr-text-3')     || '#5b6270';
+    const CLR_GRID    = _v('--clr-border-2')   || '#e5e7eb';
+    const CLR_BORDER  = _v('--clr-border')     || '#d1d5db';
+    const CLR_OVER    = _v('--clr-error')      || '#c62828';
 
     let activeRes = resources;
     if (this._filterRes) activeRes = resources.filter(r => r.id === this._filterRes);
