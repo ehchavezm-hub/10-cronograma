@@ -1995,6 +1995,11 @@ async function init() {
       _confirmDialog(t('confirmDelete'), e.detail.fn);
     });
 
+    // Toast global — permite a print.js y otros módulos mostrar mensajes sin importar _showToast
+    document.addEventListener('show-toast', (/** @type {any} */ e) => {
+      _showToast(e.detail.msg, e.detail.type ?? '');
+    });
+
     // ---- Inicializar panel EVM ----
     const evmEl = document.getElementById('evm-panel');
     if (evmEl) {
@@ -2029,7 +2034,7 @@ async function init() {
 
     // El motor de sync ya fue iniciado dentro de _loadProject.
 
-    console.log('[Cronogramas] v59 completo — modo', IS_LOCAL_MODE ? 'local' : 'Supabase');
+    console.log('[Cronogramas] v60 completo — modo', IS_LOCAL_MODE ? 'local' : 'Supabase');
   } catch (err) {
     console.error('[init]', err);
     _showToast('Error al iniciar: ' + err.message, 'error');
