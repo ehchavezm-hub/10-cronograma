@@ -78,8 +78,8 @@ export class GanttCanvas {
   // ============================================================
 
   _initResizeObserver() {
-    const ro = new ResizeObserver(() => this._resize());
-    ro.observe(this._canvas.parentElement);
+    this._ro = new ResizeObserver(() => this._resize());
+    this._ro.observe(this._canvas.parentElement);
   }
 
   _resize() {
@@ -133,6 +133,7 @@ export class GanttCanvas {
   destroy() {
     document.removeEventListener('keydown', this._onKeyDown);
     document.removeEventListener('wbs-scroll-y', this._onWbsScrollY);
+    this._ro?.disconnect();
   }
 
   _onDown(e) {
