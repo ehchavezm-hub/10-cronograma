@@ -1498,50 +1498,66 @@ async function _renderProjectList() {
   const { portfolios, programs, projects } = await loadHierarchy();
   const currentId = appState.state.project?.id;
 
+  // Estado de colapso persistido en localStorage
+  let collapsed = new Set();
+  try { collapsed = new Set(JSON.parse(localStorage.getItem('explorer-collapsed') || '[]')); } catch { /* ignore */ }
+
   const rows = [];
 
-  // Proyectos sin portafolio ni programa (nivel raíz)
-  const rootProjects  = projects.filter(p => !p.settings?.portfolio_id && !p.settings?.program_id);
-  // Programas sin portafolio (nivel raíz)
-  const rootPrograms  = programs.filter(p => !p.portfolio_id);
+  const rootProjects = projects.filter(p => !p.settings?.portfolio_id && !p.settings?.program_id);
+  const rootPrograms = programs.filter(p => !p.portfolio_id);
 
   function _projItem(p, indent = 0) {
     return `<div class="explorer-item ${p.id === currentId ? 'active' : ''}" data-project-id="${p.id}"
       title="${_escAttr(p.name)}" style="padding-left:${8 + indent * 16}px">
       <span class="item-icon">📋</span>
       <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px">${_escHtml(p.name)}</span>
-      ${p.id !== currentId ? `<button class="btn btn-ghost" data-del-project="${p.id}" title="Eliminar"
-        style="padding:0 4px;font-size:10px;line-height:1;opacity:0.5;flex-shrink:0">✕</button>` : ''}
     </div>`;
   }
 
   function _progItem(prog, indent = 0) {
     const progProjects = projects.filter(p => p.settings?.program_id === prog.id);
-    return `<div class="explorer-section-title" style="padding-left:${8 + indent * 16}px;display:flex;align-items:center;gap:4px">
-        <span>📦</span><span>${_escHtml(prog.name)}</span>
-        ${prog.code ? `<span style="font-size:10px;opacity:0.6">${_escHtml(prog.code)}</span>` : ''}
-        <button class="btn btn-ghost" data-add-to-program="${prog.id}" data-prog-code="${_escAttr(prog.code||'')}" title="Nuevo proyecto en este programa"
-          style="padding:0 5px;font-size:11px;line-height:1;color:var(--clr-primary);margin-left:auto" tabindex="0">＋</button>
-        <button class="btn btn-ghost" data-del-program="${prog.id}" title="Eliminar programa"
-          style="padding:0 4px;font-size:10px;line-height:1;opacity:0.4">✕</button>
+    const gid = 'prog-' + prog.id;
+    const isCol = collapsed.has(gid);
+    const childHtml = progProjects.length
+      ? progProjects.map(p => _projItem(p, indent + 1)).join('')
+      : `<div style="padding:3px 8px 3px ${24 + indent * 16}px;font-size:11px;color:var(--clr-text-3);font-style:italic">Sin proyectos</div>`;
+    return `<div class="explorer-group">
+      <div class="explorer-section-title" style="padding-left:${4 + indent * 16}px;display:flex;align-items:center;gap:3px">
+        <button class="btn btn-ghost explorer-toggle" data-exptoggle="${gid}" title="${isCol ? 'Expandir' : 'Colapsar'}"
+          style="padding:0;width:16px;height:16px;font-size:10px;flex-shrink:0;color:var(--clr-text-3)">${isCol ? '▶' : '▼'}</button>
+        <span>📦</span>
+        <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${_escHtml(prog.name)}</span>
+        ${prog.code ? `<span style="font-size:10px;opacity:0.55;flex-shrink:0">${_escHtml(prog.code)}</span>` : ''}
       </div>
-      ${progProjects.map(p => _projItem(p, indent + 1)).join('')}`;
+      <div data-expchildren="${gid}" style="${isCol ? 'display:none' : ''}">
+        ${childHtml}
+      </div>
+    </div>`;
   }
 
   // Portafolios
   portfolios.forEach(pf => {
-    const pfPrograms  = programs.filter(p => p.portfolio_id === pf.id);
-    const pfProjects  = projects.filter(p => p.settings?.portfolio_id === pf.id && !p.settings?.program_id);
-    rows.push(`<div class="explorer-section-title" style="display:flex;align-items:center;gap:4px">
-        <span>🗂</span><span>${_escHtml(pf.name)}</span>
-        ${pf.code ? `<span style="font-size:10px;opacity:0.6">${_escHtml(pf.code)}</span>` : ''}
-        <button class="btn btn-ghost" data-add-to-portfolio="${pf.id}" data-pf-code="${_escAttr(pf.code||'')}" title="Nuevo programa/proyecto en este portafolio"
-          style="padding:0 5px;font-size:11px;line-height:1;color:var(--clr-primary);margin-left:auto" tabindex="0">＋</button>
-        <button class="btn btn-ghost" data-del-portfolio="${pf.id}" title="Eliminar portafolio"
-          style="padding:0 4px;font-size:10px;line-height:1;opacity:0.4">✕</button>
-      </div>`);
-    pfPrograms.forEach(prog => rows.push(_progItem(prog, 1)));
-    pfProjects.forEach(p   => rows.push(_projItem(p, 1)));
+    const pfPrograms = programs.filter(p => p.portfolio_id === pf.id);
+    const pfProjects = projects.filter(p => p.settings?.portfolio_id === pf.id && !p.settings?.program_id);
+    const gid = 'pf-' + pf.id;
+    const isCol = collapsed.has(gid);
+    const childHtml = [
+      ...pfPrograms.map(prog => _progItem(prog, 1)),
+      ...pfProjects.map(p => _projItem(p, 1)),
+    ].join('') || `<div style="padding:3px 8px 3px 24px;font-size:11px;color:var(--clr-text-3);font-style:italic">Sin contenido</div>`;
+    rows.push(`<div class="explorer-group">
+      <div class="explorer-section-title" style="display:flex;align-items:center;gap:3px;padding-left:4px">
+        <button class="btn btn-ghost explorer-toggle" data-exptoggle="${gid}" title="${isCol ? 'Expandir' : 'Colapsar'}"
+          style="padding:0;width:16px;height:16px;font-size:10px;flex-shrink:0;color:var(--clr-text-3)">${isCol ? '▶' : '▼'}</button>
+        <span>🗂</span>
+        <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${_escHtml(pf.name)}</span>
+        ${pf.code ? `<span style="font-size:10px;opacity:0.55;flex-shrink:0">${_escHtml(pf.code)}</span>` : ''}
+      </div>
+      <div data-expchildren="${gid}" style="${isCol ? 'display:none' : ''}">
+        ${childHtml}
+      </div>
+    </div>`);
   });
 
   // Programas raíz (sin portafolio)
@@ -1552,9 +1568,26 @@ async function _renderProjectList() {
 
   list.innerHTML = rows.join('');
 
+  // Toggle colapsar / expandir
+  list.querySelectorAll('[data-exptoggle]').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const gid = /** @type {HTMLElement} */ (btn).dataset.exptoggle;
+      const childEl = list.querySelector(`[data-expchildren="${gid}"]`);
+      if (!childEl) return;
+      const nowCollapsing = /** @type {HTMLElement} */ (childEl).style.display !== 'none';
+      /** @type {HTMLElement} */ (childEl).style.display = nowCollapsing ? 'none' : '';
+      btn.textContent = nowCollapsing ? '▶' : '▼';
+      btn.title = nowCollapsing ? 'Expandir' : 'Colapsar';
+      if (nowCollapsing) collapsed.add(gid); else collapsed.delete(gid);
+      try { localStorage.setItem('explorer-collapsed', JSON.stringify([...collapsed])); } catch { /* ignore */ }
+    });
+  });
+
+  // Click en proyecto → cargar
   list.querySelectorAll('[data-project-id]').forEach(el => {
     el.addEventListener('click', async (e) => {
-      if (/** @type {HTMLElement} */ (e.target).closest('[data-del-project]')) return;
+      if (/** @type {HTMLElement} */ (e.target).closest('[data-exptoggle]')) return;
       const pid = /** @type {HTMLElement} */ (el).dataset.projectId;
       if (pid && pid !== appState.state.project?.id) {
         try {
@@ -1564,64 +1597,6 @@ async function _renderProjectList() {
           _showToast('Error al cargar proyecto: ' + err.message, 'error');
         }
       }
-    });
-  });
-
-  list.querySelectorAll('[data-del-project]').forEach(delBtn => {
-    delBtn.addEventListener('click', async (e) => {
-      e.stopPropagation();
-      const pid = /** @type {HTMLElement} */ (delBtn).dataset.delProject;
-      const { projects: projs } = await loadHierarchy();
-      const proj = projs.find(p => p.id === pid);
-      if (!proj) return;
-      if (!confirm(`¿Eliminar el proyecto "${proj.name}"?\nEsta acción no se puede deshacer.`)) return;
-      try {
-        await _deleteProject(pid);
-        _showToast('Proyecto eliminado', 'success');
-        _renderProjectList();
-      } catch (err) {
-        _showToast('Error al eliminar: ' + err.message, 'error');
-      }
-    });
-  });
-
-  list.querySelectorAll('[data-del-portfolio]').forEach(delBtn => {
-    delBtn.addEventListener('click', async (e) => {
-      e.stopPropagation();
-      const id = /** @type {HTMLElement} */ (delBtn).dataset.delPortfolio;
-      if (!confirm('¿Eliminar este portafolio? Los proyectos y programas dentro quedarán sin asignar.')) return;
-      try { await deletePortfolio(id); _showToast('Portafolio eliminado', 'success'); _renderProjectList(); }
-      catch (err) { _showToast('Error: ' + err.message, 'error'); }
-    });
-  });
-
-  list.querySelectorAll('[data-del-program]').forEach(delBtn => {
-    delBtn.addEventListener('click', async (e) => {
-      e.stopPropagation();
-      const id = /** @type {HTMLElement} */ (delBtn).dataset.delProgram;
-      if (!confirm('¿Eliminar este programa? Los proyectos dentro quedarán sin asignar.')) return;
-      try { await deleteProgram(id); _showToast('Programa eliminado', 'success'); _renderProjectList(); }
-      catch (err) { _showToast('Error: ' + err.message, 'error'); }
-    });
-  });
-
-  // "+" junto a programa → nuevo proyecto heredando código
-  list.querySelectorAll('[data-add-to-program]').forEach(btn => {
-    btn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      const id   = /** @type {HTMLElement} */ (btn).dataset.addToProgram;
-      const code = /** @type {HTMLElement} */ (btn).dataset.progCode;
-      _openNewItemWithParent('project', 'program', id, code);
-    });
-  });
-
-  // "+" junto a portafolio → nuevo programa o proyecto directo
-  list.querySelectorAll('[data-add-to-portfolio]').forEach(btn => {
-    btn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      const id   = /** @type {HTMLElement} */ (btn).dataset.addToPortfolio;
-      const code = /** @type {HTMLElement} */ (btn).dataset.pfCode;
-      _openNewItemWithParent('project', 'portfolio', id, code);
     });
   });
 }
