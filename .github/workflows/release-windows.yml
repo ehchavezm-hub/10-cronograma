@@ -56,21 +56,23 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
-          name: "ECM Cronograma ${{ github.ref_name }}"
+          name: "ECM Project ${{ github.ref_name }}"
           body: |
-            ## ECM Cronograma — Ejecutable Windows
+            ## ECM Project — Ejecutable Windows
 
             ### Instalación
-            1. Descarga `ECM-Cronograma-Setup-*.exe` (instalador) **o** `ECM-Cronograma-*.exe` (portable)
-            2. Ejecuta el archivo descargado
-            3. La aplicación no requiere conexión a internet
+            1. Descarga el archivo `.zip`
+            2. Descomprime en cualquier carpeta (ej: `C:\Programas\ECM-Project\`)
+            3. Abre `ECM Cronograma.exe`
+            4. Si Windows muestra advertencia: clic en **Más información** → **Ejecutar de todas formas**
+            5. La aplicación no requiere conexión a internet
 
             ### Requisitos
-            - Windows 10/11 (64-bit)
-            - 500 MB espacio libre
+            - Windows 10 / 11 (64-bit)
+            - 500 MB espacio libre en disco
 
             ---
-            ECM Project v1.0.0 | © 2026 E. Chávez
+            ECM Project ${{ github.ref_name }} | © 2026 E. Chávez
           files: |
             dist-win/*.exe
             dist-win/*.zip
