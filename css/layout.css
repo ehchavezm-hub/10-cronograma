@@ -58,6 +58,19 @@ html, body {
   align-items: center;
   gap: var(--sp-2);
 }
+.topbar-quick {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+  margin-left: var(--sp-2);
+}
+.topbar-quick .toolbar-sep {
+  width: 1px;
+  height: 18px;
+  background: var(--clr-border);
+  margin: 0 2px;
+  flex-shrink: 0;
+}
 
 /* ---- Barra de herramientas EDT ---- */
 #toolbar {
@@ -203,6 +216,7 @@ html, body {
    ============================ */
 @media (max-width: 599px) {
   #topbar .project-name { display: none; }
+  .topbar-quick { display: none; }
   #app {
     grid-template-rows: auto 1fr auto;
   }
