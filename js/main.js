@@ -687,6 +687,7 @@ async function _openResourceManager() {
     dlg.id = 'dlg-resources';
     dlg.style.cssText = 'border:none;border-radius:12px;padding:0;width:600px;max-width:96vw;box-shadow:0 8px 40px rgba(0,0,0,0.3);overflow:hidden;position:fixed;margin:0;top:80px;left:max(8px,calc(50vw - 300px));z-index:1000';
     document.body.appendChild(dlg);
+    dlg.setAttribute('aria-labelledby', 'rm-dlg-title');
   }
 
   const { getAll } = await import('./storage.js?v=4');
@@ -735,7 +736,7 @@ async function _openResourceManager() {
       <td style="padding:6px 10px">${overAllocCell}</td>
       <td style="padding:5px 8px;white-space:nowrap">
         <button class="btn btn-sm rm-assign" data-rid="${r.id}" title="Asignar este recurso a actividades" style="font-size:11px;padding:3px 8px;background:#1976D2;color:#fff;border:none;border-radius:5px;cursor:pointer;margin-right:4px">▶ Asignar</button>
-        <button class="btn btn-icon btn-sm rm-del" data-rid="${r.id}" title="Eliminar" style="color:var(--clr-danger,#e74c3c)">🗑</button>
+        <button class="btn btn-icon btn-sm rm-del" data-rid="${r.id}" title="Eliminar" aria-label="Eliminar recurso" style="color:var(--clr-danger,#e74c3c)">🗑</button>
       </td>
     </tr>`;
   }).join('') || '<tr><td colspan="7" style="padding:16px;text-align:center;color:var(--clr-text-3)">Sin recursos en el catálogo</td></tr>';
@@ -776,7 +777,7 @@ async function _openResourceManager() {
   dlg.innerHTML = `
     <div id="dlg-res-hdr" style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid var(--clr-border);background:var(--clr-surface-2);cursor:move;user-select:none" title="Arrastrar para mover">
       <div>
-        <div style="font-weight:700;font-size:15px">Gestión de Recursos</div>
+        <div id="rm-dlg-title" style="font-weight:700;font-size:15px">Gestión de Recursos</div>
         <div style="font-size:11px;color:var(--clr-text-3);margin-top:2px">Catálogo, asignación y uso de recursos del proyecto</div>
       </div>
       <div style="display:flex;gap:6px;align-items:center">
@@ -992,6 +993,7 @@ async function _openResourceAssign(preSelectedId = null) {
     dlg.id = 'dlg-res-assign';
     dlg.style.cssText = 'border:none;border-radius:12px;padding:0;width:min(860px,98vw);max-width:98vw;box-shadow:0 8px 40px rgba(0,0,0,0.3);overflow:hidden;position:fixed;margin:0;top:60px;left:clamp(4px,calc(50vw - 430px),calc(100vw - min(860px,98vw) - 4px));z-index:1100';
     document.body.appendChild(dlg);
+    dlg.setAttribute('aria-labelledby', 'ra-dlg-title');
   }
 
   const typeLabel = { work:'Trabajo', material:'Material', equipment:'Equipo', cost:'Costo' };
@@ -1019,7 +1021,7 @@ async function _openResourceAssign(preSelectedId = null) {
   dlg.innerHTML = `
     <div id="dlg-ra-hdr" style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--clr-border);background:var(--clr-surface-2);cursor:move;user-select:none">
       <div>
-        <div style="font-weight:700;font-size:15px">📌 Asignar Recursos a Actividades</div>
+        <div id="ra-dlg-title" style="font-weight:700;font-size:15px">📌 Asignar Recursos a Actividades</div>
         <div style="font-size:11px;color:var(--clr-text-3);margin-top:2px">Selecciona un recurso y las actividades. Puedes filtrar y seleccionar todo.</div>
       </div>
       <button id="dlg-ra-close" class="btn btn-icon btn-sm" aria-label="Cerrar asignación de recursos">✕</button>
@@ -1270,6 +1272,43 @@ async function _openCalendarEditor() {
 
   dlg.querySelector('#dlg-cal-close')?.addEventListener('click', () => dlg.close());
   dlg.querySelector('#dlg-cal-cancel')?.addEventListener('click', () => dlg.close());
+
+  // Make calendar dialog draggable
+  {
+    const hdr = /** @type {HTMLElement|null} */ (dlg.querySelector('div:first-child'));
+    if (hdr) {
+      hdr.style.cursor = 'move';
+      const _calMove = (/** @type {MouseEvent} */ e) => {
+        dlg.style.transform = 'none';
+        dlg.style.left = (dlg.offsetLeft + e.movementX) + 'px';
+        dlg.style.top  = (dlg.offsetTop  + e.movementY) + 'px';
+      };
+      const _calUp = () => {
+        document.removeEventListener('mousemove', _calMove);
+        document.removeEventListener('mouseup', _calUp);
+      };
+      hdr.addEventListener('mousedown', (e) => {
+        if (/** @type {HTMLElement} */ (e.target).closest('button')) return;
+        e.preventDefault();
+        if (dlg.style.position !== 'fixed') {
+          const r = dlg.getBoundingClientRect();
+          dlg.style.position = 'fixed';
+          dlg.style.margin = '0';
+          dlg.style.left = r.left + 'px';
+          dlg.style.top  = r.top  + 'px';
+        }
+        document.addEventListener('mousemove', _calMove);
+        document.addEventListener('mouseup', _calUp);
+      });
+      dlg.addEventListener('close', () => {
+        document.removeEventListener('mousemove', _calMove);
+        document.removeEventListener('mouseup', _calUp);
+        dlg.style.position = '';
+        dlg.style.left = '';
+        dlg.style.top  = '';
+      }, { once: true });
+    }
+  }
 
   // Eliminar excepción del listado
   body.addEventListener('click', e => {
@@ -1538,7 +1577,7 @@ async function _renderProjectList() {
           aria-expanded="${isCol ? 'false' : 'true'}" aria-label="${isCol ? 'Expandir' : 'Colapsar'} ${_escAttr(prog.name)}"
           title="${isCol ? 'Expandir' : 'Colapsar'}">${isCol ? '▶' : '▼'}</button>
         <span aria-hidden="true">📦</span>
-        <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${_escHtml(prog.name)}</span>
+        <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${_escHtml(prog.name)} <span style="font-size:10px;opacity:0.6">(${progProjects.length})</span></span>
         ${prog.code ? `<span style="font-size:10px;opacity:0.55;flex-shrink:0">${_escHtml(prog.code)}</span>` : ''}
       </div>
       <div data-expchildren="${gid}" style="${isCol ? 'display:none' : ''}">
@@ -1563,7 +1602,7 @@ async function _renderProjectList() {
           aria-expanded="${isCol ? 'false' : 'true'}" aria-label="${isCol ? 'Expandir' : 'Colapsar'} ${_escAttr(pf.name)}"
           title="${isCol ? 'Expandir' : 'Colapsar'}">${isCol ? '▶' : '▼'}</button>
         <span aria-hidden="true">🗂</span>
-        <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${_escHtml(pf.name)}</span>
+        <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${_escHtml(pf.name)} <span style="font-size:10px;opacity:0.6">(${pfPrograms.reduce((s, g) => s + projects.filter(p => p.settings?.program_id === g.id).length, 0) + pfProjects.length})</span></span>
         ${pf.code ? `<span style="font-size:10px;opacity:0.55;flex-shrink:0">${_escHtml(pf.code)}</span>` : ''}
       </div>
       <div data-expchildren="${gid}" style="${isCol ? 'display:none' : ''}">
@@ -2065,6 +2104,43 @@ function _bindToolbar() {
     const activeName  = document.getElementById('bl-active-name');
     const nameInput   = /** @type {HTMLInputElement} */ (document.getElementById('bl-name-input'));
 
+    // Make dlg-baseline draggable
+    {
+      const hdr = dlg?.querySelector(':scope > div:first-child');
+      if (hdr && dlg) {
+        /** @type {HTMLElement} */ (hdr).style.cursor = 'move';
+        const _blMove = (/** @type {MouseEvent} */ e) => {
+          dlg.style.transform = 'none';
+          dlg.style.left = (dlg.offsetLeft + e.movementX) + 'px';
+          dlg.style.top  = (dlg.offsetTop  + e.movementY) + 'px';
+        };
+        const _blUp = () => {
+          document.removeEventListener('mousemove', _blMove);
+          document.removeEventListener('mouseup', _blUp);
+        };
+        hdr.addEventListener('mousedown', (e) => {
+          if (/** @type {HTMLElement} */ (e.target).closest('button')) return;
+          e.preventDefault();
+          if (dlg.style.position !== 'fixed') {
+            const r = dlg.getBoundingClientRect();
+            dlg.style.position = 'fixed';
+            dlg.style.margin = '0';
+            dlg.style.left = r.left + 'px';
+            dlg.style.top  = r.top  + 'px';
+          }
+          document.addEventListener('mousemove', _blMove);
+          document.addEventListener('mouseup', _blUp);
+        });
+        dlg.addEventListener('close', () => {
+          document.removeEventListener('mousemove', _blMove);
+          document.removeEventListener('mouseup', _blUp);
+          dlg.style.position = '';
+          dlg.style.left = '';
+          dlg.style.top  = '';
+        });
+      }
+    }
+
     async function _refreshBaselineList() {
       const pid = appState.state.project?.id;
       if (!pid || !listEl) return;
@@ -2385,7 +2461,14 @@ function _bindToolbar() {
       case 'svg':         exportSvg(rows);           break;
       case 'print-table': printWbsTable();           break;
       case 'print-gantt': printGantt(rows);          break;
-      case 'print-pdf':   window.print();            break;
+      case 'print-pdf': {
+        const _pdfProj = appState.state.project;
+        const _origTitle = document.title;
+        if (_pdfProj) document.title = `${_pdfProj.name} — Informe completo PDF`;
+        window.print();
+        setTimeout(() => { document.title = _origTitle; }, 1500);
+        break;
+      }
       case 'col-config':  _showPrintColConfig();     break;
     }
   });
@@ -2635,7 +2718,7 @@ function _showOrgChart() {
     dlg.innerHTML = `
       <div style="display:flex;flex-direction:column;height:100%;background:var(--clr-bg)">
         <div id="oc-dlg-hdr" style="display:flex;align-items:center;justify-content:space-between;padding:10px 16px;border-bottom:1px solid var(--clr-border);background:var(--clr-surface-2);flex-shrink:0;gap:8px;flex-wrap:wrap;cursor:move">
-          <span style="font-weight:700;font-size:15px">Estructura de Proyectos</span>
+          <span id="oc-dlg-title" style="font-weight:700;font-size:15px">Estructura de Proyectos</span>
           <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
             <button id="oc-add-pf"   class="btn btn-primary btn-sm">＋ Portafolio</button>
             <button id="oc-add-prog" class="btn btn-ghost btn-sm">＋ Programa</button>
@@ -2656,6 +2739,7 @@ function _showOrgChart() {
         <div id="oc-edit-box" style="background:var(--clr-surface);border-radius:14px;padding:24px 26px;min-width:340px;max-width:460px;width:90%;box-shadow:0 8px 32px rgba(0,0,0,0.28);position:relative"></div>
       </div>`;
     document.body.appendChild(dlg);
+    dlg.setAttribute('aria-labelledby', 'oc-dlg-title');
     dlg.querySelector('#btn-orgchart-close')?.addEventListener('click', () => dlg?.close());
     dlg.addEventListener('click', e => { if (e.target === dlg) dlg?.close(); });
 
@@ -2907,6 +2991,7 @@ function _ocOpenForm(dlg, type, data) {
       else await dbRemove('projects', data.id);
       overlay.style.display = 'none';
       await _renderOrgChart();
+      _renderProjectList();
       _showToast('Eliminado', 'success');
     } catch (err) { _showToast('Error: ' + err.message, 'error'); }
   });
@@ -2958,6 +3043,7 @@ function _ocOpenForm(dlg, type, data) {
       }
       overlay.style.display = 'none';
       await _renderOrgChart();
+      _renderProjectList();
       _showToast((isNew ? 'Creado: ' : 'Guardado: ') + name, 'success');
     } catch (err) { _showToast('Error al guardar: ' + err.message, 'error'); }
   });
@@ -3213,7 +3299,7 @@ async function _renderOrgChart() {
               if (proj && prog) {
                 const ns = { ...(proj.settings ?? {}), program_id: prog.id, portfolio_id: prog.portfolio_id ?? null };
                 dbPut('projects', { ...proj, settings: ns, updated_at: new Date().toISOString() })
-                  .then(() => { _showToast(`Proyecto asignado a ${prog.name}`, 'success'); _renderOrgChart(); });
+                  .then(() => { _showToast(`Proyecto asignado a ${prog.name}`, 'success'); _renderOrgChart(); _renderProjectList(); });
                 dropped = true;
               }
             } else if (type === 'project' && tPrefix === 'pf') {
@@ -3223,7 +3309,7 @@ async function _renderOrgChart() {
               if (proj && pf) {
                 const ns = { ...(proj.settings ?? {}), program_id: null, portfolio_id: pf.id };
                 dbPut('projects', { ...proj, settings: ns, updated_at: new Date().toISOString() })
-                  .then(() => { _showToast(`Proyecto asignado a ${pf.name}`, 'success'); _renderOrgChart(); });
+                  .then(() => { _showToast(`Proyecto asignado a ${pf.name}`, 'success'); _renderOrgChart(); _renderProjectList(); });
                 dropped = true;
               }
             } else if (type === 'program' && tPrefix === 'pf') {
@@ -3232,7 +3318,7 @@ async function _renderOrgChart() {
               const pf = portfolios.find(p => p.id === tId);
               if (prog && pf) {
                 saveProgram({ ...prog, portfolio_id: pf.id, updated_at: new Date().toISOString() })
-                  .then(() => { _showToast(`Programa asignado a ${pf.name}`, 'success'); _renderOrgChart(); });
+                  .then(() => { _showToast(`Programa asignado a ${pf.name}`, 'success'); _renderOrgChart(); _renderProjectList(); });
                 dropped = true;
               }
             }
@@ -3355,7 +3441,7 @@ function _showCpmNetwork() {
   dlg.innerHTML = `
     <div style="display:flex;flex-direction:column;height:100%">
       <div id="cpm-dlg-hdr" style="display:flex;align-items:center;justify-content:space-between;padding:10px 16px;border-bottom:1px solid var(--clr-border);background:var(--clr-surface-2);flex-shrink:0;cursor:move">
-        <span style="font-weight:700;font-size:15px">Red CPM</span>
+        <span id="cpm-dlg-title" style="font-weight:700;font-size:15px">Red CPM</span>
         <div style="display:flex;gap:6px;align-items:center">
           <button id="btn-cpm-zoomfit" class="btn btn-ghost btn-sm" title="Zoom extendido — ver toda la red" style="font-size:16px;padding:2px 8px;line-height:1">⤢</button>
           <button id="btn-cpm-zoomin"  class="btn btn-ghost btn-sm" title="Acercar" style="font-size:16px;padding:2px 8px;line-height:1">＋</button>
@@ -3382,6 +3468,7 @@ function _showCpmNetwork() {
       </div>
     </div>`;
   document.body.appendChild(dlg);
+  dlg.setAttribute('aria-labelledby', 'cpm-dlg-title');
 
   dlg.querySelector('#btn-cpm-net-close')?.addEventListener('click', () => dlg.close());
   dlg.addEventListener('click', e => { if (e.target === dlg) dlg.close(); });
