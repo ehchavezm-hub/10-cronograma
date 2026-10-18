@@ -15,6 +15,7 @@ import { fmtDate }    from './calendar.js';
 const _esc = (s) => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 
 // ---- Paleta de colores (coincide con css/tokens.css) ----
+// Bar colors never change (per project requirement); layout colors are theme-aware at render time.
 const C = {
   critical:   '#D32F2F',
   done:       '#388E3C',
@@ -35,6 +36,19 @@ const C = {
   arrowCrit:  '#E57373',
   selGlow:    'rgba(25,118,210,0.35)',
 };
+
+function _themeColors() {
+  const cs = getComputedStyle(document.documentElement);
+  const g  = (v, fb) => cs.getPropertyValue(v).trim() || fb;
+  return {
+    hdrBg:     g('--clr-surface',  C.hdrBg),
+    hdrLine:   g('--clr-border',   C.hdrLine),
+    text:      g('--clr-text',     C.text),
+    textLight: g('--clr-text-3',   C.textLight),
+    arrow:     g('--clr-text-3',   C.arrow),
+    bgBody:    g('--clr-bg',       '#FFFFFF'),
+  };
+}
 
 const MESES_CORTO = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
 
@@ -557,8 +571,10 @@ export class GanttCanvas {
 
     ctx.clearRect(0, 0, W, H);
 
+    this._TC = _themeColors();
+
     // Fondo del cuerpo
-    ctx.fillStyle = '#FFFFFF';
+    ctx.fillStyle = this._TC.bgBody;
     ctx.fillRect(0, headerHeight, W, H - headerHeight);
 
     if (!projectStart) {
@@ -578,7 +594,7 @@ export class GanttCanvas {
 
   _drawPlaceholder(W, H) {
     const ctx = this._ctx;
-    ctx.fillStyle = C.textLight;
+    ctx.fillStyle = this._TC?.textLight ?? C.textLight;
     ctx.font = '14px "Urbanist", system-ui';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
@@ -596,11 +612,11 @@ export class GanttCanvas {
     const midH = headerHeight / 2;
 
     // Fondo
-    ctx.fillStyle = C.hdrBg;
+    ctx.fillStyle = this._TC?.hdrBg ?? C.hdrBg;
     ctx.fillRect(0, 0, W, headerHeight);
 
     // Borde inferior
-    ctx.strokeStyle = C.hdrLine;
+    ctx.strokeStyle = this._TC?.hdrLine ?? C.hdrLine;
     ctx.lineWidth = 1;
     ctx.beginPath(); ctx.moveTo(0, headerHeight); ctx.lineTo(W, headerHeight); ctx.stroke();
     // Divisor entre meses y semanas
@@ -626,7 +642,7 @@ export class GanttCanvas {
     let d = new Date(leftDate.getFullYear(), leftDate.getMonth(), 1);
 
     ctx.font = '600 11px "Urbanist", system-ui';
-    ctx.fillStyle = C.text;
+    ctx.fillStyle = this._TC?.text ?? C.text;
     ctx.textBaseline = 'middle';
 
     while (d <= rightDate) {
@@ -634,7 +650,7 @@ export class GanttCanvas {
       const d1 = new Date(d.getFullYear(), d.getMonth() + 1, 1);
       const x1 = this._scene._dateToXAbs(d1) - scrollX;
 
-      ctx.strokeStyle = C.hdrLine;
+      ctx.strokeStyle = this._TC?.hdrLine ?? C.hdrLine;
       ctx.lineWidth = 1;
       ctx.beginPath(); ctx.moveTo(x0, 0); ctx.lineTo(x0, midH); ctx.stroke();
 
@@ -664,14 +680,14 @@ export class GanttCanvas {
     d.setDate(d.getDate() - ((dow + 6) % 7));
 
     ctx.font = '10px "IBM Plex Sans", monospace';
-    ctx.fillStyle = C.textLight;
+    ctx.fillStyle = this._TC?.textLight ?? C.textLight;
     ctx.textBaseline = 'middle';
     const rowH = headerHeight - midH;
     const cy   = midH + rowH / 2;
 
     while (d <= rightDate) {
       const x = this._scene._dateToXAbs(d) - scrollX;
-      ctx.strokeStyle = C.hdrLine; ctx.lineWidth = 0.5;
+      ctx.strokeStyle = this._TC?.hdrLine ?? C.hdrLine; ctx.lineWidth = 0.5;
       ctx.beginPath(); ctx.moveTo(x, midH); ctx.lineTo(x, headerHeight); ctx.stroke();
 
       if (weekPx >= 28) {
@@ -883,7 +899,7 @@ export class GanttCanvas {
             if (labelX < W && labelX > 0) {
               ctx.save();
               ctx.font         = '500 10px "IBM Plex Sans", monospace';
-              ctx.fillStyle    = C.text;
+              ctx.fillStyle    = this._TC?.text ?? C.text;
               ctx.textBaseline = 'middle';
               ctx.shadowBlur   = 0;
               ctx.fillText(lbl, labelX, barY + barH / 2, W - labelX - 4);
