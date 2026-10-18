@@ -13,7 +13,7 @@ export class GanttScene {
     /** @type {number} Altura de fila (px) — debe coincidir con --row-h */
     this.rowHeight = 32;
     /** @type {number} Altura del encabezado de tiempo (px) */
-    this.headerHeight = 44;
+    this.headerHeight = 36;
     /** @type {number} Desplazamiento horizontal (px desde el inicio del proyecto) */
     this.scrollX = 0;
     /** @type {number} Desplazamiento vertical (px, sincronizado con tabla WBS) */

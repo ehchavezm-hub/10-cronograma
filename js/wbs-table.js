@@ -35,7 +35,7 @@ const COLS = [
 
 const COL_WIDTHS_KEY = 'wbs-col-widths-v2';
 
-const INDENT_PX = 12;
+const INDENT_PX = 20;
 
 // ============================================================
 // Clase principal
