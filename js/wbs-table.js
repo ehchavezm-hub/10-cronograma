@@ -669,7 +669,7 @@ export class WbsTable {
     }
 
     cell.classList.add('editing');
-    cell.innerHTML = `<input class="inline-input" type="${inputType}" value="${_esc(val)}" aria-label="${col}" style="width:100%;box-sizing:border-box">`;
+    cell.innerHTML = `<input class="inline-input" type="${inputType}" value="${_esc(val)}" aria-label="${_esc(col)}" style="width:100%;box-sizing:border-box">`;
     const input = cell.querySelector('input');
     input.focus();
     if (inputType === 'text') input.select();

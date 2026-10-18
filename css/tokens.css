@@ -110,10 +110,16 @@
   --ease:      cubic-bezier(.4,0,.2,1);
 
   /* ---------- Z-index ---------- */
-  --z-tooltip:  100;
-  --z-dropdown: 200;
-  --z-modal:    300;
-  --z-toast:    400;
+  --z-resizer:      5;
+  --z-topbar:       10;
+  --z-panel:        20;
+  --z-overlay:      49;
+  --z-drawer:       50;
+  --z-tooltip:      100;
+  --z-dropdown:     200;
+  --z-modal:        300;
+  --z-toast:        400;
+  --z-file-warning: 9999;
 }
 
 /* ---------- Modo oscuro ---------- */

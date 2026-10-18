@@ -52,7 +52,7 @@
   <header id="topbar" role="banner">
     <button id="btn-menu" class="btn btn-icon" aria-label="Menú" title="Menú (explorador)">☰</button>
     <span class="app-logo" aria-label="Cronogramas">📅 Cronogramas</span>
-    <span class="topbar-sep" style="width:1px;height:20px;background:var(--clr-border);margin:0 4px"></span>
+    <span class="topbar-sep"></span>
     <span id="project-name-display" class="project-name">—</span>
     <div class="spacer"></div>
     <!-- Indicador de modo -->
@@ -110,119 +110,6 @@
     </div>
   </div>
 
-  <!-- ---- Fila 2: Barra de herramientas EDT ---- -->
-  <div id="toolbar" role="toolbar" aria-label="Herramientas EDT">
-    <button id="btn-undo" class="btn btn-secondary btn-sm" title="Deshacer (Ctrl+Z)" aria-label="Deshacer" disabled>
-      ↩ Deshacer
-    </button>
-    <button id="btn-redo" class="btn btn-secondary btn-sm" title="Rehacer (Ctrl+Y)" aria-label="Rehacer" disabled>
-      ↪ Rehacer
-    </button>
-    <div class="toolbar-sep"></div>
-    <button id="btn-add-task" class="btn btn-primary btn-sm" title="Agregar tarea" aria-label="Agregar tarea">
-      ＋ Tarea
-    </button>
-    <button id="btn-add-milestone" class="btn btn-secondary btn-sm" title="Agregar hito" aria-label="Agregar hito">
-      ◆ Hito
-    </button>
-    <div class="toolbar-sep"></div>
-    <button id="btn-indent" class="btn btn-ghost btn-sm" title="Indentar (Tab)" aria-label="Indentar">→ Ind.</button>
-    <button id="btn-outdent" class="btn btn-ghost btn-sm" title="Desindentar (Shift+Tab)" aria-label="Desindentar">← Desind.</button>
-    <div class="toolbar-sep"></div>
-    <button id="btn-link" class="btn btn-ghost btn-sm" title="Crear dependencia FS: clic en el fin de una barra, luego en el inicio de otra" aria-label="Modo enlace FS" aria-pressed="false">
-      🔗 Enlace FS
-    </button>
-    <div class="toolbar-sep"></div>
-    <button id="btn-resources" class="btn btn-ghost btn-sm" title="Gestión de recursos" aria-label="Gestionar recursos">
-      👥 Recursos
-    </button>
-    <div class="toolbar-sep"></div>
-    <button id="btn-gantt-zoom-out" class="btn btn-ghost btn-sm btn-icon" title="Alejar (zoom −)" aria-label="Alejar Gantt">−</button>
-    <button id="btn-gantt-fit" class="btn btn-ghost btn-sm" title="Ajustar barras Gantt al espacio disponible" aria-label="Ajustar Gantt">
-      ⤢ Ajustar
-    </button>
-    <button id="btn-gantt-zoom-in" class="btn btn-ghost btn-sm btn-icon" title="Acercar (zoom +)" aria-label="Acercar Gantt">+</button>
-    <div class="toolbar-sep"></div>
-    <button id="btn-baseline" class="btn btn-ghost btn-sm" title="Línea base del proyecto" aria-label="Gestionar línea base">
-      📐 Línea base
-    </button>
-    <div class="toolbar-sep"></div>
-    <!-- Menú etiquetas de barras Gantt -->
-    <div class="dropdown" id="bar-labels-wrap" style="position:relative">
-      <button id="btn-bar-labels" class="btn btn-ghost btn-sm" aria-haspopup="true" aria-expanded="false"
-              title="Propiedades visibles en las barras Gantt">🏷 Etiquetas ▾</button>
-      <div id="bar-labels-menu" class="dropdown-menu" hidden style="min-width:180px;padding:6px 0">
-        <label class="bar-label-opt" style="display:flex;align-items:center;gap:8px;padding:4px 12px;cursor:pointer;font-size:var(--text-xs)">
-          <input type="checkbox" value="name" checked> Nombre
-        </label>
-        <label class="bar-label-opt" style="display:flex;align-items:center;gap:8px;padding:4px 12px;cursor:pointer;font-size:var(--text-xs)">
-          <input type="checkbox" value="pct"> % Avance
-        </label>
-        <label class="bar-label-opt" style="display:flex;align-items:center;gap:8px;padding:4px 12px;cursor:pointer;font-size:var(--text-xs)">
-          <input type="checkbox" value="duration"> Duración
-        </label>
-        <label class="bar-label-opt" style="display:flex;align-items:center;gap:8px;padding:4px 12px;cursor:pointer;font-size:var(--text-xs)">
-          <input type="checkbox" value="start"> Fecha inicio
-        </label>
-        <label class="bar-label-opt" style="display:flex;align-items:center;gap:8px;padding:4px 12px;cursor:pointer;font-size:var(--text-xs)">
-          <input type="checkbox" value="finish"> Fecha fin
-        </label>
-        <label class="bar-label-opt" style="display:flex;align-items:center;gap:8px;padding:4px 12px;cursor:pointer;font-size:var(--text-xs)">
-          <input type="checkbox" value="tf"> Holgura total
-        </label>
-      </div>
-    </div>
-    <div class="toolbar-sep"></div>
-    <!-- Menú columnas tabla EDT -->
-    <div class="dropdown" id="wbs-cols-wrap" style="position:relative">
-      <button id="btn-wbs-cols" class="btn btn-ghost btn-sm" aria-haspopup="true" aria-expanded="false"
-              title="Columnas visibles en la tabla EDT">🗂 Columnas ▾</button>
-      <div id="wbs-cols-menu" class="dropdown-menu" hidden style="min-width:180px;padding:6px 0">
-        <label class="wbs-col-opt" style="display:flex;align-items:center;gap:8px;padding:4px 12px;cursor:pointer;font-size:var(--text-xs)">
-          <input type="checkbox" value="wbs" checked> EDT
-        </label>
-        <label class="wbs-col-opt" style="display:flex;align-items:center;gap:8px;padding:4px 12px;cursor:default;font-size:var(--text-xs);opacity:.7">
-          <input type="checkbox" value="name" checked disabled> Nombre (siempre)
-        </label>
-        <label class="wbs-col-opt" style="display:flex;align-items:center;gap:8px;padding:4px 12px;cursor:pointer;font-size:var(--text-xs)">
-          <input type="checkbox" value="type" checked> Tipo
-        </label>
-        <label class="wbs-col-opt" style="display:flex;align-items:center;gap:8px;padding:4px 12px;cursor:pointer;font-size:var(--text-xs)">
-          <input type="checkbox" value="dur" checked> Duración
-        </label>
-        <label class="wbs-col-opt" style="display:flex;align-items:center;gap:8px;padding:4px 12px;cursor:pointer;font-size:var(--text-xs)">
-          <input type="checkbox" value="start" checked> Inicio
-        </label>
-        <label class="wbs-col-opt" style="display:flex;align-items:center;gap:8px;padding:4px 12px;cursor:pointer;font-size:var(--text-xs)">
-          <input type="checkbox" value="finish" checked> Fin
-        </label>
-        <label class="wbs-col-opt" style="display:flex;align-items:center;gap:8px;padding:4px 12px;cursor:pointer;font-size:var(--text-xs)">
-          <input type="checkbox" value="pct" checked> % Avance
-        </label>
-        <label class="wbs-col-opt" style="display:flex;align-items:center;gap:8px;padding:4px 12px;cursor:pointer;font-size:var(--text-xs)">
-          <input type="checkbox" value="tf" checked> HT (Holgura Total)
-        </label>
-        <label class="wbs-col-opt" style="display:flex;align-items:center;gap:8px;padding:4px 12px;cursor:pointer;font-size:var(--text-xs)">
-          <input type="checkbox" value="ff"> HL (Holgura Libre)
-        </label>
-        <label class="wbs-col-opt" style="display:flex;align-items:center;gap:8px;padding:4px 12px;cursor:pointer;font-size:var(--text-xs)">
-          <input type="checkbox" value="pred" checked> Pred.
-        </label>
-        <label class="wbs-col-opt" style="display:flex;align-items:center;gap:8px;padding:4px 12px;cursor:pointer;font-size:var(--text-xs)">
-          <input type="checkbox" value="alerts" checked> Alertas
-        </label>
-      </div>
-    </div>
-  </div>
-
-  <!-- ---- Barra de filtros Gantt ---- -->
-  <div id="gantt-filter-bar" role="toolbar" aria-label="Filtros de vista" style="display:none">
-    <span class="filter-bar-label">Filtrar:</span>
-    <button class="filter-btn active" data-filter="all"      aria-pressed="true">Todas las tareas</button>
-    <button class="filter-btn"        data-filter="critical" aria-pressed="false">⚠ Ruta crítica</button>
-    <button class="filter-btn"        data-filter="progress" aria-pressed="false">📋 En progreso</button>
-    <span id="filter-bar-count" class="filter-bar-count"></span>
-  </div>
 
   <!-- ---- Área principal ---- -->
   <main id="main-area" role="main">
@@ -383,34 +270,153 @@
       </div>
     </dialog>
 
-    <!-- Panel WBS (tabla EDT) -->
-    <section id="wbs-panel" aria-label="Tabla de actividades EDT">
-      <!-- La tabla WBS se inyecta aquí por wbs-table.js -->
-      <div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--clr-text-3);font-family:var(--font-ui);">
-        <div class="spinner"></div>&nbsp; Cargando…
+    <!-- ── Right wrapper: toolbar + filter + content ── -->
+    <div id="right-wrapper">
+      <!-- ---- Fila 2: Barra de herramientas EDT ---- -->
+      <div id="toolbar" role="toolbar" aria-label="Herramientas EDT">
+        <button id="btn-undo" class="btn btn-secondary btn-sm" title="Deshacer (Ctrl+Z)" aria-label="Deshacer" disabled>
+          ↩ Deshacer
+        </button>
+        <button id="btn-redo" class="btn btn-secondary btn-sm" title="Rehacer (Ctrl+Y)" aria-label="Rehacer" disabled>
+          ↪ Rehacer
+        </button>
+        <div class="toolbar-sep"></div>
+        <button id="btn-add-task" class="btn btn-primary btn-sm" title="Agregar tarea" aria-label="Agregar tarea">
+          ＋ Tarea
+        </button>
+        <button id="btn-add-milestone" class="btn btn-secondary btn-sm" title="Agregar hito" aria-label="Agregar hito">
+          ◆ Hito
+        </button>
+        <div class="toolbar-sep"></div>
+        <button id="btn-indent" class="btn btn-ghost btn-sm" title="Indentar (Tab)" aria-label="Indentar">→ Ind.</button>
+        <button id="btn-outdent" class="btn btn-ghost btn-sm" title="Desindentar (Shift+Tab)" aria-label="Desindentar">← Desind.</button>
+        <div class="toolbar-sep"></div>
+        <button id="btn-link" class="btn btn-ghost btn-sm" title="Crear dependencia FS: clic en el fin de una barra, luego en el inicio de otra" aria-label="Modo enlace FS" aria-pressed="false">
+          🔗 Enlace FS
+        </button>
+        <div class="toolbar-sep"></div>
+        <button id="btn-resources" class="btn btn-ghost btn-sm" title="Gestión de recursos" aria-label="Gestionar recursos">
+          👥 Recursos
+        </button>
+        <div class="toolbar-sep"></div>
+        <button id="btn-gantt-zoom-out" class="btn btn-ghost btn-sm btn-icon" title="Alejar (zoom −)" aria-label="Alejar Gantt">−</button>
+        <button id="btn-gantt-fit" class="btn btn-ghost btn-sm" title="Ajustar barras Gantt al espacio disponible" aria-label="Ajustar Gantt">
+          ⤢ Ajustar
+        </button>
+        <button id="btn-gantt-zoom-in" class="btn btn-ghost btn-sm btn-icon" title="Acercar (zoom +)" aria-label="Acercar Gantt">+</button>
+        <div class="toolbar-sep"></div>
+        <button id="btn-baseline" class="btn btn-ghost btn-sm" title="Línea base del proyecto" aria-label="Gestionar línea base">
+          📐 Línea base
+        </button>
+        <div class="toolbar-sep"></div>
+        <!-- Menú etiquetas de barras Gantt -->
+        <div class="dropdown" id="bar-labels-wrap" style="position:relative">
+          <button id="btn-bar-labels" class="btn btn-ghost btn-sm" aria-haspopup="true" aria-expanded="false"
+                  title="Propiedades visibles en las barras Gantt">🏷 Etiquetas ▾</button>
+          <div id="bar-labels-menu" class="dropdown-menu" hidden style="min-width:180px;padding:6px 0">
+            <label class="bar-label-opt" style="display:flex;align-items:center;gap:8px;padding:4px 12px;cursor:pointer;font-size:var(--text-xs)">
+              <input type="checkbox" value="name" checked> Nombre
+            </label>
+            <label class="bar-label-opt" style="display:flex;align-items:center;gap:8px;padding:4px 12px;cursor:pointer;font-size:var(--text-xs)">
+              <input type="checkbox" value="pct"> % Avance
+            </label>
+            <label class="bar-label-opt" style="display:flex;align-items:center;gap:8px;padding:4px 12px;cursor:pointer;font-size:var(--text-xs)">
+              <input type="checkbox" value="duration"> Duración
+            </label>
+            <label class="bar-label-opt" style="display:flex;align-items:center;gap:8px;padding:4px 12px;cursor:pointer;font-size:var(--text-xs)">
+              <input type="checkbox" value="start"> Fecha inicio
+            </label>
+            <label class="bar-label-opt" style="display:flex;align-items:center;gap:8px;padding:4px 12px;cursor:pointer;font-size:var(--text-xs)">
+              <input type="checkbox" value="finish"> Fecha fin
+            </label>
+            <label class="bar-label-opt" style="display:flex;align-items:center;gap:8px;padding:4px 12px;cursor:pointer;font-size:var(--text-xs)">
+              <input type="checkbox" value="tf"> Holgura total
+            </label>
+          </div>
+        </div>
+        <div class="toolbar-sep"></div>
+        <!-- Menú columnas tabla EDT -->
+        <div class="dropdown" id="wbs-cols-wrap" style="position:relative">
+          <button id="btn-wbs-cols" class="btn btn-ghost btn-sm" aria-haspopup="true" aria-expanded="false"
+                  title="Columnas visibles en la tabla EDT">🗂 Columnas ▾</button>
+          <div id="wbs-cols-menu" class="dropdown-menu" hidden style="min-width:180px;padding:6px 0">
+            <label class="wbs-col-opt" style="display:flex;align-items:center;gap:8px;padding:4px 12px;cursor:pointer;font-size:var(--text-xs)">
+              <input type="checkbox" value="wbs" checked> EDT
+            </label>
+            <label class="wbs-col-opt" style="display:flex;align-items:center;gap:8px;padding:4px 12px;cursor:default;font-size:var(--text-xs);opacity:.7">
+              <input type="checkbox" value="name" checked disabled> Nombre (siempre)
+            </label>
+            <label class="wbs-col-opt" style="display:flex;align-items:center;gap:8px;padding:4px 12px;cursor:pointer;font-size:var(--text-xs)">
+              <input type="checkbox" value="type" checked> Tipo
+            </label>
+            <label class="wbs-col-opt" style="display:flex;align-items:center;gap:8px;padding:4px 12px;cursor:pointer;font-size:var(--text-xs)">
+              <input type="checkbox" value="dur" checked> Duración
+            </label>
+            <label class="wbs-col-opt" style="display:flex;align-items:center;gap:8px;padding:4px 12px;cursor:pointer;font-size:var(--text-xs)">
+              <input type="checkbox" value="start" checked> Inicio
+            </label>
+            <label class="wbs-col-opt" style="display:flex;align-items:center;gap:8px;padding:4px 12px;cursor:pointer;font-size:var(--text-xs)">
+              <input type="checkbox" value="finish" checked> Fin
+            </label>
+            <label class="wbs-col-opt" style="display:flex;align-items:center;gap:8px;padding:4px 12px;cursor:pointer;font-size:var(--text-xs)">
+              <input type="checkbox" value="pct" checked> % Avance
+            </label>
+            <label class="wbs-col-opt" style="display:flex;align-items:center;gap:8px;padding:4px 12px;cursor:pointer;font-size:var(--text-xs)">
+              <input type="checkbox" value="tf" checked> HT (Holgura Total)
+            </label>
+            <label class="wbs-col-opt" style="display:flex;align-items:center;gap:8px;padding:4px 12px;cursor:pointer;font-size:var(--text-xs)">
+              <input type="checkbox" value="ff"> HL (Holgura Libre)
+            </label>
+            <label class="wbs-col-opt" style="display:flex;align-items:center;gap:8px;padding:4px 12px;cursor:pointer;font-size:var(--text-xs)">
+              <input type="checkbox" value="pred" checked> Pred.
+            </label>
+            <label class="wbs-col-opt" style="display:flex;align-items:center;gap:8px;padding:4px 12px;cursor:pointer;font-size:var(--text-xs)">
+              <input type="checkbox" value="alerts" checked> Alertas
+            </label>
+          </div>
+        </div>
       </div>
-    </section>
 
-    <!-- Divisor redimensionable -->
-    <div class="resizer" id="resizer-gantt" role="separator" aria-orientation="vertical" aria-label="Redimensionar panel Gantt"></div>
+      <!-- ---- Barra de filtros Gantt ---- -->
+      <div id="gantt-filter-bar" role="toolbar" aria-label="Filtros de vista" style="display:none">
+        <span class="filter-bar-label">Filtrar:</span>
+        <button class="filter-btn active" data-filter="all"      aria-pressed="true">Todas las tareas</button>
+        <button class="filter-btn"        data-filter="critical" aria-pressed="false">⚠ Ruta crítica</button>
+        <button class="filter-btn"        data-filter="progress" aria-pressed="false">📋 En progreso</button>
+        <span id="filter-bar-count" class="filter-bar-count"></span>
+      </div>
+      <!-- ── Right content row ── -->
+      <div id="right-content">
+        <!-- Panel WBS (tabla EDT) -->
+        <section id="wbs-panel" aria-label="Tabla de actividades EDT">
+          <!-- La tabla WBS se inyecta aquí por wbs-table.js -->
+          <div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--clr-text-3);font-family:var(--font-ui);">
+            <div class="spinner"></div>&nbsp; Cargando…
+          </div>
+        </section>
 
-    <!-- Panel Gantt — Canvas 2D (Fase 2) -->
-    <section id="gantt-panel" aria-label="Diagrama Gantt">
-      <canvas id="gantt-canvas"
-        style="display:block;cursor:grab;touch-action:none"
-        aria-label="Diagrama de Gantt interactivo — arrastrar para desplazar, Ctrl+rueda para zoom"
-        role="img">
-      </canvas>
-    </section>
+        <!-- Divisor redimensionable -->
+        <div class="resizer" id="resizer-gantt" role="separator" aria-orientation="vertical" aria-label="Redimensionar panel Gantt"></div>
 
-    <!-- Panel DCMA (overlay sobre el área principal) -->
-    <div id="dcma-panel" role="region" aria-label="Panel de evaluación DCMA 14 puntos"></div>
+        <!-- Panel Gantt — Canvas 2D (Fase 2) -->
+        <section id="gantt-panel" aria-label="Diagrama Gantt">
+          <canvas id="gantt-canvas"
+            style="display:block;cursor:grab;touch-action:none"
+            aria-label="Diagrama de Gantt interactivo — arrastrar para desplazar, Ctrl+rueda para zoom"
+            role="img">
+          </canvas>
+        </section>
 
-    <!-- Panel EVM — Valor Ganado (Fase 6) -->
-    <div id="evm-panel" role="region" aria-label="Panel de Valor Ganado EVM"></div>
+        <!-- Panel DCMA (overlay sobre el área principal) -->
+        <div id="dcma-panel" role="region" aria-label="Panel de evaluación DCMA 14 puntos"></div>
 
-    <!-- Panel Historial de Cambios (Fase 6) -->
-    <div id="changelog-panel" role="region" aria-label="Historial de cambios de la sesión"></div>
+        <!-- Panel EVM — Valor Ganado (Fase 6) -->
+        <div id="evm-panel" role="region" aria-label="Panel de Valor Ganado EVM"></div>
+
+        <!-- Panel Historial de Cambios (Fase 6) -->
+        <div id="changelog-panel" role="region" aria-label="Historial de cambios de la sesión"></div>
+      </div>
+    </div>
 
   </main>
 

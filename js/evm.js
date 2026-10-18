@@ -329,7 +329,7 @@ export class EvmPanel {
   _renderTable(tasks) {
     const tbody = this._container.querySelector('#evm-detail-tbody');
     if (!tbody) return;
-    if (!tasks.length) { tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:#9E9E9E">Sin tareas con costo</td></tr>'; return; }
+    if (!tasks.length) { tbody.innerHTML = '<tr class="evm-empty-row"><td colspan="9">Sin tareas con costo</td></tr>'; return; }
 
     tbody.innerHTML = tasks.map(t => `
       <tr>

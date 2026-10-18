@@ -17,7 +17,7 @@ html, body {
 /* ---- Raíz de la app ---- */
 #app {
   display: grid;
-  grid-template-rows: auto auto auto auto 1fr auto;
+  grid-template-rows: auto auto 1fr auto;
   height: 100vh;
   height: 100dvh;
   overflow: hidden;
@@ -33,7 +33,7 @@ html, body {
   background: var(--clr-surface);
   border-bottom: 1px solid var(--clr-border);
   box-shadow: var(--shadow-xs);
-  z-index: 10;
+  z-index: var(--z-topbar);
   font-family: var(--font-ui);
 }
 #topbar .app-logo {
@@ -57,6 +57,13 @@ html, body {
   display: flex;
   align-items: center;
   gap: var(--sp-2);
+}
+#topbar .topbar-sep {
+  width: 1px;
+  height: 20px;
+  background: var(--clr-border);
+  margin: 0 4px;
+  flex-shrink: 0;
 }
 /* ---- Barra de acciones rápidas (fila 1) ---- */
 #toolbar-quick {
@@ -110,6 +117,22 @@ html, body {
   display: flex;
   overflow: hidden;
   position: relative;
+}
+
+/* ---- Contenedor derecho (toolbar + filtro + contenido) ---- */
+#right-wrapper {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-width: 0;
+}
+
+/* ---- Contenido derecho (EDT + Gantt) ---- */
+#right-content {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
 }
 
 /* ---- Panel explorador ---- */
@@ -169,7 +192,7 @@ html, body {
   background: transparent;
   transition: background var(--dur-fast) var(--ease);
   flex-shrink: 0;
-  z-index: 5;
+  z-index: var(--z-resizer);
 }
 .resizer:hover,
 .resizer.dragging { background: var(--clr-primary); }
@@ -218,7 +241,7 @@ html, body {
     position: fixed;
     left: -240px;
     top: 0; bottom: 0;
-    z-index: 50;
+    z-index: var(--z-drawer);
     transition: left var(--dur-slow) var(--ease);
     box-shadow: var(--shadow-xl);
   }
@@ -290,7 +313,7 @@ html, body {
   position: fixed;
   inset: 0;
   background: rgba(0,0,0,.4);
-  z-index: 49;
+  z-index: var(--z-overlay);
 }
 #drawer-overlay.visible { display: block; }
 
@@ -300,7 +323,7 @@ html, body {
   position: fixed;
   inset: 0;
   background: var(--clr-bg);
-  z-index: 9999;
+  z-index: var(--z-file-warning);
   align-items: center;
   justify-content: center;
   padding: var(--sp-8);
