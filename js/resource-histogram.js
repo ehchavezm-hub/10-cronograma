@@ -17,13 +17,15 @@ const PALETTE = [
 export class ResourceHistogramPanel {
   /** @param {HTMLElement} el */
   constructor(el) {
-    this._el       = el;
-    this._canvas   = null;
-    this._ctx      = null;
-    this._resObs   = null;
-    this._groupBy  = 'week';
+    this._el        = el;
+    this._canvas    = null;
+    this._ctx       = null;
+    this._resObs    = null;
+    this._groupBy   = 'week';
     this._filterRes = null;
-    this._data     = null;
+    this._data      = null;
+    this._ganttVp   = null;
+    this._onGanttVp = null;
     this._build();
   }
 
@@ -94,6 +96,13 @@ export class ResourceHistogramPanel {
       this._resObs = new ResizeObserver(() => { if (this._data) this._render(); });
       this._resObs.observe(chartArea);
     }
+
+    // Sync with Gantt viewport (scrollX, pixPerDay) for date-axis alignment
+    this._onGanttVp = (e) => {
+      this._ganttVp = e.detail;
+      if (this._data) this._render();
+    };
+    document.addEventListener('gantt-viewport', this._onGanttVp);
   }
 
   async refresh() {
@@ -254,7 +263,7 @@ export class ResourceHistogramPanel {
     // Read theme colors at render time so all 7 themes are respected
     const cs  = getComputedStyle(document.documentElement);
     const _v  = (n) => cs.getPropertyValue(n).trim();
-    const CLR_BG      = _v('--clr-bg')        || '#f7f8fa';
+    const CLR_BG      = _v('--clr-surface')    || '#ffffff';
     const CLR_SURFACE = _v('--clr-surface-2')  || '#f0f2f5';
     const CLR_DIM     = _v('--clr-text-3')     || '#5b6270';
     const CLR_GRID    = _v('--clr-border-2')   || '#e5e7eb';
@@ -326,32 +335,54 @@ export class ResourceHistogramPanel {
       return;
     }
 
-    // Bars
-    const bGrpW = cW / periods.length;
-    const bPad  = Math.max(1, bGrpW * 0.10);
-    const bW    = Math.max(1, bGrpW - bPad * 2);
+    // Bars — positioned using Gantt viewport when available, else equal-width fallback
+    const msPerDay = 86400000;
+    const vp = this._ganttVp;
 
     for (let pi = 0; pi < periods.length; pi++) {
-      const p  = periods[pi];
-      const bx = PL + pi * bGrpW + bPad;
-      let   by = PT + cH;
+      const p = periods[pi];
 
+      let bxL, bxR, labelX;
+      if (vp && vp.projectStart && vp.pixPerDay > 0) {
+        // Calendar-aligned: map period date range to Gantt coordinate space
+        const pEnd = this._groupBy === 'month'
+          ? new Date(p.sortKey.getFullYear(), p.sortKey.getMonth() + 1, 1)
+          : new Date(p.sortKey.getTime() + 7 * msPerDay);
+        const xS = PL + (p.sortKey.getTime() - vp.projectStart.getTime()) / msPerDay * vp.pixPerDay - vp.scrollX;
+        const xE = PL + (pEnd.getTime()       - vp.projectStart.getTime()) / msPerDay * vp.pixPerDay - vp.scrollX;
+        if (xE < PL || xS > PL + cW) continue;
+        const pad = Math.max(1, Math.min((xE - xS) * 0.05, 3));
+        bxL    = Math.max(PL, xS + pad);
+        bxR    = Math.min(PL + cW, xE - pad);
+        labelX = Math.max(PL + 20, Math.min(PL + cW - 20, (xS + xE) / 2));
+      } else {
+        // Fallback: equal-width bars
+        const bGrpW = cW / periods.length;
+        const pad   = Math.max(1, bGrpW * 0.10);
+        bxL    = PL + pi * bGrpW + pad;
+        bxR    = PL + (pi + 1) * bGrpW - pad;
+        labelX = PL + pi * bGrpW + bGrpW / 2;
+      }
+
+      const bW = Math.max(1, bxR - bxL);
+      let by = PT + cH;
       for (const r of activeRes) {
         const hrs = p.byResource.get(r.id) ?? 0;
         if (hrs <= 0) continue;
         const bh = (hrs / yMax) * cH;
-        const ci = resources.indexOf(r);
-        ctx.fillStyle = PALETTE[ci % PALETTE.length];
-        ctx.fillRect(bx, by - bh, bW, bh);
+        ctx.fillStyle = PALETTE[resources.indexOf(r) % PALETTE.length];
+        ctx.fillRect(bxL, by - bh, bW, bh);
         by -= bh;
       }
 
       // X label
-      ctx.fillStyle    = CLR_DIM;
-      ctx.font         = '9px Calibri,Arial';
-      ctx.textAlign    = 'center';
-      ctx.textBaseline = 'top';
-      ctx.fillText(p.label, PL + pi * bGrpW + bGrpW / 2, PT + cH + 5);
+      if (!vp || (bxR - bxL) >= 16) {
+        ctx.fillStyle    = CLR_DIM;
+        ctx.font         = '9px Calibri,Arial';
+        ctx.textAlign    = 'center';
+        ctx.textBaseline = 'top';
+        ctx.fillText(p.label, labelX, PT + cH + 5);
+      }
     }
 
     // Overallocation line — capacity per period
