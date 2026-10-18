@@ -1130,6 +1130,31 @@ export class WbsTable {
     appState.dispatch({ type: 'MOVE_TASK', payload: { id, newParentId: parent.parent_id ?? null, newSortOrder: parent.sort_order + 0.5 } });
   }
 
+  _dissolveGroup(id) {
+    const tasks = [...appState.state.tasks.values()].filter(t => !t.deleted_at);
+    const task  = tasks.find(t => t.id === id);
+    if (!task) return;
+    const children = tasks
+      .filter(t => t.parent_id === id)
+      .sort((a, b) => a.sort_order - b.sort_order);
+    if (children.length === 0) return;
+    // Insertar hijos como hermanos inmediatamente después de la tarea disuelta
+    const siblings = tasks
+      .filter(t => t.parent_id === task.parent_id)
+      .sort((a, b) => a.sort_order - b.sort_order);
+    const taskIdx  = siblings.findIndex(t => t.id === id);
+    const nextSib  = siblings[taskIdx + 1];
+    const endSo    = nextSib ? nextSib.sort_order : task.sort_order + children.length + 1;
+    const step     = (endSo - task.sort_order) / (children.length + 1);
+    children.forEach((child, i) => {
+      appState.dispatch({
+        type: 'MOVE_TASK',
+        payload: { id: child.id, newParentId: task.parent_id, newSortOrder: task.sort_order + step * (i + 1) },
+      });
+    });
+    if (this._ariaLive) this._ariaLive.textContent = 'Grupo disuelto.';
+  }
+
   // ---- Menú contextual ----
 
   _openCtxMenu(taskId, x, y) {
@@ -1139,6 +1164,10 @@ export class WbsTable {
 
     const isMulti = this._selectedIds.size > 1 && this._selectedIds.has(taskId);
     const multiCount = isMulti ? this._selectedIds.size : 0;
+    const activeTasks = [...appState.state.tasks.values()].filter(t => !t.deleted_at);
+    const hasChildren = activeTasks.some(t => t.parent_id === taskId);
+    const anySelectedHasChildren = isMulti && [...this._selectedIds].some(id =>
+      activeTasks.some(t => t.parent_id === id));
 
     const menu = document.createElement('div');
     menu.className = 'context-menu';
@@ -1156,6 +1185,8 @@ export class WbsTable {
         <div class="context-menu-item" data-action="bulk-outdent" role="menuitem" tabindex="0">← Desindentar todas</div>
         <div class="context-menu-item" data-action="bulk-up"      role="menuitem" tabindex="0">↑ Mover todas arriba</div>
         <div class="context-menu-item" data-action="bulk-down"    role="menuitem" tabindex="0">↓ Mover todas abajo</div>
+        ${anySelectedHasChildren ? `<div class="context-menu-sep"></div>
+        <div class="context-menu-item" data-action="bulk-dissolve" role="menuitem" tabindex="0">🔓 Disolver grupos seleccionados</div>` : ''}
         <div class="context-menu-sep"></div>
         <div class="context-menu-item danger" data-action="bulk-delete" role="menuitem" tabindex="0">🗑 Eliminar seleccionadas</div>`;
     } else {
@@ -1170,6 +1201,8 @@ export class WbsTable {
         <div class="context-menu-sep"></div>
         <div class="context-menu-item" data-action="indent" role="menuitem" tabindex="0">→ Indentar</div>
         <div class="context-menu-item" data-action="outdent" role="menuitem" tabindex="0">← Desindentar</div>
+        ${hasChildren ? `<div class="context-menu-sep"></div>
+        <div class="context-menu-item" data-action="dissolve" role="menuitem" tabindex="0">🔓 Disolver grupo</div>` : ''}
         <div class="context-menu-sep"></div>
         <div class="context-menu-item danger" data-action="delete" role="menuitem" tabindex="0">🗑 Eliminar</div>`;
     }
@@ -1218,6 +1251,9 @@ export class WbsTable {
         case 'bulk-outdent':ids.forEach(id => this._outdentTask(id)); break;
         case 'bulk-up':     this._bulkMoveVertical(ids, -1); break;
         case 'bulk-down':   this._bulkMoveVertical(ids,  1); break;
+        case 'bulk-dissolve':
+          ids.forEach(id => this._dissolveGroup(id));
+          break;
         case 'bulk-delete':
           document.dispatchEvent(new CustomEvent('wbs-confirm-delete', {
             detail: {
@@ -1256,8 +1292,9 @@ export class WbsTable {
       case 'milestone':
         this._addTask({ afterId: taskId, type: 'milestone' });
         break;
-      case 'indent':  this._indentTask(taskId);  break;
-      case 'outdent': this._outdentTask(taskId); break;
+      case 'indent':   this._indentTask(taskId);   break;
+      case 'outdent':  this._outdentTask(taskId);  break;
+      case 'dissolve': this._dissolveGroup(taskId); break;
       case 'delete':
         document.dispatchEvent(new CustomEvent('wbs-confirm-delete', { detail: { taskId, fn: () => this._deleteTask(taskId) } }));
         break;
