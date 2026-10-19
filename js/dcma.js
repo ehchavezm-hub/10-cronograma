@@ -14,6 +14,7 @@
 import { appState }  from './state.js';
 import { t }         from './i18n.js';
 import { calcEvm }   from './evm.js';
+import { Calendar, isoToDate } from './calendar.js';
 
 // ============================================================
 // Umbrales DCMA (configurables vía proyecto en Fase 5)
@@ -78,7 +79,7 @@ const TH = {
  * }} opts
  * @returns {DcmaReport}
  */
-export function runDcmaChecks({ tasks, deps, cpmResult, taskResources = [], nearThreshold = 5, dataDate = null }) {
+export function runDcmaChecks({ tasks, deps, cpmResult, taskResources = [], nearThreshold = 5, dataDate = null, calendar = null, projectStart = null }) {
   const activeTasks = [...tasks.values()].filter(t => !t.deleted_at);
   const activeDeps  = [...deps.values()].filter(d => !d.deleted_at);
 
@@ -264,9 +265,13 @@ export function runDcmaChecks({ tasks, deps, cpmResult, taskResources = [], near
     const missed   = leafWithCpm.filter(t => {
       const c = cpmTasks.get(t.id);
       if (!c || t.percent_complete >= 100) return false;
-      // Si el EF esperado (según CPM) ya pasó la data date y no está completo
-      // Usamos comparación de fecha
-      return c.tf !== null && c.tf < 0 && t.percent_complete < 100;
+      // Comparar fecha de fin (EF) con la fecha de corte
+      if (calendar && projectStart && c.ef != null) {
+        const efDate = calendar.finishDate(c.ef, projectStart);
+        return efDate < ddDate;
+      }
+      // Fallback: flotamiento negativo indica atraso
+      return c.tf !== null && c.tf < 0;
     });
     checks.push(_check(12,
       'Tareas retrasadas (vs. corte)',
@@ -454,7 +459,7 @@ export class DcmaPanel {
   }
 
   async refresh() {
-    const { tasks, deps, cpmResult, project } = appState.state;
+    const { tasks, deps, cpmResult, project, calendar: calState, calExceptions } = appState.state;
     if (!project) return;
 
     let taskResources = [];
@@ -463,10 +468,24 @@ export class DcmaPanel {
       taskResources = await getByIndex('task_resources', 'project_id', project.id);
     } catch { /* sin recursos */ }
 
+    let calendar = null;
+    let projectStart = null;
+    if (calState && project.start_date) {
+      const calDef = {
+        work_week: calState.work_week,
+        exceptions: (calExceptions || [])
+          .filter(e => !e.deleted_at)
+          .map(e => ({ on_date: e.on_date, is_working: e.is_working })),
+      };
+      calendar = new Calendar(calDef);
+      projectStart = isoToDate(project.start_date);
+    }
+
     this._report = runDcmaChecks({
       tasks, deps, cpmResult, taskResources,
       nearThreshold: appState.state.nearThreshold,
       dataDate: project.data_date ?? null,
+      calendar, projectStart,
     });
     this._render();
   }
