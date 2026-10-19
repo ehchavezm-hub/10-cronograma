@@ -67,19 +67,6 @@
  */
 
 // ============================================================
-// Utilidades
-// ============================================================
-
-/** @param {string} iso @returns {number} índice laborable del constraint */
-function _constraintIdx(iso, calendar, projectStart) {
-  const { isoToDate } = /** @type {any} */ (globalThis._calendarUtils ?? {});
-  // En worker, importado externamente; en módulo, recibido como parámetro
-  if (!iso || !calendar || !projectStart) return 0;
-  const d = new Date(iso + 'T00:00:00');
-  return calendar.dateToIdx(d, projectStart);
-}
-
-// ============================================================
 // Detección de ciclos: DFS desde node_id usando el grafo actual
 // ============================================================
 

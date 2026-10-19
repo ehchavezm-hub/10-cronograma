@@ -185,7 +185,7 @@ class SupabaseClient {
 
 async function _pgError(res) {
   let body = '';
-  try { body = JSON.stringify(await res.json()); } catch { body = await res.text(); }
+  try { body = JSON.stringify(await res.json()); } catch { try { body = await res.text(); } catch { body = `HTTP ${res.status}`; } }
   return new Error(`Supabase ${res.status}: ${body}`);
 }
 

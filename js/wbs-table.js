@@ -533,7 +533,7 @@ export class WbsTable {
 
     const vi = cpm.es  - bl.es;
     const vf = cpm.ef  - bl.ef;
-    const vd = (cpm.dur ?? (cpm.ef - cpm.es + 1)) - bl.dur;
+    const vd = (cpm.dur ?? (cpm.ef - cpm.es)) - bl.dur;
 
     const fmt = (v) => {
       const cls  = v > 0 ? 'bl-var-pos' : v < 0 ? 'bl-var-neg' : 'bl-var-zero';
@@ -583,7 +583,7 @@ export class WbsTable {
     if (!calendar) return new Calendar({ work_week: [1,2,3,4,5] });
     return new Calendar({
       work_week: calendar.work_week,
-      exceptions: calExceptions.filter(e => !e.deleted_at).map(e => ({ on_date: e.on_date, is_working: e.is_working })),
+      exceptions: (calExceptions ?? []).filter(e => !e.deleted_at).map(e => ({ on_date: e.on_date, is_working: e.is_working })),
     });
   }
 

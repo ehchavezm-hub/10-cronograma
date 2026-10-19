@@ -800,12 +800,12 @@ export class GanttCanvas {
 
   _barColor(task, cpm) {
     if (!cpm) return C.normal;
-    if (cpm.tf === null) return C.done;
+    if ((task.percent_complete ?? 0) >= 100) return C.done;
     if (task.type === 'milestone') return C.milestone;
     if (cpm.is_summary) return C.summary;
     if (cpm.is_critical) return C.critical;
     const near = appState.state.nearThreshold ?? 5;
-    if (cpm.tf >= 0 && cpm.tf <= near) return C.near;
+    if (cpm.tf != null && cpm.tf >= 0 && cpm.tf <= near) return C.near;
     return C.normal;
   }
 

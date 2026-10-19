@@ -132,7 +132,7 @@ export const DEFAULT_CALENDAR = new Calendar({ work_week: [1, 2, 3, 4, 5] });
 
 /** @param {Date} d @returns {string} 'YYYY-MM-DD' */
 export function _isoDate(d) {
-  return d.toISOString().slice(0, 10);
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 }
 
 /** @param {Date} d @param {number} n @returns {Date} */
