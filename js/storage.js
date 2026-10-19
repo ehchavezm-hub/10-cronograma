@@ -12,13 +12,13 @@
  */
 
 const DB_NAME    = 'cronograma';
-const DB_VERSION = 3;
+const DB_VERSION = 4;
 const OUTBOX_LIMIT = 10_000;
 
 const STORES = [
   'organizations', 'memberships', 'portfolios', 'programs', 'projects', 'calendars',
   'calendar_exceptions', 'tasks', 'task_dependencies', 'resources',
-  'task_resources', 'baselines', 'baseline_tasks', 'outbox', 'meta',
+  'task_resources', 'baselines', 'baseline_tasks', 'outbox', 'meta', 'risks',
 ];
 
 /** @type {IDBDatabase|null} */
@@ -49,6 +49,10 @@ export async function openDB() {
         if (name === 'task_resources') {
           if (!store.indexNames.contains('task_id'))    store.createIndex('task_id',    'task_id',    { unique: false });
           if (!store.indexNames.contains('project_id')) store.createIndex('project_id', 'project_id', { unique: false });
+        }
+        if (name === 'risks') {
+          if (!store.indexNames.contains('project_id')) store.createIndex('project_id', 'project_id', { unique: false });
+          if (!store.indexNames.contains('deleted_at'))  store.createIndex('deleted_at',  'deleted_at',  { unique: false });
         }
       }
     };
