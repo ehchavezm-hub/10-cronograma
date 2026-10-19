@@ -152,7 +152,7 @@ html, body {
   background: var(--clr-border);
   flex-shrink: 0;
   display: none;
-  z-index: 20;
+  z-index: var(--z-panel);
 }
 #right-content.has-histogram .resizer-h {
   display: block;

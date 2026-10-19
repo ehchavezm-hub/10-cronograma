@@ -261,7 +261,12 @@ export class SyncEngine {
     // Ignorar si el cambio viene de esta sesión (updated_by podría verificarlo, pero
     // como no tenemos userId en el cliente, simplemente fusionamos por updated_at)
     _mergeRemote(tabla, [record]);
-    _applyRemoteToState({ [_tableToStateKey(tabla)]: [record] });
+    // 'projects' usa clave singular 'project' y espera el objeto, no un array
+    if (tabla === 'projects') {
+      _applyRemoteToState({ project: record });
+    } else {
+      _applyRemoteToState({ [_tableToStateKey(tabla)]: [record] });
+    }
   }
 }
 

@@ -52,6 +52,9 @@
   --clr-warn-bg:     #fff8e1;
   --clr-error-bg:    #ffebee;
 
+  /* ---------- Selección de fila ---------- */
+  --clr-selected-bg: #eff6ff;
+
   /* ---------- Holgura negativa ---------- */
   --clr-neg-float:   #c62828;
   --clr-danger:      #e74c3c;
@@ -153,6 +156,10 @@
     --clr-ok-bg:       #1a3020;
     --clr-warn-bg:     #3d3010;
     --clr-error-bg:    #3d1a1a;
+    --clr-ok:          #4caf50;
+    --clr-warn:        #ffa726;
+    --clr-error:       #ef5350;
+    --clr-selected-bg: #1e2a3d;
     --clr-delayed:     #fb923c;
     --clr-baseline:    rgba(148,163,184,0.4);
     --clr-neg-float:   #f87171;
@@ -184,6 +191,10 @@
   --clr-ok-bg:       #1a3020;
   --clr-warn-bg:     #3d3010;
   --clr-error-bg:    #3d1a1a;
+  --clr-ok:          #4caf50;
+  --clr-warn:        #ffa726;
+  --clr-error:       #ef5350;
+  --clr-selected-bg: #1e2a3d;
   --clr-delayed:     #fb923c;
   --clr-baseline:    rgba(148,163,184,0.4);
   --clr-neg-float:   #f87171;

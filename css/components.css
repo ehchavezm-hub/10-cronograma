@@ -628,7 +628,7 @@
   font-weight: 700;
 }
 .dcma-badge-pass { background: var(--clr-done-bg, #E8F5E9); color: var(--clr-done); }
-.dcma-badge-fail { background: var(--clr-crit-bg, #FFEBEE); color: var(--clr-critical); }
+.dcma-badge-fail { background: var(--clr-critical-bg, #FFEBEE); color: var(--clr-critical); }
 .dcma-badge-na   { background: var(--clr-bg); color: var(--clr-text-3); font-size: 10px; font-weight: 400; }
 
 .dcma-count {
@@ -638,7 +638,7 @@
   min-width: 22px; height: 20px;
   padding: 0 5px;
   border-radius: 10px;
-  background: var(--clr-crit-bg, #FFEBEE);
+  background: var(--clr-critical-bg, #FFEBEE);
   color: var(--clr-critical);
   font-size: 11px;
   font-weight: 600;

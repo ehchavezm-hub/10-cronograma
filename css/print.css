@@ -110,7 +110,6 @@
 
   /* ---- Pie de página con número de página ---- */
   .print-footer {
-    display: block !important;
     position: fixed;
     bottom: 8mm;
     left: 10mm;
