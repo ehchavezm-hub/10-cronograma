@@ -179,10 +179,10 @@ export function exportCsv() {
   const HEADER = ['EDT','ID','Nombre','Tipo','Duración (d)','Inicio','Fin','% Avance',
                   'HT (d)','HL (d)','Predecesoras','Restricción'];
 
+  const parentIds = new Set(ordered.filter(t => t.parent_id).map(t => t.parent_id));
   const rows = ordered.map(task => {
     const cpm     = cpmTasks.get(task.id);
     const wbs     = codes.get(task.id) ?? '';
-    const parentIds = new Set(ordered.filter(t => t.parent_id).map(t => t.parent_id));
     const isSumm  = parentIds.has(task.id);
     const type    = isSumm ? 'resumen' : task.type === 'milestone' ? 'hito' : 'tarea';
 

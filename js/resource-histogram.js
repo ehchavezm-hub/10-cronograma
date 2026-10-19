@@ -150,19 +150,20 @@ export class ResourceHistogramPanel {
   }
 
   async _computeData() {
-    const state   = appState.state;
-    const cpm     = state.cpmResult;
-    const project = state.project;
-    const cal0    = state.calendar;
+    const state        = appState.state;
+    const cpm          = state.cpmResult;
+    const project      = state.project;
+    const cal0         = state.calendar;
+    const calExceptions = state.calExceptions ?? [];
 
     if (!project || !cpm?.tasks) return null;
 
     const startDate   = new Date(project.start_date + 'T00:00:00');
     const cal         = new Calendar({
       work_week:  cal0?.work_week  ?? [1,2,3,4,5],
-      exceptions: (cal0?.exceptions ?? []).map(
-        ex => ({ on_date: ex.on_date, is_working: ex.is_working })
-      ),
+      exceptions: calExceptions
+        .filter(e => !e.deleted_at)
+        .map(e => ({ on_date: e.on_date, is_working: e.is_working })),
     });
     const hoursPerDay = cal0?.hours_per_day ?? 8;
 

@@ -303,6 +303,7 @@ function _showToast(msg, type = '') {
 
 let _taskDetailPanel = null;
 let _taskDetailTrigger = null;
+let _taskDetailResources = [];
 
 function _initTaskDetailPanel() {
   if (_taskDetailPanel) return;
@@ -384,6 +385,7 @@ async function _openTaskDetail(taskId) {
       getByIndex('task_resources', 'task_id', taskId).then(r => r.filter(x => !x.deleted_at)),
     ]);
   } catch (e) { /* sin recursos */ }
+  _taskDetailResources = taskResources;
 
   const constraintTypes = ['ASAP','ALAP','MSO','MFO','SNET','SNLT','FNET','FNLT'];
   const constraintLabels = { ASAP:'Lo antes posible', ALAP:'Lo más tarde posible',
@@ -587,7 +589,7 @@ async function _tdpAddResource(taskId) {
   // Verificar que no esté ya asignado
   const tbody = document.getElementById('tdp-res-body');
   if (tbody?.querySelector(`tr[data-new-res="${resId}"]`) ||
-      taskResources.some(tr => tr.resource_id === resId)) {
+      _taskDetailResources.some(tr => tr.resource_id === resId)) {
     _showToast('Este recurso ya está asignado a la actividad', 'warn'); return;
   }
   const trid = crypto.randomUUID();
@@ -2068,7 +2070,7 @@ async function init() {
 
     // El motor de sync ya fue iniciado dentro de _loadProject.
 
-    console.log('[Cronogramas] v65 completo — modo', IS_LOCAL_MODE ? 'local' : 'Supabase');
+    console.log('[ECM Project] v83 completo — modo', IS_LOCAL_MODE ? 'local' : 'Supabase');
   } catch (err) {
     console.error('[init]', err);
     _showToast('Error al iniciar: ' + err.message, 'error');
