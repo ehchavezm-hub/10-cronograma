@@ -79,7 +79,7 @@ function _requestCpm() {
 
   const calDef = calendar
     ? { work_week: calendar.work_week,
-        exceptions: calExceptions.filter(e => !e.deleted_at).map(e => ({ on_date: e.on_date, is_working: e.is_working })) }
+        exceptions: (calExceptions ?? []).filter(e => !e.deleted_at).map(e => ({ on_date: e.on_date, is_working: e.is_working })) }
     : { work_week: [1,2,3,4,5], exceptions: [] };
 
   const taskArr = [...tasks.values()];
@@ -99,7 +99,7 @@ function _runCpmSync() {
 
   const calDef = calendar
     ? { work_week: calendar.work_week,
-        exceptions: calExceptions.filter(e => !e.deleted_at).map(e => ({ on_date: e.on_date, is_working: e.is_working })) }
+        exceptions: (calExceptions ?? []).filter(e => !e.deleted_at).map(e => ({ on_date: e.on_date, is_working: e.is_working })) }
     : { work_week: [1,2,3,4,5], exceptions: [] };
 
   const cal = new Calendar(calDef);
@@ -2070,7 +2070,7 @@ async function init() {
 
     // El motor de sync ya fue iniciado dentro de _loadProject.
 
-    console.log('[ECM Project] v83 completo — modo', IS_LOCAL_MODE ? 'local' : 'Supabase');
+    console.log('[ECM Project] v85 completo — modo', IS_LOCAL_MODE ? 'local' : 'Supabase');
   } catch (err) {
     console.error('[init]', err);
     _showToast('Error al iniciar: ' + err.message, 'error');

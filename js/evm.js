@@ -45,7 +45,7 @@ export function calcEvm() {
 
   const calDef = calendar
     ? { work_week: calendar.work_week,
-        exceptions: calExceptions.filter(e => !e.deleted_at)
+        exceptions: (calExceptions ?? []).filter(e => !e.deleted_at)
           .map(e => ({ on_date: e.on_date, is_working: e.is_working })) }
     : { work_week: [1,2,3,4,5], exceptions: [] };
   const cal       = new Calendar(calDef);

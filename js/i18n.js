@@ -2,7 +2,7 @@
 /** Internacionalización — Español (Perú) */
 
 const ES_PE = {
-  appName: 'Cronogramas',
+  appName: 'ECM Project',
   localMode: 'Modo local',
   synced: 'Sincronizado',
   syncing: 'Sincronizando…',
