@@ -397,7 +397,7 @@ function _calcWbsCodes(tasks) {
   const active = [...tasks.values()].filter(t => !t.deleted_at);
   const ch = new Map(active.map(t => [t.id, []]));
   const roots = [];
-  for (const t of active) { if (!t.parent_id) roots.push(t); else ch.get(t.parent_id)?.push(t); }
+  for (const t of active) { if (!t.parent_id || !ch.has(t.parent_id)) roots.push(t); else ch.get(t.parent_id).push(t); }
   for (const [, c] of ch) c.sort((a, b) => a.sort_order - b.sort_order);
   roots.sort((a, b) => a.sort_order - b.sort_order);
   const codes = new Map();
@@ -426,11 +426,11 @@ function _daysFrom(date, start) {
 }
 
 function _color(task, cpm, near) {
-  if (cpm.tf === null) return CLR.done;
+  if ((task.percent_complete ?? 0) >= 100) return CLR.done;
   if (task.type === 'milestone') return CLR.milestone;
   if (cpm.is_summary) return CLR.summary;
   if (cpm.is_critical) return CLR.critical;
-  if (cpm.tf >= 0 && cpm.tf <= near) return CLR.near;
+  if (cpm.tf != null && cpm.tf >= 0 && cpm.tf <= near) return CLR.near;
   return CLR.normal;
 }
 

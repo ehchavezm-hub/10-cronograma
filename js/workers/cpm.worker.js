@@ -10,8 +10,6 @@
 import { Calendar, isoToDate } from '../calendar.js';
 import { computeCPM } from '../cpm.js';
 
-// Exponer isoToDate globalmente para que cpm.js la use (si es necesario)
-globalThis._calendarUtils = { isoToDate };
 
 self.onmessage = function (e) {
   try {
