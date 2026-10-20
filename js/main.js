@@ -3477,26 +3477,34 @@ function _showOrgChart() {
       }
     });
 
-    // Fit all cards in viewport
+    // Fit all cards in viewport using CSS scale transform
     dlg.querySelector('#oc-fit-view')?.addEventListener('click', () => {
       const vp = /** @type {HTMLElement|null} */ (dlg.querySelector('#oc-viewport'));
-      const canvas = document.getElementById('oc-canvas');
+      const canvas = /** @type {HTMLElement|null} */ (document.getElementById('oc-canvas'));
       if (!vp || !canvas) return;
       const cards = [...canvas.querySelectorAll('.oc-card')];
       if (cards.length === 0) return;
       let minX = Infinity, minY = Infinity, maxX = 0, maxY = 0;
       cards.forEach(card => {
-        const x = parseInt(/** @type {HTMLElement} */(card).style.left) || 0;
-        const y = parseInt(/** @type {HTMLElement} */(card).style.top)  || 0;
-        const w = (/** @type {HTMLElement} */(card)).offsetWidth  || 160;
-        const h = (/** @type {HTMLElement} */(card)).offsetHeight || 110;
+        const el = /** @type {HTMLElement} */ (card);
+        const x = parseInt(el.style.left) || 0;
+        const y = parseInt(el.style.top)  || 0;
+        const w = el.offsetWidth  || 160;
+        const h = el.offsetHeight || 110;
         if (x < minX) minX = x; if (y < minY) minY = y;
         if (x + w > maxX) maxX = x + w; if (y + h > maxY) maxY = y + h;
       });
       if (!isFinite(minX)) return;
-      const PAD = 40;
-      vp.scrollLeft = Math.max(0, minX - PAD);
-      vp.scrollTop  = Math.max(0, minY - PAD);
+      const PAD = 48;
+      const contentW = maxX - minX + PAD * 2;
+      const contentH = maxY - minY + PAD * 2;
+      const vpW = vp.clientWidth  || vp.offsetWidth;
+      const vpH = vp.clientHeight || vp.offsetHeight;
+      const scale = Math.min(vpW / contentW, vpH / contentH, 1);
+      canvas.style.transform = `scale(${scale})`;
+      canvas.style.transformOrigin = 'top left';
+      vp.scrollLeft = Math.max(0, (minX - PAD) * scale);
+      vp.scrollTop  = Math.max(0, (minY - PAD) * scale);
     });
 
     dlg.querySelector('#oc-add-pf')  ?.addEventListener('click', () => _ocOpenForm(dlg, 'portfolio', null));
@@ -3504,6 +3512,8 @@ function _showOrgChart() {
     dlg.querySelector('#oc-add-proj')?.addEventListener('click', () => _ocOpenForm(dlg, 'project', null));
     dlg.querySelector('#oc-reset-layout')?.addEventListener('click', () => {
       localStorage.removeItem('oc-pos');
+      const canvas = /** @type {HTMLElement|null} */ (document.getElementById('oc-canvas'));
+      if (canvas) { canvas.style.transform = ''; canvas.style.transformOrigin = ''; }
       _renderOrgChart();
     });
     dlg.querySelector('#oc-print')?.addEventListener('click', _printOrgChart);
