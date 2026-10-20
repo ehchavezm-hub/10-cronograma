@@ -1688,7 +1688,9 @@ function _updateUndoRedoBtns() {
 
 async function _ensureDemoData() {
   const projects = await listProjects();
-  const demoExists = projects.some(p => p.is_template !== true);
+  // Busca el proyecto DEMO por su UUID específico, no por "cualquier proyecto"
+  const DEMO_UUID = '00000000-0000-0000-0000-000000000010';
+  const demoExists = projects.some(p => p.id === DEMO_UUID);
   if (!demoExists) {
     await saveProjectSnapshot(DEMO_DATA);
   }
@@ -1700,7 +1702,7 @@ async function _ensureDemoData() {
       await putMany('task_resources', DEMO_DATA.task_resources);
     }
   }
-  return demoExists ? projects[0] : DEMO_DATA.project;
+  return demoExists ? (projects.find(p => p.id === DEMO_UUID) ?? DEMO_DATA.project) : DEMO_DATA.project;
 }
 
 async function _loadProject(projectId) {
@@ -1714,7 +1716,9 @@ async function _loadProject(projectId) {
   if (!data.project) throw new Error(t('projectNotFound'));
   appState.loadProject(data);
   _ganttFitPending = true;
-  try { localStorage.setItem('last-project-id', projectId); } catch { /* ignore */ }
+  // Solo guardar en localStorage IDs con formato UUID (no IDs cortos del org chart como prj-09)
+  const _isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(projectId);
+  if (_isUUID) { try { localStorage.setItem('last-project-id', projectId); } catch { /* ignore */ } }
   history.replaceState(null, '', location.pathname + '?p=' + encodeURIComponent(projectId));
   _renderProjectList();
 
@@ -2515,7 +2519,13 @@ function _makeDraggable(dialog, handleSelector) {
   });
 }
 
-function _printToPdf(title, htmlContent) {
+function _printToPdf(moduleName, htmlContent) {
+  const _proj = appState.state.project?.name ?? 'ECM Project';
+  const _d = new Date();
+  const _dd = String(_d.getDate()).padStart(2,'0');
+  const _mm = String(_d.getMonth()+1).padStart(2,'0');
+  const _yy = _d.getFullYear();
+  const title = `${_proj} - ${moduleName} - ${_dd}/${_mm}/${_yy}`;
   const w = window.open('', '_blank', 'width=900,height=700');
   if (!w) return;
   w.document.write(`<!DOCTYPE html><html><head>
