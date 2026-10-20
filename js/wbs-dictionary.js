@@ -79,13 +79,19 @@ export class WbsDictionaryPanel {
       </div>`;
     const _printBtn = document.createElement('button');
     _printBtn.innerHTML = '🖨 Imprimir';
-    _printBtn.title = 'Imprimir PDF';
+    _printBtn.title = 'Imprimir tarea actual';
     _printBtn.className = 'btn btn-ghost btn-sm';
     _printBtn.style.cssText = 'flex-shrink:0';
-    _printBtn.addEventListener('click', () => {
-      _printToPdf('Diccionario WBS', `<h1>Diccionario WBS</h1>${this._detailEl?.innerHTML ?? '<p>Sin tarea seleccionada.</p>'}`);
-    });
+    _printBtn.addEventListener('click', () => this._printCurrent());
     hdr.appendChild(_printBtn);
+
+    const _printAllBtn = document.createElement('button');
+    _printAllBtn.innerHTML = '🖨 Imprimir Todo';
+    _printAllBtn.title = 'Imprimir todo el diccionario';
+    _printAllBtn.className = 'btn btn-ghost btn-sm';
+    _printAllBtn.style.cssText = 'flex-shrink:0';
+    _printAllBtn.addEventListener('click', () => this._printAll());
+    hdr.appendChild(_printAllBtn);
     this.el.appendChild(hdr);
 
     const body = document.createElement('div');
@@ -225,6 +231,53 @@ export class WbsDictionaryPanel {
     } catch (err) {
       console.error('[WBS dictionary] save error', err);
     }
+  }
+
+  /** Genera HTML limpio para una tarea (sin CSS vars) */
+  _taskHtml(task, idx) {
+    const _e = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    const bg = idx % 2 === 0 ? '#fff' : '#f9f9f9';
+    const field = (label, val) => val
+      ? `<div style="margin-bottom:10px">
+           <div style="font-size:10px;font-weight:700;color:#666;text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px">${label}</div>
+           <div style="font-size:12px;color:#333;white-space:pre-wrap">${_e(val)}</div>
+         </div>`
+      : '';
+    return `<div style="background:${bg};border:1px solid #ddd;border-radius:6px;padding:12px 16px;margin-bottom:10px;page-break-inside:avoid">
+      <div style="font-size:13px;font-weight:700;color:#1a1a1a;margin-bottom:8px;border-bottom:1px solid #e0e0e0;padding-bottom:6px">${_e(task.name)}</div>
+      ${field('Descripción', task.wbs_description)}
+      ${field('Alcance', task.wbs_scope)}
+      ${field('Criterios de Aceptación', task.wbs_acceptance)}
+      ${field('Responsable', task.wbs_owner)}
+      ${!task.wbs_description && !task.wbs_scope && !task.wbs_acceptance && !task.wbs_owner
+        ? '<div style="font-size:11px;color:#999;font-style:italic">Sin definición registrada.</div>' : ''}
+    </div>`;
+  }
+
+  _printCurrent() {
+    if (!this._selectedTaskId) {
+      alert('Selecciona una tarea de la lista primero.');
+      return;
+    }
+    const { tasks } = appState.state;
+    const task = tasks?.get(this._selectedTaskId);
+    if (!task) return;
+    const html = `<h1 style="font-size:16px;margin-bottom:4px">Diccionario WBS</h1>
+      <p style="font-size:12px;color:#666;margin:0 0 16px">Tarea seleccionada</p>
+      ${this._taskHtml(task, 0)}`;
+    _printToPdf('Diccionario WBS', html);
+  }
+
+  _printAll() {
+    const { tasks, cpmResult } = appState.state;
+    if (!tasks) return;
+    const _allTasks = [...tasks.values()].filter(t => !t.deleted_at);
+    const _dictParentIds = new Set(_allTasks.filter(t => t.parent_id).map(t => t.parent_id));
+    const taskArr = _allTasks.filter(t => t.type !== 'summary' && !_dictParentIds.has(t.id));
+    const html = `<h1 style="font-size:16px;margin-bottom:4px">Diccionario WBS — Completo</h1>
+      <p style="font-size:12px;color:#666;margin:0 0 16px">${taskArr.length} entregable(s)</p>
+      ${taskArr.map((t, i) => this._taskHtml(t, i)).join('')}`;
+    _printToPdf('Diccionario WBS Completo', html);
   }
 
   refresh() {
