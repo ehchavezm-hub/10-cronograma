@@ -52,7 +52,8 @@ export function printWbsTable() {
   // Vaciar title temporalmente para que el browser no muestre "Cronogramas" en la cabecera de impresión
   const origTitle = document.title;
   const _wProj = appState.state.project;
-  document.title = _wProj ? `${_wProj.name} — Tabla EDT` : 'Tabla EDT';
+  const _wD = new Date(), _wDD = String(_wD.getDate()).padStart(2,'0'), _wMM = String(_wD.getMonth()+1).padStart(2,'0'), _wYY = _wD.getFullYear();
+  document.title = _wProj ? `${_wProj.name} - Tabla EDT - ${_wDD}/${_wMM}/${_wYY}` : 'Tabla EDT';
   const _footerStyle = document.createElement('style');
   _footerStyle.id = 'print-ecm-footer';
   _footerStyle.textContent = `@media print {
@@ -123,7 +124,7 @@ export function printGantt(rows) {
 
     const _dG = new Date();
     const today   = _dG.toLocaleDateString('es-PE');
-    const _gDateStr = `${String(_dG.getDate()).padStart(2,'0')}-${String(_dG.getMonth()+1).padStart(2,'0')}-${_dG.getFullYear()}`;
+    const _gDateStr = `${String(_dG.getDate()).padStart(2,'0')}/${String(_dG.getMonth()+1).padStart(2,'0')}/${_dG.getFullYear()}`;
     const _gTitle = `${project.name} - Gantt - ${_gDateStr}`;
     const html    = `<!doctype html>
 <html lang="es"><head>

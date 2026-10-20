@@ -401,11 +401,14 @@ export class CurvaSPanel {
       </tr>`).join('')}
       </tbody></table>`;
 
+    const _proj = appState.state.project?.name ?? 'ECM Project';
+    const _dt = new Date(), _dd = String(_dt.getDate()).padStart(2,'0'), _dmm = String(_dt.getMonth()+1).padStart(2,'0'), _dyy = _dt.getFullYear();
+    const _title = `${_proj} - Curva S - ${_dd}/${_dmm}/${_dyy}`;
     const w = window.open('', '_blank', 'width=900,height=700');
     if (!w) return;
     w.document.write(`<!DOCTYPE html><html><head>
       <meta charset="utf-8">
-      <title>Curva S de Avance</title>
+      <title>${_title}</title>
       <style>
         body { font-family: Arial, sans-serif; padding: 24px; margin: 0; }
         h1 { font-size: 16px; margin: 0 0 4px; }

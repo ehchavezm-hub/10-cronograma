@@ -56,7 +56,9 @@ export class SyncEngine {
 
   /** Inicia el motor de sync. */
   async start() {
-    if (this._running || IS_LOCAL_MODE || !sb) return;
+    // No sincronizar proyectos con IDs que no son UUID válidos (ej: "prj-09" del org chart demo)
+    const _isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(this._projectId);
+    if (this._running || IS_LOCAL_MODE || !sb || !_isUUID) return;
     this._running = true;
 
     // Leer último pull desde meta
