@@ -413,7 +413,7 @@ function _buildPanelHtml() {
   return `
 <div class="evm-header" data-drag-handle>
   <h2 class="evm-title">📈 Valor Ganado (EVM)</h2>
-  <button class="btn btn-ghost btn-icon btn-sm no-print" id="btn-evm-print" title="Imprimir PDF" aria-label="Imprimir PDF EVM" style="font-size:15px">🖨</button>
+  <button class="btn btn-ghost btn-sm no-print" id="btn-evm-print" title="Imprimir PDF" aria-label="Imprimir PDF EVM">🖨 Imprimir</button>
   <button class="btn btn-ghost btn-sm no-print" id="btn-evm-close" aria-label="Cerrar panel EVM">✕</button>
 </div>
 <div id="evm-no-data" style="display:none;padding:32px;text-align:center;color:var(--clr-text-3)">

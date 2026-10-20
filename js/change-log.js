@@ -44,7 +44,7 @@ export class ChangeLogPanel {
 <div class="changelog-header">
   <h2 class="changelog-title">📋 Historial de cambios</h2>
   <button class="btn btn-ghost btn-sm" id="btn-changelog-clear" title="Limpiar historial de sesión">🗑 Limpiar</button>
-  <button class="btn btn-ghost btn-icon btn-sm no-print" id="btn-changelog-print" title="Imprimir PDF" aria-label="Imprimir historial PDF" style="font-size:15px">🖨</button>
+  <button class="btn btn-ghost btn-sm no-print" id="btn-changelog-print" title="Imprimir PDF" aria-label="Imprimir historial PDF">🖨 Imprimir</button>
   <button class="btn btn-ghost btn-sm no-print" id="btn-changelog-close" aria-label="Cerrar historial">✕</button>
 </div>
 <div class="changelog-body">
