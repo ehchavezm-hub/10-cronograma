@@ -293,7 +293,7 @@ export function runDcmaChecks({ tasks, deps, cpmResult, taskResources = [], near
   // ---- 13. CPLI (Critical Path Length Index) ----
   {
     if (cpmResult && cpmResult.projectDuration > 0) {
-      const critTasks = leafWithCpm.filter(t => (cpmTasks.get(t.id)?.tf ?? Infinity) === 0);
+      const critTasks = leafWithCpm.filter(t => (cpmTasks.get(t.id)?.tf ?? Infinity) <= 0);
       const maxLF     = critTasks.length
         ? Math.max(...critTasks.map(t => cpmTasks.get(t.id)?.lf ?? 0))
         : cpmResult.projectDuration;
