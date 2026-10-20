@@ -460,13 +460,13 @@ export class MonteCarloPanel {
     const max = sorted[n - 1];
     const range = max - min || 1;
 
-    // Forzar rango mínimo para que la S-curve no degenere a línea vertical
-    const dataRange2 = max - min;
-    const minRange2 = Math.max(dataRange2, Math.ceil(min * 0.15) || 20);
-    const spread2 = (minRange2 - dataRange2) / 2;
-    const dispMin = min - spread2;
-    const dispMax = max + spread2;
-    const dispRange = dispMax - dispMin;
+    // Calcular std para rango de display de la curva S
+    const _sm = sorted.reduce((s, v) => s + v, 0) / n;
+    const _sv = sorted.reduce((s, v) => s + (v - _sm) ** 2, 0) / n;
+    const _ss = Math.max(Math.sqrt(_sv), 2);
+    const dispMin = Math.min(min, _sm - 3 * _ss);
+    const dispMax = Math.max(max, _sm + 3 * _ss);
+    const dispRange = Math.max(dispMax - dispMin, 10);
 
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
@@ -865,13 +865,17 @@ export class MonteCarloPanel {
 
     const dataMin = sorted[0];
     const dataMax = sorted[sorted.length - 1];
-    // Forzar rango mínimo para mostrar al menos 20 barras visibles
-    const dataRange = dataMax - dataMin;
-    const minRange = Math.max(dataRange, Math.ceil(dataMin * 0.15) || 20);
-    const spread = (minRange - dataRange) / 2;
-    const min = dataMin - spread;
-    const max = dataMax + spread;
-    const range = max - min;
+    // Calcular std para determinar rango de visualización
+    const _n = sorted.length;
+    const _mean = sorted.reduce((s, v) => s + v, 0) / _n;
+    const _variance = sorted.reduce((s, v) => s + (v - _mean) ** 2, 0) / _n;
+    const _std = Math.sqrt(_variance);
+    // Forzar rango mínimo basado en std (al menos ±2σ, mínimo 10 unidades de rango)
+    const stdDisplay = Math.max(_std, 2);
+    const center = _mean;
+    const min = Math.min(dataMin, center - 3 * stdDisplay);
+    const max = Math.max(dataMax, center + 3 * stdDisplay);
+    const range = Math.max(max - min, 10);
 
     const BINS = 20;
     const binW = range / BINS;
@@ -892,11 +896,22 @@ export class MonteCarloPanel {
     g.setAttribute('transform', `translate(${PAD.left},${PAD.top})`);
     svg.appendChild(g);
 
-    // Barras
+    // Barras — siempre 20 barras; vacías se renderizan como ghost de 2px
     const bw = (inner_w / BINS) - 1;
     for (let i = 0; i < BINS; i++) {
-      const bh = (counts[i] / maxCount) * inner_h;
+      const bh = counts[i] > 0 ? Math.max(2, (counts[i] / maxCount) * inner_h) : 0;
       const x = (i / BINS) * inner_w;
+      // Ghost bar para bins vacíos
+      if (counts[i] === 0) {
+        const ghost = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+        ghost.setAttribute('x', String(x));
+        ghost.setAttribute('y', String(inner_h - 2));
+        ghost.setAttribute('width', String(Math.max(bw, 1)));
+        ghost.setAttribute('height', '2');
+        ghost.setAttribute('class', 'mc-hist-bar-ghost');
+        g.appendChild(ghost);
+        continue;
+      }
       const y = inner_h - bh;
       const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
       rect.setAttribute('x', String(x));
@@ -1154,6 +1169,11 @@ const MC_CSS = `
 .mc-hist-bar {
   fill: var(--mc-hist-fill, #60a5fa);
   opacity: .85;
+}
+
+.mc-hist-bar-ghost {
+  fill: var(--mc-border, #d1d5db);
+  opacity: .5;
 }
 
 .mc-hist-p80 {
