@@ -12,10 +12,10 @@
   <link href="https://fonts.googleapis.com/css2?family=Urbanist:wght@400;500;600;700&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
 
   <script>try{var _t=localStorage.getItem('app-theme');if(_t)document.documentElement.setAttribute('data-theme',_t);}catch(e){}</script>
-  <link rel="stylesheet" href="css/tokens.css?v=90">
-  <link rel="stylesheet" href="css/layout.css?v=90">
-  <link rel="stylesheet" href="css/components.css?v=90">
-  <link rel="stylesheet" media="print" href="css/print.css?v=90">
+  <link rel="stylesheet" href="css/tokens.css?v=91">
+  <link rel="stylesheet" href="css/layout.css?v=91">
+  <link rel="stylesheet" href="css/components.css?v=91">
+  <link rel="stylesheet" media="print" href="css/print.css?v=91">
   <link rel="manifest" href="manifest.json">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%234f46e5'/><rect x='6' y='10' width='20' height='3' rx='1.5' fill='white'/><rect x='6' y='15' width='14' height='3' rx='1.5' fill='white' opacity='.8'/><rect x='6' y='20' width='17' height='3' rx='1.5' fill='white' opacity='.6'/></svg>">
   <meta name="theme-color" content="#4f46e5">
@@ -407,12 +407,6 @@
         <button id="btn-risk-register" class="btn btn-ghost btn-sm" title="Registro de Riesgos" aria-label="Abrir registro de riesgos" aria-pressed="false">
           ⚠ Riesgos
         </button>
-        <button id="btn-lookahead" class="btn btn-ghost btn-sm" title="Vista Lookahead 3/6 semanas" aria-label="Lookahead" aria-pressed="false">
-          📅 Lookahead
-        </button>
-        <button id="btn-lookahead-detailed" class="btn btn-ghost btn-sm" title="Lookahead Detallado — Last Planner System (planificación semanal, PPC, restricciones)" aria-label="Lookahead Detallado" aria-pressed="false">
-          📋 LPS
-        </button>
         <button id="btn-curva-s" class="btn btn-ghost btn-sm" title="Curva S de Avance — Planificado vs Real" aria-label="Curva S" aria-pressed="false">
           📈 Curva S
         </button>
@@ -556,6 +550,16 @@
             </label>
           </div>
         </div>
+        <div class="toolbar-sep"></div>
+        <!-- Lookahead / LPS — agrupados -->
+        <div style="display:flex;align-items:center;gap:3px;background:var(--clr-surface-2,rgba(25,118,210,.08));border-radius:6px;padding:2px 6px;border:1px solid var(--clr-border)">
+          <button id="btn-lookahead" class="btn btn-ghost btn-sm" title="Vista Lookahead 3/6 semanas" aria-label="Lookahead" aria-pressed="false">
+            📅 Lookahead
+          </button>
+          <button id="btn-lookahead-detailed" class="btn btn-ghost btn-sm" title="Lookahead Detallado — Last Planner System (planificación semanal, PPC, restricciones)" aria-label="Lookahead Detallado" aria-pressed="false">
+            📋 LPS
+          </button>
+        </div>
       </div>
 
       <!-- ── Right content row ── -->
@@ -647,7 +651,7 @@
 <!-- ============================================================
      Módulo principal (ES Module)
      ============================================================ -->
-<script type="module" src="js/main.js?v=90"></script>
+<script type="module" src="js/main.js?v=91"></script>
 
 <!-- Atajos de teclado globales -->
 <script type="module">
