@@ -131,7 +131,7 @@ export class CurvaSPanel {
     {
       const d = new Date(startDate);
       while (d < today) {
-        if (cal.isWorkDay(d)) todayIdx++;
+        if (cal.isWorkingDay(d)) todayIdx++;
         d.setDate(d.getDate() + 1);
       }
     }
