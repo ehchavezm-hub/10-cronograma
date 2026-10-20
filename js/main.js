@@ -12,7 +12,7 @@ import { GanttScene }    from './scene.js';
 import { DcmaPanel }     from './dcma.js';
 import { Calendar, isoToDate } from './calendar.js';
 import { computeCPM }    from './cpm.js';
-import { openDB, listProjects, loadProject, saveProjectSnapshot, putMany, put as dbPut, getByIndex, getAll, remove as dbRemove,
+import { openDB, listProjects, listAllProjects, loadProject, saveProjectSnapshot, putMany, put as dbPut, getByIndex, getAll, remove as dbRemove,
          listPortfolios, savePortfolio, deletePortfolio, listPrograms, saveProgram, deleteProgram, loadHierarchy } from './storage.js';
 import { t }             from './i18n.js';
 import { DEMO_DATA }     from './demo-data.js';
@@ -1658,6 +1658,16 @@ async function _renderProjectList() {
 
   list.innerHTML = rows.join('');
 
+  // Recovery button when no projects visible
+  if (projects.length === 0) {
+    const recoveryBtn = document.createElement('div');
+    recoveryBtn.style.cssText = 'padding:12px 8px;text-align:center';
+    recoveryBtn.innerHTML = `<p style="font-size:11px;color:var(--clr-text-3);margin-bottom:8px">No hay proyectos visibles</p>
+      <button id="btn-recover-projects" class="btn btn-sm" style="font-size:11px;background:var(--clr-surface-2,#f8f9fa);border:1px solid var(--clr-border);border-radius:6px;padding:4px 12px;cursor:pointer">🗂 Recuperar eliminados</button>`;
+    list.appendChild(recoveryBtn);
+    document.getElementById('btn-recover-projects')?.addEventListener('click', () => _showProjectRecovery());
+  }
+
   // Toggle colapsar / expandir
   list.querySelectorAll('[data-exptoggle]').forEach(btn => {
     btn.addEventListener('click', (e) => {
@@ -1697,17 +1707,95 @@ async function _renderProjectList() {
 }
 
 async function _deleteProject(projectId) {
-  const [tasks, deps, taskResources] = await Promise.all([
-    getByIndex('tasks', 'project_id', projectId),
-    getByIndex('task_dependencies', 'project_id', projectId),
-    getByIndex('task_resources', 'project_id', projectId),
-  ]);
-  await Promise.all([
-    ...tasks.map(t  => dbRemove('tasks', t.id)),
-    ...deps.map(d   => dbRemove('task_dependencies', d.id)),
-    ...taskResources.map(tr => dbRemove('task_resources', tr.id)),
-  ]);
-  await dbRemove('projects', projectId);
+  // Soft delete: mark deleted_at so project can be recovered
+  const proj = await (async () => {
+    const all = await listAllProjects();
+    return all.find(p => p.id === projectId);
+  })();
+  if (!proj) return;
+  await dbPut('projects', { ...proj, deleted_at: new Date().toISOString() });
+  // If this was the active project, clear it
+  if (appState.state.project?.id === projectId) {
+    appState.setState({ project: null, tasks: new Map(), cpmResult: null });
+  }
+}
+
+async function _showProjectRecovery() {
+  const all = await listAllProjects();
+  const deleted = all.filter(p => p.deleted_at);
+
+  const existing = document.getElementById('dlg-project-recovery');
+  if (existing) existing.remove();
+
+  const dlg = document.createElement('dialog');
+  dlg.id = 'dlg-project-recovery';
+  dlg.style.cssText = 'border:none;border-radius:12px;padding:0;max-width:560px;width:95vw;box-shadow:0 8px 40px rgba(0,0,0,.25);background:var(--clr-surface);color:var(--clr-text)';
+  dlg.innerHTML = `
+    <div data-drag-handle style="display:flex;align-items:center;gap:10px;padding:14px 18px;border-bottom:1px solid var(--clr-border);cursor:move;user-select:none;background:var(--clr-surface-2,#f8f9fa);border-radius:12px 12px 0 0">
+      <span style="font-size:20px">🗂</span>
+      <div style="flex:1">
+        <div style="font-size:14px;font-weight:600">Recuperar proyectos eliminados</div>
+        <div style="font-size:11px;color:var(--clr-text-3)">${deleted.length} proyecto(s) en papelera</div>
+      </div>
+      <button id="dlg-recovery-close" class="btn btn-ghost btn-icon btn-sm">✕</button>
+    </div>
+    <div style="padding:16px 18px;max-height:60vh;overflow-y:auto">
+      ${deleted.length === 0
+        ? '<p style="color:var(--clr-text-3);text-align:center;padding:24px 0">No hay proyectos eliminados para recuperar.</p>'
+        : deleted.map(p => `
+          <div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--clr-border)">
+            <span style="font-size:16px">📋</span>
+            <div style="flex:1;min-width:0">
+              <div style="font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${_escHtml(p.name)}</div>
+              <div style="font-size:11px;color:var(--clr-text-3)">Eliminado: ${new Date(p.deleted_at).toLocaleDateString('es-PE')}</div>
+            </div>
+            <button class="btn btn-sm btn-primary" data-restore-id="${_escAttr(p.id)}" title="Recuperar proyecto">Recuperar</button>
+            <button class="btn btn-sm btn-danger" data-purge-id="${_escAttr(p.id)}" title="Eliminar definitivamente" style="background:var(--clr-danger,#e74c3c);color:#fff;border:none">Borrar</button>
+          </div>`).join('')}
+    </div>`;
+
+  document.body.appendChild(dlg);
+  _makeDraggable(dlg, '[data-drag-handle]');
+
+  dlg.querySelector('#dlg-recovery-close')?.addEventListener('click', () => dlg.close());
+  dlg.addEventListener('click', e => { if (e.target === dlg) dlg.close(); });
+
+  dlg.querySelectorAll('[data-restore-id]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const id = /** @type {HTMLElement} */ (btn).dataset.restoreId;
+      const proj = all.find(p => p.id === id);
+      if (!proj) return;
+      const { deleted_at, ...restored } = proj;
+      await dbPut('projects', restored);
+      _showToast('Proyecto recuperado: ' + proj.name, 'success');
+      dlg.close();
+      dlg.remove();
+      await _renderProjectList();
+    });
+  });
+
+  dlg.querySelectorAll('[data-purge-id]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const id = /** @type {HTMLElement} */ (btn).dataset.purgeId;
+      if (!confirm('¿Eliminar definitivamente este proyecto? Esta acción no se puede deshacer.')) return;
+      const [tasks, deps, taskResources] = await Promise.all([
+        getByIndex('tasks', 'project_id', id),
+        getByIndex('task_dependencies', 'project_id', id),
+        getByIndex('task_resources', 'project_id', id),
+      ]);
+      await Promise.all([
+        ...tasks.map(t  => dbRemove('tasks', t.id)),
+        ...deps.map(d   => dbRemove('task_dependencies', d.id)),
+        ...taskResources.map(tr => dbRemove('task_resources', tr.id)),
+      ]);
+      await dbRemove('projects', id);
+      _showToast('Proyecto eliminado definitivamente', 'info');
+      dlg.close();
+      dlg.remove();
+    });
+  });
+
+  dlg.showModal();
 }
 
 function _escHtml(s) {
@@ -1722,6 +1810,8 @@ function _escAttr(s) {
 // ============================================================
 
 function _bindNewProject() {
+  document.getElementById('btn-recover-projects-hdr')?.addEventListener('click', () => _showProjectRecovery());
+
   const btn    = document.getElementById('btn-new-project');
   const dlg    = /** @type {HTMLDialogElement|null} */ (document.getElementById('dlg-new-item'));
   if (dlg) _makeDraggable(dlg, '[data-drag-handle]');
