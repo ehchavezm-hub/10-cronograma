@@ -200,6 +200,11 @@ export class EvmPanel {
     container.innerHTML = _buildPanelHtml();
     this._canvas = /** @type {HTMLCanvasElement} */ (container.querySelector('#evm-curve-canvas'));
 
+    container.querySelector('#btn-evm-print')?.addEventListener('click', () => {
+      const content = container.querySelector('#evm-content');
+      _printToPdf('Valor Ganado (EVM)', `<h1>Valor Ganado (EVM)</h1>${content?.innerHTML ?? ''}`);
+    });
+
     container.querySelector('#evm-data-date-save')?.addEventListener('click', () => {
       const inp = /** @type {HTMLInputElement|null} */ (container.querySelector('#evm-data-date-input'));
       const val = inp?.value;
@@ -389,10 +394,26 @@ function _esc(s) {
   return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
+function _printToPdf(title, htmlContent) {
+  const w = window.open('', '_blank', 'width=900,height=700');
+  if (!w) return;
+  w.document.write(`<!DOCTYPE html><html><head>
+    <meta charset="utf-8">
+    <title>${title}</title>
+    <style>
+      body { font-family: Arial, sans-serif; padding: 24px; }
+      h1 { font-size: 18px; margin-bottom: 16px; }
+      @media print { body { margin: 0; } }
+    </style>
+  </head><body>${htmlContent}<script>window.print();window.close();<\/script></body></html>`);
+  w.document.close();
+}
+
 function _buildPanelHtml() {
   return `
-<div class="evm-header">
+<div class="evm-header" data-drag-handle>
   <h2 class="evm-title">📈 Valor Ganado (EVM)</h2>
+  <button class="btn btn-ghost btn-icon btn-sm no-print" id="btn-evm-print" title="Imprimir PDF" aria-label="Imprimir PDF EVM" style="font-size:15px">🖨</button>
   <button class="btn btn-ghost btn-sm no-print" id="btn-evm-close" aria-label="Cerrar panel EVM">✕</button>
 </div>
 <div id="evm-no-data" style="display:none;padding:32px;text-align:center;color:var(--clr-text-3)">

@@ -51,6 +51,7 @@ export class ResourceHistogramPanel {
         <option value="">Todos</option>
       </select>
     </div>
+    <button id="btn-rh-print" class="rh-close no-print" title="Imprimir PDF" aria-label="Imprimir PDF histograma" style="font-size:15px;margin-right:2px">🖨</button>
     <button id="btn-rh-close" class="rh-close" title="Cerrar histograma" aria-label="Cerrar histograma">✕</button>
   </div>
   <div id="rh-body" class="rh-body">
@@ -78,6 +79,10 @@ export class ResourceHistogramPanel {
     this._el.querySelector('#rh-resource')?.addEventListener('change', (e) => {
       this._filterRes = /** @type {HTMLSelectElement} */ (e.target).value || null;
       this._render();
+    });
+    this._el.querySelector('#btn-rh-print')?.addEventListener('click', () => {
+      const wrap = this._el.querySelector('.rh-wrap');
+      _printToPdf('Histograma de Recursos', `<h1>Histograma de Recursos</h1>${wrap?.innerHTML ?? ''}`);
     });
     this._el.querySelector('#btn-rh-close')?.addEventListener('click', () => {
       this._el.classList.remove('open');
@@ -623,4 +628,19 @@ function _esc(s) {
   return String(s ?? '')
     .replace(/&/g, '&amp;').replace(/</g, '&lt;')
     .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function _printToPdf(title, htmlContent) {
+  const w = window.open('', '_blank', 'width=900,height=700');
+  if (!w) return;
+  w.document.write(`<!DOCTYPE html><html><head>
+    <meta charset="utf-8">
+    <title>${title}</title>
+    <style>
+      body { font-family: Arial, sans-serif; padding: 24px; }
+      h1 { font-size: 18px; margin-bottom: 16px; }
+      @media print { body { margin: 0; } }
+    </style>
+  </head><body>${htmlContent}<script>window.print();window.close();<\/script></body></html>`);
+  w.document.close();
 }

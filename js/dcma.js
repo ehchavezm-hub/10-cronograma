@@ -393,7 +393,8 @@ export class DcmaPanel {
             <h2>Evaluación DCMA 14 Puntos</h2>
           </div>
           <div class="dcma-meta" id="dcma-meta">—</div>
-          <button class="btn btn-ghost btn-sm dcma-close-btn" id="dcma-close-btn" aria-label="Cerrar panel DCMA" title="Cerrar panel DCMA" style="margin-left:auto;font-size:14px;padding:4px 10px">✕ Cerrar</button>
+          <button class="btn btn-ghost btn-icon btn-sm no-print" id="dcma-print-btn" title="Imprimir PDF" aria-label="Imprimir PDF DCMA" style="font-size:15px;flex-shrink:0">🖨</button>
+          <button class="btn btn-ghost btn-sm dcma-close-btn" id="dcma-close-btn" aria-label="Cerrar panel DCMA" title="Cerrar panel DCMA" style="font-size:14px;padding:4px 10px">✕ Cerrar</button>
         </div>
         <div class="dcma-body">
           <div class="dcma-gauge-col">
@@ -436,6 +437,14 @@ export class DcmaPanel {
       const item = /** @type {HTMLElement} */ (e.target.closest('[data-task-id]'));
       if (item?.dataset.taskId) document.dispatchEvent(new CustomEvent('dcma-select-task', { detail: { id: item.dataset.taskId } }));
     });
+
+    const printBtn = this._container.querySelector('#dcma-print-btn');
+    if (printBtn) {
+      printBtn.addEventListener('click', () => {
+        const wrap = this._container.querySelector('.dcma-wrap');
+        _printToPdf('Evaluación DCMA 14 Puntos', `<h1>Evaluación DCMA 14 Puntos</h1>${wrap?.innerHTML ?? ''}`);
+      });
+    }
 
     const closeBtn = this._container.querySelector('#dcma-close-btn');
     if (closeBtn) {
@@ -623,4 +632,19 @@ function _esc(s) {
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
+}
+
+function _printToPdf(title, htmlContent) {
+  const w = window.open('', '_blank', 'width=900,height=700');
+  if (!w) return;
+  w.document.write(`<!DOCTYPE html><html><head>
+    <meta charset="utf-8">
+    <title>${title}</title>
+    <style>
+      body { font-family: Arial, sans-serif; padding: 24px; }
+      h1 { font-size: 18px; margin-bottom: 16px; }
+      @media print { body { margin: 0; } }
+    </style>
+  </head><body>${htmlContent}<script>window.print();window.close();<\/script></body></html>`);
+  w.document.close();
 }

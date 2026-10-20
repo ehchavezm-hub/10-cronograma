@@ -44,6 +44,7 @@ export class ChangeLogPanel {
 <div class="changelog-header">
   <h2 class="changelog-title">📋 Historial de cambios</h2>
   <button class="btn btn-ghost btn-sm" id="btn-changelog-clear" title="Limpiar historial de sesión">🗑 Limpiar</button>
+  <button class="btn btn-ghost btn-icon btn-sm no-print" id="btn-changelog-print" title="Imprimir PDF" aria-label="Imprimir historial PDF" style="font-size:15px">🖨</button>
   <button class="btn btn-ghost btn-sm no-print" id="btn-changelog-close" aria-label="Cerrar historial">✕</button>
 </div>
 <div class="changelog-body">
@@ -65,6 +66,11 @@ export class ChangeLogPanel {
     container.querySelector('#btn-changelog-clear')?.addEventListener('click', () => {
       _log.length = 0;
       this.refresh();
+    });
+
+    container.querySelector('#btn-changelog-print')?.addEventListener('click', () => {
+      const body = container.querySelector('.changelog-body');
+      _printToPdf('Historial de cambios', `<h1>Historial de cambios</h1>${body?.innerHTML ?? ''}`);
     });
   }
 
@@ -142,4 +148,19 @@ function _fmtTime(d) {
 
 function _esc(s) {
   return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function _printToPdf(title, htmlContent) {
+  const w = window.open('', '_blank', 'width=900,height=700');
+  if (!w) return;
+  w.document.write(`<!DOCTYPE html><html><head>
+    <meta charset="utf-8">
+    <title>${title}</title>
+    <style>
+      body { font-family: Arial, sans-serif; padding: 24px; }
+      h1 { font-size: 18px; margin-bottom: 16px; }
+      @media print { body { margin: 0; } }
+    </style>
+  </head><body>${htmlContent}<script>window.print();window.close();<\/script></body></html>`);
+  w.document.close();
 }
