@@ -30,6 +30,7 @@ import { MonteCarloPanel } from './monte-carlo.js';
 import { RiskRegisterPanel } from './risk-register.js';
 import { toggleBaselineCompare, disableBaselineCompare, getProjectBaselines, isBaselineCompareEnabled, enableBaselineCompare, getActiveBaselineId } from './baseline-compare.js';
 import { LookaheadPanel } from './lookahead.js';
+import { LookaheadDetailedPanel } from './lookahead-detailed.js';
 import { CurvaSPanel } from './curva-s.js';
 import { NotificationsPanel, updateNotificationBadge } from './notifications.js';
 import { WbsDictionaryPanel } from './wbs-dictionary.js';
@@ -3304,6 +3305,19 @@ function _bindToolbar() {
   document.getElementById('btn-lookahead-close')?.addEventListener('click', () => {
     document.getElementById('panel-lookahead')?.style && (document.getElementById('panel-lookahead').style.display = 'none');
     document.getElementById('btn-lookahead')?.setAttribute('aria-pressed', 'false');
+  });
+
+  // ---- Lookahead Detallado (Last Planner System) ----
+  let _ladPanel = /** @type {LookaheadDetailedPanel|null} */ (null);
+  document.getElementById('btn-lookahead-detailed')?.addEventListener('click', () => {
+    const { project } = appState.state;
+    if (!project) { _showToast('Abre un proyecto primero', 'warn'); return; }
+    _ladPanel = _openPanel('panel-lookahead-detailed', 'lookahead-detailed-container', LookaheadDetailedPanel, _ladPanel, 'btn-lookahead-detailed');
+  });
+  document.getElementById('btn-lad-close')?.addEventListener('click', () => {
+    const p = document.getElementById('panel-lookahead-detailed');
+    if (p) p.style.display = 'none';
+    document.getElementById('btn-lookahead-detailed')?.setAttribute('aria-pressed', 'false');
   });
 
   // ---- Curva S ----
