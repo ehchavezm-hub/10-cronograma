@@ -325,24 +325,27 @@ export class LookaheadDetailedPanel {
       return;
     }
 
-    const planData = _getPlan(project.id);
-    const cpmGroups = this._getWeekGroups(); // puede ser null si no hay CPM
+    const planData  = _getPlan(project.id);
+    const cpmGroups = this._getWeekGroups();
 
     let html = '';
     let totalManual = 0;
 
+    const INP_CSS = 'padding:4px 8px;border:1px solid var(--clr-border);border-radius:4px;background:var(--clr-surface);color:var(--clr-text);font-size:12px;width:100%';
+
     for (let idx = 0; idx < this._weeks; idx++) {
-      const wk     = _addWeeks(this._refWeekKey, idx);
-      const label  = _weekLabel(wk, idx);
-      const manual = planData[wk] ?? [];
+      const wk      = _addWeeks(this._refWeekKey, idx);
+      const label   = _weekLabel(wk, idx);
+      const manual  = planData[wk] ?? [];
       const cpmRows = cpmGroups?.get(wk) ?? [];
-      totalManual += manual.length;
+      totalManual  += manual.length;
 
       const manualRows = manual.map((act, i) => `
         <tr class="${i%2===0?'':'lad-row-alt'}" data-act-id="${act.id}" data-wk="${wk}">
           <td style="padding:5px 8px;width:22px;text-align:center">
             <span class="lad-badge" style="background:#1976D222;color:#1976D2;font-size:10px">LPS</span>
           </td>
+          <td class="lad-code" style="font-size:11px;color:var(--clr-text-3);white-space:nowrap">${_esc(act.code || '—')}</td>
           <td class="lad-name" title="${_esc(act.name)}">${_esc(act.name)}</td>
           <td class="lad-date" style="color:var(--clr-text-2)">${_esc(act.responsible || '—')}</td>
           <td class="lad-date" style="color:var(--clr-text-2)">${_esc(act.unit || '—')}</td>
@@ -354,22 +357,23 @@ export class LookaheadDetailedPanel {
         </tr>`).join('');
 
       const cpmSection = cpmRows.length > 0 ? `
-        <tr><td colspan="6" style="padding:4px 8px;background:var(--clr-surface-2);font-size:11px;color:var(--clr-text-3);font-weight:600">
+        <tr><td colspan="7" style="padding:4px 8px;background:var(--clr-surface-2);font-size:11px;color:var(--clr-text-3);font-weight:600">
           📌 Del cronograma maestro (${cpmRows.length} tarea${cpmRows.length!==1?'s':''})
         </td></tr>
         ${cpmRows.map((r,i) => {
           const status = r.pct >= 100 ? 'done' : r.cpm.tf === 0 ? 'critical' : r.pct > 0 ? 'progress' : 'todo';
-          const statusColor = { done:'#388E3C', critical:'#D32F2F', progress:'#1976D2', todo:'#757575' }[status];
-          const statusLabel = { done:'Completada', critical:'Crítica', progress:'En Curso', todo:'Pendiente' }[status];
+          const sc = { done:'#388E3C', critical:'#D32F2F', progress:'#1976D2', todo:'#757575' }[status];
+          const sl = { done:'Completada', critical:'Crítica', progress:'En Curso', todo:'Pendiente' }[status];
           return `<tr class="${i%2===0?'':'lad-row-alt'}" style="opacity:.85">
             <td style="padding:5px 8px;text-align:center">
-              <span class="lad-badge" style="background:${statusColor}22;color:${statusColor};font-size:10px">CPM</span>
+              <span class="lad-badge" style="background:${sc}22;color:${sc};font-size:10px">CPM</span>
             </td>
+            <td class="lad-code" style="font-size:11px;color:var(--clr-text-3)">${_esc(r.task.wbs_code||'—')}</td>
             <td class="lad-name" title="${_esc(r.task.name)}">${_esc(r.task.name)}</td>
             <td class="lad-date">${_fmtDate(r.startDate)}</td>
             <td class="lad-date">${_fmtDate(r.endDate)}</td>
             <td class="lad-num" style="text-align:center">${r.pct}%</td>
-            <td style="padding:5px 6px"><span class="lad-badge" style="background:${statusColor}22;color:${statusColor}">${statusLabel}</span></td>
+            <td style="padding:5px 6px"><span class="lad-badge" style="background:${sc}22;color:${sc}">${sl}</span></td>
           </tr>`;
         }).join('')}` : '';
 
@@ -377,24 +381,31 @@ export class LookaheadDetailedPanel {
         <div class="lad-week-block" data-wk="${wk}">
           <div class="lad-week-title">
             <span>${_esc(label)}</span>
-            <div style="display:flex;align-items:center;gap:8px">
+            <div style="display:flex;align-items:center;gap:6px">
               <span class="lad-week-count">${manual.length} actividad${manual.length!==1?'es':''} LPS</span>
+              <label class="btn btn-ghost btn-sm" title="Importar actividades desde Excel / CSV" style="font-size:11px;padding:3px 9px;cursor:pointer;display:flex;align-items:center;gap:4px">
+                📥 XLS
+                <input type="file" class="lad-xls-input" data-wk="${wk}" accept=".xlsx,.xls,.csv" style="display:none">
+              </label>
               <button class="btn btn-primary btn-sm lad-add-act" data-wk="${wk}" style="font-size:11px;padding:3px 10px">+ Agregar</button>
             </div>
           </div>
           <div class="lad-add-form" data-wk="${wk}" style="display:none;padding:8px 12px;background:var(--clr-surface-2);border-bottom:1px solid var(--clr-border)">
             <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">
+              <label style="font-size:12px;display:flex;flex-direction:column;gap:3px;flex:0 0 90px">
+                Código <input class="lad-inp-code" placeholder="COD-001" style="${INP_CSS}">
+              </label>
               <label style="font-size:12px;display:flex;flex-direction:column;gap:3px;flex:2;min-width:160px">
-                Actividad <input class="lad-inp-name" placeholder="Descripción de la actividad" style="padding:4px 8px;border:1px solid var(--clr-border);border-radius:4px;background:var(--clr-surface);color:var(--clr-text);font-size:12px;width:100%">
+                Actividad <input class="lad-inp-name" placeholder="Descripción de la actividad" style="${INP_CSS}">
               </label>
-              <label style="font-size:12px;display:flex;flex-direction:column;gap:3px;flex:1;min-width:110px">
-                Responsable <input class="lad-inp-resp" placeholder="Nombre" style="padding:4px 8px;border:1px solid var(--clr-border);border-radius:4px;background:var(--clr-surface);color:var(--clr-text);font-size:12px;width:100%">
+              <label style="font-size:12px;display:flex;flex-direction:column;gap:3px;flex:1;min-width:100px">
+                Responsable <input class="lad-inp-resp" placeholder="Nombre" style="${INP_CSS}">
               </label>
-              <label style="font-size:12px;display:flex;flex-direction:column;gap:3px;flex:0 0 80px">
-                Unidad <input class="lad-inp-unit" placeholder="m², m³…" style="padding:4px 8px;border:1px solid var(--clr-border);border-radius:4px;background:var(--clr-surface);color:var(--clr-text);font-size:12px;width:100%">
+              <label style="font-size:12px;display:flex;flex-direction:column;gap:3px;flex:0 0 75px">
+                Unidad <input class="lad-inp-unit" placeholder="m², m³…" style="${INP_CSS}">
               </label>
-              <label style="font-size:12px;display:flex;flex-direction:column;gap:3px;flex:0 0 80px">
-                Metrado <input class="lad-inp-qty" type="number" placeholder="0" style="padding:4px 8px;border:1px solid var(--clr-border);border-radius:4px;background:var(--clr-surface);color:var(--clr-text);font-size:12px;width:100%">
+              <label style="font-size:12px;display:flex;flex-direction:column;gap:3px;flex:0 0 75px">
+                Metrado <input class="lad-inp-qty" type="number" placeholder="0" style="${INP_CSS}">
               </label>
               <div style="display:flex;gap:4px;padding-bottom:1px">
                 <button class="btn btn-primary btn-sm lad-save-act" data-wk="${wk}" style="font-size:12px">💾 Guardar</button>
@@ -403,10 +414,11 @@ export class LookaheadDetailedPanel {
             </div>
           </div>
           ${manual.length === 0 && cpmRows.length === 0
-            ? `<p class="lad-empty-week">Sin actividades registradas. Usa "+ Agregar" para planificar esta semana.</p>`
+            ? `<p class="lad-empty-week">Sin actividades registradas. Usa "+ Agregar" o "📥 XLS" para planificar esta semana.</p>`
             : `<table class="lad-table">
               <thead><tr>
-                <th style="width:50px">Origen</th>
+                <th style="width:44px">Origen</th>
+                <th style="width:80px">Código</th>
                 <th>Actividad</th>
                 <th>Responsable / Inicio</th>
                 <th>Unidad / Fin</th>
@@ -431,27 +443,26 @@ export class LookaheadDetailedPanel {
     // Wire events
     this._body.querySelectorAll('.lad-add-act').forEach(btn => {
       btn.addEventListener('click', () => {
-        const wk = btn.getAttribute('data-wk');
+        const wk   = btn.getAttribute('data-wk');
         const form = this._body.querySelector(`.lad-add-form[data-wk="${wk}"]`);
         if (form) { form.style.display = form.style.display === 'none' ? 'block' : 'none'; }
-        const inp = form?.querySelector('.lad-inp-name');
-        if (inp) /** @type {HTMLInputElement} */ (inp).focus();
+        /** @type {HTMLInputElement|null} */ (form?.querySelector('.lad-inp-name'))?.focus();
       });
     });
 
     this._body.querySelectorAll('.lad-cancel-act').forEach(btn => {
       btn.addEventListener('click', () => {
-        const wk = btn.getAttribute('data-wk');
-        const form = this._body.querySelector(`.lad-add-form[data-wk="${wk}"]`);
+        const form = this._body.querySelector(`.lad-add-form[data-wk="${btn.getAttribute('data-wk')}"]`);
         if (form) form.style.display = 'none';
       });
     });
 
     this._body.querySelectorAll('.lad-save-act').forEach(btn => {
       btn.addEventListener('click', () => {
-        const wk = btn.getAttribute('data-wk');
+        const wk   = btn.getAttribute('data-wk');
         const form = this._body.querySelector(`.lad-add-form[data-wk="${wk}"]`);
         if (!form) return;
+        const codeInp = /** @type {HTMLInputElement} */ (form.querySelector('.lad-inp-code'));
         const nameInp = /** @type {HTMLInputElement} */ (form.querySelector('.lad-inp-name'));
         const respInp = /** @type {HTMLInputElement} */ (form.querySelector('.lad-inp-resp'));
         const unitInp = /** @type {HTMLInputElement} */ (form.querySelector('.lad-inp-unit'));
@@ -462,15 +473,16 @@ export class LookaheadDetailedPanel {
         if (!plan[wk]) plan[wk] = [];
         const editId = btn.getAttribute('data-edit-id');
         if (editId) {
-          const existing = plan[wk].find(a => a.id === editId);
-          if (existing) {
-            existing.name = name;
-            existing.responsible = respInp?.value.trim() || '';
-            existing.unit = unitInp?.value.trim() || '';
-            existing.qty = qtyInp?.value ? parseFloat(qtyInp.value) : null;
+          const ex = plan[wk].find(a => a.id === editId);
+          if (ex) {
+            ex.code = codeInp?.value.trim() || '';
+            ex.name = name;
+            ex.responsible = respInp?.value.trim() || '';
+            ex.unit = unitInp?.value.trim() || '';
+            ex.qty = qtyInp?.value ? parseFloat(qtyInp.value) : null;
           }
         } else {
-          plan[wk].push({ id: _genId(), name, responsible: respInp?.value.trim() || '', unit: unitInp?.value.trim() || '', qty: qtyInp?.value ? parseFloat(qtyInp.value) : null });
+          plan[wk].push({ id: _genId(), code: codeInp?.value.trim() || '', name, responsible: respInp?.value.trim() || '', unit: unitInp?.value.trim() || '', qty: qtyInp?.value ? parseFloat(qtyInp.value) : null });
         }
         _savePlan(project.id, plan);
         document.dispatchEvent(new CustomEvent('show-toast', { detail: { msg: 'Actividad guardada.', type: 'success' } }));
@@ -500,10 +512,12 @@ export class LookaheadDetailedPanel {
         const form = this._body.querySelector(`.lad-add-form[data-wk="${wk}"]`);
         if (!form) return;
         form.style.display = 'block';
+        const codeInp = /** @type {HTMLInputElement} */ (form.querySelector('.lad-inp-code'));
         const nameInp = /** @type {HTMLInputElement} */ (form.querySelector('.lad-inp-name'));
         const respInp = /** @type {HTMLInputElement} */ (form.querySelector('.lad-inp-resp'));
         const unitInp = /** @type {HTMLInputElement} */ (form.querySelector('.lad-inp-unit'));
         const qtyInp  = /** @type {HTMLInputElement} */ (form.querySelector('.lad-inp-qty'));
+        if (codeInp) codeInp.value = act.code || '';
         if (nameInp) nameInp.value = act.name;
         if (respInp) respInp.value = act.responsible || '';
         if (unitInp) unitInp.value = act.unit || '';
@@ -513,6 +527,168 @@ export class LookaheadDetailedPanel {
         nameInp?.focus();
       });
     });
+
+    this._body.querySelectorAll('.lad-xls-input').forEach(input => {
+      input.addEventListener('change', e => {
+        const wk   = input.getAttribute('data-wk');
+        const file = /** @type {HTMLInputElement} */ (e.target).files?.[0];
+        if (file && wk) this._importXlsForWeek(wk, file, project.id);
+        /** @type {HTMLInputElement} */ (input).value = '';
+      });
+    });
+  }
+
+  /** Carga SheetJS dinámicamente si no está disponible. */
+  _loadXlsx() {
+    if (/** @type {any} */ (window).XLSX) return Promise.resolve(/** @type {any} */ (window).XLSX);
+    return new Promise((resolve, reject) => {
+      const s = document.createElement('script');
+      s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+      s.onload = () => resolve(/** @type {any} */ (window).XLSX);
+      s.onerror = () => reject(new Error('No se pudo cargar la librería de Excel.'));
+      document.head.appendChild(s);
+    });
+  }
+
+  /** Parsea CSV simple separado por coma o punto y coma. */
+  _parseCsv(text) {
+    const lines = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n').filter(l => l.trim());
+    if (!lines.length) return [];
+    const sep = lines[0].includes(';') ? ';' : ',';
+    const headers = lines[0].split(sep).map(h => h.trim().replace(/^"|"$/g, '').toLowerCase());
+    return lines.slice(1).map(line => {
+      const cols = line.split(sep).map(c => c.trim().replace(/^"|"$/g, ''));
+      /** @type {Record<string,string>} */
+      const obj = {};
+      headers.forEach((h, i) => { obj[h] = cols[i] ?? ''; });
+      return obj;
+    });
+  }
+
+  /** Importa actividades desde un archivo Excel o CSV para una semana. */
+  async _importXlsForWeek(wk, file, projId) {
+    /** @param {Record<string,string>[]} rows */
+    const _process = (rows) => {
+      if (!rows.length) {
+        document.dispatchEvent(new CustomEvent('show-toast', { detail: { msg: 'El archivo está vacío o no tiene filas de datos.', type: 'warn' } }));
+        return;
+      }
+      const plan = _getPlan(projId);
+      if (!plan[wk]) plan[wk] = [];
+      let count = 0;
+      for (const row of rows) {
+        const get = (...names) => {
+          for (const n of names) {
+            const k = Object.keys(row).find(k => k.toLowerCase().trim() === n);
+            if (k !== undefined && row[k] !== '') return String(row[k]).trim();
+          }
+          return '';
+        };
+        const name = get('actividad','activity','descripción','descripcion','nombre','name','tarea','task');
+        if (!name) continue;
+        const qtyStr = get('metrado','cantidad','qty','quantity','amount');
+        const qty = qtyStr ? parseFloat(qtyStr) : null;
+        plan[wk].push({
+          id: _genId(),
+          code: get('código','codigo','code','cod','id','item'),
+          name,
+          responsible: get('responsable','responsible','resp'),
+          unit: get('unidad','unit','und','medida'),
+          qty: !isNaN(/** @type {any} */ (qty)) ? qty : null,
+        });
+        count++;
+      }
+      _savePlan(projId, plan);
+      document.dispatchEvent(new CustomEvent('show-toast', { detail: { msg: `${count} actividad${count!==1?'es':''} importada${count!==1?'s':''} correctamente.`, type: 'success' } }));
+      this._renderPlanning();
+    };
+
+    try {
+      const ext = file.name.split('.').pop()?.toLowerCase();
+      if (ext === 'csv') {
+        const text = await file.text();
+        _process(this._parseCsv(text));
+      } else {
+        const XLSX = await this._loadXlsx();
+        const buf  = await file.arrayBuffer();
+        const wb   = XLSX.read(buf, { type: 'array' });
+        const ws   = wb.Sheets[wb.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json(ws, { defval: '', raw: false });
+        _process(rows);
+      }
+    } catch (err) {
+      console.error('Error al importar XLS:', err);
+      document.dispatchEvent(new CustomEvent('show-toast', { detail: { msg: 'Error al leer el archivo. Verifique que sea .xlsx, .xls o .csv válido.', type: 'error' } }));
+    }
+  }
+
+  /** Importa restricciones desde un archivo Excel o CSV. */
+  async _importXlsForRestrictions(file, projId) {
+    /** @param {Record<string,string>[]} rows */
+    const _process = (rows) => {
+      if (!rows.length) {
+        document.dispatchEvent(new CustomEvent('show-toast', { detail: { msg: 'El archivo está vacío o no tiene filas de datos.', type: 'warn' } }));
+        return;
+      }
+      const rests = _getRest(projId);
+      let count = 0;
+      for (const row of rows) {
+        const get = (...names) => {
+          for (const n of names) {
+            const k = Object.keys(row).find(k => k.toLowerCase().trim() === n);
+            if (k !== undefined && row[k] !== '') return String(row[k]).trim();
+          }
+          return '';
+        };
+        const desc = get('descripción','descripcion','description','descripcion','desc','restricción','restriccion');
+        if (!desc) continue;
+        const dueDateRaw = get('fecha_limite','fecha límite','fecha limite','due_date','duedate','fecha');
+        let dueDate = null;
+        if (dueDateRaw) {
+          // Accept DD/MM/YYYY or YYYY-MM-DD
+          const dmyMatch = dueDateRaw.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+          if (dmyMatch) {
+            dueDate = `${dmyMatch[3]}-${dmyMatch[2].padStart(2,'0')}-${dmyMatch[1].padStart(2,'0')}`;
+          } else if (/^\d{4}-\d{2}-\d{2}$/.test(dueDateRaw)) {
+            dueDate = dueDateRaw;
+          }
+        }
+        const rawStatus = get('estado','status','estado').toLowerCase();
+        const status = (rawStatus === 'levantada' || rawStatus === 'cleared' || rawStatus === 'resuelto' || rawStatus === 'ok') ? 'cleared' : 'pending';
+        rests.push({
+          id:          `rest-${_genId()}`,
+          desc,
+          taskId:      null,
+          responsible: get('responsable','responsible','resp') || null,
+          dueDate,
+          status,
+          createdAt:   new Date().toISOString(),
+          updatedAt:   new Date().toISOString(),
+        });
+        count++;
+      }
+      _saveRest(projId, rests);
+      document.dispatchEvent(new CustomEvent('show-toast', { detail: { msg: `${count} restricción${count!==1?'es':''} importada${count!==1?'s':''} correctamente.`, type: 'success' } }));
+      this._renderRestrictions();
+    };
+
+    try {
+      const ext = file.name.split('.').pop()?.toLowerCase();
+      if (ext === 'csv') {
+        const text = await file.text();
+        _process(this._parseCsv(text));
+      } else {
+        const XLSX = await this._loadXlsx();
+        const buf  = await file.arrayBuffer();
+        const wb   = XLSX.read(buf, { type: 'array' });
+        const ws   = wb.Sheets[wb.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json(ws, { defval: '', raw: false });
+        _process(rows);
+      }
+    } catch (err) {
+      console.error('Error al importar restricciones XLS:', err);
+      document.dispatchEvent(new CustomEvent('show-toast', { detail: { msg: 'Error al leer el archivo. Verifique que sea .xlsx, .xls o .csv válido.', type: 'error' } }));
+    }
   }
 
   _renderCompliance() {
@@ -562,16 +738,20 @@ export class LookaheadDetailedPanel {
             </select>
           </label>
         </div>
-        <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap">
-          <span>Planificadas: <strong>${totalPlanned}</strong></span>
-          <span>Completadas: <strong>${totalCompleted}</strong></span>
-          <span>PPC: <strong style="font-size:15px;color:${ppcColor}">${ppc !== null ? ppc + '%' : 'N/A'}</strong></span>
+        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+          <span id="lad-comp-planned">Planificadas: <strong>${totalPlanned}</strong></span>
+          <span id="lad-comp-completed">Completadas: <strong>${totalCompleted}</strong></span>
+          <span id="lad-comp-ppc">PPC: <strong style="font-size:15px;color:${ppcColor}">${ppc !== null ? ppc + '%' : 'N/A'}</strong></span>
+          <label class="btn btn-ghost btn-sm" title="Importar actividades desde Excel / CSV" style="font-size:11px;padding:3px 9px;cursor:pointer;display:flex;align-items:center;gap:4px">
+            📥 XLS
+            <input type="file" id="lad-comp-xls-input" accept=".xlsx,.xls,.csv" style="display:none">
+          </label>
           <button id="lad-save-ppc" class="btn btn-primary btn-sm" style="font-size:12px">💾 Guardar PPC</button>
         </div>
       </div>`;
 
     if (totalPlanned === 0) {
-      html += '<p class="lad-empty">No hay actividades planificadas para esta semana. Registra actividades en la pestaña "Planificación" primero.</p>';
+      html += '<p class="lad-empty">No hay actividades planificadas para esta semana. Usa "📥 XLS" para importar o registra actividades en la pestaña "Planificación".</p>';
     } else {
       const manualRows = manualActs.map((act, i) => {
         const itemId = 'lps-' + act.id;
@@ -584,6 +764,7 @@ export class LookaheadDetailedPanel {
           <td style="padding:5px 8px;text-align:center">
             <span class="lad-badge" style="background:#1976D222;color:#1976D2;font-size:10px">LPS</span>
           </td>
+          <td class="lad-code" style="font-size:11px;color:var(--clr-text-3);white-space:nowrap">${_esc(act.code || '—')}</td>
           <td class="lad-name" title="${_esc(act.name)}">${_esc(act.name)}</td>
           <td class="lad-date">${_esc(act.responsible || '—')}</td>
           <td class="lad-date">${_esc(act.unit || '—')}${act.qty != null ? ' · ' + act.qty : ''}</td>
@@ -610,6 +791,7 @@ export class LookaheadDetailedPanel {
           <td style="padding:5px 8px;text-align:center">
             <span class="lad-badge" style="background:${statusColor}22;color:${statusColor};font-size:10px">CPM</span>
           </td>
+          <td class="lad-code" style="font-size:11px;color:var(--clr-text-3)">${_esc(r.task.wbs_code || '—')}</td>
           <td class="lad-name" title="${_esc(r.task.name)}">${_esc(r.task.name)}</td>
           <td class="lad-date">${_fmtDate(r.startDate)}</td>
           <td class="lad-date">${r.pct}%</td>
@@ -623,7 +805,7 @@ export class LookaheadDetailedPanel {
       }).join('');
 
       const cpmHeader = cpmTasks.length > 0 ? `
-        <tr><td colspan="6" style="padding:4px 8px;background:var(--clr-surface-2);font-size:11px;color:var(--clr-text-3);font-weight:600">
+        <tr><td colspan="7" style="padding:4px 8px;background:var(--clr-surface-2);font-size:11px;color:var(--clr-text-3);font-weight:600">
           📌 Del cronograma maestro (referencia)
         </td></tr>` : '';
 
@@ -631,6 +813,7 @@ export class LookaheadDetailedPanel {
         <thead><tr>
           <th style="width:38px;text-align:center">✓</th>
           <th style="width:50px">Origen</th>
+          <th style="width:80px">Código</th>
           <th>Actividad</th>
           <th>Responsable / Inicio</th>
           <th>Unidad / %</th>
@@ -677,6 +860,15 @@ export class LookaheadDetailedPanel {
       document.dispatchEvent(new CustomEvent('show-toast', { detail: { msg: 'PPC guardado correctamente.', type: 'success' } }));
       this._renderCompliance();
     });
+
+    const compXlsInput = /** @type {HTMLInputElement|null} */ (this._body.querySelector('#lad-comp-xls-input'));
+    if (compXlsInput) {
+      compXlsInput.addEventListener('change', e => {
+        const file = /** @type {HTMLInputElement} */ (e.target).files?.[0];
+        if (file) this._importXlsForWeek(this._compWeekKey, file, project.id);
+        compXlsInput.value = '';
+      });
+    }
   }
 
   _getWeekGroupForKey(weekKey) {
@@ -708,13 +900,15 @@ export class LookaheadDetailedPanel {
   _updatePpcDisplay() {
     const chks = this._body.querySelectorAll('.lad-comp-chk');
     let completed = 0, planned = chks.length;
-    chks.forEach(c => { if (c.checked) completed++; });
+    chks.forEach(c => { if (/** @type {HTMLInputElement} */ (c).checked) completed++; });
     const ppc = planned > 0 ? Math.round((completed/planned)*100) : null;
     const ppcColor = ppc === null ? '#757575' : ppc >= 85 ? '#388E3C' : ppc >= 60 ? '#F57C00' : '#D32F2F';
-    const spans = this._body.querySelectorAll('.lad-info-bar span');
-    if (spans[1]) spans[1].innerHTML = `Planificadas: <strong>${planned}</strong>`;
-    if (spans[2]) spans[2].innerHTML = `Completadas: <strong>${completed}</strong>`;
-    if (spans[3]) spans[3].innerHTML = `PPC: <strong style="font-size:15px;color:${ppcColor}">${ppc !== null ? ppc + '%' : 'N/A'}</strong>`;
+    const sp = this._body.querySelector('#lad-comp-planned');
+    const sc = this._body.querySelector('#lad-comp-completed');
+    const sv = this._body.querySelector('#lad-comp-ppc');
+    if (sp) sp.innerHTML = `Planificadas: <strong>${planned}</strong>`;
+    if (sc) sc.innerHTML = `Completadas: <strong>${completed}</strong>`;
+    if (sv) sv.innerHTML = `PPC: <strong style="font-size:15px;color:${ppcColor}">${ppc !== null ? ppc + '%' : 'N/A'}</strong>`;
   }
 
   _renderRestrictions() {
@@ -726,7 +920,13 @@ export class LookaheadDetailedPanel {
     this._body.innerHTML = `
       <div class="lad-info-bar">
         <span>🚧 <strong>${rests.length}</strong> restricción(es) registrada(s)</span>
-        <button id="lad-add-rest" class="btn btn-primary btn-sm" style="font-size:12px">+ Nueva restricción</button>
+        <div style="display:flex;align-items:center;gap:8px">
+          <label class="btn btn-ghost btn-sm" title="Importar restricciones desde Excel / CSV" style="font-size:11px;padding:3px 9px;cursor:pointer;display:flex;align-items:center;gap:4px">
+            📥 XLS
+            <input type="file" id="lad-rest-xls-input" accept=".xlsx,.xls,.csv" style="display:none">
+          </label>
+          <button id="lad-add-rest" class="btn btn-primary btn-sm" style="font-size:12px">+ Nueva restricción</button>
+        </div>
       </div>
       ${rests.length === 0
         ? `<p class="lad-empty">No hay restricciones registradas. Usa "+ Nueva restricción" para agregar.</p>`
@@ -800,6 +1000,15 @@ export class LookaheadDetailedPanel {
         this._renderRestrictions();
       });
     });
+
+    const restXlsInput = /** @type {HTMLInputElement|null} */ (this._body.querySelector('#lad-rest-xls-input'));
+    if (restXlsInput) {
+      restXlsInput.addEventListener('change', e => {
+        const file = /** @type {HTMLInputElement} */ (e.target).files?.[0];
+        if (file) this._importXlsForRestrictions(file, project.id);
+        restXlsInput.value = '';
+      });
+    }
   }
 
   _getTaskName(taskId) {
