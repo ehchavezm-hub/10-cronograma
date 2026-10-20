@@ -2701,6 +2701,11 @@ function _bindToolbar() {
     const dlg = /** @type {HTMLDialogElement} */ (document.getElementById('dlg-monte-carlo'));
     dlg?.close?.() ?? (dlg && (dlg.style.display = 'none'));
   });
+  document.getElementById('dlg-mc-print')?.addEventListener('click', () => {
+    const body = document.getElementById('monte-carlo-container');
+    _printToPdf('Simulación Monte Carlo', `<h1>Simulación Monte Carlo</h1>${body?.innerHTML ?? ''}`);
+  });
+  _makeDraggable(document.getElementById('dlg-monte-carlo'), '[data-drag-handle]');
 
   // ---- Lookahead ----
   let _lookaheadPanel = /** @type {LookaheadPanel|null} */ (null);

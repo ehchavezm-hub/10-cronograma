@@ -256,10 +256,14 @@
       border:none;border-radius:12px;padding:0;
       box-shadow:0 8px 40px rgba(0,0,0,0.25);
       min-width:500px;max-width:900px;width:96vw;max-height:90vh;overflow:hidden;
-      font-family:var(--font-ui);">
-      <button class="btn btn-ghost btn-icon btn-sm" id="dlg-mc-close" aria-label="Cerrar"
-        style="position:absolute;top:10px;right:12px;z-index:1">✕</button>
-      <div id="monte-carlo-container" style="overflow:auto;max-height:90vh"></div>
+      font-family:var(--font-ui);display:flex;flex-direction:column;">
+      <div data-drag-handle id="dlg-mc-header" style="display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid var(--clr-border);background:var(--clr-surface-2,#f8f9fa);border-radius:12px 12px 0 0;flex-shrink:0;cursor:move;user-select:none">
+        <span style="font-size:18px">🎲</span>
+        <span id="dlg-mc-title" style="flex:1;font-size:14px;font-weight:700;color:var(--clr-text)">Simulación Monte Carlo</span>
+        <button class="btn btn-ghost btn-icon btn-sm" id="dlg-mc-print" aria-label="Imprimir PDF" title="Imprimir PDF" style="font-size:15px;flex-shrink:0">🖨</button>
+        <button class="btn btn-ghost btn-icon btn-sm" id="dlg-mc-close" aria-label="Cerrar" style="flex-shrink:0">✕</button>
+      </div>
+      <div id="monte-carlo-container" style="overflow:auto;flex:1"></div>
     </dialog>
 
     <!-- Panel: Registro de Riesgos (overlay) -->
