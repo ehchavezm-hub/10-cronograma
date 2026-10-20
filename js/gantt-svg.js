@@ -177,7 +177,7 @@ export function renderGanttSvg({ tasks, deps, cpmResult, calendar, projectStart,
     for (const col of rightCols) {
       let val = '';
       if (col.id === 'type')  val = isSummary ? 'Resumen' : (task.type === 'milestone' ? 'Hito' : 'Tarea');
-      if (col.id === 'dur')   val = task.type === 'milestone' ? '0 d' : (task.duration_days ?? '') + ' d';
+      if (col.id === 'dur')   val = task.type === 'milestone' ? '0 d' : (task.duration_days ?? cpm?.dur ?? '') + ' d';
       if (col.id === 'start'  && cpm?.es != null) val = _fmtDate(calendar.idxToDate(cpm.es, projectStart));
       if (col.id === 'finish' && cpm?.ef != null) val = _fmtDate(calendar.finishDate(cpm.ef, projectStart));
       if (col.id === 'pct')   val = `${task.percent_complete ?? 0}%`;
@@ -215,9 +215,9 @@ export function renderGanttSvg({ tasks, deps, cpmResult, calendar, projectStart,
   // Grupo clippeado para todo el cuerpo — translate recorta el espacio vacío izquierdo
   out.push(`<g clip-path="url(#gc-body)"><g transform="translate(${-cropOffset}, 0)">`);
 
-  // Bandas alternadas de fila
+  // Bandas alternadas de fila (pares, igual que columna de nombres)
   rows.forEach((_, i) => {
-    if (i % 2 === 0) return;
+    if (i % 2 !== 0) return;
     const y = HDR_H + i * ROW_H;
     out.push(`<rect x="${NAME_W}" y="${y}" width="${totalW - NAME_W}" height="${ROW_H}" fill="rgba(0,0,0,0.018)"/>`);
   });
@@ -287,7 +287,7 @@ export function renderGanttSvg({ tasks, deps, cpmResult, calendar, projectStart,
     const cpmForLabel = cpmResult.tasks.get(id);
     const lblParts = [];
     if (barLabels.includes('name'))     lblParts.push(_esc(task.name));
-    if (barLabels.includes('duration')) lblParts.push((task.duration_days ?? 0) + ' d');
+    if (barLabels.includes('duration')) lblParts.push((task.duration_days ?? cpm?.dur ?? 0) + ' d');
     if (barLabels.includes('pct'))      lblParts.push((task.percent_complete ?? 0) + '%');
     if (barLabels.includes('start')  && cpmForLabel?.es != null) lblParts.push(_fmtDate(calendar.idxToDate(cpmForLabel.es, projectStart)));
     if (barLabels.includes('finish') && cpmForLabel?.ef != null) lblParts.push(_fmtDate(calendar.finishDate(cpmForLabel.ef, projectStart)));
@@ -428,7 +428,7 @@ function _daysFrom(date, start) {
 function _color(task, cpm, near) {
   if ((task.percent_complete ?? 0) >= 100) return CLR.done;
   if (task.type === 'milestone') return CLR.milestone;
-  if (cpm.is_summary) return CLR.summary;
+  if (task.type === 'summary') return CLR.summary;
   if (cpm.is_critical) return CLR.critical;
   if (cpm.tf != null && cpm.tf >= 0 && cpm.tf <= near) return CLR.near;
   return CLR.normal;

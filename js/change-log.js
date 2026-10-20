@@ -94,13 +94,25 @@ export class ChangeLogPanel {
 // ============================================================
 
 function _cmdLabel(cmd) {
-  const name = cmd.payload?.task?.name ?? cmd.payload?.name ?? '';
+  const nameFromPayload = cmd.payload?.task?.name ?? cmd.payload?.name ?? '';
   switch (cmd.type) {
-    case 'ADD_TASK':     return `Nueva tarea: "${name}"`;
-    case 'UPDATE_TASK':  return `Editada: "${name || (cmd.payload?.id ?? '?')}"`;
-    case 'REMOVE_TASK':  return `Eliminada: "${name || (cmd.payload?.id ?? '?')}"`;
-    case 'RESTORE_TASK': return `Restaurada: "${name || (cmd.payload?.id ?? '?')}"`;
-    case 'MOVE_TASK':    return `Movida: "${name || (cmd.payload?.id ?? '?')}"`;
+    case 'ADD_TASK':     return `Nueva tarea: "${nameFromPayload}"`;
+    case 'UPDATE_TASK': {
+      const t = appState.state.tasks.get(cmd.payload?.id);
+      return `Editada: "${t?.name || (cmd.payload?.id ?? '?')}"`;
+    }
+    case 'REMOVE_TASK': {
+      const t = appState.state.tasks.get(cmd.payload?.id);
+      return `Eliminada: "${t?.name || nameFromPayload || (cmd.payload?.id ?? '?')}"`;
+    }
+    case 'RESTORE_TASK': {
+      const t = appState.state.tasks.get(cmd.payload?.id);
+      return `Restaurada: "${t?.name || nameFromPayload || (cmd.payload?.id ?? '?')}"`;
+    }
+    case 'MOVE_TASK': {
+      const t = appState.state.tasks.get(cmd.payload?.id);
+      return `Movida: "${t?.name || nameFromPayload || (cmd.payload?.id ?? '?')}"`;
+    }
     case 'ADD_DEP':      return `Dependencia añadida`;
     case 'REMOVE_DEP':   return `Dependencia eliminada`;
     case 'UPDATE_PROJECT': return `Proyecto actualizado`;

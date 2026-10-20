@@ -33,9 +33,9 @@ export function generatePdfReport() {
 
   // KPIs básicos
   const totalTasks = nonSummary.length;
-  const doneTasks = nonSummary.filter(t => (t.pct_complete ?? 0) >= 100).length;
-  const inProgress = nonSummary.filter(t => (t.pct_complete ?? 0) > 0 && (t.pct_complete ?? 0) < 100).length;
-  const pctAvg = totalTasks ? Math.round(nonSummary.reduce((s, t) => s + (t.pct_complete ?? 0), 0) / totalTasks) : 0;
+  const doneTasks = nonSummary.filter(t => (t.percent_complete ?? 0) >= 100).length;
+  const inProgress = nonSummary.filter(t => (t.percent_complete ?? 0) > 0 && (t.percent_complete ?? 0) < 100).length;
+  const pctAvg = totalTasks ? Math.round(nonSummary.reduce((s, t) => s + (t.percent_complete ?? 0), 0) / totalTasks) : 0;
 
   // Ruta crítica
   const criticalTasks = nonSummary.filter(t => cpmResult?.tasks?.get(t.id)?.tf === 0);
@@ -150,7 +150,7 @@ ${cpmResult ? `
   <tbody>
     ${taskArr.map(t => {
       const cpm = cpmResult?.tasks?.get(t.id);
-      const pct = t.pct_complete ?? 0;
+      const pct = t.percent_complete ?? 0;
       const isSummary = t.type === 'summary';
       const isCrit = !isSummary && cpm?.tf === 0;
       const statusTag = pct >= 100
@@ -191,7 +191,7 @@ ${criticalTasks.length ? `
         <td>${cpm ? fmtDate(cpm.es) : '-'}</td>
         <td>${cpm ? fmtDate(Math.max(cpm.es, cpm.ef - 1)) : '-'}</td>
         <td>${cpm ? cpm.dur + 'd' : '-'}</td>
-        <td>${t.pct_complete ?? 0}%</td>
+        <td>${t.percent_complete ?? 0}%</td>
       </tr>`;
     }).join('')}
   </tbody>

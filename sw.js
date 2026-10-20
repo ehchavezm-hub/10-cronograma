@@ -1,17 +1,17 @@
 // sw.js — Service Worker para cache-first offline
 // Versión: incrementar al desplegar cambios a assets
-const CACHE = 'cronogramas-v88';
+const CACHE = 'cronogramas-v89';
 
 // Assets del shell de la app que siempre se cachean en la instalación
 const SHELL = [
   './',
   './index.html',
   './manifest.json',
-  './css/tokens.css?v=88',
-  './css/layout.css?v=88',
-  './css/components.css?v=88',
-  './css/print.css?v=88',
-  './js/main.js?v=88',
+  './css/tokens.css?v=89',
+  './css/layout.css?v=89',
+  './css/components.css?v=89',
+  './css/print.css?v=89',
+  './js/main.js?v=89',
   './js/state.js',
   './js/storage.js',
   './js/config.js',
@@ -20,7 +20,7 @@ const SHELL = [
   './js/cpm.js',
   './js/scene.js',
   './js/gantt-canvas.js',
-  './js/wbs-table.js?v=88',
+  './js/wbs-table.js?v=89',
   './js/evm.js',
   './js/dcma.js',
   './js/demo-data.js',

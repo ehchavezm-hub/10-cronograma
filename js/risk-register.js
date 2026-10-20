@@ -14,7 +14,6 @@
  */
 
 import { getByIndex, put } from './storage.js';
-import { i18n } from './i18n.js';
 
 const CATEGORIES = ['Técnico', 'Externo', 'Organizacional', 'Gestión de proyectos', 'Otro'];
 const STATUSES   = ['Abierto', 'En seguimiento', 'Cerrado', 'Aceptado'];

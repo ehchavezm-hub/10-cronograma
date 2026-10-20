@@ -2041,6 +2041,9 @@ async function init() {
       _showToast(e.detail.msg, e.detail.type ?? '');
     });
 
+    // Re-calcular CPM después de actualizaciones remotas (sync.js)
+    document.addEventListener('ecm-schedule-cpm', () => _requestCpm());
+
     // ---- Inicializar panel EVM ----
     const evmEl = document.getElementById('evm-panel');
     if (evmEl) {
@@ -2670,7 +2673,7 @@ function _bindToolbar() {
   // ---- Monte Carlo ----
   let _mcPanel = /** @type {MonteCarloPanel|null} */ (null);
   document.getElementById('btn-monte-carlo')?.addEventListener('click', () => {
-    const { project, cpmResult, tasks } = appState.state;
+    const { project, cpmResult, tasks, calendar, calExceptions } = appState.state;
     if (!project) { _showToast('Abre un proyecto primero', 'warn'); return; }
     if (!cpmResult) { _showToast('Calculando CPM…', 'warn'); return; }
     const dlg = /** @type {HTMLDialogElement} */ (document.getElementById('dlg-monte-carlo'));
@@ -2679,7 +2682,11 @@ function _bindToolbar() {
     if (!_mcPanel) {
       _mcPanel = new MonteCarloPanel(container);
     }
-    _mcPanel.onCpmUpdate(cpmResult, tasks);
+    const _mcCal = new Calendar({
+      work_week: calendar?.work_week ?? [1,2,3,4,5],
+      exceptions: (calExceptions ?? []).filter(e => !e.deleted_at).map(e => ({ on_date: e.on_date, is_working: e.is_working })),
+    });
+    _mcPanel.onCpmUpdate(cpmResult, tasks, project, _mcCal);
     _mcPanel.refresh(project.id);
     dlg.showModal?.() ?? (dlg.style.display = 'block');
   });

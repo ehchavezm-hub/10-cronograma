@@ -42,6 +42,10 @@ export class MonteCarloPanel {
     this._visible = false;
     /** @type {string|null} */
     this._projectId = null;
+    /** @type {object|null} */
+    this._project = null;
+    /** @type {import('./calendar.js').Calendar|null} */
+    this._calendar = null;
 
     this._buildUI();
   }
@@ -116,9 +120,11 @@ export class MonteCarloPanel {
    * @param {object|null} cpmResult
    * @param {Map<string,object>} tasks
    */
-  onCpmUpdate(cpmResult, tasks) {
+  onCpmUpdate(cpmResult, tasks, project, calendar) {
     this._cpmResult = cpmResult;
     this._tasks = tasks;
+    this._project = project ?? null;
+    this._calendar = calendar ?? null;
     // Limpiar resultado anterior si los datos cambiaron
     if (this._lastResult) {
       this._lastResult = null;
@@ -393,7 +399,8 @@ export class MonteCarloPanel {
    * @returns {SVGElement}
    */
   _buildHistogram(sorted, p80, fmt) {
-    const W = 480, H = 160;
+    const W = Math.max(300, (this._resultsArea?.clientWidth || 480) - 32);
+    const H = Math.max(120, Math.round(W * 0.33));
     const PAD = { top: 8, right: 12, bottom: 32, left: 36 };
     const inner_w = W - PAD.left - PAD.right;
     const inner_h = H - PAD.top - PAD.bottom;
@@ -414,7 +421,7 @@ export class MonteCarloPanel {
 
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
-    svg.setAttribute('width', '100%');
+    svg.setAttribute('width', String(W));
     svg.setAttribute('class', 'mc-histogram');
 
     const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
@@ -510,11 +517,7 @@ export class MonteCarloPanel {
    * @returns {Date|null}
    */
   _getProjectStart() {
-    if (this._cpmResult && this._cpmResult.projectStart) {
-      const ps = this._cpmResult.projectStart;
-      if (ps instanceof Date) return ps;
-      if (typeof ps === 'string') return isoToDate(ps);
-    }
+    if (this._project?.start_date) return isoToDate(this._project.start_date);
     return null;
   }
 
@@ -523,10 +526,7 @@ export class MonteCarloPanel {
    * @returns {import('./calendar.js').Calendar}
    */
   _getCalendar() {
-    if (this._cpmResult && this._cpmResult.calendar) {
-      return this._cpmResult.calendar;
-    }
-    return DEFAULT_CALENDAR;
+    return this._calendar ?? DEFAULT_CALENDAR;
   }
 }
 
@@ -534,7 +534,7 @@ export class MonteCarloPanel {
 
 /** Escapa HTML básico */
 function _esc(s) {
-  return String(s)
+  return String(s ?? '')
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')

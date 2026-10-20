@@ -89,7 +89,7 @@ export function levelResources(tasks, cpmTasks, resources, taskResources) {
 
   // Filtrar tareas no-summary con CPM y recursos
   const workTasks = tasks
-    .filter(t => t.type !== 'summary' && cpmTasks.has(t.id) && taskRes.has(t.id))
+    .filter(t => t.type !== 'summary' && cpmTasks.has(t.id) && taskRes.has(t.id) && (t.percent_complete ?? 0) < 100)
     .map(t => {
       const cpm = /** @type {CpmTask} */ (cpmTasks.get(t.id));
       return { id: t.id, es: cpm.es, ef: cpm.ef, dur: cpm.dur, tf: cpm.tf ?? 0 };

@@ -70,7 +70,7 @@ export class LookaheadPanel {
     {
       const d = new Date(startDate);
       while (d < today) {
-        if (cal.isWorkDay(d)) todayIdx++;
+        if (cal.isWorkingDay(d)) todayIdx++;
         d.setDate(d.getDate() + 1);
       }
     }
@@ -86,7 +86,7 @@ export class LookaheadPanel {
       if (task.deleted_at || task.type === 'summary') continue;
       const cpm = cpmResult.tasks?.get(task.id);
       if (!cpm) continue;
-      const pct = task.pct_complete ?? 0;
+      const pct = task.percent_complete ?? 0;
       // Tarea atrasada: ef ya pasó y no está completa — siempre incluir
       const isDelayed = pct < 100 && cpm.ef <= todayIdx;
       // Tarea en ventana lookahead: [es, ef) ∩ [todayIdx, windowEnd)

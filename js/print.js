@@ -16,7 +16,7 @@ import { exportSvg }     from './io.js';
 // ============================================================
 
 /** Columnas disponibles para la tabla EDT */
-const ALL_PRINT_COLS = ['wbs','name','type','dur','start','finish','pct','tf','ff','pred'];
+const ALL_PRINT_COLS = ['wbs','name','type','dur','start','finish','pct','tf','ff','pred','alerts'];
 
 const _DEFAULT_COLS = ['wbs','name','type','dur','start','finish','pct','tf','pred','alerts'];
 
@@ -102,7 +102,7 @@ export function printGantt(rows) {
 
   import('./gantt-svg.js').then(({ renderGanttSvg }) => {
     const cal       = new Calendar(calDef);
-    const startDate = isoToDate(project.start_date);
+    const startDate = isoToDate(project.start_date || new Date().toISOString().slice(0,10));
 
     const savedCols = getPrintCols();
     // Todas las columnas extra soportadas por gantt-svg (en orden de aparición)

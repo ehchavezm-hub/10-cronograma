@@ -31,7 +31,7 @@ const PUSH_INTERVAL_MS = 5_000;    // Intento de vaciar outbox cada 5 s
 const RETRY_DELAY_MS   = 10_000;   // Espera tras un error de red
 
 // Tablas que se sincronizan (en orden de dependencia)
-const SYNC_TABLES = ['projects', 'calendars', 'calendar_exceptions', 'tasks', 'task_dependencies'];
+const SYNC_TABLES = ['projects', 'calendars', 'calendar_exceptions', 'tasks', 'task_dependencies', 'resources', 'task_resources'];
 
 // ============================================================
 // SyncEngine
@@ -319,16 +319,22 @@ async function _mergeRemote(storeName, rows) {
 function _applyRemoteToState({ tasks, deps, project, calExceptions, calendars } = {}) {
   const state = appState.state;
 
+  let schedCpm = false;
   if (tasks?.length) {
     const newTasks = new Map(state.tasks);
     for (const t of tasks) newTasks.set(t.id, t);
     // No usar dispatch de comando para no crear entradas en el historial
     appState._applyRemote({ tasks: newTasks });
+    schedCpm = true;
   }
   if (deps?.length) {
     const newDeps = new Map(state.deps);
     for (const d of deps) newDeps.set(d.id, d);
     appState._applyRemote({ deps: newDeps });
+    schedCpm = true;
+  }
+  if (schedCpm) {
+    document.dispatchEvent(new CustomEvent('ecm-schedule-cpm'));
   }
   if (project) {
     appState._applyRemote({ project });

@@ -189,7 +189,7 @@ export function exportCsv() {
     let startStr = '', finStr = '', tf = '', ff = '';
     if (cpm) {
       if (cpm.es != null) startStr = cal.idxToDate(cpm.es, startDate).toISOString().slice(0,10);
-      if (cpm.ef != null) finStr   = cal.finishDate(cpm.ef, startDate).toISOString().slice(0,10);
+      if (cpm.ef != null) finStr   = cal.idxToDate(Math.max(cpm.es, cpm.ef - 1), startDate).toISOString().slice(0,10);
       if (cpm.tf != null) tf = String(cpm.tf);
       if (cpm.ff != null) ff = String(cpm.ff);
     }
@@ -198,7 +198,7 @@ export function exportCsv() {
       wbs, task.id, task.name, type,
       task.type === 'milestone' ? 0 : task.duration_days,
       startStr, finStr,
-      task.percent_complete ?? 0,
+      task.pct_complete ?? 0,
       tf, ff,
       (predMap.get(task.id) ?? []).join('; '),
       task.constraint_type ?? 'ASAP',
@@ -248,12 +248,12 @@ export function exportMspXml() {
     const durStr   = `PT${dur * 8}H0M0S`;
     const depth    = depths.get(task.id) ?? 0;
     const wbs      = codes.get(task.id) ?? String(uid);
-    const pct      = task.percent_complete ?? 0;
+    const pct      = task.pct_complete ?? 0;
 
     let startStr = _mspDate(startDate);
     let finStr   = _mspDate(startDate);
     if (cpm && cpm.es != null) startStr = _mspDate(cal.idxToDate(cpm.es, startDate));
-    if (cpm && cpm.ef != null) finStr   = _mspDate(cal.finishDate(cpm.ef, startDate));
+    if (cpm && cpm.ef != null) finStr   = _mspDate(cal.idxToDate(Math.max(cpm.es, cpm.ef - 1), startDate));
 
     const predsXml = (predsBySucc.get(task.id) ?? []).map(d => {
       const predUid = uidMap.get(d.pred_id) ?? 0;

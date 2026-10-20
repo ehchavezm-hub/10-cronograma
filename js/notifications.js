@@ -42,7 +42,7 @@ export function getNotifications(horizonDays = 7) {
     todayIdx = 0;
     const d = new Date(startDate);
     while (d < today) {
-      if (cal.isWorkDay(d)) todayIdx++;
+      if (cal.isWorkingDay(d)) todayIdx++;
       d.setDate(d.getDate() + 1);
     }
     _todayCache = { key: cacheKey, idx: todayIdx };
@@ -53,7 +53,7 @@ export function getNotifications(horizonDays = 7) {
 
   for (const task of tasks.values()) {
     if (task.deleted_at || task.type === 'summary') continue;
-    const pct = task.pct_complete ?? 0;
+    const pct = task.percent_complete ?? 0;
     if (pct >= 100) continue;
 
     const cpm = cpmResult.tasks?.get(task.id);
@@ -138,7 +138,7 @@ export class NotificationsPanel {
                 ${n.type==='overdue' ? `<span style="color:${TYPE_COLOR.overdue}">Atrasada ${Math.abs(n.daysLeft)} día(s) laborable(s)</span>`
                   : n.type==='upcoming' ? `<span style="color:${TYPE_COLOR.upcoming}">Vence en ${n.daysLeft} día(s) laborable(s)</span>`
                   : `<span style="color:${TYPE_COLOR.critical}">En ruta crítica (holgura = 0)</span>`}
-                ${n.task.pct_complete != null ? ` · ${n.task.pct_complete}% completado` : ''}
+                ${n.task.percent_complete != null ? ` · ${n.task.percent_complete}% completado` : ''}
               </div>
             </div>
           </div>`).join('')}

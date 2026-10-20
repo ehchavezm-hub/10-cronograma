@@ -16,6 +16,16 @@ import { listBaselines, loadBaselineData, getBaseline } from './baseline.js';
 
 let _enabled = false;
 let _activeBaselineId = /** @type {string|null} */ (null);
+let _watchedProjectId = /** @type {string|null} */ (null);
+
+// Reset comparison when the active project changes
+appState.subscribe(state => {
+  const pid = state.project?.id ?? null;
+  if (pid !== _watchedProjectId) {
+    _watchedProjectId = pid;
+    if (_enabled) disableBaselineCompare();
+  }
+});
 
 // ---- API pública ----
 

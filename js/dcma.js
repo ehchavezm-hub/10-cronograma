@@ -293,7 +293,7 @@ export function runDcmaChecks({ tasks, deps, cpmResult, taskResources = [], near
   // ---- 13. CPLI (Critical Path Length Index) ----
   {
     if (cpmResult && cpmResult.projectDuration > 0) {
-      const critTasks = leafWithCpm.filter(t => cpmTasks.get(t.id)?.is_critical);
+      const critTasks = leafWithCpm.filter(t => (cpmTasks.get(t.id)?.tf ?? Infinity) === 0);
       const maxLF     = critTasks.length
         ? Math.max(...critTasks.map(t => cpmTasks.get(t.id)?.lf ?? 0))
         : cpmResult.projectDuration;
@@ -335,9 +335,9 @@ export function runDcmaChecks({ tasks, deps, cpmResult, taskResources = [], near
         description: 'Ratio EVM del desempeño del cronograma. SPI ≥ 1 = adelantado; < 1 = retrasado.',
         metric: 'SPI', value: Math.round(spi * 1000) / 1000, target: 1,
         pass: spi >= 1,
-        count: evm.evmTasks?.filter(t => t.spi < 1).length ?? 0,
-        total: evm.evmTasks?.length ?? 0,
-        taskIds: evm.evmTasks?.filter(t => t.spi < 1).map(t => t.id) ?? [],
+        count: evm.tasks?.filter(t => t.spi < 1).length ?? 0,
+        total: evm.tasks?.length ?? 0,
+        taskIds: evm.tasks?.filter(t => t.spi < 1).map(t => t.id) ?? [],
         na: false,
       });
     } else {
@@ -431,6 +431,11 @@ export class DcmaPanel {
     this._taskSec = /** @type {HTMLElement}        */ (this._container.querySelector('#dcma-tasks-section'));
     this._taskTitle = /** @type {HTMLElement}      */ (this._container.querySelector('#dcma-tasks-title'));
     this._taskList  = /** @type {HTMLElement}      */ (this._container.querySelector('#dcma-tasks-list'));
+
+    this._taskList.addEventListener('click', e => {
+      const item = /** @type {HTMLElement} */ (e.target.closest('[data-task-id]'));
+      if (item?.dataset.taskId) document.dispatchEvent(new CustomEvent('dcma-select-task', { detail: { id: item.dataset.taskId } }));
+    });
 
     const closeBtn = this._container.querySelector('#dcma-close-btn');
     if (closeBtn) {
@@ -592,8 +597,7 @@ export class DcmaPanel {
       const cpm  = cpmResult?.tasks.get(id);
       const tf   = cpm?.tf != null ? ` · HT: ${cpm.tf} d` : '';
       const pct  = task.percent_complete != null ? ` · ${task.percent_complete}%` : '';
-      return `<div class="dcma-task-item" title="${_esc(task.name)}"
-        onclick="(function(){const e=document.dispatchEvent(new CustomEvent('dcma-select-task',{detail:{id:'${id}'}}));})()">
+      return `<div class="dcma-task-item" title="${_esc(task.name)}" data-task-id="${_esc(id)}" style="cursor:pointer">
         <span class="dcma-task-icon">${task.type === 'milestone' ? '◆' : '▸'}</span>
         <span class="dcma-task-name">${_esc(task.name)}</span>
         <span class="dcma-task-meta">${task.duration_days} d${pct}${tf}</span>
