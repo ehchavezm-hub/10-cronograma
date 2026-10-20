@@ -38,7 +38,7 @@ export function generatePdfReport() {
   const pctAvg = totalTasks ? Math.round(nonSummary.reduce((s, t) => s + (t.percent_complete ?? 0), 0) / totalTasks) : 0;
 
   // Ruta crítica
-  const criticalTasks = nonSummary.filter(t => cpmResult?.tasks?.get(t.id)?.tf === 0);
+  const criticalTasks = nonSummary.filter(t => (cpmResult?.tasks?.get(t.id)?.tf ?? null) !== null && (cpmResult?.tasks?.get(t.id)?.tf ?? 1) <= 0);
 
   // Fecha fin (máx ef)
   let maxEf = 0;

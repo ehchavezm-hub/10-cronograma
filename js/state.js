@@ -293,7 +293,7 @@ export class AppStateManager {
     const prevFields = {};
     for (const k of Object.keys(fields)) prevFields[k] = existing[k];
 
-    this._state.tasks.set(id, { ...existing, ...fields, updated_at: new Date().toISOString() });
+    this._state.tasks.set(id, { ...existing, ...fields, ...(fields.updated_at ? {} : { updated_at: new Date().toISOString() }) });
     return {
       ok: true,
       inverse: { type: 'UPDATE_TASK', payload: { id, fields: prevFields } },
@@ -341,7 +341,12 @@ export class AppStateManager {
     // Restaurar dependencias que fueron borradas junto con la tarea
     for (const did of (affectedDeps ?? [])) {
       const dep = this._state.deps.get(did);
-      if (dep) this._state.deps.set(did, { ...dep, deleted_at: null, updated_at: now });
+      if (!dep) continue;
+      const pred = this._state.tasks.get(dep.pred_id);
+      const succ = this._state.tasks.get(dep.succ_id);
+      if (pred && !pred.deleted_at && succ && !succ.deleted_at) {
+        this._state.deps.set(did, { ...dep, deleted_at: null, updated_at: now });
+      }
     }
     return {
       ok: true,
