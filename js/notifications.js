@@ -13,6 +13,9 @@ const _esc = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').rep
  * @typedef {{ type: 'critical'|'upcoming'|'overdue', task: object, daysLeft: number }} Notification
  */
 
+/** @type {{ key: string, idx: number } | null} */
+let _todayCache = null;
+
 /**
  * Genera las notificaciones para el proyecto activo.
  * @param {number} [horizonDays=7] días hacia adelante para alertas "próximas"
@@ -28,16 +31,21 @@ export function getNotifications(horizonDays = 7) {
   });
   const startDate = isoToDate(project.start_date || new Date().toISOString().slice(0,10));
 
-  // today working day index
+  // today working day index — cached per project+date to avoid O(n_days) on every render
   const today = new Date();
   today.setHours(0,0,0,0);
-  let todayIdx = 0;
-  {
+  const cacheKey = project.id + '|' + today.toISOString().slice(0, 10);
+  let todayIdx;
+  if (_todayCache?.key === cacheKey) {
+    todayIdx = _todayCache.idx;
+  } else {
+    todayIdx = 0;
     const d = new Date(startDate);
     while (d < today) {
       if (cal.isWorkDay(d)) todayIdx++;
       d.setDate(d.getDate() + 1);
     }
+    _todayCache = { key: cacheKey, idx: todayIdx };
   }
 
   /** @type {Notification[]} */

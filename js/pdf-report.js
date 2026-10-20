@@ -128,7 +128,7 @@ ${cpmResult ? `
 <div style="background:#F5F5F5;border-radius:8px;padding:14px;margin-bottom:20px;display:grid;grid-template-columns:1fr 1fr;gap:14px">
   <div>
     <div style="font-size:9pt;color:#757575;margin-bottom:2px">Fin proyectado</div>
-    <div style="font-size:13pt;font-weight:700;color:#1976D2">${maxEf ? fmtDate(maxEf) : '-'}</div>
+    <div style="font-size:13pt;font-weight:700;color:#1976D2">${maxEf ? fmtDate(maxEf - 1) : '-'}</div>
   </div>
   <div>
     <div style="font-size:9pt;color:#757575;margin-bottom:2px">Tareas en ruta crítica</div>
@@ -163,7 +163,7 @@ ${cpmResult ? `
           ${isCrit?'🔴 ':''}${_esc(t.name)}
         </td>
         <td>${cpm ? fmtDate(cpm.es) : '-'}</td>
-        <td>${cpm ? fmtDate(cpm.ef) : '-'}</td>
+        <td>${cpm ? fmtDate(Math.max(cpm.es, cpm.ef - 1)) : '-'}</td>
         <td>${cpm ? cpm.dur + 'd' : '-'}</td>
         <td>
           ${isSummary ? '' : `<div class="bar-wrap">
@@ -189,7 +189,7 @@ ${criticalTasks.length ? `
       return `<tr>
         <td style="color:#D32F2F;font-weight:600">${_esc(t.name)}</td>
         <td>${cpm ? fmtDate(cpm.es) : '-'}</td>
-        <td>${cpm ? fmtDate(cpm.ef) : '-'}</td>
+        <td>${cpm ? fmtDate(Math.max(cpm.es, cpm.ef - 1)) : '-'}</td>
         <td>${cpm ? cpm.dur + 'd' : '-'}</td>
         <td>${t.pct_complete ?? 0}%</td>
       </tr>`;

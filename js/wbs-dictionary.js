@@ -163,6 +163,7 @@ export class WbsDictionaryPanel {
       if (msg) { msg.style.display = ''; setTimeout(() => { msg.style.display = 'none'; }, 2000); }
       // Refrescar lista para actualizar indicador ✓
       this._renderList();
+      document.dispatchEvent(new CustomEvent('ecm-task-updated', { detail: { id: this._selectedTaskId } }));
     } catch (err) {
       console.error('[WBS dictionary] save error', err);
     }
