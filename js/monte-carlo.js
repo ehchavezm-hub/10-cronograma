@@ -40,6 +40,8 @@ export class MonteCarloPanel {
     this._lastResult = null;
     /** @type {boolean} */
     this._visible = false;
+    /** @type {HTMLInputElement|null} */
+    this._itersInput = null;
     /** @type {string|null} */
     this._projectId = null;
     /** @type {object|null} */
@@ -55,6 +57,23 @@ export class MonteCarloPanel {
   _buildUI() {
     this.el.innerHTML = '';
     this.el.className = 'mc-panel';
+
+    // Caja informativa teórica — colapsable
+    const infoBox = document.createElement('details');
+    infoBox.className = 'mc-info-box';
+    infoBox.innerHTML = `<summary class="mc-info-summary">ℹ️ ¿Qué es el Análisis de Monte Carlo?</summary>
+      <div class="mc-info-body">
+        <p>El <strong>Análisis de Monte Carlo</strong> es una técnica estadística que simula miles de escenarios posibles del proyecto variando aleatoriamente la duración de cada tarea dentro de sus rangos de incertidumbre (optimista, más probable y pesimista).</p>
+        <p><strong>¿Cómo funciona?</strong></p>
+        <ul>
+          <li>Cada iteración sortea duraciones aleatorias para todas las tareas usando la distribución PERT.</li>
+          <li>Se calcula la duración total del proyecto para ese escenario.</li>
+          <li>Tras miles de iteraciones se obtiene la distribución de probabilidad de la fecha de finalización.</li>
+        </ul>
+        <p><strong>Percentiles:</strong> P50 = hay 50% de probabilidad de terminar en esa fecha o antes. P80 y P90 son los valores recomendados para contratos y buffers de contingencia.</p>
+        <p><em>Si las tareas no tienen estimaciones de tres puntos, se aplica una variación estándar del ±10% sobre la duración determinista.</em></p>
+      </div>`;
+    this.el.appendChild(infoBox);
 
     // Formulario de control
     const form = document.createElement('div');
@@ -76,6 +95,24 @@ export class MonteCarloPanel {
     }
     itersLabel.appendChild(this._itersSelect);
     form.appendChild(itersLabel);
+
+    // Input personalizado de iteraciones
+    const customLabel = document.createElement('label');
+    customLabel.className = 'mc-label';
+    customLabel.title = 'O ingresa un número personalizado (100 – 50,000)';
+    const customSpan = document.createElement('span');
+    customSpan.textContent = 'o ingresa:';
+    this._itersInput = document.createElement('input');
+    this._itersInput.type = 'number';
+    this._itersInput.className = 'mc-iters-input';
+    this._itersInput.min = '100';
+    this._itersInput.max = '50000';
+    this._itersInput.step = '100';
+    this._itersInput.placeholder = 'ej: 2000';
+    this._itersInput.setAttribute('aria-label', 'Número personalizado de iteraciones');
+    customLabel.appendChild(customSpan);
+    customLabel.appendChild(this._itersInput);
+    form.appendChild(customLabel);
 
     // Botón ejecutar
     this._runBtn = document.createElement('button');
@@ -157,7 +194,10 @@ export class MonteCarloPanel {
       return;
     }
 
-    const iterations = parseInt(this._itersSelect.value, 10);
+    const customVal = this._itersInput ? parseInt(this._itersInput.value, 10) : NaN;
+    const iterations = (!isNaN(customVal) && customVal >= 100 && customVal <= 50000)
+      ? customVal
+      : parseInt(this._itersSelect.value, 10);
 
     // Preparar datos para el worker
     const tasksArr = [];
@@ -865,19 +905,18 @@ export class MonteCarloPanel {
 
     const dataMin = sorted[0];
     const dataMax = sorted[sorted.length - 1];
-    // Calcular std para determinar rango de visualización
     const _n = sorted.length;
     const _mean = sorted.reduce((s, v) => s + v, 0) / _n;
-    const _variance = sorted.reduce((s, v) => s + (v - _mean) ** 2, 0) / _n;
-    const _std = Math.sqrt(_variance);
-    // Forzar rango mínimo basado en std (al menos ±2σ, mínimo 10 unidades de rango)
-    const stdDisplay = Math.max(_std, 2);
-    const center = _mean;
-    const min = Math.min(dataMin, center - 3 * stdDisplay);
-    const max = Math.max(dataMax, center + 3 * stdDisplay);
-    const range = Math.max(max - min, 10);
 
     const BINS = 20;
+    // Usar rango real de los datos, con mínimo de BINS días para que siempre haya al menos 20 barras
+    const dataRange = dataMax - dataMin;
+    const minSpan = Math.max(dataRange, BINS);
+    const center = _mean;
+    const min = Math.min(dataMin, center - minSpan / 2);
+    const max = Math.max(dataMax, min + minSpan);
+    const range = max - min;
+
     const binW = range / BINS;
     const counts = new Array(BINS).fill(0);
     for (const v of sorted) {
@@ -901,13 +940,14 @@ export class MonteCarloPanel {
     for (let i = 0; i < BINS; i++) {
       const bh = counts[i] > 0 ? Math.max(2, (counts[i] / maxCount) * inner_h) : 0;
       const x = (i / BINS) * inner_w;
-      // Ghost bar para bins vacíos
+      // Ghost bar para bins vacíos — visible pero tenue
       if (counts[i] === 0) {
+        const ghostH = Math.max(6, Math.round(inner_h * 0.07));
         const ghost = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
         ghost.setAttribute('x', String(x));
-        ghost.setAttribute('y', String(inner_h - 2));
+        ghost.setAttribute('y', String(inner_h - ghostH));
         ghost.setAttribute('width', String(Math.max(bw, 1)));
-        ghost.setAttribute('height', '2');
+        ghost.setAttribute('height', String(ghostH));
         ghost.setAttribute('class', 'mc-hist-bar-ghost');
         g.appendChild(ghost);
         continue;
@@ -1030,8 +1070,44 @@ const MC_CSS = `
   background: var(--mc-bg, #fff);
   color: var(--mc-fg, #222);
   border-left: 1px solid var(--mc-border, #ddd);
-  overflow-y: auto;
-  height: 100%;
+}
+
+.mc-info-box {
+  margin-bottom: 12px;
+  border: 1px solid var(--mc-border, #ddd);
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--mc-surface, #f5f7ff);
+}
+.mc-info-summary {
+  padding: 8px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--mc-accent, #2563eb);
+  cursor: pointer;
+  user-select: none;
+  list-style: none;
+}
+.mc-info-summary::-webkit-details-marker { display: none; }
+.mc-info-body {
+  padding: 10px 14px;
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--mc-fg, #444);
+  border-top: 1px solid var(--mc-border, #ddd);
+}
+.mc-info-body p { margin: 0 0 8px; }
+.mc-info-body ul { margin: 0 0 8px; padding-left: 18px; }
+.mc-info-body li { margin-bottom: 4px; }
+
+.mc-iters-input {
+  font-size: 13px;
+  padding: 3px 6px;
+  border: 1px solid var(--mc-border, #ccc);
+  border-radius: 4px;
+  background: var(--mc-input-bg, #f9f9f9);
+  color: inherit;
+  width: 90px;
 }
 
 .mc-header {

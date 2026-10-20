@@ -23,12 +23,12 @@ import { outboxAdd }      from './storage.js';
 import { EvmPanel }       from './evm.js';
 import { ChangeLogPanel, logCommand } from './change-log.js';
 import { ResourceHistogramPanel } from './resource-histogram.js';
-import { saveBaseline, listBaselines, loadBaselineData, deleteBaseline, setPrimaryBaseline, getBaseline } from './baseline.js';
+import { saveBaseline, listBaselines, loadBaselineData, deleteBaseline, setPrimaryBaseline, getBaseline, renameBaseline } from './baseline.js';
 import { parseXer } from './xer-import.js';
 import { detectConflicts, levelResources } from './resource-leveling.js';
 import { MonteCarloPanel } from './monte-carlo.js';
 import { RiskRegisterPanel } from './risk-register.js';
-import { toggleBaselineCompare, disableBaselineCompare, getProjectBaselines, isBaselineCompareEnabled } from './baseline-compare.js';
+import { toggleBaselineCompare, disableBaselineCompare, getProjectBaselines, isBaselineCompareEnabled, enableBaselineCompare, getActiveBaselineId } from './baseline-compare.js';
 import { LookaheadPanel } from './lookahead.js';
 import { CurvaSPanel } from './curva-s.js';
 import { NotificationsPanel, updateNotificationBadge } from './notifications.js';
@@ -1399,8 +1399,36 @@ async function _openCalendarEditor() {
   dlg.querySelector('#dlg-cal-close')?.addEventListener('click', () => dlg.close());
   dlg.querySelector('#dlg-cal-cancel')?.addEventListener('click', () => dlg.close());
   dlg.querySelector('#dlg-cal-print')?.addEventListener('click', () => {
-    const body2 = dlg.querySelector('div:nth-child(2)');
-    _printToPdf('Calendario del proyecto', `<h1>Calendario del proyecto</h1>${body2?.innerHTML ?? ''}`);
+    const nameVal = /** @type {HTMLInputElement} */ (dlg.querySelector('#cal-name'))?.value || 'Calendario';
+    const dayNames2 = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
+    const checkedDays = [.../** @type {NodeListOf<HTMLInputElement>} */ (dlg.querySelectorAll('.cal-day-cb:checked'))].map(cb => dayNames2[parseInt(cb.value)]).join(', ');
+    const hoursVal = /** @type {HTMLInputElement} */ (dlg.querySelector('#cal-hours'))?.value || '8';
+    const exTrs = [.../** @type {NodeListOf<HTMLElement>} */ (dlg.querySelectorAll('#cal-ex-body tr'))].filter(tr => !tr.id);
+    const exHtml = exTrs.map(tr => {
+      const tds = tr.querySelectorAll('td');
+      return `<tr style="border-bottom:1px solid #eee">
+        <td style="padding:6px 10px">${tds[0]?.textContent||''}</td>
+        <td style="padding:6px 10px">${tds[1]?.textContent||''}</td>
+        <td style="padding:6px 10px">${tds[2]?.textContent||''}</td>
+      </tr>`;
+    }).join('');
+    const html = `
+      <h1 style="font-size:18px;margin-bottom:12px">Calendario del proyecto</h1>
+      <table style="margin-bottom:20px;font-size:13px;border-collapse:collapse">
+        <tr><td style="padding:5px 16px 5px 0;font-weight:600;color:#555">Nombre:</td><td style="padding:5px 0">${nameVal}</td></tr>
+        <tr><td style="padding:5px 16px 5px 0;font-weight:600;color:#555">Días laborables:</td><td style="padding:5px 0">${checkedDays}</td></tr>
+        <tr><td style="padding:5px 16px 5px 0;font-weight:600;color:#555">Horas por día:</td><td style="padding:5px 0">${hoursVal} h</td></tr>
+      </table>
+      <h2 style="font-size:15px;margin-bottom:10px">Excepciones (festivos / días especiales)</h2>
+      <table style="width:100%;border-collapse:collapse;font-size:12px">
+        <thead><tr style="background:#f5f5f5">
+          <th style="padding:7px 10px;text-align:left;border-bottom:2px solid #ddd">Fecha</th>
+          <th style="padding:7px 10px;text-align:left;border-bottom:2px solid #ddd">Descripción</th>
+          <th style="padding:7px 10px;text-align:left;border-bottom:2px solid #ddd">Tipo</th>
+        </tr></thead>
+        <tbody>${exHtml || '<tr><td colspan="3" style="padding:8px 10px;color:#999;text-align:center">Sin excepciones registradas</td></tr>'}</tbody>
+      </table>`;
+    _printToPdf('Calendario del proyecto', html);
   });
   _makeDraggable(dlg, '[data-drag-handle]');
 
@@ -1525,6 +1553,101 @@ async function _openCalendarEditor() {
     dlg.close();
   });
 
+  dlg.showModal();
+}
+
+async function _openCalendarManager() {
+  const proj = appState.state.project;
+  if (!proj) { _showToast('No hay proyecto activo', 'warn'); return; }
+
+  const { getAll: _getAllSt, put: _putSt, remove: _removeSt } = await import('./storage.js');
+
+  let dlg = /** @type {HTMLDialogElement|null} */ (document.getElementById('dlg-cal-manager'));
+  if (!dlg) {
+    dlg = document.createElement('dialog');
+    dlg.id = 'dlg-cal-manager';
+    dlg.style.cssText = 'border:none;border-radius:12px;padding:0;width:640px;max-width:96vw;box-shadow:0 8px 40px rgba(0,0,0,0.3);overflow:hidden';
+    dlg.setAttribute('role', 'dialog');
+    dlg.setAttribute('aria-modal', 'true');
+    document.body.appendChild(dlg);
+    dlg.addEventListener('click', e => { if (e.target === dlg) dlg.close(); });
+  }
+
+  async function _refreshCalList() {
+    const allCals = (await _getAllSt('calendars')).filter(c => !c.deleted_at && (c.org_id === proj.org_id || c.project_id === proj.id));
+    const listBody = dlg.querySelector('#cal-mgr-list');
+    if (!listBody) return;
+    if (!allCals.length) {
+      listBody.innerHTML = '<p style="color:var(--clr-text-3);font-size:13px;padding:12px 0">Sin calendarios. Crea uno nuevo.</p>';
+      return;
+    }
+    listBody.innerHTML = allCals.map(c => {
+      const isActive = c.id === proj.calendar_id;
+      return `<div class="cal-mgr-row" style="display:flex;align-items:center;gap:8px;padding:8px 4px;border-bottom:1px solid var(--clr-border-2);${isActive?'background:var(--clr-primary-subtle,#eef2ff);border-radius:4px;':''}">
+        <span style="flex:1;font-size:13px;color:var(--clr-text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${_escHtml(c.name)}${isActive?' <span style="font-size:10px;color:var(--clr-primary)">▶ activo</span>':''}</span>
+        <span style="font-size:11px;color:var(--clr-text-3);white-space:nowrap">${(c.work_week||[1,2,3,4,5]).length} días/sem · ${c.hours_per_day||8}h</span>
+        ${!isActive?`<button class="btn btn-ghost btn-sm" data-cal-use="${_escAttr(c.id)}" title="Usar este calendario para el proyecto" style="font-size:12px;padding:0 6px">📌</button>`:''}
+        <button class="btn btn-ghost btn-sm" data-cal-edit="${_escAttr(c.id)}" title="Editar" style="font-size:13px;padding:0 5px">✏</button>
+        ${!isActive?`<button class="btn btn-ghost btn-sm" data-cal-del="${_escAttr(c.id)}" title="Eliminar" style="font-size:13px;padding:0 5px">🗑</button>`:''}
+      </div>`;
+    }).join('');
+
+    listBody.querySelectorAll('[data-cal-use]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const cid = /** @type {HTMLElement} */ (btn).dataset.calUse;
+        appState.dispatch({ type: 'UPDATE_PROJECT', payload: { fields: { calendar_id: cid } } });
+        _showToast('Calendario actualizado', 'success');
+        await _refreshCalList();
+      });
+    });
+
+    listBody.querySelectorAll('[data-cal-edit]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const cid = /** @type {HTMLElement} */ (btn).dataset.calEdit;
+        // Set project calendar_id temporarily to the selected one, open editor, then restore if needed
+        const prevCalId = proj.calendar_id;
+        if (cid !== prevCalId) {
+          appState.dispatch({ type: 'UPDATE_PROJECT', payload: { fields: { calendar_id: cid } } });
+        }
+        dlg.close();
+        await _openCalendarEditor();
+      });
+    });
+
+    listBody.querySelectorAll('[data-cal-del]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const cid = /** @type {HTMLElement} */ (btn).dataset.calDel;
+        if (!confirm('¿Eliminar este calendario?')) return;
+        await _removeSt('calendars', cid);
+        _showToast('Calendario eliminado', 'success');
+        await _refreshCalList();
+      });
+    });
+  }
+
+  dlg.innerHTML = `
+    <div data-drag-handle style="display:flex;align-items:center;gap:10px;padding:14px 18px;border-bottom:1px solid var(--clr-border);background:var(--clr-surface-2);cursor:move;flex-shrink:0">
+      <span style="font-size:20px">🗓</span>
+      <div style="flex:1">
+        <div style="font-size:14px;font-weight:700;color:var(--clr-text)">Gestión de Calendarios</div>
+        <div style="font-size:11px;color:var(--clr-text-3)">Agregar, editar o eliminar calendarios del proyecto</div>
+      </div>
+      <button id="cal-mgr-new" class="btn btn-primary btn-sm">+ Nuevo</button>
+      <button id="cal-mgr-close" class="btn btn-ghost btn-icon btn-sm" aria-label="Cerrar">✕</button>
+    </div>
+    <div id="cal-mgr-list" style="padding:12px 18px;min-height:80px;max-height:60vh;overflow-y:auto"></div>`;
+
+  _makeDraggable(dlg, '[data-drag-handle]');
+  dlg.querySelector('#cal-mgr-close')?.addEventListener('click', () => dlg.close());
+  dlg.querySelector('#cal-mgr-new')?.addEventListener('click', async () => {
+    dlg.close();
+    // Create a new calendar by clearing calendar_id so editor creates a new one
+    const tempProj = appState.state.project;
+    if (tempProj) appState.dispatch({ type: 'UPDATE_PROJECT', payload: { fields: { calendar_id: null } } });
+    await _openCalendarEditor();
+  });
+
+  await _refreshCalList();
   dlg.showModal();
 }
 
@@ -2571,7 +2694,7 @@ function _bindToolbar() {
     }
   });
 
-  document.getElementById('btn-calendar')?.addEventListener('click', () => _openCalendarEditor());
+  document.getElementById('btn-calendar')?.addEventListener('click', () => _openCalendarManager());
   document.getElementById('btn-gantt-fit')?.addEventListener('click',      () => _ganttCanvas?.fitToView());
   document.getElementById('btn-gantt-zoom-in')?.addEventListener('click',  () => _ganttCanvas?.zoomIn());
   document.getElementById('btn-gantt-zoom-out')?.addEventListener('click', () => _ganttCanvas?.zoomOut());
@@ -2607,6 +2730,7 @@ function _bindToolbar() {
           <span style="flex:1;font-size:var(--text-sm);color:var(--clr-text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${_escAttr(b.name)}">${_escHtml(b.name)}${isActive ? ' <span style="font-size:10px;color:var(--clr-primary)">▶ activa</span>' : ''}</span>
           <span style="font-size:var(--text-xs);color:var(--clr-text-3);white-space:nowrap">${b.created_at.slice(0,10)}</span>
           <button class="btn btn-ghost btn-sm" data-bl-apply="${b.id}" data-bl-name="${_escAttr(b.name)}" data-bl-primary="${isPrimary}" title="Aplicar como referencia de comparación (P6: Set as Primary)" style="font-size:13px;padding:0 5px" aria-label="Aplicar línea base">📌</button>
+          <button class="btn btn-ghost btn-sm" data-bl-rename="${b.id}" data-bl-cur-name="${_escAttr(b.name)}" title="Renombrar" style="font-size:13px;padding:0 5px" aria-label="Renombrar">✏</button>
           <button class="btn btn-ghost btn-sm" data-bl-delete="${b.id}" title="Eliminar línea base" style="font-size:13px;padding:0 5px" aria-label="Eliminar">🗑</button>
         </div>`;
       }).join('');
@@ -2663,6 +2787,28 @@ function _bindToolbar() {
           await _refreshBaselineList();
         });
       });
+
+      // Renombrar
+      listEl.querySelectorAll('[data-bl-rename]').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const el  = /** @type {HTMLElement} */ (btn);
+          const id  = el.dataset.blRename;
+          const cur = el.dataset.blCurName || '';
+          const newN = prompt('Nuevo nombre para la línea base:', cur);
+          if (newN === null || !newN.trim()) return;
+          try {
+            await renameBaseline(id, newN.trim());
+            if (id === _activeBaselineId) {
+              _activeBaselineName = newN.trim();
+              if (activeName) activeName.textContent = newN.trim() + (/** @type {any} */ (appState.state.baselineMeta)?.isPrimary ? ' ⭐' : '');
+            }
+            await _refreshBaselineList();
+            _showToast('Línea base renombrada', 'success');
+          } catch (err) {
+            _showToast('Error: ' + /** @type {Error} */ (err).message, 'error');
+          }
+        });
+      });
     }
 
     document.getElementById('btn-baseline')?.addEventListener('click', async () => {
@@ -2672,9 +2818,34 @@ function _bindToolbar() {
       dlg?.showModal();
     });
     document.getElementById('dlg-bl-close')?.addEventListener('click', () => dlg?.close());
-    document.getElementById('dlg-bl-print')?.addEventListener('click', () => {
-      const listEl2 = document.getElementById('bl-list');
-      _printToPdf('Línea base', `<h1>Línea base</h1>${listEl2?.innerHTML ?? '<p>Sin datos.</p>'}`);
+    document.getElementById('dlg-bl-print')?.addEventListener('click', async () => {
+      const pid = appState.state.project?.id;
+      const projName = appState.state.project?.name || '';
+      if (!pid) { _showToast('No hay proyecto activo', 'warn'); return; }
+      const rows = await listBaselines(pid);
+      const activeId = _activeBaselineId;
+      const trs = rows.map(b => {
+        const isPrimary = !!b.is_primary;
+        const isActive  = b.id === activeId;
+        return `<tr style="border-bottom:1px solid #eee">
+          <td style="padding:7px 10px;font-weight:500">${_escHtml(b.name)}</td>
+          <td style="padding:7px 10px;text-align:center">${isPrimary ? '⭐ Primaria' : ''}</td>
+          <td style="padding:7px 10px;text-align:center">${isActive ? '▶ Activa' : ''}</td>
+          <td style="padding:7px 10px;text-align:center">${b.created_at.slice(0,10)}</td>
+        </tr>`;
+      }).join('');
+      _printToPdf('Líneas base', `
+        <h1 style="font-size:18px;margin-bottom:4px">Gestión de Líneas Base</h1>
+        <p style="color:#666;font-size:12px;margin-bottom:16px">Proyecto: ${_escHtml(projName)} · Total: ${rows.length}</p>
+        <table style="width:100%;border-collapse:collapse;font-size:12px">
+          <thead><tr style="background:#f5f5f5">
+            <th style="padding:7px 10px;text-align:left;border-bottom:2px solid #ddd">Nombre</th>
+            <th style="padding:7px 10px;text-align:center;border-bottom:2px solid #ddd">Tipo</th>
+            <th style="padding:7px 10px;text-align:center;border-bottom:2px solid #ddd">Estado</th>
+            <th style="padding:7px 10px;text-align:center;border-bottom:2px solid #ddd">Creada</th>
+          </tr></thead>
+          <tbody>${trs || '<tr><td colspan="4" style="padding:8px;text-align:center;color:#999">Sin líneas base guardadas</td></tr>'}</tbody>
+        </table>`);
     });
     document.getElementById('btn-bl-save')?.addEventListener('click', async () => {
       const name = nameInput?.value.trim() || '';
@@ -2704,25 +2875,151 @@ function _bindToolbar() {
     const { project, cpmResult } = appState.state;
     if (!project) { _showToast('Abre un proyecto primero', 'warn'); return; }
     if (!cpmResult) { _showToast('CPM aún calculando…', 'warn'); return; }
-    const btn = /** @type {HTMLElement} */ (document.getElementById('btn-baseline-compare'));
-    if (isBaselineCompareEnabled()) {
+    await _openBaselineCompareModal();
+  });
+
+  async function _openBaselineCompareModal() {
+    const { project, tasks, cpmResult } = appState.state;
+    if (!project || !cpmResult) return;
+
+    const baselines = await listBaselines(project.id);
+
+    let dlg = /** @type {HTMLDialogElement|null} */ (document.getElementById('dlg-baseline-compare'));
+    if (!dlg) {
+      dlg = document.createElement('dialog');
+      dlg.id = 'dlg-baseline-compare';
+      dlg.style.cssText = 'border:none;border-radius:12px;padding:0;width:760px;max-width:96vw;box-shadow:0 8px 40px rgba(0,0,0,0.3);overflow:hidden';
+      dlg.setAttribute('role', 'dialog');
+      dlg.setAttribute('aria-modal', 'true');
+      document.body.appendChild(dlg);
+      dlg.addEventListener('click', e => { if (e.target === dlg) dlg.close(); });
+    }
+
+    const activeId = getActiveBaselineId();
+    const compareEnabled = isBaselineCompareEnabled();
+
+    dlg.innerHTML = `
+      <div data-drag-handle style="display:flex;align-items:center;gap:10px;padding:14px 18px;border-bottom:1px solid var(--clr-border);background:var(--clr-surface-2);cursor:move;flex-shrink:0">
+        <span style="font-size:20px">📊</span>
+        <div style="flex:1">
+          <div style="font-size:14px;font-weight:700;color:var(--clr-text)">Comparar con Línea Base</div>
+          <div style="font-size:11px;color:var(--clr-text-3)">Selecciona una línea base para comparar en el Gantt</div>
+        </div>
+        ${compareEnabled ? '<button id="dlg-blc-disable" class="btn btn-ghost btn-sm" style="color:var(--clr-danger)">⊘ Desactivar comparación</button>' : ''}
+        <button id="dlg-blc-print" class="btn btn-ghost btn-sm">🖨 Imprimir</button>
+        <button id="dlg-blc-close" class="btn btn-ghost btn-icon btn-sm" aria-label="Cerrar">✕</button>
+      </div>
+      <div style="padding:14px 18px;max-height:72vh;overflow-y:auto">
+        ${!baselines.length ? '<p style="color:var(--clr-text-3);font-size:13px;padding:12px 0">No hay líneas base guardadas. Guarda una línea base primero.</p>' : `
+          <div id="dlg-blc-list" style="display:flex;flex-direction:column;gap:8px;margin-bottom:20px">
+            ${baselines.map(b => {
+              const isActive = b.id === activeId && compareEnabled;
+              return `<div style="display:flex;align-items:center;gap:10px;padding:10px 14px;border:1px solid ${isActive?'var(--clr-primary)':'var(--clr-border)'};border-radius:8px;background:${isActive?'var(--clr-primary-subtle,#eef2ff)':'var(--clr-surface-2,#f8f9fa)'}">
+                <div style="flex:1">
+                  <div style="font-size:13px;font-weight:600;color:var(--clr-text)">${_escHtml(b.name)}${b.is_primary?' ⭐':''}</div>
+                  <div style="font-size:11px;color:var(--clr-text-3)">Creada: ${b.created_at.slice(0,10)}${isActive?' · <span style="color:var(--clr-primary);font-weight:600">▶ Comparando</span>':''}</div>
+                </div>
+                <button class="btn btn-sm ${isActive?'btn-ghost':'btn-primary'}" data-blc-select="${_escAttr(b.id)}" style="${isActive?'color:var(--clr-text-3)':''}">
+                  ${isActive?'✓ Activa':'Comparar'}
+                </button>
+              </div>`;
+            }).join('')}
+          </div>
+          <div id="dlg-blc-variance" style="display:${activeId && compareEnabled ? 'block' : 'none'}">
+            <h3 style="font-size:13px;font-weight:700;color:var(--clr-text-2);margin-bottom:10px">Tabla de Varianzas vs Línea Base Activa</h3>
+            <div style="overflow-x:auto">
+              <table id="dlg-blc-table" style="width:100%;border-collapse:collapse;font-size:12px">
+                <thead><tr style="background:var(--clr-surface-2)">
+                  <th style="padding:7px 10px;text-align:left;border-bottom:2px solid var(--clr-border)">Actividad</th>
+                  <th style="padding:7px 10px;text-align:center;border-bottom:2px solid var(--clr-border)">BL Inicio</th>
+                  <th style="padding:7px 10px;text-align:center;border-bottom:2px solid var(--clr-border)">Act. Inicio</th>
+                  <th style="padding:7px 10px;text-align:center;border-bottom:2px solid var(--clr-border)">ΔI</th>
+                  <th style="padding:7px 10px;text-align:center;border-bottom:2px solid var(--clr-border)">BL Fin</th>
+                  <th style="padding:7px 10px;text-align:center;border-bottom:2px solid var(--clr-border)">Act. Fin</th>
+                  <th style="padding:7px 10px;text-align:center;border-bottom:2px solid var(--clr-border)">ΔF</th>
+                  <th style="padding:7px 10px;text-align:center;border-bottom:2px solid var(--clr-border)">ΔD</th>
+                </tr></thead>
+                <tbody id="dlg-blc-tbody"></tbody>
+              </table>
+            </div>
+          </div>`}
+      </div>`;
+
+    _makeDraggable(dlg, '[data-drag-handle]');
+    dlg.querySelector('#dlg-blc-close')?.addEventListener('click', () => dlg.close());
+    dlg.querySelector('#dlg-blc-disable')?.addEventListener('click', () => {
       disableBaselineCompare();
+      const btn = document.getElementById('btn-baseline-compare');
       btn?.setAttribute('aria-pressed', 'false');
       btn?.classList.remove('active');
+      _ganttCanvas?.render?.();
       _showToast('Comparación de línea base desactivada', 'info');
-      _ganttCanvas?.render?.();
-      return;
+      dlg.close();
+    });
+
+    const _renderVariance = async (blId) => {
+      const blData = await (async () => {
+        const { default: _lbd } = await import('./baseline.js').catch(() => ({}));
+        return loadBaselineData(blId);
+      })();
+      const tbody = dlg.querySelector('#dlg-blc-tbody');
+      if (!tbody || !cpmResult?.tasks) return;
+      const rows = [];
+      for (const [tid, cpm] of cpmResult.tasks) {
+        const task = tasks.get(tid);
+        if (!task || task.deleted_at || cpm.is_summary) continue;
+        const bl = blData?.get(tid);
+        if (!bl) continue;
+        const di = cpm.es - bl.es;
+        const df = cpm.ef - bl.ef;
+        const dd = (cpm.ef - cpm.es) - (bl.ef - bl.es);
+        const clrI = di === 0 ? '' : di > 0 ? 'color:#D32F2F' : 'color:#388E3C';
+        const clrF = df === 0 ? '' : df > 0 ? 'color:#D32F2F' : 'color:#388E3C';
+        const clrD = dd === 0 ? '' : dd > 0 ? 'color:#D32F2F' : 'color:#388E3C';
+        rows.push(`<tr style="border-bottom:1px solid var(--clr-border-2)">
+          <td style="padding:6px 10px;font-size:12px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${_escHtml(task.name)}</td>
+          <td style="padding:6px 10px;text-align:center">${bl.es}</td>
+          <td style="padding:6px 10px;text-align:center">${cpm.es}</td>
+          <td style="padding:6px 10px;text-align:center;font-weight:600;${clrI}">${di >= 0 ? '+' : ''}${di}</td>
+          <td style="padding:6px 10px;text-align:center">${bl.ef}</td>
+          <td style="padding:6px 10px;text-align:center">${cpm.ef}</td>
+          <td style="padding:6px 10px;text-align:center;font-weight:600;${clrF}">${df >= 0 ? '+' : ''}${df}</td>
+          <td style="padding:6px 10px;text-align:center;font-weight:600;${clrD}">${dd >= 0 ? '+' : ''}${dd}</td>
+        </tr>`);
+      }
+      tbody.innerHTML = rows.join('') || '<tr><td colspan="8" style="padding:10px;text-align:center;color:var(--clr-text-3)">Sin datos de varianza</td></tr>';
+    };
+
+    if (activeId && compareEnabled) {
+      _renderVariance(activeId);
     }
-    const baselines = await getProjectBaselines();
-    if (!baselines.length) { _showToast('No hay líneas base guardadas', 'warn'); return; }
-    const enabled = await toggleBaselineCompare(baselines[0].id);
-    if (enabled) {
-      btn?.setAttribute('aria-pressed', 'true');
-      btn?.classList.add('active');
-      _showToast('Comparando con: ' + (baselines[0].name ?? 'Línea base'), 'success');
-      _ganttCanvas?.render?.();
-    }
-  });
+
+    dlg.querySelectorAll('[data-blc-select]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const blId = /** @type {HTMLElement} */ (btn).dataset.blcSelect;
+        await enableBaselineCompare(blId);
+        const tbtn = document.getElementById('btn-baseline-compare');
+        tbtn?.setAttribute('aria-pressed', 'true');
+        tbtn?.classList.add('active');
+        _ganttCanvas?.render?.();
+        _showToast('Comparando con: ' + (baselines.find(b => b.id === blId)?.name ?? ''), 'success');
+        dlg.close();
+        await _openBaselineCompareModal();
+      });
+    });
+
+    dlg.querySelector('#dlg-blc-print')?.addEventListener('click', async () => {
+      const blId = getActiveBaselineId();
+      const blName = baselines.find(b => b.id === blId)?.name ?? 'sin definir';
+      const tbl = dlg.querySelector('#dlg-blc-table');
+      _printToPdf('Comparación de Línea Base', `
+        <h1 style="font-size:18px;margin-bottom:4px">Comparación de Línea Base</h1>
+        <p style="color:#666;font-size:12px;margin-bottom:16px">Proyecto: ${_escHtml(project.name)} · Línea base: ${_escHtml(blName)}</p>
+        ${tbl?.outerHTML ?? '<p>Sin datos de comparación activos.</p>'}`);
+    });
+
+    dlg.showModal();
+  }
 
   // ---- Menú etiquetas de barras Gantt ----
   const _barLabelsBtn  = document.getElementById('btn-bar-labels');
@@ -5030,6 +5327,16 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('btn-gantt-view')?.addEventListener('click', () => {
     _closeExplorer();
     document.getElementById('gantt-panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    setTimeout(() => _ganttCanvas?.requestRender(), 150);
+  });
+  document.getElementById('btn-hard-reload')?.addEventListener('click', async () => {
+    try {
+      if ('caches' in window) {
+        const keys = await caches.keys();
+        await Promise.all(keys.map(k => caches.delete(k)));
+      }
+    } catch (_) { /* ignore */ }
+    location.reload();
   });
   document.getElementById('btn-dcma-view')?.addEventListener('click', () => {
     _closeExplorer();
