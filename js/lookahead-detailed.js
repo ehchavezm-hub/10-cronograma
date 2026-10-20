@@ -73,6 +73,7 @@ const _esc = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').rep
 
 const LS_PPC   = 'ecm-lad-ppc';
 const LS_REST  = 'ecm-lad-rest';
+const LS_PLAN  = 'ecm-lad-plan';
 
 function _getPPC() {
   try { return JSON.parse(localStorage.getItem(LS_PPC) || '{}'); } catch { return {}; }
@@ -92,6 +93,25 @@ function _saveRest(projId, list) {
     all[projId] = list;
     localStorage.setItem(LS_REST, JSON.stringify(all));
   } catch { /* ignore */ }
+}
+
+/** Retorna actividades manuales LPS para un proyecto: { weekKey: [{id,name,responsible,unit,qty}] } */
+function _getPlan(projId) {
+  try {
+    const all = JSON.parse(localStorage.getItem(LS_PLAN) || '{}');
+    return all[projId] ?? {};
+  } catch { return {}; }
+}
+function _savePlan(projId, planData) {
+  try {
+    const all = JSON.parse(localStorage.getItem(LS_PLAN) || '{}');
+    all[projId] = planData;
+    localStorage.setItem(LS_PLAN, JSON.stringify(all));
+  } catch { /* ignore */ }
+}
+
+function _genId() {
+  return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 }
 
 // ============================================================
@@ -299,73 +319,206 @@ export class LookaheadDetailedPanel {
   }
 
   _renderPlanning() {
-    const { project, cpmResult } = appState.state;
-    if (!project || !cpmResult) {
-      this._body.innerHTML = '<p class="lad-empty">Abre un proyecto con CPM calculado para ver el lookahead.</p>';
+    const { project } = appState.state;
+    if (!project) {
+      this._body.innerHTML = '<p class="lad-empty">Abre un proyecto primero.</p>';
       return;
     }
-    const groups = this._getWeekGroups();
-    if (!groups) { this._body.innerHTML = '<p class="lad-empty">Sin datos de planificación.</p>'; return; }
+
+    const planData = _getPlan(project.id);
+    const cpmGroups = this._getWeekGroups(); // puede ser null si no hay CPM
 
     let html = '';
-    let idx = 0;
-    let totalTasks = 0;
-    for (const [wk, rows] of groups) {
+    let totalManual = 0;
+
+    for (let idx = 0; idx < this._weeks; idx++) {
+      const wk     = _addWeeks(this._refWeekKey, idx);
       const label  = _weekLabel(wk, idx);
-      totalTasks += rows.length;
+      const manual = planData[wk] ?? [];
+      const cpmRows = cpmGroups?.get(wk) ?? [];
+      totalManual += manual.length;
+
+      const manualRows = manual.map((act, i) => `
+        <tr class="${i%2===0?'':'lad-row-alt'}" data-act-id="${act.id}" data-wk="${wk}">
+          <td style="padding:5px 8px;width:22px;text-align:center">
+            <span class="lad-badge" style="background:#1976D222;color:#1976D2;font-size:10px">LPS</span>
+          </td>
+          <td class="lad-name" title="${_esc(act.name)}">${_esc(act.name)}</td>
+          <td class="lad-date" style="color:var(--clr-text-2)">${_esc(act.responsible || '—')}</td>
+          <td class="lad-date" style="color:var(--clr-text-2)">${_esc(act.unit || '—')}</td>
+          <td class="lad-num" style="text-align:center">${_esc(act.qty != null ? act.qty : '—')}</td>
+          <td style="white-space:nowrap;padding:5px 6px">
+            <button class="btn btn-ghost btn-sm lad-edit-act" data-act-id="${act.id}" data-wk="${wk}" title="Editar" style="font-size:11px;padding:2px 6px">✏</button>
+            <button class="btn btn-ghost btn-sm lad-del-act" data-act-id="${act.id}" data-wk="${wk}" title="Eliminar" style="font-size:11px;padding:2px 6px;color:#D32F2F">✕</button>
+          </td>
+        </tr>`).join('');
+
+      const cpmSection = cpmRows.length > 0 ? `
+        <tr><td colspan="6" style="padding:4px 8px;background:var(--clr-surface-2);font-size:11px;color:var(--clr-text-3);font-weight:600">
+          📌 Del cronograma maestro (${cpmRows.length} tarea${cpmRows.length!==1?'s':''})
+        </td></tr>
+        ${cpmRows.map((r,i) => {
+          const status = r.pct >= 100 ? 'done' : r.cpm.tf === 0 ? 'critical' : r.pct > 0 ? 'progress' : 'todo';
+          const statusColor = { done:'#388E3C', critical:'#D32F2F', progress:'#1976D2', todo:'#757575' }[status];
+          const statusLabel = { done:'Completada', critical:'Crítica', progress:'En Curso', todo:'Pendiente' }[status];
+          return `<tr class="${i%2===0?'':'lad-row-alt'}" style="opacity:.85">
+            <td style="padding:5px 8px;text-align:center">
+              <span class="lad-badge" style="background:${statusColor}22;color:${statusColor};font-size:10px">CPM</span>
+            </td>
+            <td class="lad-name" title="${_esc(r.task.name)}">${_esc(r.task.name)}</td>
+            <td class="lad-date">${_fmtDate(r.startDate)}</td>
+            <td class="lad-date">${_fmtDate(r.endDate)}</td>
+            <td class="lad-num" style="text-align:center">${r.pct}%</td>
+            <td style="padding:5px 6px"><span class="lad-badge" style="background:${statusColor}22;color:${statusColor}">${statusLabel}</span></td>
+          </tr>`;
+        }).join('')}` : '';
+
       html += `
-        <div class="lad-week-block">
+        <div class="lad-week-block" data-wk="${wk}">
           <div class="lad-week-title">
             <span>${_esc(label)}</span>
-            <span class="lad-week-count">${rows.length} tarea${rows.length!==1?'s':''}</span>
+            <div style="display:flex;align-items:center;gap:8px">
+              <span class="lad-week-count">${manual.length} actividad${manual.length!==1?'es':''} LPS</span>
+              <button class="btn btn-primary btn-sm lad-add-act" data-wk="${wk}" style="font-size:11px;padding:3px 10px">+ Agregar</button>
+            </div>
           </div>
-          ${rows.length === 0
-            ? `<p class="lad-empty-week">Sin tareas programadas esta semana.</p>`
+          <div class="lad-add-form" data-wk="${wk}" style="display:none;padding:8px 12px;background:var(--clr-surface-2);border-bottom:1px solid var(--clr-border)">
+            <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">
+              <label style="font-size:12px;display:flex;flex-direction:column;gap:3px;flex:2;min-width:160px">
+                Actividad <input class="lad-inp-name" placeholder="Descripción de la actividad" style="padding:4px 8px;border:1px solid var(--clr-border);border-radius:4px;background:var(--clr-surface);color:var(--clr-text);font-size:12px;width:100%">
+              </label>
+              <label style="font-size:12px;display:flex;flex-direction:column;gap:3px;flex:1;min-width:110px">
+                Responsable <input class="lad-inp-resp" placeholder="Nombre" style="padding:4px 8px;border:1px solid var(--clr-border);border-radius:4px;background:var(--clr-surface);color:var(--clr-text);font-size:12px;width:100%">
+              </label>
+              <label style="font-size:12px;display:flex;flex-direction:column;gap:3px;flex:0 0 80px">
+                Unidad <input class="lad-inp-unit" placeholder="m², m³…" style="padding:4px 8px;border:1px solid var(--clr-border);border-radius:4px;background:var(--clr-surface);color:var(--clr-text);font-size:12px;width:100%">
+              </label>
+              <label style="font-size:12px;display:flex;flex-direction:column;gap:3px;flex:0 0 80px">
+                Metrado <input class="lad-inp-qty" type="number" placeholder="0" style="padding:4px 8px;border:1px solid var(--clr-border);border-radius:4px;background:var(--clr-surface);color:var(--clr-text);font-size:12px;width:100%">
+              </label>
+              <div style="display:flex;gap:4px;padding-bottom:1px">
+                <button class="btn btn-primary btn-sm lad-save-act" data-wk="${wk}" style="font-size:12px">💾 Guardar</button>
+                <button class="btn btn-ghost btn-sm lad-cancel-act" data-wk="${wk}" style="font-size:12px">Cancelar</button>
+              </div>
+            </div>
+          </div>
+          ${manual.length === 0 && cpmRows.length === 0
+            ? `<p class="lad-empty-week">Sin actividades registradas. Usa "+ Agregar" para planificar esta semana.</p>`
             : `<table class="lad-table">
               <thead><tr>
-                <th>WBS</th><th>Tarea</th><th>Inicio</th><th>Fin</th>
-                <th>Dur.</th><th style="text-align:center">%</th>
-                <th style="text-align:center">HT</th><th>Estado</th>
+                <th style="width:50px">Origen</th>
+                <th>Actividad</th>
+                <th>Responsable / Inicio</th>
+                <th>Unidad / Fin</th>
+                <th style="text-align:center">Metrado / %</th>
+                <th style="text-align:center;width:70px">Acciones</th>
               </tr></thead>
               <tbody>
-                ${rows.map((r,i) => {
-                  const status = r.pct >= 100 ? 'done' : r.cpm.tf === 0 ? 'critical' : r.pct > 0 ? 'progress' : 'todo';
-                  const statusLabel = { done:'Completada', critical:'Crítica', progress:'En Curso', todo:'Pendiente' }[status];
-                  const statusColor = { done:'#388E3C', critical:'#D32F2F', progress:'#1976D2', todo:'#757575' }[status];
-                  return `<tr class="${i%2===0?'':'lad-row-alt'}">
-                    <td class="lad-wbs">${_esc(r.task.wbs_code ?? '-')}</td>
-                    <td class="lad-name" title="${_esc(r.task.name)}">${_esc(r.task.name)}</td>
-                    <td class="lad-date">${_fmtDate(r.startDate)}</td>
-                    <td class="lad-date">${_fmtDate(r.endDate)}</td>
-                    <td class="lad-num">${r.cpm.ef - r.cpm.es}d</td>
-                    <td style="text-align:center">
-                      <div class="lad-pbar-wrap">
-                        <div class="lad-pbar" style="width:${r.pct}%;background:${r.pct>=100?'#388E3C':'#1976D2'}"></div>
-                      </div>
-                      <span class="lad-pct">${r.pct}%</span>
-                    </td>
-                    <td class="lad-num" style="color:${r.cpm.tf===0?'#D32F2F':'inherit'};font-weight:${r.cpm.tf===0?700:400}">${r.cpm.tf ?? '-'}</td>
-                    <td><span class="lad-badge" style="background:${statusColor}22;color:${statusColor}">${statusLabel}</span></td>
-                  </tr>`;
-                }).join('')}
+                ${manualRows}
+                ${cpmSection}
               </tbody>
             </table>`}
         </div>`;
-      idx++;
     }
 
     this._body.innerHTML = `
       <div class="lad-info-bar">
-        <span>📅 <strong>${this._weeks}</strong> semanas desde ${_fmtDate(_weekStart(this._refWeekKey))}</span>
-        <span>${totalTasks} tarea(s) programada(s)</span>
+        <span>📅 <strong>${this._weeks}</strong> semana${this._weeks!==1?'s':''} desde ${_fmtDate(_weekStart(this._refWeekKey))}</span>
+        <span>${totalManual} actividad${totalManual!==1?'es':''} LPS planificada${totalManual!==1?'s':''}</span>
       </div>
       ${html}`;
+
+    // Wire events
+    this._body.querySelectorAll('.lad-add-act').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const wk = btn.getAttribute('data-wk');
+        const form = this._body.querySelector(`.lad-add-form[data-wk="${wk}"]`);
+        if (form) { form.style.display = form.style.display === 'none' ? 'block' : 'none'; }
+        const inp = form?.querySelector('.lad-inp-name');
+        if (inp) /** @type {HTMLInputElement} */ (inp).focus();
+      });
+    });
+
+    this._body.querySelectorAll('.lad-cancel-act').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const wk = btn.getAttribute('data-wk');
+        const form = this._body.querySelector(`.lad-add-form[data-wk="${wk}"]`);
+        if (form) form.style.display = 'none';
+      });
+    });
+
+    this._body.querySelectorAll('.lad-save-act').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const wk = btn.getAttribute('data-wk');
+        const form = this._body.querySelector(`.lad-add-form[data-wk="${wk}"]`);
+        if (!form) return;
+        const nameInp = /** @type {HTMLInputElement} */ (form.querySelector('.lad-inp-name'));
+        const respInp = /** @type {HTMLInputElement} */ (form.querySelector('.lad-inp-resp'));
+        const unitInp = /** @type {HTMLInputElement} */ (form.querySelector('.lad-inp-unit'));
+        const qtyInp  = /** @type {HTMLInputElement} */ (form.querySelector('.lad-inp-qty'));
+        const name = nameInp?.value.trim();
+        if (!name) { nameInp?.focus(); return; }
+        const plan = _getPlan(project.id);
+        if (!plan[wk]) plan[wk] = [];
+        const editId = btn.getAttribute('data-edit-id');
+        if (editId) {
+          const existing = plan[wk].find(a => a.id === editId);
+          if (existing) {
+            existing.name = name;
+            existing.responsible = respInp?.value.trim() || '';
+            existing.unit = unitInp?.value.trim() || '';
+            existing.qty = qtyInp?.value ? parseFloat(qtyInp.value) : null;
+          }
+        } else {
+          plan[wk].push({ id: _genId(), name, responsible: respInp?.value.trim() || '', unit: unitInp?.value.trim() || '', qty: qtyInp?.value ? parseFloat(qtyInp.value) : null });
+        }
+        _savePlan(project.id, plan);
+        document.dispatchEvent(new CustomEvent('show-toast', { detail: { msg: 'Actividad guardada.', type: 'success' } }));
+        this._renderPlanning();
+      });
+    });
+
+    this._body.querySelectorAll('.lad-del-act').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const actId = btn.getAttribute('data-act-id');
+        const wk    = btn.getAttribute('data-wk');
+        const plan  = _getPlan(project.id);
+        if (plan[wk]) plan[wk] = plan[wk].filter(a => a.id !== actId);
+        _savePlan(project.id, plan);
+        document.dispatchEvent(new CustomEvent('show-toast', { detail: { msg: 'Actividad eliminada.', type: 'info' } }));
+        this._renderPlanning();
+      });
+    });
+
+    this._body.querySelectorAll('.lad-edit-act').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const actId = btn.getAttribute('data-act-id');
+        const wk    = btn.getAttribute('data-wk');
+        const plan  = _getPlan(project.id);
+        const act   = plan[wk]?.find(a => a.id === actId);
+        if (!act) return;
+        const form = this._body.querySelector(`.lad-add-form[data-wk="${wk}"]`);
+        if (!form) return;
+        form.style.display = 'block';
+        const nameInp = /** @type {HTMLInputElement} */ (form.querySelector('.lad-inp-name'));
+        const respInp = /** @type {HTMLInputElement} */ (form.querySelector('.lad-inp-resp'));
+        const unitInp = /** @type {HTMLInputElement} */ (form.querySelector('.lad-inp-unit'));
+        const qtyInp  = /** @type {HTMLInputElement} */ (form.querySelector('.lad-inp-qty'));
+        if (nameInp) nameInp.value = act.name;
+        if (respInp) respInp.value = act.responsible || '';
+        if (unitInp) unitInp.value = act.unit || '';
+        if (qtyInp)  qtyInp.value  = act.qty != null ? String(act.qty) : '';
+        const saveBtn = /** @type {HTMLButtonElement|null} */ (form.querySelector('.lad-save-act'));
+        if (saveBtn) saveBtn.setAttribute('data-edit-id', actId);
+        nameInp?.focus();
+      });
+    });
   }
 
   _renderCompliance() {
-    const { project, cpmResult } = appState.state;
-    if (!project || !cpmResult) {
-      this._body.innerHTML = '<p class="lad-empty">Abre un proyecto con CPM calculado.</p>';
+    const { project } = appState.state;
+    if (!project) {
+      this._body.innerHTML = '<p class="lad-empty">Abre un proyecto primero.</p>';
       return;
     }
     if (!this._compWeekKey) this._compWeekKey = _addWeeks(this._refWeekKey, -1);
@@ -373,6 +526,7 @@ export class LookaheadDetailedPanel {
     const allPpc   = _getPPC();
     const projPpc  = allPpc[project.id] ?? {};
 
+    // Generar opciones: semana anterior y semanas planificadas
     const weekOpts = [];
     for (let i = -(this._weeks); i <= 0; i++) {
       const wk = _addWeeks(this._refWeekKey, i);
@@ -381,12 +535,23 @@ export class LookaheadDetailedPanel {
     if (!weekOpts.includes(this._compWeekKey)) this._compWeekKey = weekOpts[weekOpts.length - 1];
 
     const weekData   = projPpc[this._compWeekKey] ?? { tasks: {}, reasons: {} };
-    const weekTasks  = this._getWeekGroupForKey(this._compWeekKey);
-    const planned    = weekTasks.length;
-    const completed  = weekTasks.filter(r => !!weekData.tasks[r.task.id]).length;
-    const ppc        = planned > 0 ? Math.round((completed / planned) * 100) : null;
 
-    const ppcColor   = ppc === null ? '#757575' : ppc >= 85 ? '#388E3C' : ppc >= 60 ? '#F57C00' : '#D32F2F';
+    // Actividades LPS manuales
+    const planData   = _getPlan(project.id);
+    const manualActs = planData[this._compWeekKey] ?? [];
+
+    // Tareas CPM en esa semana (como referencia)
+    const cpmTasks = this._getWeekGroupForKey(this._compWeekKey);
+
+    // Total planificado = manual + cpm
+    const totalPlanned = manualActs.length + cpmTasks.length;
+
+    // Completados según PPC guardado
+    const completedManual = manualActs.filter(a => !!weekData.tasks['lps-' + a.id]).length;
+    const completedCpm    = cpmTasks.filter(r => !!weekData.tasks['cpm-' + r.task.id]).length;
+    const totalCompleted  = completedManual + completedCpm;
+    const ppc = totalPlanned > 0 ? Math.round((totalCompleted / totalPlanned) * 100) : null;
+    const ppcColor = ppc === null ? '#757575' : ppc >= 85 ? '#388E3C' : ppc >= 60 ? '#F57C00' : '#D32F2F';
 
     let html = `
       <div class="lad-info-bar">
@@ -397,50 +562,84 @@ export class LookaheadDetailedPanel {
             </select>
           </label>
         </div>
-        <div style="display:flex;align-items:center;gap:16px">
-          <span>Planificadas: <strong>${planned}</strong></span>
-          <span>Completadas: <strong>${completed}</strong></span>
+        <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap">
+          <span>Planificadas: <strong>${totalPlanned}</strong></span>
+          <span>Completadas: <strong>${totalCompleted}</strong></span>
           <span>PPC: <strong style="font-size:15px;color:${ppcColor}">${ppc !== null ? ppc + '%' : 'N/A'}</strong></span>
-          <button id="lad-save-ppc" class="btn btn-primary btn-sm" style="font-size:12px">💾 Guardar</button>
+          <button id="lad-save-ppc" class="btn btn-primary btn-sm" style="font-size:12px">💾 Guardar PPC</button>
         </div>
       </div>`;
 
-    if (weekTasks.length === 0) {
-      html += '<p class="lad-empty">No hay tareas planificadas para esta semana.</p>';
+    if (totalPlanned === 0) {
+      html += '<p class="lad-empty">No hay actividades planificadas para esta semana. Registra actividades en la pestaña "Planificación" primero.</p>';
     } else {
+      const manualRows = manualActs.map((act, i) => {
+        const itemId = 'lps-' + act.id;
+        const done   = !!weekData.tasks[itemId];
+        const reason = weekData.reasons[itemId] ?? '';
+        return `<tr class="${i%2===0?'':'lad-row-alt'}">
+          <td style="text-align:center">
+            <input type="checkbox" class="lad-comp-chk" data-id="${itemId}" ${done?'checked':''} style="width:16px;height:16px;cursor:pointer">
+          </td>
+          <td style="padding:5px 8px;text-align:center">
+            <span class="lad-badge" style="background:#1976D222;color:#1976D2;font-size:10px">LPS</span>
+          </td>
+          <td class="lad-name" title="${_esc(act.name)}">${_esc(act.name)}</td>
+          <td class="lad-date">${_esc(act.responsible || '—')}</td>
+          <td class="lad-date">${_esc(act.unit || '—')}${act.qty != null ? ' · ' + act.qty : ''}</td>
+          <td>
+            <select class="lad-reason-sel" data-id="${itemId}" ${done?'disabled':''} style="font-size:11px;padding:2px 4px;border:1px solid var(--clr-border);border-radius:4px;background:var(--clr-surface);color:var(--clr-text);width:100%">
+              <option value="">— Sin causa —</option>
+              ${CAUSAS.map(c => `<option value="${c}"${reason===c?' selected':''}>${c}</option>`).join('')}
+            </select>
+          </td>
+        </tr>`;
+      }).join('');
+
+      const cpmRows = cpmTasks.map((r, i) => {
+        const itemId = 'cpm-' + r.task.id;
+        const done   = !!weekData.tasks[itemId];
+        const reason = weekData.reasons[itemId] ?? '';
+        const status = r.pct >= 100 ? 'done' : r.cpm.tf === 0 ? 'critical' : r.pct > 0 ? 'progress' : 'todo';
+        const statusColor = { done:'#388E3C', critical:'#D32F2F', progress:'#1976D2', todo:'#757575' }[status];
+        const statusLabel = { done:'Completada', critical:'Crítica', progress:'En Curso', todo:'Pendiente' }[status];
+        return `<tr class="${i%2===0?'':'lad-row-alt'}">
+          <td style="text-align:center">
+            <input type="checkbox" class="lad-comp-chk" data-id="${itemId}" ${done?'checked':''} style="width:16px;height:16px;cursor:pointer">
+          </td>
+          <td style="padding:5px 8px;text-align:center">
+            <span class="lad-badge" style="background:${statusColor}22;color:${statusColor};font-size:10px">CPM</span>
+          </td>
+          <td class="lad-name" title="${_esc(r.task.name)}">${_esc(r.task.name)}</td>
+          <td class="lad-date">${_fmtDate(r.startDate)}</td>
+          <td class="lad-date">${r.pct}%</td>
+          <td>
+            <select class="lad-reason-sel" data-id="${itemId}" ${done?'disabled':''} style="font-size:11px;padding:2px 4px;border:1px solid var(--clr-border);border-radius:4px;background:var(--clr-surface);color:var(--clr-text);width:100%">
+              <option value="">— Sin causa —</option>
+              ${CAUSAS.map(c => `<option value="${c}"${reason===c?' selected':''}>${c}</option>`).join('')}
+            </select>
+          </td>
+        </tr>`;
+      }).join('');
+
+      const cpmHeader = cpmTasks.length > 0 ? `
+        <tr><td colspan="6" style="padding:4px 8px;background:var(--clr-surface-2);font-size:11px;color:var(--clr-text-3);font-weight:600">
+          📌 Del cronograma maestro (referencia)
+        </td></tr>` : '';
+
       html += `<table class="lad-table">
         <thead><tr>
-          <th style="width:42px;text-align:center">✓</th>
-          <th>Tarea</th>
-          <th>Inicio</th><th>Fin</th>
-          <th style="text-align:center">%</th>
-          <th>Estado CPM</th>
+          <th style="width:38px;text-align:center">✓</th>
+          <th style="width:50px">Origen</th>
+          <th>Actividad</th>
+          <th>Responsable / Inicio</th>
+          <th>Unidad / %</th>
           <th>Causa incumplimiento</th>
         </tr></thead>
         <tbody>
-          ${weekTasks.map((r,i) => {
-            const done   = !!weekData.tasks[r.task.id];
-            const reason = weekData.reasons[r.task.id] ?? '';
-            const status = r.pct >= 100 ? 'done' : r.cpm.tf === 0 ? 'critical' : r.pct > 0 ? 'progress' : 'todo';
-            const statusLabel = { done:'Completada', critical:'Crítica', progress:'En Curso', todo:'Pendiente' }[status];
-            const statusColor = { done:'#388E3C', critical:'#D32F2F', progress:'#1976D2', todo:'#757575' }[status];
-            return `<tr class="${i%2===0?'':'lad-row-alt'}" data-task-id="${r.task.id}">
-              <td style="text-align:center">
-                <input type="checkbox" class="lad-comp-chk" data-id="${r.task.id}" ${done?'checked':''} style="width:16px;height:16px;cursor:pointer">
-              </td>
-              <td class="lad-name" title="${_esc(r.task.name)}">${_esc(r.task.name)}</td>
-              <td class="lad-date">${_fmtDate(r.startDate)}</td>
-              <td class="lad-date">${_fmtDate(r.endDate)}</td>
-              <td style="text-align:center">${r.pct}%</td>
-              <td><span class="lad-badge" style="background:${statusColor}22;color:${statusColor}">${statusLabel}</span></td>
-              <td>
-                <select class="lad-reason-sel" data-id="${r.task.id}" ${done?'disabled':''} style="font-size:11px;padding:2px 4px;border:1px solid var(--clr-border);border-radius:4px;background:var(--clr-surface);color:var(--clr-text);width:100%">
-                  <option value="">— Sin causa —</option>
-                  ${CAUSAS.map(c => `<option value="${c}"${reason===c?' selected':''}>${c}</option>`).join('')}
-                </select>
-              </td>
-            </tr>`;
-          }).join('')}
+          ${manualRows}
+          ${cpmHeader}
+          ${cpmRows}
         </tbody>
       </table>`;
     }
@@ -448,7 +647,7 @@ export class LookaheadDetailedPanel {
     this._body.innerHTML = html;
 
     this._body.querySelector('#lad-comp-week')?.addEventListener('change', e => {
-      this._compWeekKey = e.target.value;
+      this._compWeekKey = /** @type {HTMLSelectElement} */ (e.target).value;
       this._renderCompliance();
     });
 
@@ -456,7 +655,7 @@ export class LookaheadDetailedPanel {
       chk.addEventListener('change', () => {
         const id = chk.getAttribute('data-id');
         const reasonSel = this._body.querySelector(`.lad-reason-sel[data-id="${id}"]`);
-        if (reasonSel) reasonSel.disabled = chk.checked;
+        if (reasonSel) /** @type {HTMLSelectElement} */ (reasonSel).disabled = /** @type {HTMLInputElement} */ (chk).checked;
         this._updatePpcDisplay();
       });
     });
@@ -466,12 +665,12 @@ export class LookaheadDetailedPanel {
       if (!allPpc2[project.id]) allPpc2[project.id] = {};
       const newWeekData = { tasks: {}, reasons: {}, saved: true, savedAt: new Date().toISOString() };
       this._body.querySelectorAll('.lad-comp-chk').forEach(chk => {
-        const id = chk.getAttribute('data-id');
-        newWeekData.tasks[id] = chk.checked;
+        const id = /** @type {HTMLInputElement} */ (chk).getAttribute('data-id');
+        newWeekData.tasks[id] = /** @type {HTMLInputElement} */ (chk).checked;
       });
       this._body.querySelectorAll('.lad-reason-sel').forEach(sel => {
         const id = sel.getAttribute('data-id');
-        if (sel.value) newWeekData.reasons[id] = sel.value;
+        if (/** @type {HTMLSelectElement} */ (sel).value) newWeekData.reasons[id] = /** @type {HTMLSelectElement} */ (sel).value;
       });
       allPpc2[project.id][this._compWeekKey] = newWeekData;
       _savePPC(allPpc2);
@@ -688,22 +887,32 @@ export class LookaheadDetailedPanel {
     const allPpc  = _getPPC();
     const projPpc = allPpc[project.id] ?? {};
     const rests   = _getRest(project.id);
+    const planData = _getPlan(project.id);
 
     const histLen = Math.max(this._weeks, 4);
     const history = [];
     for (let i = -(histLen - 1); i <= 0; i++) {
-      const wk      = _addWeeks(this._refWeekKey, i);
-      const wData   = projPpc[wk];
-      const tasks   = this._getWeekGroupForKey(wk);
-      const planned = tasks.length;
+      const wk         = _addWeeks(this._refWeekKey, i);
+      const wData      = projPpc[wk];
+      const cpmTasks   = this._getWeekGroupForKey(wk);
+      const manualActs = planData[wk] ?? [];
+      const planned    = cpmTasks.length + manualActs.length;
       let completed = 0;
-      if (wData) tasks.forEach(r => { if (wData.tasks?.[r.task.id]) completed++; });
-      const ppc     = planned > 0 && wData?.saved ? Math.round((completed/planned)*100) : null;
+      if (wData) {
+        cpmTasks.forEach(r => { if (wData.tasks?.['cpm-' + r.task.id]) completed++; });
+        manualActs.forEach(a => { if (wData.tasks?.['lps-' + a.id]) completed++; });
+      }
+      const ppc = planned > 0 && wData?.saved ? Math.round((completed/planned)*100) : null;
       history.push({ wk, planned, completed, ppc, label: `S${i + histLen}` });
     }
 
     const groups = cpmResult ? this._getWeekGroups() : null;
     let totalPlanned = 0, totalDone = 0, totalCrit = 0, totalDelayed = 0;
+    // Count LPS manual activities in lookahead window
+    for (let i = 0; i < this._weeks; i++) {
+      const wk = _addWeeks(this._refWeekKey, i);
+      totalPlanned += (planData[wk] ?? []).length;
+    }
     if (groups) {
       for (const [, rows] of groups) {
         for (const r of rows) {
@@ -820,20 +1029,26 @@ export class LookaheadDetailedPanel {
   }
 
   _printPlanning() {
-    const groups = this._getWeekGroups();
-    if (!groups) return;
+    const { project } = appState.state;
+    if (!project) return;
+    const planData  = _getPlan(project.id);
+    const cpmGroups = this._getWeekGroups();
     let html = `<h1>Lookahead Detallado — Planificación ${this._weeks} semanas</h1>`;
-    let idx = 0;
-    for (const [wk, rows] of groups) {
+    for (let idx = 0; idx < this._weeks; idx++) {
+      const wk      = _addWeeks(this._refWeekKey, idx);
+      const manual  = planData[wk] ?? [];
+      const cpmRows = cpmGroups?.get(wk) ?? [];
       html += `<h2>${_weekLabel(wk, idx)}</h2>`;
-      if (!rows.length) { html += '<p>Sin tareas.</p>'; idx++; continue; }
-      html += `<table><thead><tr><th>WBS</th><th>Tarea</th><th>Inicio</th><th>Fin</th><th>Dur.</th><th>%</th><th>HT</th><th>Estado</th></tr></thead><tbody>`;
-      for (const r of rows) {
+      if (!manual.length && !cpmRows.length) { html += '<p>Sin actividades.</p>'; continue; }
+      html += `<table><thead><tr><th>Origen</th><th>Actividad</th><th>Responsable</th><th>Unidad</th><th>Metrado</th></tr></thead><tbody>`;
+      for (const a of manual) {
+        html += `<tr><td>LPS</td><td>${_esc(a.name)}</td><td>${_esc(a.responsible||'-')}</td><td>${_esc(a.unit||'-')}</td><td>${a.qty!=null?a.qty:'-'}</td></tr>`;
+      }
+      for (const r of cpmRows) {
         const status = r.pct >= 100 ? 'Completada' : r.cpm.tf === 0 ? 'Crítica' : r.pct > 0 ? 'En Curso' : 'Pendiente';
-        html += `<tr><td>${_esc(r.task.wbs_code??'-')}</td><td>${_esc(r.task.name)}</td><td>${_fmtDate(r.startDate)}</td><td>${_fmtDate(r.endDate)}</td><td>${r.cpm.ef-r.cpm.es}d</td><td>${r.pct}%</td><td>${r.cpm.tf??'-'}</td><td>${status}</td></tr>`;
+        html += `<tr><td>CPM</td><td>${_esc(r.task.name)}</td><td>${_fmtDate(r.startDate)}–${_fmtDate(r.endDate)}</td><td>${r.pct}%</td><td>${status}</td></tr>`;
       }
       html += `</tbody></table>`;
-      idx++;
     }
     _printToPdf('Lookahead - Planificación', html);
   }
@@ -843,17 +1058,27 @@ export class LookaheadDetailedPanel {
     if (!project || !this._compWeekKey) return;
     const allPpc  = _getPPC();
     const projPpc = allPpc[project.id] ?? {};
-    const weekData = projPpc[this._compWeekKey] ?? { tasks:{}, reasons:{} };
-    const tasks   = this._getWeekGroupForKey(this._compWeekKey);
-    const completed = tasks.filter(r => !!weekData.tasks[r.task.id]).length;
-    const ppc     = tasks.length > 0 ? Math.round((completed/tasks.length)*100) : null;
+    const weekData   = projPpc[this._compWeekKey] ?? { tasks:{}, reasons:{} };
+    const planData   = _getPlan(project.id);
+    const manualActs = planData[this._compWeekKey] ?? [];
+    const cpmTasks   = this._getWeekGroupForKey(this._compWeekKey);
+    const totalPlanned = manualActs.length + cpmTasks.length;
+    let completed = 0;
+    manualActs.forEach(a => { if (weekData.tasks?.['lps-' + a.id]) completed++; });
+    cpmTasks.forEach(r  => { if (weekData.tasks?.['cpm-' + r.task.id]) completed++; });
+    const ppc = totalPlanned > 0 ? Math.round((completed/totalPlanned)*100) : null;
     let html = `<h1>Lookahead — Cumplimiento PPC</h1>
-      <p>Semana: ${_weekLabel(this._compWeekKey, 0)} | Planificadas: ${tasks.length} | Completadas: ${completed} | PPC: ${ppc !== null ? ppc + '%' : 'N/A'}</p>
-      <table><thead><tr><th>Tarea</th><th>Inicio</th><th>Fin</th><th>%</th><th>¿Completada?</th><th>Causa incumplimiento</th></tr></thead><tbody>`;
-    for (const r of tasks) {
-      const done = !!weekData.tasks[r.task.id];
-      const reason = weekData.reasons[r.task.id] ?? '-';
-      html += `<tr><td>${_esc(r.task.name)}</td><td>${_fmtDate(r.startDate)}</td><td>${_fmtDate(r.endDate)}</td><td>${r.pct}%</td><td>${done?'Sí':'No'}</td><td>${done?'-':_esc(reason)}</td></tr>`;
+      <p>Semana: ${_weekLabel(this._compWeekKey, 0)} | Planificadas: ${totalPlanned} | Completadas: ${completed} | PPC: ${ppc !== null ? ppc + '%' : 'N/A'}</p>
+      <table><thead><tr><th>Origen</th><th>Actividad</th><th>Detalle</th><th>¿Completada?</th><th>Causa</th></tr></thead><tbody>`;
+    for (const a of manualActs) {
+      const id = 'lps-' + a.id;
+      const done = !!weekData.tasks[id];
+      html += `<tr><td>LPS</td><td>${_esc(a.name)}</td><td>${_esc(a.responsible||'-')}</td><td>${done?'Sí':'No'}</td><td>${done?'-':_esc(weekData.reasons[id]||'-')}</td></tr>`;
+    }
+    for (const r of cpmTasks) {
+      const id = 'cpm-' + r.task.id;
+      const done = !!weekData.tasks[id];
+      html += `<tr><td>CPM</td><td>${_esc(r.task.name)}</td><td>${_fmtDate(r.startDate)}–${_fmtDate(r.endDate)}</td><td>${done?'Sí':'No'}</td><td>${done?'-':_esc(weekData.reasons[id]||'-')}</td></tr>`;
     }
     html += `</tbody></table>`;
     _printToPdf('Lookahead - Cumplimiento PPC', html);
@@ -876,17 +1101,22 @@ export class LookaheadDetailedPanel {
   _printDashboard() {
     const { project } = appState.state;
     if (!project) return;
-    const allPpc  = _getPPC();
-    const projPpc = allPpc[project.id] ?? {};
-    const histLen = Math.max(this._weeks, 4);
+    const allPpc   = _getPPC();
+    const projPpc  = allPpc[project.id] ?? {};
+    const planData = _getPlan(project.id);
+    const histLen  = Math.max(this._weeks, 4);
     let html = `<h1>Lookahead — Dashboard</h1><table><thead><tr><th>Semana</th><th>Planificadas</th><th>Completadas</th><th>PPC</th></tr></thead><tbody>`;
     for (let i = -(histLen-1); i <= 0; i++) {
-      const wk      = _addWeeks(this._refWeekKey, i);
-      const wData   = projPpc[wk];
-      const tasks   = this._getWeekGroupForKey(wk);
-      const planned = tasks.length;
+      const wk         = _addWeeks(this._refWeekKey, i);
+      const wData      = projPpc[wk];
+      const cpmTasks   = this._getWeekGroupForKey(wk);
+      const manualActs = planData[wk] ?? [];
+      const planned    = cpmTasks.length + manualActs.length;
       let completed = 0;
-      if (wData) tasks.forEach(r => { if (wData.tasks?.[r.task.id]) completed++; });
+      if (wData) {
+        cpmTasks.forEach(r => { if (wData.tasks?.['cpm-' + r.task.id]) completed++; });
+        manualActs.forEach(a => { if (wData.tasks?.['lps-' + a.id]) completed++; });
+      }
       const ppc = planned > 0 && wData?.saved ? Math.round((completed/planned)*100) + '%' : 'Sin datos';
       html += `<tr><td>${_weekLabel(wk, i + histLen - 1)}</td><td>${planned}</td><td>${planned>0&&wData?.saved?completed:'-'}</td><td>${ppc}</td></tr>`;
     }

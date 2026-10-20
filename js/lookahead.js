@@ -68,7 +68,7 @@ export class LookaheadPanel {
   /** @param {HTMLElement} containerEl */
   constructor(containerEl) {
     this.el = containerEl;
-    /** @type {3|6} */
+    /** @type {number} */
     this._weeks = 3;
     /** @type {Array<any>} */
     this._rows = [];
@@ -87,12 +87,17 @@ export class LookaheadPanel {
       <span style="font-size:20px">📅</span>
       <div style="flex:1">
         <div style="font-size:var(--text-md,14px);font-weight:600;color:var(--clr-text)">Vista Lookahead</div>
-        <div style="font-size:11px;color:var(--clr-text-3)">Tareas programadas en las próximas semanas</div>
+        <div style="font-size:11px;color:var(--clr-text-3)">Lookahead según cronograma maestro</div>
       </div>
-      <div style="display:flex;gap:4px">
-        <button id="la-btn-3" class="btn btn-sm" style="padding:4px 12px;font-size:12px">3 semanas</button>
-        <button id="la-btn-6" class="btn btn-sm" style="padding:4px 12px;font-size:12px">6 semanas</button>
-        <button id="la-btn-print" class="btn btn-ghost btn-sm" title="Imprimir PDF">🖨 Imprimir</button>
+      <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap">
+        <button id="la-btn-3" class="btn btn-sm" style="padding:4px 12px;font-size:12px">3 sem.</button>
+        <button id="la-btn-6" class="btn btn-sm" style="padding:4px 12px;font-size:12px">6 sem.</button>
+        <label style="font-size:12px;color:var(--clr-text-2);display:flex;align-items:center;gap:4px;margin-left:4px">
+          <span style="white-space:nowrap">Semanas:</span>
+          <input id="la-input-custom" type="number" min="1" max="52" value="${this._weeks}"
+            style="width:54px;padding:3px 6px;border:1px solid var(--clr-border);border-radius:4px;background:var(--clr-surface);color:var(--clr-text);font-size:12px">
+        </label>
+        <button id="la-btn-print" class="btn btn-ghost btn-sm" title="Imprimir PDF" style="margin-left:4px">🖨 Imprimir</button>
       </div>`;
     this.el.appendChild(hdr);
 
@@ -100,8 +105,22 @@ export class LookaheadPanel {
     this._tbody.style.cssText = 'flex:1;overflow:auto;padding:12px 18px';
     this.el.appendChild(this._tbody);
 
-    hdr.querySelector('#la-btn-3')?.addEventListener('click', () => { this._weeks = 3; this.refresh(); });
-    hdr.querySelector('#la-btn-6')?.addEventListener('click', () => { this._weeks = 6; this.refresh(); });
+    hdr.querySelector('#la-btn-3')?.addEventListener('click', () => {
+      this._weeks = 3;
+      const inp = /** @type {HTMLInputElement|null} */ (this.el.querySelector('#la-input-custom'));
+      if (inp) inp.value = '3';
+      this.refresh();
+    });
+    hdr.querySelector('#la-btn-6')?.addEventListener('click', () => {
+      this._weeks = 6;
+      const inp = /** @type {HTMLInputElement|null} */ (this.el.querySelector('#la-input-custom'));
+      if (inp) inp.value = '6';
+      this.refresh();
+    });
+    hdr.querySelector('#la-input-custom')?.addEventListener('change', e => {
+      const v = parseInt(/** @type {HTMLInputElement} */ (e.target).value);
+      if (v >= 1 && v <= 52) { this._weeks = v; this.refresh(); }
+    });
     hdr.querySelector('#la-btn-print')?.addEventListener('click', () => {
       const rows = this._rows ?? [];
       const fmtDate = d => d.toLocaleDateString('es-PE', { day:'2-digit', month:'2-digit', year:'numeric' });
@@ -194,7 +213,7 @@ export class LookaheadPanel {
     const fmtDate = d => d.toLocaleDateString('es-PE', { day:'2-digit', month:'2-digit', year:'numeric' });
 
     if (!rows.length) {
-      this._tbody.innerHTML = `<p style="color:var(--clr-text-3);font-size:13px;padding:16px 0">No hay tareas programadas en las próximas ${this._weeks} semanas.</p>`;
+      this._tbody.innerHTML = `<p style="color:var(--clr-text-3);font-size:13px;padding:16px 0">No hay tareas programadas en las próximas <strong>${this._weeks}</strong> semanas.</p>`;
       return;
     }
 
