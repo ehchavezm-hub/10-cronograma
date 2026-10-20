@@ -442,7 +442,7 @@ function _daysFrom(date, start) {
 function _color(task, cpm, near) {
   if ((task.percent_complete ?? 0) >= 100) return CLR.done;
   if (task.type === 'milestone') return CLR.milestone;
-  if (task.type === 'summary') return CLR.summary;
+  if (task.type === 'summary' || cpm?.is_summary) return CLR.summary;
   if (cpm.is_critical) return CLR.critical;
   if (cpm.tf != null && cpm.tf >= 0 && cpm.tf <= near) return CLR.near;
   return CLR.normal;
