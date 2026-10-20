@@ -12,7 +12,7 @@
  */
 
 const DB_NAME    = 'cronograma';
-const DB_VERSION = 4;
+const DB_VERSION = 5;
 const OUTBOX_LIMIT = 10_000;
 
 const STORES = [
@@ -54,9 +54,19 @@ export async function openDB() {
           if (!store.indexNames.contains('project_id')) store.createIndex('project_id', 'project_id', { unique: false });
           if (!store.indexNames.contains('deleted_at'))  store.createIndex('deleted_at',  'deleted_at',  { unique: false });
         }
+        if (name === 'baselines') {
+          if (!store.indexNames.contains('project_id')) store.createIndex('project_id', 'project_id', { unique: false });
+        }
+        if (name === 'baseline_tasks') {
+          if (!store.indexNames.contains('baseline_id')) store.createIndex('baseline_id', 'baseline_id', { unique: false });
+        }
       }
     };
-    req.onsuccess = (e) => { _db = /** @type {IDBOpenDBRequest} */ (e.target).result; resolve(_db); };
+    req.onsuccess = (e) => {
+      _db = /** @type {IDBOpenDBRequest} */ (e.target).result;
+      _db.onversionchange = () => { _db.close(); _db = null; };
+      resolve(_db);
+    };
     req.onerror   = (e) => reject(/** @type {IDBOpenDBRequest} */ (e.target).error);
   });
 }

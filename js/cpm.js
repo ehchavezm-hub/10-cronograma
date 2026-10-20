@@ -218,6 +218,16 @@ export function computeCPM(allTasks, allDeps, calendar, projectStart, dataDateId
   const leafIds = new Set(leafTasks.map(t => t.id));
   const leafDeps = deps.filter(d => leafIds.has(d.pred_id) && leafIds.has(d.succ_id));
 
+  // Pre-compute lookup maps: O(n) build → O(1) lookup instead of O(n) filter per task
+  const succDepsMap = /** @type {Map<string,Dep[]>} */ (new Map());
+  const predDepsMap = /** @type {Map<string,Dep[]>} */ (new Map());
+  for (const d of leafDeps) {
+    if (!succDepsMap.has(d.succ_id)) succDepsMap.set(d.succ_id, []);
+    succDepsMap.get(d.succ_id).push(d);
+    if (!predDepsMap.has(d.pred_id)) predDepsMap.set(d.pred_id, []);
+    predDepsMap.get(d.pred_id).push(d);
+  }
+
   // --- Advertencias de calidad DCMA (se emiten pero no bloquean) ---
   _emitQualityWarnings(leafTasks, leafDeps, warnings);
 
@@ -254,7 +264,7 @@ export function computeCPM(allTasks, allDeps, calendar, projectStart, dataDateId
     // Acumular restricciones de predecesoras
     let minEF = 0; // para tipos FF y SF que fuerzan EF directamente
 
-    const incomingDeps = leafDeps.filter(d => d.succ_id === id);
+    const incomingDeps = succDepsMap.get(id) ?? [];
     for (const dep of incomingDeps) {
       const pred = res.get(dep.pred_id);
       if (!pred) continue;
@@ -334,7 +344,7 @@ export function computeCPM(allTasks, allDeps, calendar, projectStart, dataDateId
 
     // D4: ES nunca < 0
     if (es < 0) { es = 0; warnings.push({ code: 'INICIO_RECORTADO', task_id: id }); }
-    ef = es + dur;
+    ef = Math.max(es + dur, minEF);
 
     // Con fecha de corte: tareas no iniciadas no pueden empezar antes del corte
     if (dataDateIdx !== null && !forceES) {
@@ -371,8 +381,8 @@ export function computeCPM(allTasks, allDeps, calendar, projectStart, dataDateId
   // Longitud del proyecto = máximo EF de tareas hoja no completadas
   const activeDurations = [...res.values()].filter(r => !r.is_complete);
   const projectDuration = activeDurations.length
-    ? Math.max(...activeDurations.map(r => r.ef))
-    : Math.max(...[...res.values()].map(r => r.ef), 0);
+    ? activeDurations.reduce((m, r) => Math.max(m, r.ef), 0)
+    : [...res.values()].reduce((m, r) => Math.max(m, r.ef), 0);
 
   // --- PASO ATRÁS ---
   // Procesar en orden inverso al topológico
@@ -413,8 +423,7 @@ export function computeCPM(allTasks, allDeps, calendar, projectStart, dataDateId
     }
 
     // Restricciones desde sucesoras
-    for (const dep of leafDeps) {
-      if (dep.pred_id !== id) continue;
+    for (const dep of (predDepsMap.get(id) ?? [])) {
       const succ = res.get(dep.succ_id);
       if (!succ) continue;
       const lag = dep.lag_days ?? 0;
@@ -448,7 +457,7 @@ export function computeCPM(allTasks, allDeps, calendar, projectStart, dataDateId
   for (const id of order) {
     const r = res.get(id);
     if (!r || r.is_complete) { if (r) r.ff = null; continue; }
-    const outgoing = leafDeps.filter(d => d.pred_id === id);
+    const outgoing = predDepsMap.get(id) ?? [];
     if (!outgoing.length) {
       r.ff = r.tf;
       continue;
@@ -500,8 +509,16 @@ export function computeCPM(allTasks, allDeps, calendar, projectStart, dataDateId
   };
   summaryIds.sort((a, b) => depth(b) - depth(a));
 
+  const childrenMap = /** @type {Map<string, Task[]>} */ (new Map());
+  for (const t of tasks) {
+    if (t.parent_id) {
+      if (!childrenMap.has(t.parent_id)) childrenMap.set(t.parent_id, []);
+      childrenMap.get(t.parent_id).push(t);
+    }
+  }
+
   for (const sumId of summaryIds) {
-    const children = tasks.filter(t => t.parent_id === sumId);
+    const children = childrenMap.get(sumId) ?? [];
     const childResults = children.map(c => final.get(c.id)).filter(Boolean);
     if (!childResults.length) continue;
 

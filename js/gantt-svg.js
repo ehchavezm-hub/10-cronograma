@@ -301,42 +301,58 @@ export function renderGanttSvg({ tasks, deps, cpmResult, calendar, projectStart,
     }
   });
 
-  // ---- Flechas de dependencia ----
+  // ---- Flechas de dependencia (FS / SS / FF / SF) ----
   out.push(`<g opacity="0.75">`);
   deps.forEach(dep => {
     if (dep.deleted_at) return;
-    if (dep.type !== 'FS') return;   // solo FS por claridad; agregar otros si se desea
     const pi = rowIdx.get(dep.pred_id);
     const si = rowIdx.get(dep.succ_id);
     if (pi == null || si == null) return;
 
     const predCpm = cpmResult.tasks.get(dep.pred_id);
     const succCpm = cpmResult.tasks.get(dep.succ_id);
-    if (!predCpm || !succCpm || predCpm.ef == null || succCpm.es == null) return;
+    if (!predCpm || !succCpm) return;
 
     const predTask = tasks.get(dep.pred_id);
+    const succTask = tasks.get(dep.succ_id);
     const isOnCrit = predCpm.is_critical && succCpm.is_critical;
     const arrowClr = isOnCrit ? CLR.critical : CLR.arrow;
     const marker   = isOnCrit ? 'arr-red' : 'arr';
+    const depType  = dep.type || 'FS';
 
-    const predEndDate = predTask?.type === 'milestone'
+    // Fechas de anclaje según tipo
+    const predEndDate   = predTask?.type === 'milestone'
       ? calendar.idxToDate(predCpm.es, projectStart)
       : calendar.finishDate(predCpm.ef, projectStart);
+    const predStartDate = calendar.idxToDate(predCpm.es, projectStart);
     const succStartDate = calendar.idxToDate(succCpm.es, projectStart);
+    const succEndDate   = succTask?.type === 'milestone'
+      ? calendar.idxToDate(succCpm.es, projectStart)
+      : calendar.finishDate(succCpm.ef, projectStart);
 
-    const x1 = NAME_W + (_daysFrom(predEndDate, projectStart) + (predTask?.type === 'milestone' ? 0 : 1)) * PPD;
-    const x2 = NAME_W + _daysFrom(succStartDate, projectStart) * PPD - 2;
+    const predEndX   = NAME_W + (_daysFrom(predEndDate,   projectStart) + (predTask?.type === 'milestone' ? 0 : 1)) * PPD;
+    const predStartX = NAME_W + _daysFrom(predStartDate,  projectStart) * PPD;
+    const succStartX = NAME_W + _daysFrom(succStartDate,  projectStart) * PPD - 2;
+    const succEndX   = NAME_W + (_daysFrom(succEndDate,   projectStart) + (succTask?.type === 'milestone' ? 0 : 1)) * PPD + 2;
+
+    let x1, x2;
+    switch (depType) {
+      case 'SS': x1 = predStartX; x2 = succStartX; break;
+      case 'FF': x1 = predEndX;   x2 = succEndX;   break;
+      case 'SF': x1 = predStartX; x2 = succEndX;   break;
+      default:   x1 = predEndX;   x2 = succStartX; break; // FS
+    }
+
     const y1 = HDR_H + pi * ROW_H + ROW_H / 2;
     const y2 = HDR_H + si * ROW_H + ROW_H / 2;
 
-    // Flecha FS ortogonal que NO cruza barras.
-    // Corredor horizontal en el límite de fila del destino (espacio entre filas).
+    // Ruteo ortogonal con corredor horizontal en límite de fila destino
     const OFF = 10;
     const R   = 6;
 
     const corridorY = pi === si ? y1
-      : si > pi ? HDR_H + si * ROW_H       // justo encima de la fila destino
-      : HDR_H + (si + 1) * ROW_H;          // justo debajo de la fila destino
+      : si > pi ? HDR_H + si * ROW_H
+      : HDR_H + (si + 1) * ROW_H;
 
     const dy1 = corridorY >= y1 ? 1 : -1;
     const dy2 = y2 >= corridorY ? 1 : -1;
@@ -345,7 +361,6 @@ export function renderGanttSvg({ tasks, deps, cpmResult, calendar, projectStart,
     if (pi === si) {
       d = `M ${x1},${y1} L ${x2},${y2}`;
     } else if (x2 >= x1 + OFF * 2) {
-      // Normal: salida derecha → baja a corredor → derecha → baja a y2
       const ex = x1 + OFF;
       const en = x2 - OFF;
       const cr1 = Math.min(R, Math.abs(corridorY - y1) / 2, (en - ex) / 2 + 0.1);
@@ -357,7 +372,6 @@ export function renderGanttSvg({ tasks, deps, cpmResult, calendar, projectStart,
           `L ${en},${y2 - dy2 * cr2} Q ${en},${y2} ${en + cr2},${y2} ` +
           `L ${x2},${y2}`;
     } else {
-      // Overlap/U-turn: pasa a la derecha, baja al corredor, entra al destino
       const mx  = Math.max(x1, x2) + OFF;
       const ix  = x2 - OFF;
       const cr1 = Math.min(R, Math.abs(corridorY - y1) / 2);

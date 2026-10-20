@@ -10,7 +10,7 @@
  *   baseline_tasks { id, baseline_id, task_id, es, ef, dur }
  */
 
-import { put, getAll, getByIndex, remove } from './storage.js';
+import { put, getAll, getByIndex, getById, remove } from './storage.js';
 import { appState } from './state.js';
 
 // ---- Guardar línea base ----
@@ -117,6 +117,5 @@ export async function setPrimaryBaseline(projectId, baselineId) {
  * @returns {Promise<{id:string, name:string, created_at:string, is_active:boolean, is_primary:boolean}|null>}
  */
 export async function getBaseline(baselineId) {
-  const all = await getAll('baselines');
-  return all.find(b => b.id === baselineId) ?? null;
+  return (await getById('baselines', baselineId)) ?? null;
 }
