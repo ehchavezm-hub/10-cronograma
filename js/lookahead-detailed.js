@@ -188,13 +188,18 @@ function _printToPdf(moduleName, htmlContent) {
 // ============================================================
 
 const CAUSAS = [
+  'Mala planificación',
+  'Pre-requisito / trabajo previo',
+  'Problema de diseño / planos',
+  'Inspección no aprobada',
+  'Mano de obra no disponible',
   'Materiales no disponibles',
-  'Equipos no disponibles',
-  'Mano de obra insuficiente',
-  'Planos / diseño pendiente',
+  'Equipos / herramientas no disponibles',
+  'Contratos / órdenes de cambio',
+  'Submittals / aprobaciones pendientes',
   'Condiciones climáticas',
-  'Dependencia no liberada',
-  'Cambio de prioridades',
+  'Permisos / autorizaciones faltantes',
+  'Condición no prevista',
   'Otras causas',
 ];
 
@@ -653,17 +658,39 @@ export class LookaheadDetailedPanel {
             dueDate = dueDateRaw;
           }
         }
-        const rawStatus = get('estado','status','estado').toLowerCase();
-        const status = (rawStatus === 'levantada' || rawStatus === 'cleared' || rawStatus === 'resuelto' || rawStatus === 'ok') ? 'cleared' : 'pending';
+        const rawReqDate = get('fecha_requerida','fecha requerida','required_date','fecha_need_resolution');
+        let requiredDate = null;
+        if (rawReqDate) {
+          const dmyM = rawReqDate.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+          if (dmyM) requiredDate = `${dmyM[3]}-${dmyM[2].padStart(2,'0')}-${dmyM[1].padStart(2,'0')}`;
+          else if (/^\d{4}-\d{2}-\d{2}$/.test(rawReqDate)) requiredDate = rawReqDate;
+        }
+        const rawPromDate = get('fecha_prometida','fecha prometida','promised_date');
+        let promisedDate = null;
+        if (rawPromDate) {
+          const dmyM2 = rawPromDate.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+          if (dmyM2) promisedDate = `${dmyM2[3]}-${dmyM2[2].padStart(2,'0')}-${dmyM2[1].padStart(2,'0')}`;
+          else if (/^\d{4}-\d{2}-\d{2}$/.test(rawPromDate)) promisedDate = rawPromDate;
+        }
+        const rawStatus = get('estado','status').toLowerCase();
+        const status = (rawStatus.includes('levant') || rawStatus === 'cleared' || rawStatus.includes('resuel'))
+          ? 'cleared' : (rawStatus.includes('proceso') || rawStatus.includes('progress')) ? 'in-progress' : 'pending';
         rests.push({
-          id:          `rest-${_genId()}`,
+          id:                `rest-${_genId()}`,
           desc,
-          taskId:      null,
-          responsible: get('responsable','responsible','resp') || null,
-          dueDate,
+          type:              get('tipo','type','tipo_restriccion') || null,
+          taskId:            null,
+          responsible:       get('responsable','responsible','resp') || null,
+          responsibleCompany: get('empresa','company','area','área','empresa_area') || null,
+          rfiNumber:         get('rfi','numero_rfi','rfi_number') || null,
+          requiredDate:      requiredDate ?? dueDate,
+          dueDate:           requiredDate ?? dueDate,
+          promisedDate,
+          effectiveDate:     null,
           status,
-          createdAt:   new Date().toISOString(),
-          updatedAt:   new Date().toISOString(),
+          comments:          get('observaciones','comentarios','comments','notas') || null,
+          createdAt:         new Date().toISOString(),
+          updatedAt:         new Date().toISOString(),
         });
         count++;
       }
@@ -933,29 +960,35 @@ export class LookaheadDetailedPanel {
         : `<table class="lad-table">
           <thead><tr>
             <th>Descripción</th>
-            <th>Tarea vinculada</th>
+            <th>Tipo</th>
+            <th>Empresa / Área</th>
             <th>Responsable</th>
-            <th>Fecha límite</th>
+            <th>F. Requerida</th>
+            <th>F. Prometida</th>
+            <th>F. Efectiva</th>
             <th>Estado</th>
             <th style="text-align:center">Acciones</th>
           </tr></thead>
           <tbody>
             ${rests.map((r,i) => {
-              const isCleared = r.status === 'cleared';
-              const statusLabel = isCleared ? 'Levantada' : 'Pendiente';
-              const statusColor = isCleared ? '#388E3C' : '#D32F2F';
-              const taskName = this._getTaskName(r.taskId);
+              const statusLabel = r.status === 'cleared' ? 'Levantada' : r.status === 'in-progress' ? 'En proceso' : 'Pendiente';
+              const statusColor = r.status === 'cleared' ? '#388E3C' : r.status === 'in-progress' ? '#F57C00' : '#D32F2F';
+              const toggleIcon = r.status === 'cleared' ? '🔓' : r.status === 'in-progress' ? '⏳' : '🔒';
+              const toggleTitle = r.status === 'cleared' ? 'Marcar pendiente' : r.status === 'in-progress' ? 'Marcar levantada' : 'Marcar en proceso';
               return `<tr class="${i%2===0?'':'lad-row-alt'}">
-                <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${_esc(r.desc)}">${_esc(r.desc)}</td>
-                <td class="lad-name" style="font-size:11px">${_esc(taskName)}</td>
+                <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${_esc(r.desc)}">${_esc(r.desc)}</td>
+                <td style="font-size:11px">${_esc(r.type ?? '-')}</td>
+                <td style="font-size:11px">${_esc(r.responsibleCompany ?? '-')}</td>
                 <td>${_esc(r.responsible ?? '-')}</td>
-                <td class="lad-date">${r.dueDate ? _fmtDate(new Date(r.dueDate + 'T12:00:00')) : '-'}</td>
+                <td class="lad-date">${(r.requiredDate||r.dueDate) ? _fmtDate(new Date((r.requiredDate||r.dueDate) + 'T12:00:00')) : '-'}</td>
+                <td class="lad-date">${r.promisedDate ? _fmtDate(new Date(r.promisedDate + 'T12:00:00')) : '-'}</td>
+                <td class="lad-date">${r.effectiveDate ? _fmtDate(new Date(r.effectiveDate + 'T12:00:00')) : '-'}</td>
                 <td>
                   <span class="lad-badge" style="background:${statusColor}22;color:${statusColor}">${statusLabel}</span>
                 </td>
                 <td style="text-align:center;white-space:nowrap">
-                  <button class="lad-btn-icon lad-rest-toggle" data-idx="${i}" title="${isCleared?'Marcar pendiente':'Marcar levantada'}">
-                    ${isCleared ? '🔓' : '🔒'}
+                  <button class="lad-btn-icon lad-rest-toggle" data-idx="${i}" title="${toggleTitle}">
+                    ${toggleIcon}
                   </button>
                   <button class="lad-btn-icon lad-rest-edit" data-idx="${i}" title="Editar">✏️</button>
                   <button class="lad-btn-icon lad-rest-del" data-idx="${i}" title="Eliminar" style="color:#D32F2F">🗑</button>
@@ -975,7 +1008,8 @@ export class LookaheadDetailedPanel {
     this._body.querySelectorAll('.lad-rest-toggle').forEach(btn => {
       btn.addEventListener('click', () => {
         const idx = parseInt(btn.getAttribute('data-idx'));
-        rests[idx].status = rests[idx].status === 'cleared' ? 'pending' : 'cleared';
+        const s = rests[idx].status;
+        rests[idx].status = s === 'pending' ? 'in-progress' : s === 'in-progress' ? 'cleared' : 'pending';
         _saveRest(project.id, rests);
         this._renderRestrictions();
       });
@@ -1033,27 +1067,57 @@ export class LookaheadDetailedPanel {
           <label class="lad-label">Descripción *
             <textarea id="lad-f-desc" rows="3" class="lad-input" placeholder="Describe la restricción...">${_esc(existing?.desc ?? '')}</textarea>
           </label>
-          <label class="lad-label">Tarea vinculada
-            <select id="lad-f-task" class="lad-input">
-              <option value="">— Ninguna —</option>
-              ${tasks ? [...tasks.values()].filter(t => !t.deleted_at && t.type !== 'summary').map(t =>
-                `<option value="${t.id}"${t.id===existing?.taskId?' selected':''}>${_esc((t.wbs_code?t.wbs_code+' – ':'')+t.name)}</option>`
-              ).join('') : ''}
-            </select>
-          </label>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+            <label class="lad-label">Tipo de restricción
+              <select id="lad-f-type" class="lad-input">
+                <option value="">— Seleccionar —</option>
+                ${['Pre-requisito','Materiales','Mano de Obra','Equipos','Diseño / Planos','Permisos','Submittals','Contratos / CO','Otros'].map(t =>
+                  `<option value="${t}"${existing?.type===t?' selected':''}>${t}</option>`
+                ).join('')}
+              </select>
+            </label>
+            <label class="lad-label">Tarea vinculada
+              <select id="lad-f-task" class="lad-input">
+                <option value="">— Ninguna —</option>
+                ${tasks ? [...tasks.values()].filter(t => !t.deleted_at && t.type !== 'summary').map(t =>
+                  `<option value="${t.id}"${t.id===existing?.taskId?' selected':''}>${_esc((t.wbs_code?t.wbs_code+' – ':'')+t.name)}</option>`
+                ).join('') : ''}
+              </select>
+            </label>
+          </div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
             <label class="lad-label">Responsable
               <input id="lad-f-resp" type="text" class="lad-input" placeholder="Nombre del responsable" value="${_esc(existing?.responsible ?? '')}">
             </label>
-            <label class="lad-label">Fecha límite
-              <input id="lad-f-due" type="date" class="lad-input" value="${existing?.dueDate ?? ''}">
+            <label class="lad-label">Empresa / Área Funcional
+              <input id="lad-f-company" type="text" class="lad-input" placeholder="Empresa o área responsable" value="${_esc(existing?.responsibleCompany ?? '')}">
             </label>
           </div>
-          <label class="lad-label">Estado
-            <select id="lad-f-status" class="lad-input">
-              <option value="pending"${(!existing||existing.status==='pending')?' selected':''}>Pendiente</option>
-              <option value="cleared"${existing?.status==='cleared'?' selected':''}>Levantada</option>
-            </select>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+            <label class="lad-label">Número RFI (opcional)
+              <input id="lad-f-rfi" type="text" class="lad-input" placeholder="N° RFI" value="${_esc(existing?.rfiNumber ?? '')}">
+            </label>
+            <label class="lad-label">Estado
+              <select id="lad-f-status" class="lad-input">
+                <option value="pending"${(!existing||existing.status==='pending')?' selected':''}>Pendiente</option>
+                <option value="in-progress"${existing?.status==='in-progress'?' selected':''}>En proceso</option>
+                <option value="cleared"${existing?.status==='cleared'?' selected':''}>Levantada</option>
+              </select>
+            </label>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">
+            <label class="lad-label">F. Requerida
+              <input id="lad-f-required" type="date" class="lad-input" value="${existing?.requiredDate ?? existing?.dueDate ?? ''}">
+            </label>
+            <label class="lad-label">F. Prometida
+              <input id="lad-f-promised" type="date" class="lad-input" value="${existing?.promisedDate ?? ''}">
+            </label>
+            <label class="lad-label">F. Efectiva
+              <input id="lad-f-effective" type="date" class="lad-input" value="${existing?.effectiveDate ?? ''}">
+            </label>
+          </div>
+          <label class="lad-label">Observaciones / Comentarios
+            <textarea id="lad-f-comments" rows="2" class="lad-input" placeholder="Notas adicionales...">${_esc(existing?.comments ?? '')}</textarea>
           </label>
         </div>
         <div class="lad-form-footer">
@@ -1072,15 +1136,23 @@ export class LookaheadDetailedPanel {
     overlay.querySelector('#lad-form-save')?.addEventListener('click', () => {
       const desc = overlay.querySelector('#lad-f-desc').value.trim();
       if (!desc) { alert('La descripción es obligatoria.'); return; }
+      const requiredDate = overlay.querySelector('#lad-f-required').value || null;
       const entry = {
-        id:          existing?.id ?? `rest-${Date.now()}`,
+        id:                existing?.id ?? `rest-${Date.now()}`,
         desc,
-        taskId:      overlay.querySelector('#lad-f-task').value || null,
-        responsible: overlay.querySelector('#lad-f-resp').value.trim() || null,
-        dueDate:     overlay.querySelector('#lad-f-due').value || null,
-        status:      overlay.querySelector('#lad-f-status').value,
-        createdAt:   existing?.createdAt ?? new Date().toISOString(),
-        updatedAt:   new Date().toISOString(),
+        type:              overlay.querySelector('#lad-f-type').value || null,
+        taskId:            overlay.querySelector('#lad-f-task').value || null,
+        responsible:       overlay.querySelector('#lad-f-resp').value.trim() || null,
+        responsibleCompany: overlay.querySelector('#lad-f-company').value.trim() || null,
+        rfiNumber:         overlay.querySelector('#lad-f-rfi').value.trim() || null,
+        requiredDate,
+        dueDate:           requiredDate,
+        promisedDate:      overlay.querySelector('#lad-f-promised').value || null,
+        effectiveDate:     overlay.querySelector('#lad-f-effective').value || null,
+        status:            overlay.querySelector('#lad-f-status').value,
+        comments:          overlay.querySelector('#lad-f-comments').value.trim() || null,
+        createdAt:         existing?.createdAt ?? new Date().toISOString(),
+        updatedAt:         new Date().toISOString(),
       };
       if (editIdx !== null) rests[editIdx] = entry;
       else rests.push(entry);
@@ -1213,15 +1285,17 @@ export class LookaheadDetailedPanel {
       ${rests.length > 0 ? `
       <div class="lad-section-title" style="margin-top:16px">Últimas restricciones</div>
       <table class="lad-table">
-        <thead><tr><th>Descripción</th><th>Responsable</th><th>Fecha límite</th><th>Estado</th></tr></thead>
+        <thead><tr><th>Descripción</th><th>Tipo</th><th>Responsable</th><th>F. Requerida</th><th>Estado</th></tr></thead>
         <tbody>
           ${rests.slice(0,5).map((r,i) => {
-            const isCleared = r.status === 'cleared';
+            const statusLabel = r.status === 'cleared' ? 'Levantada' : r.status === 'in-progress' ? 'En proceso' : 'Pendiente';
+            const statusColor = r.status === 'cleared' ? '#388E3C' : r.status === 'in-progress' ? '#F57C00' : '#D32F2F';
             return `<tr class="${i%2===0?'':'lad-row-alt'}">
               <td>${_esc(r.desc)}</td>
+              <td style="font-size:11px">${_esc(r.type ?? '-')}</td>
               <td>${_esc(r.responsible ?? '-')}</td>
-              <td class="lad-date">${r.dueDate ? _fmtDate(new Date(r.dueDate + 'T12:00:00')) : '-'}</td>
-              <td><span class="lad-badge" style="background:${isCleared?'#388E3C':'#D32F2F'}22;color:${isCleared?'#388E3C':'#D32F2F'}">${isCleared?'Levantada':'Pendiente'}</span></td>
+              <td class="lad-date">${(r.requiredDate||r.dueDate) ? _fmtDate(new Date((r.requiredDate||r.dueDate) + 'T12:00:00')) : '-'}</td>
+              <td><span class="lad-badge" style="background:${statusColor}22;color:${statusColor}">${statusLabel}</span></td>
             </tr>`;
           }).join('')}
         </tbody>
@@ -1299,9 +1373,10 @@ export class LookaheadDetailedPanel {
     const rests = _getRest(project.id);
     let html = `<h1>Lookahead — Restricciones</h1>
       <p>${rests.length} restricción(es)</p>
-      <table><thead><tr><th>Descripción</th><th>Tarea vinculada</th><th>Responsable</th><th>Fecha límite</th><th>Estado</th></tr></thead><tbody>`;
+      <table><thead><tr><th>Descripción</th><th>Tipo</th><th>Empresa/Área</th><th>Responsable</th><th>F. Requerida</th><th>F. Prometida</th><th>F. Efectiva</th><th>Estado</th></tr></thead><tbody>`;
     for (const r of rests) {
-      html += `<tr><td>${_esc(r.desc)}</td><td>${_esc(this._getTaskName(r.taskId))}</td><td>${_esc(r.responsible??'-')}</td><td>${r.dueDate?_fmtDate(new Date(r.dueDate+'T12:00:00')):'-'}</td><td>${r.status==='cleared'?'Levantada':'Pendiente'}</td></tr>`;
+      const sl = r.status === 'cleared' ? 'Levantada' : r.status === 'in-progress' ? 'En proceso' : 'Pendiente';
+      html += `<tr><td>${_esc(r.desc)}</td><td>${_esc(r.type??'-')}</td><td>${_esc(r.responsibleCompany??'-')}</td><td>${_esc(r.responsible??'-')}</td><td>${(r.requiredDate||r.dueDate)?_fmtDate(new Date((r.requiredDate||r.dueDate)+'T12:00:00')):'-'}</td><td>${r.promisedDate?_fmtDate(new Date(r.promisedDate+'T12:00:00')):'-'}</td><td>${r.effectiveDate?_fmtDate(new Date(r.effectiveDate+'T12:00:00')):'-'}</td><td>${sl}</td></tr>`;
     }
     html += `</tbody></table>`;
     _printToPdf('Lookahead - Restricciones', html);
@@ -1331,8 +1406,8 @@ export class LookaheadDetailedPanel {
     }
     html += `</tbody></table>`;
     const rests = _getRest(project.id);
-    html += `<h2>Restricciones (${rests.length})</h2><table><thead><tr><th>Descripción</th><th>Estado</th></tr></thead><tbody>`;
-    for (const r of rests) html += `<tr><td>${_esc(r.desc)}</td><td>${r.status==='cleared'?'Levantada':'Pendiente'}</td></tr>`;
+    html += `<h2>Restricciones (${rests.length})</h2><table><thead><tr><th>Descripción</th><th>Tipo</th><th>Responsable</th><th>Estado</th></tr></thead><tbody>`;
+    for (const r of rests) html += `<tr><td>${_esc(r.desc)}</td><td>${_esc(r.type??'-')}</td><td>${_esc(r.responsible??'-')}</td><td>${r.status==='cleared'?'Levantada':r.status==='in-progress'?'En proceso':'Pendiente'}</td></tr>`;
     html += `</tbody></table>`;
     _printToPdf('Lookahead - Dashboard', html);
   }
