@@ -15,6 +15,17 @@
 
 import { getByIndex, put } from './storage.js';
 
+function _printToPdf(title, htmlContent) {
+  const w = window.open('', '_blank', 'width=900,height=700');
+  if (!w) return;
+  w.document.write(`<!DOCTYPE html><html><head>
+    <meta charset="utf-8">
+    <title>${title}</title>
+    <style>body { font-family: Arial, sans-serif; padding: 24px; } h1 { font-size: 18px; margin-bottom: 16px; } @media print { body { margin: 0; } }</style>
+  </head><body>${htmlContent}<script>window.print();window.close();<\/script></body></html>`);
+  w.document.close();
+}
+
 function _makeDraggable(dialog, handleSelector) {
   const handle = handleSelector ? dialog.querySelector(handleSelector) : dialog;
   if (!handle) return;
@@ -135,10 +146,14 @@ export class RiskRegisterPanel {
         <button class="rr-btn rr-btn-sm rr-view-toggle" data-view="list" title="Vista Lista">&#9776; Lista</button>
         <button class="rr-btn rr-btn-sm rr-view-toggle" data-view="matrix" title="Vista Matriz">&#9724; Matriz</button>
         <button class="rr-btn rr-btn-primary" id="rr-new-btn">+ Nuevo Riesgo</button>
+        <button class="rr-print-btn btn btn-ghost btn-icon btn-sm" title="Imprimir PDF" aria-label="Imprimir PDF" style="font-size:15px">🖨</button>
         <button class="rr-close-btn" title="Cerrar">&times;</button>
       </div>`;
     this.container.appendChild(hdr);
 
+    hdr.querySelector('.rr-print-btn').addEventListener('click', () => {
+      _printToPdf('Registro de Riesgos', `<h1>Registro de Riesgos</h1>${this._bodyEl?.innerHTML ?? ''}`);
+    });
     hdr.querySelector('.rr-close-btn').addEventListener('click', () => this.onClose());
     hdr.querySelector('#rr-new-btn').addEventListener('click', () => this._openForm(null));
     hdr.querySelectorAll('.rr-view-toggle').forEach(btn => {

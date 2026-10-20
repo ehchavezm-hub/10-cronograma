@@ -137,6 +137,11 @@ export async function listProjects() {
   return all.filter(p => !p.deleted_at);
 }
 
+/** @returns {Promise<any[]>} todos los proyectos incluyendo eliminados */
+export async function listAllProjects() {
+  return getAll('projects');
+}
+
 /** @param {string} projectId */
 export async function loadProject(projectId) {
   const [project, allTasks, allDeps, calendars, calExceptions] = await Promise.all([
