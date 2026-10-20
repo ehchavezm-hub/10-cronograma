@@ -67,6 +67,8 @@ export class LookaheadPanel {
     this.el = containerEl;
     /** @type {3|6} */
     this._weeks = 3;
+    /** @type {Array<any>} */
+    this._rows = [];
     this._build();
   }
 
@@ -98,7 +100,36 @@ export class LookaheadPanel {
     hdr.querySelector('#la-btn-3')?.addEventListener('click', () => { this._weeks = 3; this.refresh(); });
     hdr.querySelector('#la-btn-6')?.addEventListener('click', () => { this._weeks = 6; this.refresh(); });
     hdr.querySelector('#la-btn-print')?.addEventListener('click', () => {
-      _printToPdf('Vista Lookahead', `<h1>Vista Lookahead — ${this._weeks} semanas</h1>${this._tbody?.innerHTML ?? ''}`);
+      const rows = this._rows ?? [];
+      const fmtDate = d => d.toLocaleDateString('es-PE', { day:'2-digit', month:'2-digit', year:'numeric' });
+      const _esc2 = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+      const COLORS = { todo:'#757575', in_progress:'#1976D2', done:'#388E3C', delayed:'#D32F2F' };
+      const LABELS = { todo:'Pendiente', in_progress:'En Curso', done:'Completada', delayed:'Atrasada' };
+      const html = `<h1 style="font-size:16px;margin-bottom:4px">Vista Lookahead — ${this._weeks} semanas</h1>
+        <p style="font-size:12px;color:#666;margin:0 0 12px">${rows.length} tarea(s)</p>
+        <table style="width:100%;border-collapse:collapse;font-size:12px">
+          <thead><tr style="background:#f4f5f7">
+            <th style="border:1px solid #ccc;padding:6px 10px;text-align:left">Tarea</th>
+            <th style="border:1px solid #ccc;padding:6px 10px;text-align:left">Inicio</th>
+            <th style="border:1px solid #ccc;padding:6px 10px;text-align:left">Fin</th>
+            <th style="border:1px solid #ccc;padding:6px 8px;text-align:center">Avance</th>
+            <th style="border:1px solid #ccc;padding:6px 10px;text-align:left">Estado</th>
+            <th style="border:1px solid #ccc;padding:6px 8px;text-align:center">Holgura</th>
+          </tr></thead>
+          <tbody>${rows.map((r, i) => `
+            <tr style="background:${i%2===0?'#fff':'#f9f9f9'}">
+              <td style="border:1px solid #ccc;padding:6px 10px">${_esc2(r.task.name)}</td>
+              <td style="border:1px solid #ccc;padding:6px 10px;white-space:nowrap">${fmtDate(r.startDate)}</td>
+              <td style="border:1px solid #ccc;padding:6px 10px;white-space:nowrap">${fmtDate(r.endDate)}</td>
+              <td style="border:1px solid #ccc;padding:6px 8px;text-align:center">${r.pct}%</td>
+              <td style="border:1px solid #ccc;padding:6px 10px">
+                <span style="color:${COLORS[r.status]};font-weight:600">${LABELS[r.status]}</span>
+              </td>
+              <td style="border:1px solid #ccc;padding:6px 8px;text-align:center;color:${r.cpm.tf===0?'#D32F2F':'#333'};font-weight:${r.cpm.tf===0?'700':'400'}">${r.cpm.tf ?? '-'}</td>
+            </tr>`).join('')}
+          </tbody>
+        </table>`;
+      _printToPdf('Vista Lookahead', html);
     });
     if (this.el.parentElement) _makeDraggable(this.el.parentElement, '[data-drag-handle]');
     this.refresh();
@@ -155,6 +186,7 @@ export class LookaheadPanel {
     }
 
     rows.sort((a, b) => a.cpm.es - b.cpm.es || a.cpm.ef - b.cpm.ef);
+    this._rows = rows;
 
     const fmtDate = d => d.toLocaleDateString('es-PE', { day:'2-digit', month:'2-digit', year:'numeric' });
 

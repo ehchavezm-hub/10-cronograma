@@ -145,7 +145,7 @@ export class NotificationsPanel {
     hdr.innerHTML = `
       <span style="font-size:20px">🔔</span>
       <div style="flex:1">
-        <div style="font-size:var(--text-md,14px);font-weight:600;color:var(--clr-text)">Notificaciones</div>
+        <div style="font-size:var(--text-md,14px);font-weight:600;color:var(--clr-text)">Alertas</div>
         <div style="font-size:11px;color:var(--clr-text-3)">Alertas de tareas críticas y próximas a vencer</div>
       </div>`;
     const _printBtn = document.createElement('button');
@@ -154,13 +154,40 @@ export class NotificationsPanel {
     _printBtn.className = 'btn btn-ghost btn-sm';
     _printBtn.style.cssText = 'flex-shrink:0';
     _printBtn.addEventListener('click', () => {
-      _printToPdf('Notificaciones', `<h1>Notificaciones</h1>${this._body?.innerHTML ?? ''}`);
+      const notes = getNotifications(7);
+      const COLORS = { overdue:'#D32F2F', upcoming:'#F57C00', critical:'#1565C0' };
+      const ICONS  = { overdue:'🔴', upcoming:'🟡', critical:'🔷' };
+      const LABELS = { overdue:'Atrasada', upcoming:'Próxima', critical:'Crítica' };
+      const _e = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+      const rows = notes.map((n, i) => `
+        <tr style="background:${i%2===0?'#fff':'#f9f9f9'}">
+          <td style="border:1px solid #ccc;padding:6px 10px">${ICONS[n.type]}</td>
+          <td style="border:1px solid #ccc;padding:6px 10px;color:${COLORS[n.type]};font-weight:600">${LABELS[n.type]}</td>
+          <td style="border:1px solid #ccc;padding:6px 10px">${_e(n.task.name)}</td>
+          <td style="border:1px solid #ccc;padding:6px 10px;text-align:center">${n.task.percent_complete ?? 0}%</td>
+          <td style="border:1px solid #ccc;padding:6px 10px;color:${COLORS[n.type]}">
+            ${n.type==='overdue' ? `Atrasada ${Math.abs(n.daysLeft)} día(s)` : n.type==='upcoming' ? `Vence en ${n.daysLeft} día(s)` : 'Ruta crítica (holgura=0)'}
+          </td>
+        </tr>`).join('');
+      const html = `<h1 style="font-size:16px;margin-bottom:4px">Alertas</h1>
+        <p style="font-size:12px;color:#666;margin:0 0 12px">${notes.length} alerta(s) activa(s)</p>
+        <table style="width:100%;border-collapse:collapse;font-size:12px">
+          <thead><tr style="background:#f4f5f7">
+            <th style="border:1px solid #ccc;padding:6px 8px;text-align:center">Tipo</th>
+            <th style="border:1px solid #ccc;padding:6px 10px;text-align:left">Estado</th>
+            <th style="border:1px solid #ccc;padding:6px 10px;text-align:left">Tarea</th>
+            <th style="border:1px solid #ccc;padding:6px 8px;text-align:center">Avance</th>
+            <th style="border:1px solid #ccc;padding:6px 10px;text-align:left">Detalle</th>
+          </tr></thead>
+          <tbody>${rows}</tbody>
+        </table>`;
+      _printToPdf('Alertas', html);
     });
     hdr.appendChild(_printBtn);
     this.el.appendChild(hdr);
 
     this._body = document.createElement('div');
-    this._body.style.cssText = 'flex:1;overflow:auto;padding:12px 18px';
+    this._body.style.cssText = 'flex:1;overflow-y:auto;overflow-x:hidden;padding:12px 18px;min-height:0';
     this.el.appendChild(this._body);
 
     if (this.el.parentElement) _makeDraggable(this.el.parentElement, '[data-drag-handle]');

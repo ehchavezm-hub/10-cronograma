@@ -1,11 +1,12 @@
 // @ts-check
 /**
- * curva-s.js — Curva S de Avance (Planificado vs Real vs Proyectado).
+ * curva-s.js — Curva S de Avance (Planificado vs Real vs Proyectado vs Línea Base).
  * Usa SVG para renderizar la curva acumulada de avance del proyecto.
  */
 
 import { appState } from './state.js';
 import { Calendar, isoToDate } from './calendar.js';
+import { listBaselines, loadBaselineData } from './baseline.js';
 
 function _makeDraggable(dialog, handleSelector) {
   const handle = handleSelector ? dialog.querySelector(handleSelector) : dialog;
@@ -37,19 +38,61 @@ function _makeDraggable(dialog, handleSelector) {
   });
 }
 
-function _printToPdf(title, htmlContent) {
-  const w = window.open('', '_blank', 'width=900,height=700');
-  if (!w) return;
-  w.document.write(`<!DOCTYPE html><html><head>
-    <meta charset="utf-8">
-    <title>${title}</title>
-    <style>
-      body { font-family: Arial, sans-serif; padding: 24px; }
-      h1 { font-size: 18px; margin-bottom: 16px; }
-      @media print { body { margin: 0; } }
-    </style>
-  </head><body>${htmlContent}<script>window.print();window.close();<\/script></body></html>`);
-  w.document.close();
+/** Genera SVG como string con dimensiones fijas para impresión */
+function _buildSvgString(W, H, days, planned, actual, projected, baseline, vis, fmtDate) {
+  const pad = { t: 16, r: 16, b: 42, l: 48 };
+  const cw = W - pad.l - pad.r;
+  const ch = H - pad.t - pad.b;
+  const uid = Math.random().toString(36).slice(2, 8);
+
+  const xOf = (i) => pad.l + (i / Math.max(1, days.length - 1)) * cw;
+  const yOf = (v) => pad.t + ch - (v / 100) * ch;
+
+  const pathLine = (series, filter) => {
+    let d = '';
+    for (let i = 0; i < series.length; i++) {
+      const v = series[i];
+      if (v === null || v === undefined) continue;
+      if (filter && !filter(i)) continue;
+      const x = xOf(i).toFixed(1);
+      const y = yOf(v).toFixed(1);
+      d += d ? `L${x},${y}` : `M${x},${y}`;
+    }
+    return d;
+  };
+
+  const xLabels = [];
+  const xStep = Math.max(1, Math.floor(days.length / 6));
+  for (let i = 0; i < days.length; i += xStep) xLabels.push(i);
+  if (xLabels[xLabels.length - 1] !== days.length - 1) xLabels.push(days.length - 1);
+
+  const yLabels = [0, 25, 50, 75, 100];
+  const areaPath = vis.planned
+    ? pathLine(planned) + `L${xOf(days.length-1).toFixed(1)},${yOf(0).toFixed(1)}L${xOf(0).toFixed(1)},${yOf(0).toFixed(1)}Z`
+    : '';
+
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
+    <defs>
+      <linearGradient id="cs-grad-${uid}" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="#1976D2" stop-opacity="0.18"/>
+        <stop offset="100%" stop-color="#1976D2" stop-opacity="0.02"/>
+      </linearGradient>
+    </defs>
+    <rect x="${pad.l}" y="${pad.t}" width="${cw}" height="${ch}" fill="#f8f9fa" rx="4"/>
+    ${yLabels.map(v => `
+      <line x1="${pad.l}" y1="${yOf(v).toFixed(1)}" x2="${pad.l+cw}" y2="${yOf(v).toFixed(1)}" stroke="#e0e0e0" stroke-width="1" stroke-dasharray="3,3"/>
+      <text x="${(pad.l-4).toFixed(1)}" y="${yOf(v).toFixed(1)}" text-anchor="end" dominant-baseline="middle" font-size="10" fill="#999" font-family="Arial">${v}%</text>`).join('')}
+    ${xLabels.map(i => `
+      <line x1="${xOf(i).toFixed(1)}" y1="${pad.t}" x2="${xOf(i).toFixed(1)}" y2="${pad.t+ch}" stroke="#e0e0e0" stroke-width="1" stroke-dasharray="3,3"/>
+      <text x="${xOf(i).toFixed(1)}" y="${(pad.t+ch+14).toFixed(1)}" text-anchor="middle" font-size="9" fill="#999" font-family="Arial">${fmtDate(days[i])}</text>`).join('')}
+    ${vis.planned && areaPath ? `<path d="${areaPath}" fill="url(#cs-grad-${uid})"/>` : ''}
+    ${vis.planned ? `<path d="${pathLine(planned)}" fill="none" stroke="#1976D2" stroke-width="2" stroke-linejoin="round"/>` : ''}
+    ${vis.actual ? `<path d="${pathLine(actual)}" fill="none" stroke="#388E3C" stroke-width="2.5" stroke-linejoin="round"/>` : ''}
+    ${vis.projected ? `<path d="${pathLine(projected, i => projected[i] !== null)}" fill="none" stroke="#F57C00" stroke-width="2" stroke-dasharray="6,4" stroke-linejoin="round"/>` : ''}
+    ${vis.baseline && baseline ? `<path d="${pathLine(baseline)}" fill="none" stroke="#7B1FA2" stroke-width="2" stroke-dasharray="4,2" stroke-linejoin="round"/>` : ''}
+    <line x1="${pad.l}" y1="${pad.t}" x2="${pad.l}" y2="${pad.t+ch}" stroke="#ccc" stroke-width="1.5"/>
+    <line x1="${pad.l}" y1="${pad.t+ch}" x2="${pad.l+cw}" y2="${pad.t+ch}" stroke="#ccc" stroke-width="1.5"/>
+  </svg>`;
 }
 
 export class CurvaSPanel {
@@ -57,6 +100,15 @@ export class CurvaSPanel {
   constructor(containerEl) {
     this.el = containerEl;
     this._uid = Math.random().toString(36).slice(2, 8);
+    /** @type {{planned:boolean, actual:boolean, projected:boolean, baseline:boolean}} */
+    this._vis = { planned: true, actual: true, projected: true, baseline: false };
+    /** @type {string|null} */
+    this._selectedBaselineId = null;
+    /** @type {Array<{id:string, name:string}>} */
+    this._baselines = [];
+    // cached series for print
+    /** @type {{days:number[], planned:number[], actual:number[], projected:(number|null)[], baseline:(number[])|null, startDate:Date, cal:any, minDay:number}|null} */
+    this._lastData = null;
     this._build();
   }
 
@@ -64,6 +116,7 @@ export class CurvaSPanel {
     this.el.innerHTML = '';
     this.el.style.cssText = 'display:flex;flex-direction:column;height:100%;font-family:var(--font-ui)';
 
+    // Header
     const hdr = document.createElement('div');
     hdr.setAttribute('data-drag-handle', '');
     hdr.style.cssText = 'display:flex;align-items:center;gap:10px;padding:14px 18px;border-bottom:1px solid var(--clr-border);flex-shrink:0';
@@ -78,36 +131,109 @@ export class CurvaSPanel {
     _printBtn.title = 'Imprimir PDF';
     _printBtn.className = 'btn btn-ghost btn-sm';
     _printBtn.style.cssText = 'flex-shrink:0';
-    _printBtn.addEventListener('click', () => {
-      _printToPdf('Curva S de Avance', `<h1>Curva S de Avance</h1>${this._chartArea?.innerHTML ?? ''}`);
-    });
+    _printBtn.addEventListener('click', () => this._print());
     hdr.appendChild(_printBtn);
     this.el.appendChild(hdr);
 
+    // Opciones de vista (toggles)
+    this._ctrlRow = document.createElement('div');
+    this._ctrlRow.style.cssText = 'display:flex;gap:6px;padding:8px 18px;flex-shrink:0;flex-wrap:wrap;align-items:center;border-bottom:1px solid var(--clr-border)';
+    this._ctrlRow.innerHTML = `
+      <span style="font-size:11px;color:var(--clr-text-3);font-weight:600;margin-right:4px">Vista:</span>
+      <button data-vis="planned"  class="cs-tog active" style="font-size:11px;padding:3px 10px;border-radius:12px;border:1px solid #1976D2;background:#1976D2;color:#fff;cursor:pointer">Planificado</button>
+      <button data-vis="actual"   class="cs-tog active" style="font-size:11px;padding:3px 10px;border-radius:12px;border:1px solid #388E3C;background:#388E3C;color:#fff;cursor:pointer">Real</button>
+      <button data-vis="projected" class="cs-tog active" style="font-size:11px;padding:3px 10px;border-radius:12px;border:1px solid #F57C00;background:#F57C00;color:#fff;cursor:pointer">Proyectado</button>
+      <button data-vis="baseline" class="cs-tog" style="font-size:11px;padding:3px 10px;border-radius:12px;border:1px solid #7B1FA2;background:transparent;color:#7B1FA2;cursor:pointer">Línea Base</button>
+      <select id="cs-bl-select" style="font-size:11px;padding:3px 8px;border-radius:6px;border:1px solid var(--clr-border);background:var(--clr-surface);color:var(--clr-text);display:none">
+        <option value="">— Seleccionar línea base —</option>
+      </select>`;
+    this.el.appendChild(this._ctrlRow);
+
     // Leyenda
-    const legend = document.createElement('div');
-    legend.style.cssText = 'display:flex;gap:16px;padding:8px 18px;flex-shrink:0;flex-wrap:wrap';
-    legend.innerHTML = `
-      <div style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--clr-text-2)">
-        <div style="width:20px;height:3px;background:#1976D2;border-radius:2px"></div>Planificado</div>
-      <div style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--clr-text-2)">
-        <div style="width:20px;height:3px;background:#388E3C;border-radius:2px"></div>Real</div>
-      <div style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--clr-text-2)">
-        <div style="width:20px;height:3px;background:#F57C00;border-radius:2px;border:none;background-image:repeating-linear-gradient(90deg,#F57C00 0,#F57C00 4px,transparent 4px,transparent 8px)"></div>Proyectado</div>`;
-    this.el.appendChild(legend);
+    this._legend = document.createElement('div');
+    this._legend.style.cssText = 'display:flex;gap:16px;padding:6px 18px;flex-shrink:0;flex-wrap:wrap';
+    this._updateLegend();
+    this.el.appendChild(this._legend);
 
     this._chartArea = document.createElement('div');
     this._chartArea.style.cssText = 'flex:1;padding:8px 18px 18px;overflow:auto;min-height:0';
     this.el.appendChild(this._chartArea);
 
+    // Toggle listeners
+    this._ctrlRow.querySelectorAll('.cs-tog').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const key = /** @type {HTMLElement} */ (btn).dataset.vis;
+        if (!key) return;
+        this._vis[key] = !this._vis[key];
+        const colors = { planned:'#1976D2', actual:'#388E3C', projected:'#F57C00', baseline:'#7B1FA2' };
+        const clr = colors[key] || '#999';
+        if (this._vis[key]) {
+          btn.style.background = clr;
+          btn.style.color = '#fff';
+          btn.classList.add('active');
+        } else {
+          btn.style.background = 'transparent';
+          btn.style.color = clr;
+          btn.classList.remove('active');
+        }
+        // show/hide baseline selector
+        const sel = /** @type {HTMLSelectElement|null} */ (this._ctrlRow.querySelector('#cs-bl-select'));
+        if (sel) sel.style.display = this._vis.baseline ? '' : 'none';
+        this._updateLegend();
+        this.refresh();
+      });
+    });
+
+    // Baseline selector
+    const blSel = /** @type {HTMLSelectElement|null} */ (this._ctrlRow.querySelector('#cs-bl-select'));
+    if (blSel) {
+      blSel.addEventListener('change', () => {
+        this._selectedBaselineId = blSel.value || null;
+        this.refresh();
+      });
+    }
+
     this._ro = new ResizeObserver(() => this.refresh());
     this._ro.observe(this._chartArea);
 
     if (this.el.parentElement) _makeDraggable(this.el.parentElement, '[data-drag-handle]');
-    this.refresh();
+    this._loadBaselines().then(() => this.refresh());
   }
 
-  refresh() {
+  _updateLegend() {
+    const items = [
+      { key: 'planned',   color: '#1976D2', label: 'Planificado', dash: false },
+      { key: 'actual',    color: '#388E3C', label: 'Real',         dash: false },
+      { key: 'projected', color: '#F57C00', label: 'Proyectado',   dash: true },
+      { key: 'baseline',  color: '#7B1FA2', label: 'Línea Base',   dash: true },
+    ];
+    this._legend.innerHTML = items
+      .filter(it => this._vis[it.key])
+      .map(it => `<div style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--clr-text-2)">
+        <div style="width:20px;height:3px;border-radius:2px;background:${it.dash ? 'none' : it.color};${it.dash ? `background-image:repeating-linear-gradient(90deg,${it.color} 0,${it.color} 4px,transparent 4px,transparent 8px)` : ''}"></div>${it.label}</div>`)
+      .join('');
+  }
+
+  async _loadBaselines() {
+    const { project } = appState.state;
+    if (!project) return;
+    try {
+      this._baselines = await listBaselines(project.id);
+    } catch (_) { this._baselines = []; }
+    const sel = /** @type {HTMLSelectElement|null} */ (this._ctrlRow?.querySelector('#cs-bl-select'));
+    if (!sel) return;
+    // Repopulate
+    sel.innerHTML = '<option value="">— Seleccionar línea base —</option>';
+    for (const bl of this._baselines) {
+      const opt = document.createElement('option');
+      opt.value = bl.id;
+      opt.textContent = bl.name;
+      sel.appendChild(opt);
+    }
+    if (this._selectedBaselineId) sel.value = this._selectedBaselineId;
+  }
+
+  async refresh() {
     const { project, tasks, cpmResult, calendar, calExceptions } = appState.state;
 
     if (!project || !cpmResult) {
@@ -121,7 +247,7 @@ export class CurvaSPanel {
     });
     const startDate = isoToDate(project.start_date || new Date().toISOString().slice(0,10));
 
-    // Construir series de datos — excluir resúmenes (type='summary' ó con hijos) e hitos
+    // Construir series de datos — excluir resúmenes e hitos
     const _parentIds = new Set([...tasks.values()].filter(t => !t.deleted_at && t.parent_id).map(t => t.parent_id));
     const taskArr = [...tasks.values()].filter(t => !t.deleted_at && t.type !== 'milestone' && t.type !== 'summary' && !_parentIds.has(t.id));
     if (!taskArr.length) {
@@ -129,7 +255,7 @@ export class CurvaSPanel {
       return;
     }
 
-    // Determinar rango de días
+    // Rango de días
     let minDay = Infinity, maxDay = -Infinity;
     for (const t of taskArr) {
       const cpm = cpmResult.tasks?.get(t.id);
@@ -139,31 +265,42 @@ export class CurvaSPanel {
     }
     if (!isFinite(minDay)) { this._chartArea.innerHTML = '<p style="color:var(--clr-text-3);font-size:13px">Sin datos CPM.</p>'; return; }
 
+    // Cargar línea base si se seleccionó
+    /** @type {Map<string,{es:number,ef:number,dur:number}>|null} */
+    let blData = null;
+    if (this._vis.baseline && this._selectedBaselineId) {
+      try { blData = await loadBaselineData(this._selectedBaselineId); } catch (_) {}
+      // Extender rango con la línea base
+      if (blData) {
+        for (const [, b] of blData) {
+          minDay = Math.min(minDay, b.es);
+          maxDay = Math.max(maxDay, b.ef);
+        }
+      }
+    }
+
     const totalDays = maxDay - minDay;
-    const step = Math.max(1, Math.ceil(totalDays / 50));  // max ~50 puntos
+    const step = Math.max(1, Math.ceil(totalDays / 50));
     const days = [];
     for (let d = minDay; d <= maxDay; d += step) days.push(d);
     if (days[days.length-1] !== maxDay) days.push(maxDay);
 
-    const totalWeight = taskArr.reduce((s, t) => s + (t.dur || cpmResult.tasks?.get(t.id)?.dur || 1), 0);
+    const totalWeight = taskArr.reduce((s, t) => s + (cpmResult.tasks?.get(t.id)?.dur || 1), 0);
 
-    // Planificado: suma acumulada de días planificados hasta ese momento / total
+    // Planificado
     const planned = days.map(day => {
       let sum = 0;
       for (const t of taskArr) {
         const cpm = cpmResult.tasks?.get(t.id);
         if (!cpm) continue;
         const dur = cpm.ef - cpm.es || 1;
-        const w = dur;
-        if (cpm.ef <= day) sum += w;
-        else if (cpm.es < day) sum += w * (day - cpm.es) / dur;
+        if (cpm.ef <= day) sum += dur;
+        else if (cpm.es < day) sum += dur * (day - cpm.es) / dur;
       }
       return (sum / totalWeight) * 100;
     });
 
-    // Real: progreso ponderado por tiempo, no solo % instantáneo.
-    // Tarea terminada (ef <= day): aporta w * pct.
-    // Tarea en curso (es < day < ef): aporta w * pct * min(1, (day-es)/dur).
+    // Real
     const actual = days.map(day => {
       let sum = 0;
       for (const t of taskArr) {
@@ -171,41 +308,44 @@ export class CurvaSPanel {
         if (!cpm || cpm.es >= day) continue;
         const w = (cpm.ef - cpm.es) || 1;
         const pct = (t.percent_complete ?? 0) / 100;
-        if (cpm.ef <= day) {
-          sum += w * pct;
-        } else {
-          // tarea en curso: aportar proporcional al tiempo transcurrido
-          const ratio = Math.min(1, (day - cpm.es) / w);
-          sum += w * pct * ratio;
-        }
+        if (cpm.ef <= day) sum += w * pct;
+        else sum += w * pct * Math.min(1, (day - cpm.es) / w);
       }
       return (sum / totalWeight) * 100;
     });
 
-    // Proyectado: desde hoy, mantiene ritmo actual
+    // Proyectado
     const today = new Date();
     today.setHours(0,0,0,0);
     let todayIdx = 0;
-    {
-      const d = new Date(startDate);
-      while (d < today) {
-        if (cal.isWorkingDay(d)) todayIdx++;
-        d.setDate(d.getDate() + 1);
-      }
-    }
+    { const d = new Date(startDate); while (d < today) { if (cal.isWorkingDay(d)) todayIdx++; d.setDate(d.getDate()+1); } }
     const todayDayInRange = Math.max(minDay, Math.min(maxDay, todayIdx));
     const todayPos = days.findIndex(d => d >= todayDayInRange);
     const actualNow = todayPos >= 0 ? actual[todayPos] : actual[actual.length-1];
-    const plannedNow = todayPos >= 0 ? planned[todayPos] : planned[planned.length-1];
-
     const projected = days.map((day, i) => {
       if (i <= (todayPos >= 0 ? todayPos : days.length-1)) return null;
-      // Interpolar lineal desde punto actual
       const progress = (day - todayDayInRange) / Math.max(1, maxDay - todayDayInRange);
       return actualNow + (100 - actualNow) * progress;
     });
 
-    this._renderSvg(days, planned, actual, projected, startDate, cal, minDay);
+    // Línea base series
+    /** @type {number[]|null} */
+    let baselineSeries = null;
+    if (blData && this._vis.baseline) {
+      const blWeight = [...blData.values()].reduce((s, b) => s + (b.dur || 1), 0) || totalWeight;
+      baselineSeries = days.map(day => {
+        let sum = 0;
+        for (const [, b] of blData) {
+          const dur = b.ef - b.es || 1;
+          if (b.ef <= day) sum += dur;
+          else if (b.es < day) sum += dur * (day - b.es) / dur;
+        }
+        return (sum / blWeight) * 100;
+      });
+    }
+
+    this._lastData = { days, planned, actual, projected, baseline: baselineSeries, startDate, cal, minDay };
+    this._renderSvg(days, planned, actual, projected, baselineSeries, startDate, cal, minDay);
   }
 
   /**
@@ -213,78 +353,72 @@ export class CurvaSPanel {
    * @param {number[]} planned
    * @param {number[]} actual
    * @param {(number|null)[]} projected
+   * @param {number[]|null} baseline
    * @param {Date} startDate
    * @param {Calendar} cal
    * @param {number} minDay
    */
-  _renderSvg(days, planned, actual, projected, startDate, cal, minDay) {
+  _renderSvg(days, planned, actual, projected, baseline, startDate, cal, minDay) {
     const W = this._chartArea.clientWidth || 600;
     const H = Math.max(200, Math.min(340, Math.round(W * 0.45)));
-    const pad = { t: 12, r: 16, b: 38, l: 44 };
-    const cw = W - pad.l - pad.r;
-    const ch = H - pad.t - pad.b;
-
-    const xOf = (i) => pad.l + (i / (days.length - 1)) * cw;
-    const yOf = (v) => pad.t + ch - (v / 100) * ch;
-
-    const pathLine = (series, filter = () => true) => {
-      let d = '';
-      for (let i = 0; i < series.length; i++) {
-        const v = series[i];
-        if (v === null || !filter(i)) continue;
-        const x = xOf(i).toFixed(1);
-        const y = yOf(v).toFixed(1);
-        d += d ? `L${x},${y}` : `M${x},${y}`;
-      }
-      return d;
-    };
-
     const fmtDate = (d) => cal.idxToDate(d, startDate).toLocaleDateString('es-PE', { day:'2-digit', month:'2-digit' });
+    this._chartArea.innerHTML = _buildSvgString(W, H, days, planned, actual, projected, baseline, this._vis, fmtDate);
+  }
 
-    // Etiquetas eje X — máximo ~6 etiquetas
-    const xLabels = [];
-    const step = Math.max(1, Math.floor(days.length / 6));
-    for (let i = 0; i < days.length; i += step) xLabels.push(i);
-    if (xLabels[xLabels.length-1] !== days.length-1) xLabels.push(days.length-1);
+  _print() {
+    const d = this._lastData;
+    if (!d) { return; }
+    const fmtDate = (day) => d.cal.idxToDate(day, d.startDate).toLocaleDateString('es-PE', { day:'2-digit', month:'2-digit', year:'numeric' });
 
-    // Etiquetas eje Y — 0%, 25%, 50%, 75%, 100%
-    const yLabels = [0, 25, 50, 75, 100];
+    const svgStr = _buildSvgString(760, 340, d.days, d.planned, d.actual, d.projected, d.baseline, this._vis, (day) =>
+      d.cal.idxToDate(day, d.startDate).toLocaleDateString('es-PE', { day:'2-digit', month:'2-digit' }));
 
-    // Área rellena planificado
-    const areaPath = pathLine(planned) + `L${xOf(days.length-1).toFixed(1)},${yOf(0).toFixed(1)}L${xOf(0).toFixed(1)},${yOf(0).toFixed(1)}Z`;
+    // Tabla resumen: muestra puntos cada 10% aprox
+    const step = Math.max(1, Math.floor(d.days.length / 10));
+    const idxs = [];
+    for (let i = 0; i < d.days.length; i += step) idxs.push(i);
+    if (idxs[idxs.length-1] !== d.days.length-1) idxs.push(d.days.length-1);
 
-    this._chartArea.innerHTML = `
-      <svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" style="overflow:visible;display:block">
-        <defs>
-          <linearGradient id="cs-grad-${this._uid}" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stop-color="#1976D2" stop-opacity="0.18"/>
-            <stop offset="100%" stop-color="#1976D2" stop-opacity="0.02"/>
-          </linearGradient>
-        </defs>
-        <!-- Fondo y cuadrícula -->
-        <rect x="${pad.l}" y="${pad.t}" width="${cw}" height="${ch}" fill="var(--clr-surface-2,#f8f9fa)" rx="4"/>
-        ${yLabels.map(v => `
-          <line x1="${pad.l}" y1="${yOf(v).toFixed(1)}" x2="${pad.l+cw}" y2="${yOf(v).toFixed(1)}"
-            stroke="var(--clr-border,#e0e0e0)" stroke-width="1" stroke-dasharray="3,3"/>
-          <text x="${(pad.l-4).toFixed(1)}" y="${yOf(v).toFixed(1)}" text-anchor="end" dominant-baseline="middle"
-            font-size="10" fill="var(--clr-text-3,#999)">${v}%</text>`).join('')}
-        ${xLabels.map(i => `
-          <line x1="${xOf(i).toFixed(1)}" y1="${pad.t}" x2="${xOf(i).toFixed(1)}" y2="${pad.t+ch}"
-            stroke="var(--clr-border,#e0e0e0)" stroke-width="1" stroke-dasharray="3,3"/>
-          <text x="${xOf(i).toFixed(1)}" y="${(pad.t+ch+14).toFixed(1)}" text-anchor="middle"
-            font-size="9" fill="var(--clr-text-3,#999)">${fmtDate(days[i])}</text>`).join('')}
-        <!-- Área planificado -->
-        <path d="${areaPath}" fill="url(#cs-grad-${this._uid})"/>
-        <!-- Línea planificado -->
-        <path d="${pathLine(planned)}" fill="none" stroke="#1976D2" stroke-width="2" stroke-linejoin="round"/>
-        <!-- Línea real -->
-        <path d="${pathLine(actual)}" fill="none" stroke="#388E3C" stroke-width="2.5" stroke-linejoin="round"/>
-        <!-- Línea proyectado (punteado) -->
-        <path d="${pathLine(projected, i => projected[i] !== null)}" fill="none" stroke="#F57C00"
-          stroke-width="2" stroke-dasharray="6,4" stroke-linejoin="round"/>
-        <!-- Ejes -->
-        <line x1="${pad.l}" y1="${pad.t}" x2="${pad.l}" y2="${pad.t+ch}" stroke="var(--clr-border,#ccc)" stroke-width="1.5"/>
-        <line x1="${pad.l}" y1="${pad.t+ch}" x2="${pad.l+cw}" y2="${pad.t+ch}" stroke="var(--clr-border,#ccc)" stroke-width="1.5"/>
-      </svg>`;
+    const cols = [
+      { key: 'planned',   label: 'Planificado', show: this._vis.planned },
+      { key: 'actual',    label: 'Real',         show: this._vis.actual },
+      { key: 'projected', label: 'Proyectado',   show: this._vis.projected },
+      { key: 'baseline',  label: 'Línea Base',   show: this._vis.baseline && !!d.baseline },
+    ].filter(c => c.show);
+
+    const tableHtml = `<table style="width:100%;border-collapse:collapse;font-size:11px;margin-top:16px">
+      <thead><tr style="background:#f4f5f7">
+        <th style="border:1px solid #ccc;padding:5px 8px;text-align:left">Fecha</th>
+        ${cols.map(c => `<th style="border:1px solid #ccc;padding:5px 8px;text-align:center">${c.label}</th>`).join('')}
+      </tr></thead>
+      <tbody>${idxs.map((i, ri) => `<tr style="background:${ri%2===0?'#fff':'#f9f9f9'}">
+        <td style="border:1px solid #ccc;padding:4px 8px">${fmtDate(d.days[i])}</td>
+        ${cols.map(c => {
+          const series = c.key === 'baseline' ? d.baseline : d[c.key];
+          const v = series ? series[i] : null;
+          return `<td style="border:1px solid #ccc;padding:4px 8px;text-align:center">${v != null ? v.toFixed(1)+'%' : '—'}</td>`;
+        }).join('')}
+      </tr>`).join('')}
+      </tbody></table>`;
+
+    const w = window.open('', '_blank', 'width=900,height=700');
+    if (!w) return;
+    w.document.write(`<!DOCTYPE html><html><head>
+      <meta charset="utf-8">
+      <title>Curva S de Avance</title>
+      <style>
+        body { font-family: Arial, sans-serif; padding: 24px; margin: 0; }
+        h1 { font-size: 16px; margin: 0 0 4px; }
+        p { font-size: 12px; color: #666; margin: 0 0 12px; }
+        @media print { body { padding: 12px; } }
+      </style>
+    </head><body>
+      <h1>Curva S de Avance</h1>
+      <p>Curvas activas: ${cols.map(c => c.label).join(', ')}</p>
+      ${svgStr}
+      ${tableHtml}
+      <script>window.print();window.close();<\/script>
+    </body></html>`);
+    w.document.close();
   }
 }
