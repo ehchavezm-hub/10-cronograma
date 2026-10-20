@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>ECM Project — Restaurar Datos COSAPI</title>
+<title>ECM Project — Restaurar Estructura de Proyectos</title>
 <style>
   :root { --bg:#f8fafc; --fg:#1e293b; --card:#fff; --border:#e2e8f0;
           --green:#22c55e; --red:#ef4444; --blue:#3b82f6; --accent:#4f46e5; }
@@ -31,7 +31,7 @@
 </head>
 <body>
 <div class="card">
-  <h1>🔄 Restaurar Datos COSAPI</h1>
+  <h1>🔄 Restaurar Estructura de Proyectos</h1>
   <p class="subtitle">Este asistente recrea la estructura de portafolios, programas y proyectos en ECM Project.</p>
 
   <div class="section">
@@ -39,21 +39,23 @@
     <div class="item">🏗 Plantas Industriales</div>
     <div class="item">🏢 Edificaciones</div>
     <div class="item">🛣 Infraestructura</div>
-    <div class="item">🏥 Salud e Institucional</div>
-    <div class="item">💻 BIM &amp; Digital</div>
+    <div class="item">👥 Personal</div>
+    <div class="item">💻 BIM</div>
+    <div class="item">🔧 Gerencia Técnica</div>
   </div>
   <div class="section">
     <h3>📂 Programas incluidos</h3>
     <div class="item">Procesamiento de Minerales · Plantas de Energía · Plantas Químicas</div>
     <div class="item">Edificios Corporativos · Edificios Residenciales · Edificios Públicos</div>
     <div class="item">Vialidad y Carreteras · Obras Hidráulicas · Puentes y Túneles</div>
-    <div class="item">Hospitales y Clínicas · Personal Cirugía</div>
+    <div class="item">Salud Ocupacional · Cirugía y Equipamiento</div>
     <div class="item">Modelado BIM · Coordinación Digital</div>
+    <div class="item">Control de Calidad · Ingeniería y Diseño</div>
   </div>
   <div class="section">
     <h3>📋 Proyectos representativos</h3>
-    <div class="item">18 proyectos iniciales con fechas, código y presupuesto referencial</div>
-    <div class="item">Calendario Perú 2026 (Lun–Vie, feriados nacionales)</div>
+    <div class="item">20 proyectos iniciales con fechas, código y presupuesto referencial</div>
+    <div class="item">Calendario Laboral (Lun–Vie)</div>
     <div class="item">Los datos reales de tareas deberán reimportarse desde respaldos JSON/XER</div>
   </div>
 
@@ -71,12 +73,12 @@ const ORG_ID = '00000000-0000-0000-0000-000000000001';
 const uid = (prefix, n) => `${prefix}-${String(n).padStart(4,'0')}`;
 
 // ──────────────────────────────────────────────
-// DATOS COSAPI
+// DATOS DE PROYECTOS
 // ──────────────────────────────────────────────
-const CAL_COSAPI = {
-  id: 'cal-cosapi-001',
+const CAL_DEFAULT = {
+  id: 'cal-default-001',
   org_id: ORG_ID,
-  name: 'Calendario COSAPI (Lun–Vie)',
+  name: 'Calendario Laboral (Lun–Vie)',
   work_week: [1,2,3,4,5],
   hours_per_day: 8,
   shift_label: 'Diurno',
@@ -89,8 +91,9 @@ const PORTFOLIOS = [
   { id:'pf-01', org_id:ORG_ID, name:'Plantas Industriales', description:'Proyectos de plantas de procesamiento, energía y manufactura.', created_at:NOW, updated_at:NOW, deleted_at:null },
   { id:'pf-02', org_id:ORG_ID, name:'Edificaciones',         description:'Proyectos de edificios corporativos, residenciales y públicos.',  created_at:NOW, updated_at:NOW, deleted_at:null },
   { id:'pf-03', org_id:ORG_ID, name:'Infraestructura',       description:'Vialidad, obras hidráulicas, puentes y túneles.',                created_at:NOW, updated_at:NOW, deleted_at:null },
-  { id:'pf-04', org_id:ORG_ID, name:'Salud e Institucional', description:'Hospitales, clínicas y centros médicos.',                         created_at:NOW, updated_at:NOW, deleted_at:null },
-  { id:'pf-05', org_id:ORG_ID, name:'BIM & Digital',          description:'Modelado BIM, coordinación digital y transformación tecnológica.', created_at:NOW, updated_at:NOW, deleted_at:null },
+  { id:'pf-04', org_id:ORG_ID, name:'Personal',              description:'Gestión de personal, salud ocupacional y cirugía especializada.', created_at:NOW, updated_at:NOW, deleted_at:null },
+  { id:'pf-05', org_id:ORG_ID, name:'BIM',                   description:'Modelado BIM, coordinación digital y transformación tecnológica.', created_at:NOW, updated_at:NOW, deleted_at:null },
+  { id:'pf-06', org_id:ORG_ID, name:'Gerencia Técnica',      description:'Gestión técnica, ingeniería, calidad y procesos.',                created_at:NOW, updated_at:NOW, deleted_at:null },
 ];
 
 const PROGRAMS = [
@@ -106,19 +109,22 @@ const PROGRAMS = [
   { id:'pg-07', org_id:ORG_ID, portfolio_id:'pf-03', name:'Vialidad y Carreteras',    description:'Carreteras, autopistas y pavimentación urbana.', created_at:NOW, updated_at:NOW, deleted_at:null },
   { id:'pg-08', org_id:ORG_ID, portfolio_id:'pf-03', name:'Obras Hidráulicas',        description:'Presas, irrigaciones y sistemas de agua.', created_at:NOW, updated_at:NOW, deleted_at:null },
   { id:'pg-09', org_id:ORG_ID, portfolio_id:'pf-03', name:'Puentes y Túneles',        description:'Estructuras especiales de conectividad.', created_at:NOW, updated_at:NOW, deleted_at:null },
-  // Salud
-  { id:'pg-10', org_id:ORG_ID, portfolio_id:'pf-04', name:'Hospitales y Clínicas',   description:'Infraestructura hospitalaria de alta complejidad.', created_at:NOW, updated_at:NOW, deleted_at:null },
-  { id:'pg-11', org_id:ORG_ID, portfolio_id:'pf-04', name:'Personal Cirugía',         description:'Equipamiento y obras para cirugía y quirófanos.', created_at:NOW, updated_at:NOW, deleted_at:null },
+  // Personal
+  { id:'pg-10', org_id:ORG_ID, portfolio_id:'pf-04', name:'Salud Ocupacional',        description:'Hospitales, salud y bienestar del personal.', created_at:NOW, updated_at:NOW, deleted_at:null },
+  { id:'pg-11', org_id:ORG_ID, portfolio_id:'pf-04', name:'Cirugía y Equipamiento',   description:'Equipamiento y obras para cirugía y quirófanos especializados.', created_at:NOW, updated_at:NOW, deleted_at:null },
   // BIM
   { id:'pg-12', org_id:ORG_ID, portfolio_id:'pf-05', name:'Modelado BIM',             description:'Proyectos con metodología BIM completa.', created_at:NOW, updated_at:NOW, deleted_at:null },
   { id:'pg-13', org_id:ORG_ID, portfolio_id:'pf-05', name:'Coordinación Digital',    description:'Coordinación multidisciplinaria digital.', created_at:NOW, updated_at:NOW, deleted_at:null },
+  // Gerencia Técnica
+  { id:'pg-14', org_id:ORG_ID, portfolio_id:'pf-06', name:'Control de Calidad',       description:'Gestión de calidad y auditorías técnicas.', created_at:NOW, updated_at:NOW, deleted_at:null },
+  { id:'pg-15', org_id:ORG_ID, portfolio_id:'pf-06', name:'Ingeniería y Diseño',      description:'Proyectos de ingeniería, diseño y consultoría.', created_at:NOW, updated_at:NOW, deleted_at:null },
 ];
 
 function proj(id, program_id, code, name, start, budget, currency='USD') {
   return { id, org_id:ORG_ID, program_id, code, name,
     sponsor_id:null, start_date:start, actual_start_date:null,
     actual_finish_date:null, data_date:null,
-    calendar_id:'cal-cosapi-001', budget, currency,
+    calendar_id:'cal-default-001', budget, currency,
     is_template:false, settings:{},
     created_at:NOW, updated_at:NOW, deleted_at:null };
 }
@@ -134,7 +140,7 @@ const PROJECTS = [
   proj('prj-05','pg-03','PQ-2024-001','Planta de Fertilizantes Ica',   '2024-07-01',  31000000),
   // Edificaciones — Corporativos
   proj('prj-06','pg-04','EC-2024-001','Torre Corporativa San Isidro',  '2024-05-01',  55000000,'PEN'),
-  proj('prj-07','pg-04','EC-2025-001','Sede Central COSAPI Lima',      '2025-03-01',  38000000,'PEN'),
+  proj('prj-07','pg-04','EC-2025-001','Sede Central Lima',             '2025-03-01',  38000000,'PEN'),
   // Edificaciones — Residencial
   proj('prj-08','pg-05','ER-2024-001','Condominio Las Magnolias',      '2024-02-01',  22000000,'PEN'),
   proj('prj-09','pg-05','ER-2025-001','Edificio Residencial El Golf',  '2025-06-01',  19500000,'PEN'),
@@ -154,6 +160,9 @@ const PROJECTS = [
   proj('prj-17','pg-11','SC-2025-001','Sala de Cirugía Robótica INEN',  '2025-04-01', 21000000,'PEN'),
   // BIM
   proj('prj-18','pg-12','BIM-2024-001','Modelo BIM Integrado — Torre San Isidro', '2024-05-01', 1200000,'PEN'),
+  // Gerencia Técnica
+  proj('prj-19','pg-14','GT-2024-001','Sistema de Gestión de Calidad ISO',      '2024-02-01',   850000,'PEN'),
+  proj('prj-20','pg-15','GT-2024-002','Ingeniería de Valor — Proyectos Minería','2024-05-01',  1500000,'PEN'),
 ];
 
 // ──────────────────────────────────────────────
@@ -219,8 +228,8 @@ document.getElementById('btn-restore').addEventListener('click', async () => {
     const db = await openDB();
     log('✓ Base de datos abierta (v' + db.version + ')', 'ok');
 
-    await putAll(db, 'calendars', [CAL_COSAPI]);
-    log('✓ Calendario COSAPI registrado', 'ok');
+    await putAll(db, 'calendars', [CAL_DEFAULT]);
+    log('✓ Calendario laboral registrado', 'ok');
 
     await putAll(db, 'portfolios', PORTFOLIOS);
     log(`✓ ${PORTFOLIOS.length} portafolios creados`, 'ok');
@@ -247,7 +256,7 @@ document.getElementById('btn-clear').addEventListener('click', async () => {
   if (!confirm('¿Eliminar todos los proyectos restaurados? Esta acción no se puede deshacer.')) return;
   try {
     const db = await openDB();
-    const ids = [...PORTFOLIOS, ...PROGRAMS, ...PROJECTS, CAL_COSAPI].map(r => r.id);
+    const ids = [...PORTFOLIOS, ...PROGRAMS, ...PROJECTS, CAL_DEFAULT].map(r => r.id);
     const stores = ['portfolios','programs','projects','calendars'];
     for (const s of stores) {
       const tx = db.transaction(s, 'readwrite');
