@@ -1916,6 +1916,10 @@ async function init() {
       } catch {
         const proj = await _ensureDemoData();
         await _loadProject(proj.id);
+        // Informar al usuario que el proyecto anterior no se encontró
+        setTimeout(() => {
+          _showToast('⚠ Proyecto anterior no encontrado. Usa Exportar → Importar JSON para restaurar desde un respaldo.', 'warn');
+        }, 1500);
       }
     } else {
       const proj = await _ensureDemoData();
@@ -2119,6 +2123,54 @@ function _syncGanttScene() {
 }
 
 // ============================================================
+// Helpers: drag + PDF print
+// ============================================================
+
+function _makeDraggable(dialog, handleSelector) {
+  const handle = handleSelector ? dialog.querySelector(handleSelector) : dialog;
+  if (!handle) return;
+  let startX, startY, startLeft, startTop;
+  handle.style.cursor = 'move';
+  handle.addEventListener('mousedown', e => {
+    if (e.button !== 0) return;
+    if (/** @type {HTMLElement} */ (e.target).closest('button,input,select,textarea,a')) return;
+    e.preventDefault();
+    const rect = dialog.getBoundingClientRect();
+    startX = e.clientX; startY = e.clientY;
+    startLeft = rect.left; startTop = rect.top;
+    dialog.style.position = 'fixed';
+    dialog.style.margin = '0';
+    dialog.style.left = startLeft + 'px';
+    dialog.style.top = startTop + 'px';
+    const onMove = mv => {
+      dialog.style.left = (startLeft + mv.clientX - startX) + 'px';
+      dialog.style.top  = (startTop  + mv.clientY - startY) + 'px';
+    };
+    const onUp = () => {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+    };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  });
+}
+
+function _printToPdf(title, htmlContent) {
+  const w = window.open('', '_blank', 'width=900,height=700');
+  if (!w) return;
+  w.document.write(`<!DOCTYPE html><html><head>
+    <meta charset="utf-8">
+    <title>${title}</title>
+    <style>
+      body { font-family: Arial, sans-serif; padding: 24px; }
+      h1 { font-size: 18px; margin-bottom: 16px; }
+      @media print { body { margin: 0; } }
+    </style>
+  </head><body>${htmlContent}<script>window.print();window.close();<\/script></body></html>`);
+  w.document.close();
+}
+
+// ============================================================
 // Diálogo de resultados Monte Carlo
 // ============================================================
 
@@ -2131,14 +2183,22 @@ function _showMonteCarloDlg(result, fmtDay) {
     dlg.setAttribute('aria-labelledby', 'mc-dlg-title');
     dlg.style.cssText = 'padding:0;border:1px solid var(--clr-border);border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,.35);max-width:520px;width:96vw;background:var(--clr-surface);color:var(--clr-text)';
     dlg.innerHTML = `
-      <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--clr-border);background:var(--clr-surface-2);border-radius:12px 12px 0 0">
+      <div data-drag-handle style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--clr-border);background:var(--clr-surface-2);border-radius:12px 12px 0 0">
         <span id="mc-dlg-title" style="font-weight:700;font-size:14px">🔮 Simulación Monte Carlo</span>
-        <button id="mc-dlg-close" class="btn btn-icon btn-sm" aria-label="Cerrar">✕</button>
+        <div style="display:flex;gap:4px;align-items:center">
+          <button id="mc-dlg-print" class="btn btn-ghost btn-icon btn-sm" aria-label="Imprimir PDF" style="font-size:15px">🖨</button>
+          <button id="mc-dlg-close" class="btn btn-icon btn-sm" aria-label="Cerrar">✕</button>
+        </div>
       </div>
       <div id="mc-dlg-body" style="padding:20px 22px"></div>`;
     document.body.appendChild(dlg);
     dlg.querySelector('#mc-dlg-close')?.addEventListener('click', () => dlg.close());
+    dlg.querySelector('#mc-dlg-print')?.addEventListener('click', () => {
+      const body = dlg.querySelector('#mc-dlg-body');
+      _printToPdf('Simulación Monte Carlo', `<h1>Simulación Monte Carlo</h1>${body?.innerHTML ?? ''}`);
+    });
     dlg.addEventListener('click', e => { if (e.target === dlg) dlg.close(); });
+    _makeDraggable(dlg, '[data-drag-handle]');
   }
   const { p50, p80, p90, iterations: n } = result;
   const body = dlg.querySelector('#mc-dlg-body');
@@ -2886,17 +2946,26 @@ function _bindToolbar() {
   });
 
   // Importar JSON
-  document.getElementById('import-file')?.addEventListener('change', async (e) => {
-    const file = /** @type {HTMLInputElement} */ (e.target).files?.[0];
+  const _handleJsonImport = async (file) => {
     if (!file) return;
     try {
       const data = await importJson(file);
       await saveProjectSnapshot(data);
       await _loadProject(data.project.id);
+      _renderProjectList();
       _showToast('Proyecto importado: ' + data.project.name, 'success');
     } catch (err) {
       _showToast('Error al importar: ' + err.message, 'error');
     }
+  };
+  document.getElementById('import-file')?.addEventListener('change', async (e) => {
+    const file = /** @type {HTMLInputElement} */ (e.target).files?.[0];
+    await _handleJsonImport(file);
+    /** @type {HTMLInputElement} */ (e.target).value = '';
+  });
+  document.getElementById('sidebar-import-file')?.addEventListener('change', async (e) => {
+    const file = /** @type {HTMLInputElement} */ (e.target).files?.[0];
+    await _handleJsonImport(file);
     /** @type {HTMLInputElement} */ (e.target).value = '';
   });
 
@@ -2957,7 +3026,7 @@ function _bindLinkMode() {
       pred_id:     predId,
       succ_id:     succId,
       type:        type ?? 'FS',
-      lag:         lag  ?? 0,
+      lag_days:    lag  ?? 0,
       created_at:  new Date().toISOString(),
       updated_at:  new Date().toISOString(),
       deleted_at:  null,
@@ -4367,12 +4436,14 @@ function _renderCpmNetwork() {
   const STRIDE_X = BW + GAP_X;
   const STRIDE_Y = BH + GAP_Y;
 
-  // Calcular posición de cada tarea
+  // Calcular posición de cada tarea (centrado vertical por columna)
   const pos = new Map(); // id → {x, y, cx, cy}
+  const _maxColCount = Math.max(1, ...[...byLevel.values()].map(arr => arr.length));
   byLevel.forEach((tasks, lv) => {
+    const offsetY = Math.floor((_maxColCount - tasks.length) / 2) * STRIDE_Y;
     tasks.forEach((t, row) => {
       const x = lv * STRIDE_X;
-      const y = row * STRIDE_Y;
+      const y = offsetY + row * STRIDE_Y;
       pos.set(t.id, { x, y, cx: x + BW / 2, cy: y + BH / 2 });
     });
   });
@@ -4434,12 +4505,12 @@ function _renderCpmNetwork() {
     line.setAttribute('marker-end', `url(#${marker})`);
     line.setAttribute('data-pred', d.pred_id);
     line.setAttribute('data-succ', d.succ_id);
-    if (d.lag) {
+    if (d.lag_days) {
       const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
       text.setAttribute('x', String(mx)); text.setAttribute('y', String((y1 + y2) / 2 - 4));
       text.setAttribute('text-anchor', 'middle'); text.setAttribute('font-size', '10');
       text.setAttribute('fill', color);
-      text.textContent = `${d.lag > 0 ? '+' : ''}${d.lag}d`;
+      text.textContent = `${d.lag_days > 0 ? '+' : ''}${d.lag_days}d`;
       svg.appendChild(text);
     }
     svg.appendChild(line);
@@ -4707,6 +4778,18 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('btn-resource-histogram-view')?.addEventListener('click', () => {
     _closeExplorer();
     document.getElementById('btn-resource-histogram')?.click();
+  });
+  document.getElementById('btn-resource-leveling-view')?.addEventListener('click', () => {
+    _closeExplorer();
+    document.getElementById('btn-resource-leveling')?.click();
+  });
+  document.getElementById('btn-monte-carlo-view')?.addEventListener('click', () => {
+    _closeExplorer();
+    document.getElementById('btn-monte-carlo')?.click();
+  });
+  document.getElementById('btn-risk-register-view')?.addEventListener('click', () => {
+    _closeExplorer();
+    document.getElementById('btn-risk-register')?.click();
   });
 
   init();

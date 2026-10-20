@@ -74,7 +74,12 @@
     <nav id="explorer-panel" aria-label="Explorador de proyectos">
       <div class="panel-header" style="display:flex;align-items:center;justify-content:space-between;">
         <span>Proyectos</span>
-        <button id="btn-new-project" class="btn btn-primary btn-sm" title="Crear nuevo proyecto" aria-label="Crear nuevo proyecto" style="font-size:11px;padding:2px 8px;">＋ Nuevo</button>
+        <div style="display:flex;gap:4px">
+          <button id="btn-new-project" class="btn btn-primary btn-sm" title="Crear nuevo proyecto" aria-label="Crear nuevo proyecto" style="font-size:11px;padding:2px 8px;">＋ Nuevo</button>
+          <label id="btn-sidebar-import" class="btn btn-ghost btn-sm" title="Importar proyecto desde JSON" style="font-size:11px;padding:2px 8px;cursor:pointer">↩ Importar
+            <input type="file" id="sidebar-import-file" accept=".json,.xer" hidden aria-label="Importar proyecto desde JSON o XER">
+          </label>
+        </div>
       </div>
       <div class="explorer-list" id="explorer-list">
         <!-- Lista de proyectos generada por JS -->
@@ -246,7 +251,7 @@
     <dialog id="dlg-monte-carlo" aria-labelledby="dlg-mc-title" aria-modal="true" style="
       border:none;border-radius:12px;padding:0;
       box-shadow:0 8px 40px rgba(0,0,0,0.25);
-      min-width:500px;max-width:720px;width:96vw;max-height:90vh;overflow:hidden;
+      min-width:500px;max-width:900px;width:96vw;max-height:90vh;overflow:hidden;
       font-family:var(--font-ui);">
       <button class="btn btn-ghost btn-icon btn-sm" id="dlg-mc-close" aria-label="Cerrar"
         style="position:absolute;top:10px;right:12px;z-index:1">✕</button>
@@ -348,6 +353,9 @@
         <button id="btn-baseline" class="btn btn-ghost btn-sm" title="Línea base del proyecto" aria-label="Gestionar línea base">
           📐 Línea base
         </button>
+        <button id="btn-baseline-compare" class="btn btn-ghost btn-sm" title="Comparar con Línea Base (doble barra Gantt)" aria-label="Comparar línea base" aria-pressed="false">
+          📐 Comparar LB
+        </button>
         <div class="toolbar-sep"></div>
         <label class="tq-autocalc">
           <input id="btn-auto-calc" type="checkbox" checked aria-label="Cálculo automático">
@@ -374,9 +382,6 @@
         </button>
         <button id="btn-risk-register" class="btn btn-ghost btn-sm" title="Registro de Riesgos" aria-label="Abrir registro de riesgos" aria-pressed="false">
           ⚠ Riesgos
-        </button>
-        <button id="btn-baseline-compare" class="btn btn-ghost btn-sm" title="Comparar con Línea Base (doble barra Gantt)" aria-label="Comparar línea base" aria-pressed="false">
-          📐 Comparar LB
         </button>
         <button id="btn-lookahead" class="btn btn-ghost btn-sm" title="Vista Lookahead 3/6 semanas" aria-label="Lookahead" aria-pressed="false">
           📅 Lookahead

@@ -328,10 +328,59 @@ export class MonteCarloPanel {
       histSection.className = 'mc-section';
       const histTitle = document.createElement('h3');
       histTitle.className = 'mc-section-title';
-      histTitle.textContent = 'Distribución de Fechas de Finalización';
+      histTitle.textContent = 'Histograma de fechas de término';
       histSection.appendChild(histTitle);
       histSection.appendChild(this._buildHistogram(result.project_finishes, result.project_p80, idxFmt));
       area.appendChild(histSection);
+    }
+
+    // ── Curva S de probabilidad de cumplimiento ───────────────────────────
+    if (result.project_finishes && result.project_finishes.length > 0) {
+      const scurveSection = document.createElement('div');
+      scurveSection.className = 'mc-section';
+      const scurveTitle = document.createElement('h3');
+      scurveTitle.className = 'mc-section-title';
+      scurveTitle.textContent = 'Curva S de probabilidad de cumplimiento';
+      scurveSection.appendChild(scurveTitle);
+      scurveSection.appendChild(this._buildSCurve(
+        result.project_finishes, result.project_p50, result.project_p80, result.project_p90, idxFmt));
+      area.appendChild(scurveSection);
+    }
+
+    // ── Tornado chart de sensibilidad ─────────────────────────────────────
+    if (result.results && result.results.length > 0) {
+      const tornSection = document.createElement('div');
+      tornSection.className = 'mc-section';
+      const tornTitle = document.createElement('h3');
+      tornTitle.className = 'mc-section-title';
+      tornTitle.textContent = 'Tornado: sensibilidad de tareas (Top 10 por σ)';
+      tornSection.appendChild(tornTitle);
+      tornSection.appendChild(this._buildTornado(result.results));
+      area.appendChild(tornSection);
+    }
+
+    // ── Diagrama de dispersión (timeline vs incertidumbre) ────────────────
+    if (result.results && result.results.length > 1) {
+      const scatSection = document.createElement('div');
+      scatSection.className = 'mc-section';
+      const scatTitle = document.createElement('h3');
+      scatTitle.className = 'mc-section-title';
+      scatTitle.textContent = 'Dispersión: cronograma vs incertidumbre por tarea';
+      scatSection.appendChild(scatTitle);
+      scatSection.appendChild(this._buildScatter(result.results));
+      area.appendChild(scatSection);
+    }
+
+    // ── Tabla resumen por percentil (tareas ruta crítica) ─────────────────
+    if (result.results && result.results.length > 0) {
+      const ptSection = document.createElement('div');
+      ptSection.className = 'mc-section';
+      const ptTitle = document.createElement('h3');
+      ptTitle.className = 'mc-section-title';
+      ptTitle.textContent = 'Tabla resumen por percentil (ruta crítica)';
+      ptSection.appendChild(ptTitle);
+      ptSection.appendChild(this._buildPercentileTable(result.results, idxFmt));
+      area.appendChild(ptSection);
     }
 
     // ── Tabla: top 10 tareas más riesgosas (spread P80-P50) ───────────────
@@ -387,6 +436,367 @@ export class MonteCarloPanel {
 
       area.appendChild(riskSection);
     }
+  }
+
+  // ─── Curva S SVG ──────────────────────────────────────────────────────────
+
+  /**
+   * Curva S de probabilidad acumulada de finalización.
+   * @param {number[]} sorted  valores ordenados (project_finishes)
+   * @param {number} p50
+   * @param {number} p80
+   * @param {number} p90
+   * @param {(idx:number)=>string} fmt
+   * @returns {SVGElement}
+   */
+  _buildSCurve(sorted, p50, p80, p90, fmt) {
+    const W = Math.max(300, (this._resultsArea?.clientWidth || 700) - 32);
+    const H = Math.max(140, Math.round(W * 0.32));
+    const PAD = { top: 14, right: 16, bottom: 32, left: 38 };
+    const iw = W - PAD.left - PAD.right;
+    const ih = H - PAD.top - PAD.bottom;
+    const n = sorted.length;
+    const min = sorted[0];
+    const max = sorted[n - 1];
+    const range = max - min || 1;
+
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+    svg.setAttribute('width', String(W));
+    svg.setAttribute('class', 'mc-histogram');
+
+    const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    g.setAttribute('transform', `translate(${PAD.left},${PAD.top})`);
+    svg.appendChild(g);
+
+    // Y grid lines + labels
+    for (const pct of [0, 25, 50, 75, 100]) {
+      const y = ih * (1 - pct / 100);
+      const gl = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+      gl.setAttribute('x1', '0'); gl.setAttribute('y1', String(y));
+      gl.setAttribute('x2', String(iw)); gl.setAttribute('y2', String(y));
+      gl.setAttribute('class', 'mc-hist-axis'); gl.setAttribute('opacity', '0.25');
+      g.appendChild(gl);
+      const tl = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      tl.setAttribute('x', '-3'); tl.setAttribute('y', String(y));
+      tl.setAttribute('text-anchor', 'end'); tl.setAttribute('dominant-baseline', 'middle');
+      tl.setAttribute('class', 'mc-hist-tick');
+      tl.textContent = pct + '%';
+      g.appendChild(tl);
+    }
+
+    // S-curve polyline (sample CDF)
+    const STEPS = Math.min(n, 300);
+    let pathD = '';
+    for (let i = 0; i <= STEPS; i++) {
+      const frac = i / STEPS;
+      const val = sorted[Math.min(Math.floor(frac * n), n - 1)];
+      const x = ((val - min) / range) * iw;
+      const y = ih * (1 - frac);
+      pathD += i === 0 ? `M${x.toFixed(1)},${y.toFixed(1)}` : ` L${x.toFixed(1)},${y.toFixed(1)}`;
+    }
+    const curvePath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    curvePath.setAttribute('d', pathD);
+    curvePath.setAttribute('fill', 'none');
+    curvePath.setAttribute('stroke', 'var(--mc-accent, #2563eb)');
+    curvePath.setAttribute('stroke-width', '2');
+    curvePath.setAttribute('stroke-linejoin', 'round');
+    g.appendChild(curvePath);
+
+    // P50 / P80 / P90 vertical lines
+    const pLines = [['P50', p50, '#16a34a'], ['P80', p80, '#dc2626'], ['P90', p90, '#7c3aed']];
+    pLines.forEach(([label, val, color], li) => {
+      const vx = ((val - min) / range) * iw;
+      if (vx < 0 || vx > iw) return;
+      const vl = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+      vl.setAttribute('x1', String(vx)); vl.setAttribute('y1', '0');
+      vl.setAttribute('x2', String(vx)); vl.setAttribute('y2', String(ih));
+      vl.setAttribute('stroke', color); vl.setAttribute('stroke-width', '1.5');
+      vl.setAttribute('stroke-dasharray', '4 2');
+      g.appendChild(vl);
+      const lbl = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      lbl.setAttribute('x', String(vx + 3)); lbl.setAttribute('y', String(8 + li * 12));
+      lbl.setAttribute('fill', color); lbl.setAttribute('font-size', '10');
+      lbl.setAttribute('font-weight', 'bold');
+      lbl.textContent = label;
+      g.appendChild(lbl);
+    });
+
+    // X axis
+    const axG = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    axG.setAttribute('transform', `translate(0,${ih})`);
+    const axLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    axLine.setAttribute('x1', '0'); axLine.setAttribute('y1', '0');
+    axLine.setAttribute('x2', String(iw)); axLine.setAttribute('y2', '0');
+    axLine.setAttribute('class', 'mc-hist-axis');
+    axG.appendChild(axLine);
+    [[0, min], [iw, max]].forEach(([pos, val]) => {
+      const t = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      t.setAttribute('x', String(pos)); t.setAttribute('y', '14');
+      t.setAttribute('text-anchor', pos === 0 ? 'start' : 'end');
+      t.setAttribute('class', 'mc-hist-tick');
+      t.textContent = fmt(val);
+      axG.appendChild(t);
+    });
+    g.appendChild(axG);
+
+    return /** @type {any} */ (svg);
+  }
+
+  // ─── Tornado chart SVG ────────────────────────────────────────────────────
+
+  /**
+   * Tornado chart: top 10 tareas por desviación estándar (σ).
+   * @param {Array<{id:string,std:number,mean:number,p50:number,p80:number,p90:number}>} results
+   * @returns {Element}
+   */
+  _buildTornado(results) {
+    const top10 = [...results]
+      .map(r => ({ ...r, name: this._getTaskName(r.id) }))
+      .filter(r => r.std > 0)
+      .sort((a, b) => b.std - a.std)
+      .slice(0, 10);
+
+    if (top10.length === 0) {
+      const p = document.createElement('p');
+      p.className = 'mc-note';
+      p.textContent = 'No hay datos de desviación estándar disponibles (use estimados de 3 puntos).';
+      return p;
+    }
+
+    const ROW_H = 26;
+    const PAD = { top: 4, right: 50, bottom: 4, left: 160 };
+    const W = Math.max(380, (this._resultsArea?.clientWidth || 700) - 32);
+    const barArea = W - PAD.left - PAD.right;
+    const H = PAD.top + top10.length * ROW_H + PAD.bottom;
+    const maxStd = top10[0].std;
+
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+    svg.setAttribute('width', String(W));
+    svg.setAttribute('class', 'mc-histogram');
+
+    top10.forEach((r, i) => {
+      const y = PAD.top + i * ROW_H;
+      const bw = (r.std / maxStd) * barArea;
+
+      // Alternating row stripe
+      if (i % 2 === 1) {
+        const stripe = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+        stripe.setAttribute('x', '0'); stripe.setAttribute('y', String(y));
+        stripe.setAttribute('width', String(W)); stripe.setAttribute('height', String(ROW_H));
+        stripe.setAttribute('fill', 'var(--mc-kpi-bg, #f3f4f6)'); stripe.setAttribute('opacity', '0.45');
+        svg.appendChild(stripe);
+      }
+
+      // Bar
+      const bar = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+      bar.setAttribute('x', String(PAD.left)); bar.setAttribute('y', String(y + 4));
+      bar.setAttribute('width', String(Math.max(2, bw))); bar.setAttribute('height', String(ROW_H - 8));
+      bar.setAttribute('fill', 'var(--mc-accent, #2563eb)'); bar.setAttribute('opacity', '0.78');
+      svg.appendChild(bar);
+
+      // Task name
+      const lbl = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      lbl.setAttribute('x', String(PAD.left - 6)); lbl.setAttribute('y', String(y + ROW_H / 2));
+      lbl.setAttribute('text-anchor', 'end'); lbl.setAttribute('dominant-baseline', 'middle');
+      lbl.setAttribute('class', 'mc-hist-tick'); lbl.setAttribute('font-size', '10');
+      const name = r.name;
+      lbl.textContent = name.length > 22 ? name.slice(0, 22) + '…' : name;
+      svg.appendChild(lbl);
+
+      // Std value
+      const val = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      val.setAttribute('x', String(PAD.left + bw + 4)); val.setAttribute('y', String(y + ROW_H / 2));
+      val.setAttribute('dominant-baseline', 'middle'); val.setAttribute('class', 'mc-hist-tick');
+      val.setAttribute('font-size', '10');
+      val.textContent = r.std.toFixed(1) + 'd';
+      svg.appendChild(val);
+    });
+
+    return /** @type {any} */ (svg);
+  }
+
+  // ─── Diagrama de dispersión SVG ───────────────────────────────────────────
+
+  /**
+   * Scatter: X = media de finalización, Y = desviación estándar, por tarea.
+   * @param {Array<{id:string,mean:number,std:number}>} results
+   * @returns {Element}
+   */
+  _buildScatter(results) {
+    const data = results.filter(r => r.mean > 0 || r.std > 0);
+    if (data.length < 2) {
+      const p = document.createElement('p');
+      p.className = 'mc-note';
+      p.textContent = 'Datos insuficientes para el diagrama de dispersión.';
+      return p;
+    }
+
+    const W = Math.max(300, (this._resultsArea?.clientWidth || 700) - 32);
+    const H = Math.max(150, Math.round(W * 0.38));
+    const PAD = { top: 14, right: 20, bottom: 36, left: 44 };
+    const iw = W - PAD.left - PAD.right;
+    const ih = H - PAD.top - PAD.bottom;
+
+    const means = data.map(r => r.mean);
+    const stds  = data.map(r => r.std);
+    const minX = Math.min(...means), maxX = Math.max(...means);
+    const maxY  = Math.max(...stds) * 1.15 || 1;
+    const rangeX = maxX - minX || 1;
+
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+    svg.setAttribute('width', String(W));
+    svg.setAttribute('class', 'mc-histogram');
+
+    const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    g.setAttribute('transform', `translate(${PAD.left},${PAD.top})`);
+    svg.appendChild(g);
+
+    // Grid lines
+    for (let i = 0; i <= 4; i++) {
+      const y = ih * (i / 4);
+      const gl = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+      gl.setAttribute('x1', '0'); gl.setAttribute('y1', String(y));
+      gl.setAttribute('x2', String(iw)); gl.setAttribute('y2', String(y));
+      gl.setAttribute('class', 'mc-hist-axis'); gl.setAttribute('opacity', '0.2');
+      g.appendChild(gl);
+      const yVal = maxY * (1 - i / 4);
+      const tl = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      tl.setAttribute('x', '-3'); tl.setAttribute('y', String(y));
+      tl.setAttribute('text-anchor', 'end'); tl.setAttribute('dominant-baseline', 'middle');
+      tl.setAttribute('class', 'mc-hist-tick'); tl.setAttribute('font-size', '9');
+      tl.textContent = yVal.toFixed(1);
+      g.appendChild(tl);
+    }
+
+    // Dots
+    for (const r of data) {
+      const cx = ((r.mean - minX) / rangeX) * iw;
+      const cy = ih - (r.std / maxY) * ih;
+      const cpmTask = this._cpmResult?.tasks?.get(r.id);
+      const isCrit = cpmTask?.is_critical;
+
+      const dot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+      dot.setAttribute('cx', String(cx.toFixed(1)));
+      dot.setAttribute('cy', String(cy.toFixed(1)));
+      dot.setAttribute('r', '5');
+      dot.setAttribute('fill', isCrit ? '#dc2626' : 'var(--mc-accent, #2563eb)');
+      dot.setAttribute('opacity', '0.7');
+
+      const title = document.createElementNS('http://www.w3.org/2000/svg', 'title');
+      title.textContent = `${this._getTaskName(r.id)}: μ=${r.mean.toFixed(1)}d  σ=${r.std.toFixed(1)}d`;
+      dot.appendChild(title);
+      g.appendChild(dot);
+    }
+
+    // Axes
+    const axX = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    axX.setAttribute('x1', '0'); axX.setAttribute('y1', String(ih));
+    axX.setAttribute('x2', String(iw)); axX.setAttribute('y2', String(ih));
+    axX.setAttribute('class', 'mc-hist-axis');
+    g.appendChild(axX);
+    const axY = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    axY.setAttribute('x1', '0'); axY.setAttribute('y1', '0');
+    axY.setAttribute('x2', '0'); axY.setAttribute('y2', String(ih));
+    axY.setAttribute('class', 'mc-hist-axis');
+    g.appendChild(axY);
+
+    // X axis labels
+    const axG = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    axG.setAttribute('transform', `translate(0,${ih})`);
+    [[0, minX], [iw, maxX]].forEach(([pos, val]) => {
+      const tt = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      tt.setAttribute('x', String(pos)); tt.setAttribute('y', '14');
+      tt.setAttribute('text-anchor', pos === 0 ? 'start' : 'end');
+      tt.setAttribute('class', 'mc-hist-tick');
+      tt.textContent = Math.round(val) + 'd';
+      axG.appendChild(tt);
+    });
+    g.appendChild(axG);
+
+    // Y axis label
+    const yLbl = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    yLbl.setAttribute('transform', `translate(-32,${ih / 2}) rotate(-90)`);
+    yLbl.setAttribute('text-anchor', 'middle'); yLbl.setAttribute('class', 'mc-hist-tick');
+    yLbl.setAttribute('font-size', '9'); yLbl.textContent = 'σ (días)';
+    g.appendChild(yLbl);
+
+    // X axis label
+    const xLbl = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    xLbl.setAttribute('x', String(iw / 2)); xLbl.setAttribute('y', String(ih + 28));
+    xLbl.setAttribute('text-anchor', 'middle'); xLbl.setAttribute('class', 'mc-hist-tick');
+    xLbl.setAttribute('font-size', '9'); xLbl.textContent = 'Día de finalización (media)';
+    g.appendChild(xLbl);
+
+    // Legend
+    [['#dc2626', 'Crítica'], ['var(--mc-accent, #2563eb)', 'No crítica']].forEach(([color, label], i) => {
+      const lx = 10 + i * 110, ly = ih + 28;
+      const dot2 = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+      dot2.setAttribute('cx', String(lx)); dot2.setAttribute('cy', String(ly));
+      dot2.setAttribute('r', '4'); dot2.setAttribute('fill', color); dot2.setAttribute('opacity', '0.75');
+      const lt = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      lt.setAttribute('x', String(lx + 7)); lt.setAttribute('y', String(ly));
+      lt.setAttribute('dominant-baseline', 'middle'); lt.setAttribute('class', 'mc-hist-tick');
+      lt.setAttribute('font-size', '9'); lt.textContent = label;
+      g.appendChild(dot2); g.appendChild(lt);
+    });
+
+    return /** @type {any} */ (svg);
+  }
+
+  // ─── Tabla resumen por percentil ─────────────────────────────────────────
+
+  /**
+   * Tabla P50/P80/P90/σ para tareas en ruta crítica (o top por σ si no hay críticas).
+   * @param {Array<{id:string,p50:number,p80:number,p90:number,mean:number,std:number}>} results
+   * @param {(idx:number)=>string} idxFmt
+   * @returns {HTMLElement}
+   */
+  _buildPercentileTable(results, idxFmt) {
+    // Prefer critical path tasks; fall back to top-std tasks
+    const critResults = results
+      .filter(r => this._cpmResult?.tasks?.get(r.id)?.is_critical)
+      .sort((a, b) => a.mean - b.mean)
+      .slice(0, 20);
+
+    const rows = critResults.length > 0
+      ? critResults
+      : [...results].sort((a, b) => b.std - a.std).slice(0, 10);
+
+    if (rows.length === 0) {
+      const p = document.createElement('p');
+      p.className = 'mc-note';
+      p.textContent = 'No hay datos de tareas disponibles.';
+      return p;
+    }
+
+    const table = document.createElement('table');
+    table.className = 'mc-risk-table';
+    table.innerHTML = `
+      <thead>
+        <tr>
+          <th>Tarea</th>
+          <th>P50</th>
+          <th>P80</th>
+          <th>P90</th>
+          <th>σ (días)</th>
+        </tr>
+      </thead>`;
+    const tbody = document.createElement('tbody');
+    for (const r of rows) {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td class="mc-task-name">${_esc(this._getTaskName(r.id))}</td>
+        <td>${idxFmt(r.p50)}</td>
+        <td>${idxFmt(r.p80)}</td>
+        <td>${idxFmt(r.p90)}</td>
+        <td class="mc-spread">${r.std.toFixed(1)}</td>`;
+      tbody.appendChild(tr);
+    }
+    table.appendChild(tbody);
+    return table;
   }
 
   // ─── Histograma SVG ────────────────────────────────────────────────────────
@@ -683,7 +1093,7 @@ const MC_CSS = `
 .mc-histogram {
   display: block;
   width: 100%;
-  max-width: 480px;
+  max-width: 100%;
   overflow: visible;
 }
 
