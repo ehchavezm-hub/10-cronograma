@@ -4708,6 +4708,18 @@ document.addEventListener('DOMContentLoaded', () => {
     _closeExplorer();
     document.getElementById('btn-resource-histogram')?.click();
   });
+  document.getElementById('btn-resource-leveling-view')?.addEventListener('click', () => {
+    _closeExplorer();
+    document.getElementById('btn-resource-leveling')?.click();
+  });
+  document.getElementById('btn-monte-carlo-view')?.addEventListener('click', () => {
+    _closeExplorer();
+    document.getElementById('btn-monte-carlo')?.click();
+  });
+  document.getElementById('btn-risk-register-view')?.addEventListener('click', () => {
+    _closeExplorer();
+    document.getElementById('btn-risk-register')?.click();
+  });
 
   init();
 });
