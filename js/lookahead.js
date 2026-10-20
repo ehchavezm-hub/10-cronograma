@@ -139,7 +139,7 @@ export class LookaheadPanel {
     for (const task of tasks.values()) {
       if (task.deleted_at || task.type === 'summary') continue;
       const cpm = cpmResult.tasks?.get(task.id);
-      if (!cpm) continue;
+      if (!cpm || cpm.is_summary) continue;
       const pct = task.percent_complete ?? 0;
       // Tarea atrasada: ef ya pasó y no está completa — siempre incluir
       const isDelayed = pct < 100 && cpm.ef <= todayIdx;

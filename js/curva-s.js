@@ -121,8 +121,9 @@ export class CurvaSPanel {
     });
     const startDate = isoToDate(project.start_date || new Date().toISOString().slice(0,10));
 
-    // Construir series de datos
-    const taskArr = [...tasks.values()].filter(t => !t.deleted_at && t.type !== 'summary');
+    // Construir series de datos — excluir resúmenes (type='summary' ó con hijos) e hitos
+    const _parentIds = new Set([...tasks.values()].filter(t => !t.deleted_at && t.parent_id).map(t => t.parent_id));
+    const taskArr = [...tasks.values()].filter(t => !t.deleted_at && t.type !== 'milestone' && t.type !== 'summary' && !_parentIds.has(t.id));
     if (!taskArr.length) {
       this._chartArea.innerHTML = '<p style="color:var(--clr-text-3);font-size:13px;padding:16px 0">No hay tareas para mostrar.</p>';
       return;

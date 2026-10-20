@@ -110,7 +110,9 @@ export class WbsDictionaryPanel {
 
   _renderList() {
     const { tasks, cpmResult } = appState.state;
-    const taskArr = [...(tasks?.values() ?? [])].filter(t => !t.deleted_at && t.type !== 'summary');
+    const _allTasks = [...(tasks?.values() ?? [])].filter(t => !t.deleted_at);
+    const _dictParentIds = new Set(_allTasks.filter(t => t.parent_id).map(t => t.parent_id));
+    const taskArr = _allTasks.filter(t => t.type !== 'summary' && !_dictParentIds.has(t.id));
 
     if (!taskArr.length) {
       this._listEl.innerHTML = '<p style="color:var(--clr-text-3);font-size:12px;padding:12px">Sin tareas disponibles.</p>';

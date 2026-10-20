@@ -34,7 +34,7 @@ export function detectOverAllocation(tasks, cpmTasks, resources, taskResources) 
     const cpm = cpmTasks.get(tr.task_id);
     if (!cpm) continue;
     const task = taskMap.get(tr.task_id);
-    if (task?.type === 'summary') continue;
+    if (task?.type === 'summary' || cpm?.is_summary) continue;
     const units = tr.units || 1;
 
     if (!timeline.has(tr.resource_id)) timeline.set(tr.resource_id, new Map());
@@ -89,7 +89,7 @@ export function levelResources(tasks, cpmTasks, resources, taskResources) {
 
   // Filtrar tareas no-summary con CPM y recursos
   const workTasks = tasks
-    .filter(t => t.type !== 'summary' && cpmTasks.has(t.id) && taskRes.has(t.id) && (t.percent_complete ?? 0) < 100)
+    .filter(t => t.type !== 'summary' && !cpmTasks.get(t.id)?.is_summary && cpmTasks.has(t.id) && taskRes.has(t.id) && (t.percent_complete ?? 0) < 100)
     .map(t => {
       const cpm = /** @type {CpmTask} */ (cpmTasks.get(t.id));
       return { id: t.id, es: cpm.es, ef: cpm.ef, dur: cpm.ef - cpm.es, tf: cpm.tf ?? 0 };
@@ -172,7 +172,7 @@ export function getResourceUtilization(tasks, cpmTasks, resources, taskResources
     const cpm = cpmTasks.get(tr.task_id);
     if (!cpm) continue;
     const task = taskMapU.get(tr.task_id);
-    if (task?.type === 'summary') continue;
+    if (task?.type === 'summary' || cpm?.is_summary) continue;
 
     if (!timeline.has(tr.resource_id)) timeline.set(tr.resource_id, new Map());
     const dayMap = /** @type {Map<number, number>} */ (timeline.get(tr.resource_id));
