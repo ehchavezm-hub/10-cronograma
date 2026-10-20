@@ -1754,12 +1754,12 @@ async function _showProjectRecovery() {
           </div>`).join('')}
     </div>
     <div style="border-top:2px solid var(--clr-border);padding:14px 18px;background:var(--clr-surface-2,#f8f9fa);border-radius:0 0 12px 12px">
-      <div style="font-size:13px;font-weight:600;margin-bottom:8px">🔄 Restaurar estructura COSAPI</div>
+      <div style="font-size:13px;font-weight:600;margin-bottom:8px">🔄 Restaurar estructura de proyectos</div>
       <div style="font-size:11px;color:var(--clr-text-3);margin-bottom:10px">
-        Recrea portafolios, programas y proyectos: Plantas Industriales, Edificaciones, Infraestructura, Personal Cirugía, BIM y más.
+        Recrea portafolios, programas y proyectos: Plantas Industriales, Edificaciones, Infraestructura, Personal, BIM, Gerencia Técnica y más.
       </div>
-      <button id="btn-restore-cosapi" class="btn btn-primary btn-sm" style="width:100%">⚡ Restaurar datos COSAPI ahora</button>
-      <div id="restore-cosapi-log" style="display:none;margin-top:8px;font-size:11px;font-family:monospace;background:#0f172a;color:#94a3b8;border-radius:6px;padding:10px;max-height:100px;overflow-y:auto"></div>
+      <button id="btn-restore-projects" class="btn btn-primary btn-sm" style="width:100%">⚡ Restaurar proyectos ahora</button>
+      <div id="restore-projects-log" style="display:none;margin-top:8px;font-size:11px;font-family:monospace;background:#0f172a;color:#94a3b8;border-radius:6px;padding:10px;max-height:100px;overflow-y:auto"></div>
     </div>`;
 
   document.body.appendChild(dlg);
@@ -1803,10 +1803,10 @@ async function _showProjectRecovery() {
     });
   });
 
-  // ── Restaurar datos COSAPI ──
-  dlg.querySelector('#btn-restore-cosapi')?.addEventListener('click', async () => {
-    const logEl = /** @type {HTMLElement} */ (dlg.querySelector('#restore-cosapi-log'));
-    const btnEl = /** @type {HTMLButtonElement} */ (dlg.querySelector('#btn-restore-cosapi'));
+  // ── Restaurar datos de proyectos ──
+  dlg.querySelector('#btn-restore-projects')?.addEventListener('click', async () => {
+    const logEl = /** @type {HTMLElement} */ (dlg.querySelector('#restore-projects-log'));
+    const btnEl = /** @type {HTMLButtonElement} */ (dlg.querySelector('#btn-restore-projects'));
     if (!logEl || !btnEl) return;
     logEl.style.display = 'block';
     btnEl.disabled = true;
@@ -1818,8 +1818,9 @@ async function _showProjectRecovery() {
       { id:'pf-01', org_id:ORG2, name:'Plantas Industriales', description:'Proyectos de plantas de procesamiento, energía y manufactura.', created_at:NOW2, updated_at:NOW2, deleted_at:null },
       { id:'pf-02', org_id:ORG2, name:'Edificaciones',         description:'Edificios corporativos, residenciales y públicos.',           created_at:NOW2, updated_at:NOW2, deleted_at:null },
       { id:'pf-03', org_id:ORG2, name:'Infraestructura',       description:'Vialidad, obras hidráulicas, puentes y túneles.',             created_at:NOW2, updated_at:NOW2, deleted_at:null },
-      { id:'pf-04', org_id:ORG2, name:'Salud e Institucional', description:'Hospitales, clínicas y centros médicos.',                     created_at:NOW2, updated_at:NOW2, deleted_at:null },
-      { id:'pf-05', org_id:ORG2, name:'BIM & Digital',          description:'Modelado BIM, coordinación digital y tecnología.',            created_at:NOW2, updated_at:NOW2, deleted_at:null },
+      { id:'pf-04', org_id:ORG2, name:'Personal',              description:'Gestión de personal, salud ocupacional y cirugía.',           created_at:NOW2, updated_at:NOW2, deleted_at:null },
+      { id:'pf-05', org_id:ORG2, name:'BIM',                   description:'Modelado BIM, coordinación digital y tecnología.',            created_at:NOW2, updated_at:NOW2, deleted_at:null },
+      { id:'pf-06', org_id:ORG2, name:'Gerencia Técnica',      description:'Gestión técnica, ingeniería, calidad y procesos.',            created_at:NOW2, updated_at:NOW2, deleted_at:null },
     ];
     const pgData = [
       { id:'pg-01', org_id:ORG2, portfolio_id:'pf-01', name:'Procesamiento de Minerales',      description:'Plantas mineras.', created_at:NOW2, updated_at:NOW2, deleted_at:null },
@@ -1831,15 +1832,17 @@ async function _showProjectRecovery() {
       { id:'pg-07', org_id:ORG2, portfolio_id:'pf-03', name:'Vialidad y Carreteras',           description:'Carreteras, autopistas y pavimentación.', created_at:NOW2, updated_at:NOW2, deleted_at:null },
       { id:'pg-08', org_id:ORG2, portfolio_id:'pf-03', name:'Obras Hidráulicas',               description:'Presas, irrigaciones y agua.', created_at:NOW2, updated_at:NOW2, deleted_at:null },
       { id:'pg-09', org_id:ORG2, portfolio_id:'pf-03', name:'Puentes y Túneles',               description:'Estructuras especiales de conectividad.', created_at:NOW2, updated_at:NOW2, deleted_at:null },
-      { id:'pg-10', org_id:ORG2, portfolio_id:'pf-04', name:'Hospitales y Clínicas',           description:'Infraestructura hospitalaria.', created_at:NOW2, updated_at:NOW2, deleted_at:null },
-      { id:'pg-11', org_id:ORG2, portfolio_id:'pf-04', name:'Personal Cirugía',                description:'Equipamiento quirúrgico y quirófanos.', created_at:NOW2, updated_at:NOW2, deleted_at:null },
+      { id:'pg-10', org_id:ORG2, portfolio_id:'pf-04', name:'Salud Ocupacional',               description:'Hospitales, salud y bienestar del personal.', created_at:NOW2, updated_at:NOW2, deleted_at:null },
+      { id:'pg-11', org_id:ORG2, portfolio_id:'pf-04', name:'Cirugía y Equipamiento',          description:'Equipamiento quirúrgico y quirófanos especializados.', created_at:NOW2, updated_at:NOW2, deleted_at:null },
       { id:'pg-12', org_id:ORG2, portfolio_id:'pf-05', name:'Modelado BIM',                    description:'Proyectos con metodología BIM.', created_at:NOW2, updated_at:NOW2, deleted_at:null },
       { id:'pg-13', org_id:ORG2, portfolio_id:'pf-05', name:'Coordinación Digital',            description:'Coordinación multidisciplinaria digital.', created_at:NOW2, updated_at:NOW2, deleted_at:null },
+      { id:'pg-14', org_id:ORG2, portfolio_id:'pf-06', name:'Control de Calidad',              description:'Gestión de calidad y auditorías técnicas.', created_at:NOW2, updated_at:NOW2, deleted_at:null },
+      { id:'pg-15', org_id:ORG2, portfolio_id:'pf-06', name:'Ingeniería y Diseño',             description:'Proyectos de ingeniería, diseño y consultoría.', created_at:NOW2, updated_at:NOW2, deleted_at:null },
     ];
     const mkProj = (id, pgId, code, name, start, budget, currency='USD') => ({
       id, org_id:ORG2, program_id:pgId, code, name,
       sponsor_id:null, start_date:start, actual_start_date:null, actual_finish_date:null,
-      data_date:null, calendar_id:'cal-cosapi-001', budget, currency,
+      data_date:null, calendar_id:'cal-default-001', budget, currency,
       is_template:false, settings:{}, created_at:NOW2, updated_at:NOW2, deleted_at:null,
     });
     const prjData = [
@@ -1861,9 +1864,11 @@ async function _showProjectRecovery() {
       mkProj('prj-16','pg-11','SC-2024-001','Equipamiento Quirófanos HN Dos de Mayo','2024-10-01',14500000,'PEN'),
       mkProj('prj-17','pg-11','SC-2025-001','Sala de Cirugía Robótica INEN',      '2025-04-01', 21000000,'PEN'),
       mkProj('prj-18','pg-12','BIM-2024-001','Modelo BIM Integrado Torre S.Isidro','2024-05-01',1200000,'PEN'),
+      mkProj('prj-19','pg-14','GT-2024-001','Sistema de Gestión de Calidad ISO',  '2024-02-01',  850000,'PEN'),
+      mkProj('prj-20','pg-15','GT-2024-002','Ingeniería de Valor — Proyectos Minería','2024-05-01',1500000,'PEN'),
     ];
     const calData = {
-      id:'cal-cosapi-001', org_id:ORG2, name:'Calendario COSAPI (Lun–Vie)',
+      id:'cal-default-001', org_id:ORG2, name:'Calendario Laboral (Lun–Vie)',
       work_week:[1,2,3,4,5], hours_per_day:8, shift_label:'Diurno',
       shift_start:'07:00', shift_end:'17:00', created_at:NOW2, updated_at:NOW2, deleted_at:null,
     };
@@ -1881,11 +1886,11 @@ async function _showProjectRecovery() {
       });
 
       await putBatch('calendars',  [calData]);
-      log('✓ Calendario COSAPI', '#22c55e');
+      log('✓ Calendario laboral registrado', '#22c55e');
       await putBatch('portfolios', pfData);
-      log(`✓ ${pfData.length} portafolios (Plantas Ind., Edificaciones, Infraestructura, Salud, BIM)`, '#22c55e');
+      log(`✓ ${pfData.length} portafolios (Plantas Ind., Edificaciones, Infraestructura, Personal, BIM, Gerencia Técnica)`, '#22c55e');
       await putBatch('programs',   pgData);
-      log(`✓ ${pgData.length} programas (incl. Personal Cirugía, Modelado BIM)`, '#22c55e');
+      log(`✓ ${pgData.length} programas (incl. Cirugía y Equipamiento, Modelado BIM)`, '#22c55e');
       await putBatch('projects',   prjData);
       log(`✓ ${prjData.length} proyectos creados`, '#22c55e');
       log('✅ Restauración completada', '#22c55e');
@@ -1893,7 +1898,7 @@ async function _showProjectRecovery() {
       dlg.close();
       dlg.remove();
       await _renderProjectList();
-      _showToast('Datos COSAPI restaurados: ' + pfData.length + ' portafolios, ' + prjData.length + ' proyectos', 'success');
+      _showToast('Estructura restaurada: ' + pfData.length + ' portafolios, ' + prjData.length + ' proyectos', 'success');
     } catch (err) {
       log('❌ Error: ' + err.message, '#ef4444');
       btnEl.disabled = false;
@@ -3404,6 +3409,7 @@ function _showOrgChart() {
     dlg = document.createElement('dialog');
     dlg.id = 'dlg-org-chart';
     dlg.style.cssText = 'border:none;border-radius:12px;padding:0;width:96vw;max-width:1400px;height:92vh;box-shadow:0 8px 40px rgba(0,0,0,0.3);overflow:hidden;position:fixed;top:4vh;left:max(0px,calc(50vw - 700px));margin:0;z-index:99999';
+    dlg.dataset.ocNormal = dlg.style.cssText;
     dlg.setAttribute('aria-labelledby', 'oc-dlg-title');
     dlg.setAttribute('aria-modal', 'true');
     dlg.innerHTML = `
@@ -3416,11 +3422,13 @@ function _showOrgChart() {
             <button id="oc-add-proj" class="btn btn-ghost btn-sm">＋ Proyecto</button>
             <span style="width:1px;height:18px;background:var(--clr-border)"></span>
             <button id="oc-reset-layout" class="btn btn-ghost btn-sm" title="Restablecer posiciones" aria-label="Restablecer posiciones">↺ Organizar</button>
+            <button id="oc-fit-view" class="btn btn-ghost btn-sm" title="Ajustar todo el contenido en la ventana" aria-label="Ajustar vista">⊞ Ajustar</button>
+            <button id="oc-maximize" class="btn btn-ghost btn-sm" title="Maximizar ventana" aria-label="Maximizar">⛶</button>
             <button id="oc-print" class="btn btn-ghost btn-sm">🖨 Imprimir</button>
             <button id="btn-orgchart-close" class="btn btn-ghost btn-sm">✕ Cerrar</button>
           </div>
         </div>
-        <div id="oc-viewport" style="flex:1;overflow:auto;position:relative">
+        <div id="oc-viewport" style="flex:1;overflow:auto;overflow-x:auto;overflow-y:auto;position:relative;cursor:grab">
           <div id="oc-canvas" style="position:relative;width:3200px;height:2400px">
             <svg id="oc-svg-lines" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;overflow:visible"></svg>
           </div>
@@ -3434,7 +3442,7 @@ function _showOrgChart() {
     dlg.querySelector('#btn-orgchart-close')?.addEventListener('click', () => dlg?.close());
     dlg.addEventListener('click', e => { if (e.target === dlg) dlg?.close(); });
 
-    // Drag-to-move ventana
+    // Drag-to-move ventana (header drag)
     { const hdr = dlg.querySelector('#oc-dlg-hdr');
       let _ox=0,_oy=0,_d=false;
       const onM=e=>{if(!_d)return;dlg.style.left=Math.max(0,e.clientX-_ox)+'px';dlg.style.top=Math.max(0,e.clientY-_oy)+'px';};
@@ -3443,6 +3451,53 @@ function _showOrgChart() {
       document.addEventListener('mousemove',onM);document.addEventListener('mouseup',onU);
       dlg.addEventListener('close', () => { document.removeEventListener('mousemove', onM); document.removeEventListener('mouseup', onU); }, { once: true });
     }
+
+    // Pan canvas with mouse drag inside viewport
+    { const vp = /** @type {HTMLElement|null} */ (dlg.querySelector('#oc-viewport'));
+      let _px=0,_py=0,_pd=false;
+      vp?.addEventListener('mousedown',e=>{if(/** @type {HTMLElement} */(e.target).closest('.oc-card,.oc-btn-edit,.oc-btn-add'))return;_px=e.clientX+vp.scrollLeft;_py=e.clientY+vp.scrollTop;_pd=true;vp.style.cursor='grabbing';e.preventDefault();});
+      vp?.addEventListener('mousemove',e=>{if(!_pd)return;vp.scrollLeft=_px-e.clientX;vp.scrollTop=_py-e.clientY;});
+      vp?.addEventListener('mouseup',()=>{_pd=false;vp.style.cursor='grab';});
+      vp?.addEventListener('mouseleave',()=>{_pd=false;vp.style.cursor='grab';});
+    }
+
+    // Maximize / restore
+    dlg.querySelector('#oc-maximize')?.addEventListener('click', () => {
+      const btn = /** @type {HTMLButtonElement} */ (dlg.querySelector('#oc-maximize'));
+      if (dlg.dataset.ocMaximized === '1') {
+        dlg.style.cssText = dlg.dataset.ocNormal ?? '';
+        dlg.dataset.ocMaximized = '0';
+        if (btn) btn.title = 'Maximizar ventana';
+        if (btn) btn.textContent = '⛶';
+      } else {
+        dlg.style.cssText = 'border:none;border-radius:0;padding:0;width:100vw;max-width:100vw;height:100vh;box-shadow:none;overflow:hidden;position:fixed;top:0;left:0;margin:0;z-index:99999';
+        dlg.dataset.ocMaximized = '1';
+        if (btn) btn.title = 'Restaurar tamaño';
+        if (btn) btn.textContent = '⊟';
+      }
+    });
+
+    // Fit all cards in viewport
+    dlg.querySelector('#oc-fit-view')?.addEventListener('click', () => {
+      const vp = /** @type {HTMLElement|null} */ (dlg.querySelector('#oc-viewport'));
+      const canvas = document.getElementById('oc-canvas');
+      if (!vp || !canvas) return;
+      const cards = [...canvas.querySelectorAll('.oc-card')];
+      if (cards.length === 0) return;
+      let minX = Infinity, minY = Infinity, maxX = 0, maxY = 0;
+      cards.forEach(card => {
+        const x = parseInt(/** @type {HTMLElement} */(card).style.left) || 0;
+        const y = parseInt(/** @type {HTMLElement} */(card).style.top)  || 0;
+        const w = (/** @type {HTMLElement} */(card)).offsetWidth  || 160;
+        const h = (/** @type {HTMLElement} */(card)).offsetHeight || 110;
+        if (x < minX) minX = x; if (y < minY) minY = y;
+        if (x + w > maxX) maxX = x + w; if (y + h > maxY) maxY = y + h;
+      });
+      if (!isFinite(minX)) return;
+      const PAD = 40;
+      vp.scrollLeft = Math.max(0, minX - PAD);
+      vp.scrollTop  = Math.max(0, minY - PAD);
+    });
 
     dlg.querySelector('#oc-add-pf')  ?.addEventListener('click', () => _ocOpenForm(dlg, 'portfolio', null));
     dlg.querySelector('#oc-add-prog')?.addEventListener('click', () => _ocOpenForm(dlg, 'program', null));
