@@ -9,6 +9,36 @@ import { Calendar, isoToDate } from './calendar.js';
 
 const _esc = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 
+function _makeDraggable(dialog, handleSelector) {
+  const handle = handleSelector ? dialog.querySelector(handleSelector) : dialog;
+  if (!handle) return;
+  let startX, startY, startLeft, startTop;
+  handle.style.cursor = 'move';
+  handle.addEventListener('mousedown', e => {
+    if (e.button !== 0) return;
+    if (/** @type {HTMLElement} */ (e.target).closest('button,input,select,textarea,a')) return;
+    e.preventDefault();
+    const rect = dialog.getBoundingClientRect();
+    startX = e.clientX; startY = e.clientY;
+    startLeft = rect.left; startTop = rect.top;
+    dialog.style.transform = 'none';
+    dialog.style.position = 'fixed';
+    dialog.style.margin = '0';
+    dialog.style.left = startLeft + 'px';
+    dialog.style.top = startTop + 'px';
+    const onMove = mv => {
+      dialog.style.left = (startLeft + mv.clientX - startX) + 'px';
+      dialog.style.top  = (startTop  + mv.clientY - startY) + 'px';
+    };
+    const onUp = () => {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+    };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  });
+}
+
 function _printToPdf(title, htmlContent) {
   const w = window.open('', '_blank', 'width=900,height=700');
   if (!w) return;
@@ -110,6 +140,7 @@ export class NotificationsPanel {
     this.el.style.cssText = 'display:flex;flex-direction:column;height:100%;font-family:var(--font-ui)';
 
     const hdr = document.createElement('div');
+    hdr.setAttribute('data-drag-handle', '');
     hdr.style.cssText = 'display:flex;align-items:center;gap:10px;padding:14px 18px;border-bottom:1px solid var(--clr-border);flex-shrink:0';
     hdr.innerHTML = `
       <span style="font-size:20px">🔔</span>
@@ -132,6 +163,7 @@ export class NotificationsPanel {
     this._body.style.cssText = 'flex:1;overflow:auto;padding:12px 18px';
     this.el.appendChild(this._body);
 
+    if (this.el.parentElement) _makeDraggable(this.el.parentElement, '[data-drag-handle]');
     this.refresh();
   }
 

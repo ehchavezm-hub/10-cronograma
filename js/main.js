@@ -1079,12 +1079,15 @@ async function _openResourceAssign(preSelectedId = null) {
     </label>`).join('');
 
   dlg.innerHTML = `
-    <div id="dlg-ra-hdr" style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--clr-border);background:var(--clr-surface-2);cursor:move;user-select:none">
+    <div id="dlg-ra-hdr" data-drag-handle style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--clr-border);background:var(--clr-surface-2);cursor:move;user-select:none">
       <div>
         <div id="ra-dlg-title" style="font-weight:700;font-size:15px">📌 Asignar Recursos a Actividades</div>
         <div style="font-size:11px;color:var(--clr-text-3);margin-top:2px">Selecciona un recurso y las actividades. Puedes filtrar y seleccionar todo.</div>
       </div>
-      <button id="dlg-ra-close" class="btn btn-icon btn-sm" aria-label="Cerrar asignación de recursos">✕</button>
+      <div style="display:flex;gap:4px;align-items:center">
+        <button id="dlg-ra-print" class="btn btn-ghost btn-icon btn-sm" aria-label="Imprimir" title="Imprimir" style="font-size:15px">🖨</button>
+        <button id="dlg-ra-close" class="btn btn-icon btn-sm" aria-label="Cerrar asignación de recursos">✕</button>
+      </div>
     </div>
     <div style="display:grid;grid-template-columns:260px 1fr;gap:0;height:420px;overflow:hidden">
       <!-- Panel izquierdo: Recursos -->
@@ -1121,18 +1124,11 @@ async function _openResourceAssign(preSelectedId = null) {
     </div>`;
 
   dlg.querySelector('#dlg-ra-close').addEventListener('click', () => dlg.close());
+  dlg.querySelector('#dlg-ra-print')?.addEventListener('click', () => {
+    _printToPdf('Asignación de Recursos', `<h1>Asignación de Recursos</h1>${dlg.innerHTML}`);
+  });
 
-  // Drag-to-move
-  { const hdr = dlg.querySelector('#dlg-ra-hdr');
-    let _ox=0,_oy=0,_d=false;
-    const onM=e=>{if(!_d)return;dlg.style.left=Math.max(0,e.clientX-_ox)+'px';dlg.style.top=Math.max(0,e.clientY-_oy)+'px';};
-    const onU=()=>{_d=false;hdr.style.cursor='move';};
-    hdr.addEventListener('mousedown',e=>{if(e.target.closest('button'))return;const r=dlg.getBoundingClientRect();_ox=e.clientX-r.left;_oy=e.clientY-r.top;_d=true;hdr.style.cursor='grabbing';e.preventDefault();});
-    if(dlg.__raClean)dlg.__raClean();
-    document.addEventListener('mousemove',onM);document.addEventListener('mouseup',onU);
-    dlg.__raClean=()=>{document.removeEventListener('mousemove',onM);document.removeEventListener('mouseup',onU);};
-    dlg.addEventListener('close', () => dlg.__raClean?.(), { once: true });
-  }
+  _makeDraggable(dlg, '[data-drag-handle]');
 
   const _getSelectedRes = () => dlg.querySelector('input[name="ra-res"]:checked')?.value ?? null;
   const _getSelectedTasks = () => [...dlg.querySelectorAll('.ra-task-cb:checked')].map(cb => cb.value);
@@ -1285,9 +1281,12 @@ async function _openCalendarEditor() {
     </tr>`).join('') || '<tr id="cal-ex-empty"><td colspan="4" style="padding:8px;text-align:center;color:var(--clr-text-3);font-size:12px">Sin excepciones registradas</td></tr>';
 
   dlg.innerHTML = `
-    <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid var(--clr-border);background:var(--clr-surface-2)">
+    <div data-drag-handle style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid var(--clr-border);background:var(--clr-surface-2);cursor:move">
       <span id="dlg-cal-title" style="font-weight:700;font-size:15px">🗓 Calendario del proyecto</span>
-      <button id="dlg-cal-close" class="btn btn-icon btn-sm" aria-label="Cerrar calendario">✕</button>
+      <div style="display:flex;gap:4px;align-items:center">
+        <button id="dlg-cal-print" class="btn btn-ghost btn-icon btn-sm" aria-label="Imprimir calendario" title="Imprimir" style="font-size:15px">🖨</button>
+        <button id="dlg-cal-close" class="btn btn-icon btn-sm" aria-label="Cerrar calendario">✕</button>
+      </div>
     </div>
     <div style="padding:16px;display:flex;flex-direction:column;gap:14px;max-height:68vh;overflow-y:auto">
       <label style="font-size:12px;font-weight:600;color:var(--clr-text-2)">Nombre del calendario
@@ -1335,43 +1334,11 @@ async function _openCalendarEditor() {
 
   dlg.querySelector('#dlg-cal-close')?.addEventListener('click', () => dlg.close());
   dlg.querySelector('#dlg-cal-cancel')?.addEventListener('click', () => dlg.close());
-
-  // Make calendar dialog draggable
-  {
-    const hdr = /** @type {HTMLElement|null} */ (dlg.querySelector('div:first-child'));
-    if (hdr) {
-      hdr.style.cursor = 'move';
-      const _calMove = (/** @type {MouseEvent} */ e) => {
-        dlg.style.transform = 'none';
-        dlg.style.left = (dlg.offsetLeft + e.movementX) + 'px';
-        dlg.style.top  = (dlg.offsetTop  + e.movementY) + 'px';
-      };
-      const _calUp = () => {
-        document.removeEventListener('mousemove', _calMove);
-        document.removeEventListener('mouseup', _calUp);
-      };
-      hdr.addEventListener('mousedown', (e) => {
-        if (/** @type {HTMLElement} */ (e.target).closest('button')) return;
-        e.preventDefault();
-        if (dlg.style.position !== 'fixed') {
-          const r = dlg.getBoundingClientRect();
-          dlg.style.position = 'fixed';
-          dlg.style.margin = '0';
-          dlg.style.left = r.left + 'px';
-          dlg.style.top  = r.top  + 'px';
-        }
-        document.addEventListener('mousemove', _calMove);
-        document.addEventListener('mouseup', _calUp);
-      });
-      dlg.addEventListener('close', () => {
-        document.removeEventListener('mousemove', _calMove);
-        document.removeEventListener('mouseup', _calUp);
-        dlg.style.position = '';
-        dlg.style.left = '';
-        dlg.style.top  = '';
-      }, { once: true });
-    }
-  }
+  dlg.querySelector('#dlg-cal-print')?.addEventListener('click', () => {
+    const body2 = dlg.querySelector('div:nth-child(2)');
+    _printToPdf('Calendario del proyecto', `<h1>Calendario del proyecto</h1>${body2?.innerHTML ?? ''}`);
+  });
+  _makeDraggable(dlg, '[data-drag-handle]');
 
   // Eliminar excepción del listado
   body.addEventListener('click', e => {
@@ -1757,6 +1724,11 @@ function _escAttr(s) {
 function _bindNewProject() {
   const btn    = document.getElementById('btn-new-project');
   const dlg    = /** @type {HTMLDialogElement|null} */ (document.getElementById('dlg-new-item'));
+  if (dlg) _makeDraggable(dlg, '[data-drag-handle]');
+  document.getElementById('btn-ni-print')?.addEventListener('click', () => {
+    const formEl = document.getElementById('form-new-item');
+    _printToPdf('Nuevo Elemento', `<h1>Nuevo Elemento</h1>${formEl?.innerHTML ?? ''}`);
+  });
   const form   = document.getElementById('form-new-item');
   const cancel = document.getElementById('btn-ni-cancel');
   const submitBtn = document.getElementById('btn-ni-submit');
@@ -2140,6 +2112,7 @@ function _makeDraggable(dialog, handleSelector) {
     startLeft = rect.left; startTop = rect.top;
     dialog.style.position = 'fixed';
     dialog.style.margin = '0';
+    dialog.style.transform = 'none';
     dialog.style.left = startLeft + 'px';
     dialog.style.top = startTop + 'px';
     const onMove = mv => {
@@ -2349,42 +2322,7 @@ function _bindToolbar() {
     const activeName  = document.getElementById('bl-active-name');
     const nameInput   = /** @type {HTMLInputElement} */ (document.getElementById('bl-name-input'));
 
-    // Make dlg-baseline draggable
-    {
-      const hdr = dlg?.querySelector(':scope > div:first-child');
-      if (hdr && dlg) {
-        /** @type {HTMLElement} */ (hdr).style.cursor = 'move';
-        const _blMove = (/** @type {MouseEvent} */ e) => {
-          dlg.style.transform = 'none';
-          dlg.style.left = (dlg.offsetLeft + e.movementX) + 'px';
-          dlg.style.top  = (dlg.offsetTop  + e.movementY) + 'px';
-        };
-        const _blUp = () => {
-          document.removeEventListener('mousemove', _blMove);
-          document.removeEventListener('mouseup', _blUp);
-        };
-        hdr.addEventListener('mousedown', (e) => {
-          if (/** @type {HTMLElement} */ (e.target).closest('button')) return;
-          e.preventDefault();
-          if (dlg.style.position !== 'fixed') {
-            const r = dlg.getBoundingClientRect();
-            dlg.style.position = 'fixed';
-            dlg.style.margin = '0';
-            dlg.style.left = r.left + 'px';
-            dlg.style.top  = r.top  + 'px';
-          }
-          document.addEventListener('mousemove', _blMove);
-          document.addEventListener('mouseup', _blUp);
-        });
-        dlg.addEventListener('close', () => {
-          document.removeEventListener('mousemove', _blMove);
-          document.removeEventListener('mouseup', _blUp);
-          dlg.style.position = '';
-          dlg.style.left = '';
-          dlg.style.top  = '';
-        });
-      }
-    }
+    if (dlg) _makeDraggable(dlg, '[data-drag-handle]');
 
     async function _refreshBaselineList() {
       const pid = appState.state.project?.id;
@@ -2470,6 +2408,10 @@ function _bindToolbar() {
       dlg?.showModal();
     });
     document.getElementById('dlg-bl-close')?.addEventListener('click', () => dlg?.close());
+    document.getElementById('dlg-bl-print')?.addEventListener('click', () => {
+      const listEl2 = document.getElementById('bl-list');
+      _printToPdf('Línea base', `<h1>Línea base</h1>${listEl2?.innerHTML ?? '<p>Sin datos.</p>'}`);
+    });
     document.getElementById('btn-bl-save')?.addEventListener('click', async () => {
       const name = nameInput?.value.trim() || '';
       if (!appState.state.project) { _showToast('Abre un proyecto primero', 'warn'); return; }
@@ -2729,6 +2671,11 @@ function _bindToolbar() {
     const panel = document.getElementById('panel-resource-leveling');
     if (panel) panel.style.display = 'none';
   });
+  document.getElementById('btn-leveling-print')?.addEventListener('click', () => {
+    const c = document.getElementById('resource-leveling-container');
+    _printToPdf('Nivelación de Recursos', `<h1>Nivelación de Recursos</h1>${c?.innerHTML ?? '<p>Sin datos.</p>'}`);
+  });
+  _makeDraggable(document.getElementById('rl-card'), '[data-drag-handle]');
 
   // ---- Monte Carlo ----
   let _mcPanel = /** @type {MonteCarloPanel|null} */ (null);

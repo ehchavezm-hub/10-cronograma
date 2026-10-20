@@ -460,6 +460,14 @@ export class MonteCarloPanel {
     const max = sorted[n - 1];
     const range = max - min || 1;
 
+    // Forzar rango mínimo para que la S-curve no degenere a línea vertical
+    const dataRange2 = max - min;
+    const minRange2 = Math.max(dataRange2, Math.ceil(min * 0.15) || 20);
+    const spread2 = (minRange2 - dataRange2) / 2;
+    const dispMin = min - spread2;
+    const dispMax = max + spread2;
+    const dispRange = dispMax - dispMin;
+
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
     svg.setAttribute('width', String(W));
@@ -491,7 +499,7 @@ export class MonteCarloPanel {
     for (let i = 0; i <= STEPS; i++) {
       const frac = i / STEPS;
       const val = sorted[Math.min(Math.floor(frac * n), n - 1)];
-      const x = ((val - min) / range) * iw;
+      const x = ((val - dispMin) / dispRange) * iw;
       const y = ih * (1 - frac);
       pathD += i === 0 ? `M${x.toFixed(1)},${y.toFixed(1)}` : ` L${x.toFixed(1)},${y.toFixed(1)}`;
     }
@@ -506,7 +514,7 @@ export class MonteCarloPanel {
     // P50 / P80 / P90 vertical lines
     const pLines = [['P50', p50, '#16a34a'], ['P80', p80, '#dc2626'], ['P90', p90, '#7c3aed']];
     pLines.forEach(([label, val, color], li) => {
-      const vx = ((val - min) / range) * iw;
+      const vx = ((val - dispMin) / dispRange) * iw;
       if (vx < 0 || vx > iw) return;
       const vl = document.createElementNS('http://www.w3.org/2000/svg', 'line');
       vl.setAttribute('x1', String(vx)); vl.setAttribute('y1', '0');
@@ -530,7 +538,7 @@ export class MonteCarloPanel {
     axLine.setAttribute('x2', String(iw)); axLine.setAttribute('y2', '0');
     axLine.setAttribute('class', 'mc-hist-axis');
     axG.appendChild(axLine);
-    [[0, min], [iw, max]].forEach(([pos, val]) => {
+    [[0, dispMin], [iw, dispMax]].forEach(([pos, val]) => {
       const t = document.createElementNS('http://www.w3.org/2000/svg', 'text');
       t.setAttribute('x', String(pos)); t.setAttribute('y', '14');
       t.setAttribute('text-anchor', pos === 0 ? 'start' : 'end');
@@ -546,41 +554,51 @@ export class MonteCarloPanel {
   // ─── Tornado chart SVG ────────────────────────────────────────────────────
 
   /**
-   * Tornado chart: top 10 tareas por desviación estándar (σ).
-   * @param {Array<{id:string,std:number,mean:number,p50:number,p80:number,p90:number}>} results
+   * Tornado chart: top 10 tareas por sensibilidad (correlación con fin del proyecto).
+   * @param {Array<{id:string,std:number,mean:number,p50:number,p80:number,p90:number,sensitivity?:number}>} results
    * @returns {Element}
    */
   _buildTornado(results) {
     const top10 = [...results]
-      .map(r => ({ ...r, name: this._getTaskName(r.id) }))
-      .filter(r => r.std > 0)
-      .sort((a, b) => b.std - a.std)
+      .map(r => ({ ...r, name: this._getTaskName(r.id), sens: r.sensitivity ?? Math.min(1, r.std / 5) }))
+      .filter(r => r.sens > 0.001)
+      .sort((a, b) => b.sens - a.sens)
       .slice(0, 10);
 
     if (top10.length === 0) {
       const p = document.createElement('p');
       p.className = 'mc-note';
-      p.textContent = 'No hay datos de desviación estándar disponibles (use estimados de 3 puntos).';
+      p.textContent = 'No hay datos de sensibilidad disponibles. Ejecute la simulación primero.';
       return p;
     }
 
-    const ROW_H = 26;
-    const PAD = { top: 4, right: 50, bottom: 4, left: 160 };
+    const ROW_H = 28;
+    const PAD = { top: 24, right: 60, bottom: 8, left: 160 };
     const W = Math.max(380, (this._resultsArea?.clientWidth || 700) - 32);
     const barArea = W - PAD.left - PAD.right;
     const H = PAD.top + top10.length * ROW_H + PAD.bottom;
-    const maxStd = top10[0].std;
+    const maxSens = top10[0].sens;
 
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
     svg.setAttribute('width', String(W));
     svg.setAttribute('class', 'mc-histogram');
 
+    // Título del eje
+    const axisLbl = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    axisLbl.setAttribute('x', String(PAD.left + barArea / 2));
+    axisLbl.setAttribute('y', '14');
+    axisLbl.setAttribute('text-anchor', 'middle');
+    axisLbl.setAttribute('class', 'mc-hist-tick');
+    axisLbl.setAttribute('font-size', '10');
+    axisLbl.textContent = 'Correlación con fecha fin del proyecto';
+    svg.appendChild(axisLbl);
+
     top10.forEach((r, i) => {
       const y = PAD.top + i * ROW_H;
-      const bw = (r.std / maxStd) * barArea;
+      const bw = (r.sens / maxSens) * barArea;
+      const isCrit = this._cpmResult?.tasks?.get(r.id)?.is_critical;
 
-      // Alternating row stripe
       if (i % 2 === 1) {
         const stripe = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
         stripe.setAttribute('x', '0'); stripe.setAttribute('y', String(y));
@@ -589,14 +607,13 @@ export class MonteCarloPanel {
         svg.appendChild(stripe);
       }
 
-      // Bar
       const bar = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
       bar.setAttribute('x', String(PAD.left)); bar.setAttribute('y', String(y + 4));
-      bar.setAttribute('width', String(Math.max(2, bw))); bar.setAttribute('height', String(ROW_H - 8));
-      bar.setAttribute('fill', 'var(--mc-accent, #2563eb)'); bar.setAttribute('opacity', '0.78');
+      bar.setAttribute('width', String(Math.max(3, bw))); bar.setAttribute('height', String(ROW_H - 8));
+      bar.setAttribute('fill', isCrit ? '#dc2626' : 'var(--mc-accent, #2563eb)');
+      bar.setAttribute('opacity', '0.78');
       svg.appendChild(bar);
 
-      // Task name
       const lbl = document.createElementNS('http://www.w3.org/2000/svg', 'text');
       lbl.setAttribute('x', String(PAD.left - 6)); lbl.setAttribute('y', String(y + ROW_H / 2));
       lbl.setAttribute('text-anchor', 'end'); lbl.setAttribute('dominant-baseline', 'middle');
@@ -605,12 +622,11 @@ export class MonteCarloPanel {
       lbl.textContent = name.length > 22 ? name.slice(0, 22) + '…' : name;
       svg.appendChild(lbl);
 
-      // Std value
       const val = document.createElementNS('http://www.w3.org/2000/svg', 'text');
       val.setAttribute('x', String(PAD.left + bw + 4)); val.setAttribute('y', String(y + ROW_H / 2));
       val.setAttribute('dominant-baseline', 'middle'); val.setAttribute('class', 'mc-hist-tick');
       val.setAttribute('font-size', '10');
-      val.textContent = r.std.toFixed(1) + 'd';
+      val.textContent = (r.sens * 100).toFixed(0) + '%';
       svg.appendChild(val);
     });
 
@@ -691,6 +707,28 @@ export class MonteCarloPanel {
       g.appendChild(dot);
     }
 
+    // Línea de regresión lineal
+    if (data.length >= 3) {
+      const n2 = data.length;
+      let sx2 = 0, sy2 = 0, sxy2 = 0, sx22 = 0;
+      for (const r of data) { sx2 += r.mean; sy2 += r.std; sxy2 += r.mean * r.std; sx22 += r.mean * r.mean; }
+      const denom = n2 * sx22 - sx2 * sx2;
+      if (Math.abs(denom) > 1e-9) {
+        const slope = (n2 * sxy2 - sx2 * sy2) / denom;
+        const intercept = (sy2 - slope * sx2) / n2;
+        const yAtMin = slope * minX + intercept;
+        const yAtMax = slope * maxX + intercept;
+        const rx1 = 0, ry1 = ih - (yAtMin / maxY) * ih;
+        const rx2 = iw, ry2 = ih - (yAtMax / maxY) * ih;
+        const regLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        regLine.setAttribute('x1', String(rx1)); regLine.setAttribute('y1', String(ry1));
+        regLine.setAttribute('x2', String(rx2)); regLine.setAttribute('y2', String(ry2));
+        regLine.setAttribute('stroke', '#f59e0b'); regLine.setAttribute('stroke-width', '2');
+        regLine.setAttribute('stroke-dasharray', '5 3'); regLine.setAttribute('opacity', '0.9');
+        g.appendChild(regLine);
+      }
+    }
+
     // Axes
     const axX = document.createElementNS('http://www.w3.org/2000/svg', 'line');
     axX.setAttribute('x1', '0'); axX.setAttribute('y1', String(ih));
@@ -731,16 +769,26 @@ export class MonteCarloPanel {
     g.appendChild(xLbl);
 
     // Legend
-    [['#dc2626', 'Crítica'], ['var(--mc-accent, #2563eb)', 'No crítica']].forEach(([color, label], i) => {
-      const lx = 10 + i * 110, ly = ih + 28;
-      const dot2 = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-      dot2.setAttribute('cx', String(lx)); dot2.setAttribute('cy', String(ly));
-      dot2.setAttribute('r', '4'); dot2.setAttribute('fill', color); dot2.setAttribute('opacity', '0.75');
+    [['#dc2626', 'Crítica'], ['var(--mc-accent, #2563eb)', 'No crítica'], ['#f59e0b', 'Tendencia']].forEach(([color, label], i) => {
+      const lx = 10 + i * 100, ly = ih + 28;
+      if (label === 'Tendencia') {
+        const seg = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        seg.setAttribute('x1', String(lx - 5)); seg.setAttribute('y1', String(ly));
+        seg.setAttribute('x2', String(lx + 5)); seg.setAttribute('y2', String(ly));
+        seg.setAttribute('stroke', color); seg.setAttribute('stroke-width', '2');
+        seg.setAttribute('stroke-dasharray', '3 2');
+        g.appendChild(seg);
+      } else {
+        const dot2 = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        dot2.setAttribute('cx', String(lx)); dot2.setAttribute('cy', String(ly));
+        dot2.setAttribute('r', '4'); dot2.setAttribute('fill', color); dot2.setAttribute('opacity', '0.75');
+        g.appendChild(dot2);
+      }
       const lt = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-      lt.setAttribute('x', String(lx + 7)); lt.setAttribute('y', String(ly));
+      lt.setAttribute('x', String(lx + 8)); lt.setAttribute('y', String(ly));
       lt.setAttribute('dominant-baseline', 'middle'); lt.setAttribute('class', 'mc-hist-tick');
       lt.setAttribute('font-size', '9'); lt.textContent = label;
-      g.appendChild(dot2); g.appendChild(lt);
+      g.appendChild(lt);
     });
 
     return /** @type {any} */ (svg);
@@ -810,21 +858,27 @@ export class MonteCarloPanel {
    */
   _buildHistogram(sorted, p80, fmt) {
     const W = Math.max(300, (this._resultsArea?.clientWidth || 480) - 32);
-    const H = Math.max(120, Math.round(W * 0.33));
+    const H = Math.max(140, Math.round(W * 0.35));
     const PAD = { top: 8, right: 12, bottom: 32, left: 36 };
     const inner_w = W - PAD.left - PAD.right;
     const inner_h = H - PAD.top - PAD.bottom;
 
-    const min = sorted[0];
-    const max = sorted[sorted.length - 1];
-    const range = max - min || 1;
+    const dataMin = sorted[0];
+    const dataMax = sorted[sorted.length - 1];
+    // Forzar rango mínimo para mostrar al menos 20 barras visibles
+    const dataRange = dataMax - dataMin;
+    const minRange = Math.max(dataRange, Math.ceil(dataMin * 0.15) || 20);
+    const spread = (minRange - dataRange) / 2;
+    const min = dataMin - spread;
+    const max = dataMax + spread;
+    const range = max - min;
 
-    const BINS = 30;
+    const BINS = 20;
     const binW = range / BINS;
     const counts = new Array(BINS).fill(0);
     for (const v of sorted) {
       let b = Math.floor((v - min) / binW);
-      if (b >= BINS) b = BINS - 1;
+      b = Math.max(0, Math.min(BINS - 1, b));
       counts[b]++;
     }
     const maxCount = Math.max(...counts, 1);
