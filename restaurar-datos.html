@@ -1,0 +1,266 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ECM Project — Restaurar Datos COSAPI</title>
+<style>
+  :root { --bg:#f8fafc; --fg:#1e293b; --card:#fff; --border:#e2e8f0;
+          --green:#22c55e; --red:#ef4444; --blue:#3b82f6; --accent:#4f46e5; }
+  @media(prefers-color-scheme:dark){ :root{--bg:#0f172a;--fg:#e2e8f0;--card:#1e293b;--border:#334155} }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--fg);font-family:system-ui,sans-serif;
+       min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:16px;
+        padding:32px;max-width:560px;width:100%;box-shadow:0 4px 24px #0001}
+  h1{font-size:22px;font-weight:700;margin-bottom:6px}
+  .subtitle{font-size:13px;color:#64748b;margin-bottom:24px}
+  .section{border:1px solid var(--border);border-radius:8px;padding:12px 16px;margin-bottom:12px}
+  .section h3{font-size:13px;font-weight:600;margin-bottom:6px;color:var(--accent)}
+  .item{font-size:12px;color:#64748b;padding:2px 0;padding-left:12px}
+  .btn{display:block;width:100%;padding:14px;border:none;border-radius:8px;font-size:15px;
+       font-weight:600;cursor:pointer;margin-top:20px;transition:opacity .15s}
+  .btn:hover{opacity:.88}
+  .btn-primary{background:var(--accent);color:#fff}
+  .btn-danger{background:var(--red);color:#fff;margin-top:8px;font-size:13px;padding:10px}
+  #log{margin-top:20px;font-size:12px;font-family:monospace;
+       background:#0f172a;color:#94a3b8;border-radius:8px;padding:14px;
+       max-height:220px;overflow-y:auto;white-space:pre-wrap;display:none}
+  .ok{color:var(--green)} .err{color:var(--red)} .info{color:#60a5fa}
+</style>
+</head>
+<body>
+<div class="card">
+  <h1>🔄 Restaurar Datos COSAPI</h1>
+  <p class="subtitle">Este asistente recrea la estructura de portafolios, programas y proyectos en ECM Project.</p>
+
+  <div class="section">
+    <h3>📁 Portafolios que se crearán</h3>
+    <div class="item">🏗 Plantas Industriales</div>
+    <div class="item">🏢 Edificaciones</div>
+    <div class="item">🛣 Infraestructura</div>
+    <div class="item">🏥 Salud e Institucional</div>
+    <div class="item">💻 BIM &amp; Digital</div>
+  </div>
+  <div class="section">
+    <h3>📂 Programas incluidos</h3>
+    <div class="item">Procesamiento de Minerales · Plantas de Energía · Plantas Químicas</div>
+    <div class="item">Edificios Corporativos · Edificios Residenciales · Edificios Públicos</div>
+    <div class="item">Vialidad y Carreteras · Obras Hidráulicas · Puentes y Túneles</div>
+    <div class="item">Hospitales y Clínicas · Personal Cirugía</div>
+    <div class="item">Modelado BIM · Coordinación Digital</div>
+  </div>
+  <div class="section">
+    <h3>📋 Proyectos representativos</h3>
+    <div class="item">18 proyectos iniciales con fechas, código y presupuesto referencial</div>
+    <div class="item">Calendario Perú 2026 (Lun–Vie, feriados nacionales)</div>
+    <div class="item">Los datos reales de tareas deberán reimportarse desde respaldos JSON/XER</div>
+  </div>
+
+  <button class="btn btn-primary" id="btn-restore">⚡ Restaurar ahora</button>
+  <button class="btn btn-danger" id="btn-clear" style="display:none">🗑 Limpiar datos de prueba (solo proyectos restaurados)</button>
+  <div id="log"></div>
+</div>
+
+<script>
+const DB_NAME = 'cronograma';
+const DB_VERSION = 5;
+const NOW = new Date().toISOString();
+const ORG_ID = '00000000-0000-0000-0000-000000000001';
+
+const uid = (prefix, n) => `${prefix}-${String(n).padStart(4,'0')}`;
+
+// ──────────────────────────────────────────────
+// DATOS COSAPI
+// ──────────────────────────────────────────────
+const CAL_COSAPI = {
+  id: 'cal-cosapi-001',
+  org_id: ORG_ID,
+  name: 'Calendario COSAPI (Lun–Vie)',
+  work_week: [1,2,3,4,5],
+  hours_per_day: 8,
+  shift_label: 'Diurno',
+  shift_start: '07:00',
+  shift_end: '17:00',
+  created_at: NOW, updated_at: NOW, deleted_at: null,
+};
+
+const PORTFOLIOS = [
+  { id:'pf-01', org_id:ORG_ID, name:'Plantas Industriales', description:'Proyectos de plantas de procesamiento, energía y manufactura.', created_at:NOW, updated_at:NOW, deleted_at:null },
+  { id:'pf-02', org_id:ORG_ID, name:'Edificaciones',         description:'Proyectos de edificios corporativos, residenciales y públicos.',  created_at:NOW, updated_at:NOW, deleted_at:null },
+  { id:'pf-03', org_id:ORG_ID, name:'Infraestructura',       description:'Vialidad, obras hidráulicas, puentes y túneles.',                created_at:NOW, updated_at:NOW, deleted_at:null },
+  { id:'pf-04', org_id:ORG_ID, name:'Salud e Institucional', description:'Hospitales, clínicas y centros médicos.',                         created_at:NOW, updated_at:NOW, deleted_at:null },
+  { id:'pf-05', org_id:ORG_ID, name:'BIM & Digital',          description:'Modelado BIM, coordinación digital y transformación tecnológica.', created_at:NOW, updated_at:NOW, deleted_at:null },
+];
+
+const PROGRAMS = [
+  // Plantas Industriales
+  { id:'pg-01', org_id:ORG_ID, portfolio_id:'pf-01', name:'Procesamiento de Minerales', description:'Plantas de procesamiento minero.', created_at:NOW, updated_at:NOW, deleted_at:null },
+  { id:'pg-02', org_id:ORG_ID, portfolio_id:'pf-01', name:'Plantas de Energía',         description:'Plantas termoeléctricas y subestaciones.', created_at:NOW, updated_at:NOW, deleted_at:null },
+  { id:'pg-03', org_id:ORG_ID, portfolio_id:'pf-01', name:'Plantas Químicas e Industriales', description:'Plantas de fertilizantes, químicos y manufactura.', created_at:NOW, updated_at:NOW, deleted_at:null },
+  // Edificaciones
+  { id:'pg-04', org_id:ORG_ID, portfolio_id:'pf-02', name:'Edificios Corporativos',   description:'Torres de oficinas y sedes empresariales.', created_at:NOW, updated_at:NOW, deleted_at:null },
+  { id:'pg-05', org_id:ORG_ID, portfolio_id:'pf-02', name:'Edificios Residenciales',  description:'Conjuntos habitacionales y condominios.', created_at:NOW, updated_at:NOW, deleted_at:null },
+  { id:'pg-06', org_id:ORG_ID, portfolio_id:'pf-02', name:'Edificios Públicos',        description:'Ministerios, universidades, centros gubernamentales.', created_at:NOW, updated_at:NOW, deleted_at:null },
+  // Infraestructura
+  { id:'pg-07', org_id:ORG_ID, portfolio_id:'pf-03', name:'Vialidad y Carreteras',    description:'Carreteras, autopistas y pavimentación urbana.', created_at:NOW, updated_at:NOW, deleted_at:null },
+  { id:'pg-08', org_id:ORG_ID, portfolio_id:'pf-03', name:'Obras Hidráulicas',        description:'Presas, irrigaciones y sistemas de agua.', created_at:NOW, updated_at:NOW, deleted_at:null },
+  { id:'pg-09', org_id:ORG_ID, portfolio_id:'pf-03', name:'Puentes y Túneles',        description:'Estructuras especiales de conectividad.', created_at:NOW, updated_at:NOW, deleted_at:null },
+  // Salud
+  { id:'pg-10', org_id:ORG_ID, portfolio_id:'pf-04', name:'Hospitales y Clínicas',   description:'Infraestructura hospitalaria de alta complejidad.', created_at:NOW, updated_at:NOW, deleted_at:null },
+  { id:'pg-11', org_id:ORG_ID, portfolio_id:'pf-04', name:'Personal Cirugía',         description:'Equipamiento y obras para cirugía y quirófanos.', created_at:NOW, updated_at:NOW, deleted_at:null },
+  // BIM
+  { id:'pg-12', org_id:ORG_ID, portfolio_id:'pf-05', name:'Modelado BIM',             description:'Proyectos con metodología BIM completa.', created_at:NOW, updated_at:NOW, deleted_at:null },
+  { id:'pg-13', org_id:ORG_ID, portfolio_id:'pf-05', name:'Coordinación Digital',    description:'Coordinación multidisciplinaria digital.', created_at:NOW, updated_at:NOW, deleted_at:null },
+];
+
+function proj(id, program_id, code, name, start, budget, currency='USD') {
+  return { id, org_id:ORG_ID, program_id, code, name,
+    sponsor_id:null, start_date:start, actual_start_date:null,
+    actual_finish_date:null, data_date:null,
+    calendar_id:'cal-cosapi-001', budget, currency,
+    is_template:false, settings:{},
+    created_at:NOW, updated_at:NOW, deleted_at:null };
+}
+
+const PROJECTS = [
+  // Plantas Industriales — Procesamiento
+  proj('prj-01','pg-01','PI-2024-001','Planta Concentradora Norte',    '2024-03-01',  42000000),
+  proj('prj-02','pg-01','PI-2024-002','Ampliación Planta Toquepala',   '2024-06-15',  28500000),
+  // Plantas Industriales — Energía
+  proj('prj-03','pg-02','PE-2024-001','Subestación Eléctrica 220kV',   '2024-04-01',  18000000),
+  proj('prj-04','pg-02','PE-2025-001','Planta de Gas Natural Licuado', '2025-01-10',  65000000),
+  // Plantas Industriales — Químicas
+  proj('prj-05','pg-03','PQ-2024-001','Planta de Fertilizantes Ica',   '2024-07-01',  31000000),
+  // Edificaciones — Corporativos
+  proj('prj-06','pg-04','EC-2024-001','Torre Corporativa San Isidro',  '2024-05-01',  55000000,'PEN'),
+  proj('prj-07','pg-04','EC-2025-001','Sede Central COSAPI Lima',      '2025-03-01',  38000000,'PEN'),
+  // Edificaciones — Residencial
+  proj('prj-08','pg-05','ER-2024-001','Condominio Las Magnolias',      '2024-02-01',  22000000,'PEN'),
+  proj('prj-09','pg-05','ER-2025-001','Edificio Residencial El Golf',  '2025-06-01',  19500000,'PEN'),
+  // Edificaciones — Públicos
+  proj('prj-10','pg-06','EP-2024-001','Hospital Regional Cajamarca',   '2024-08-01',  95000000,'PEN'),
+  // Infraestructura — Vialidad
+  proj('prj-11','pg-07','IV-2024-001','Carretera Longitudinal Sierra Km 120', '2024-01-15', 87000000,'PEN'),
+  proj('prj-12','pg-07','IV-2024-002','Pavimentación Av. Industrial Piura', '2024-09-01', 12000000,'PEN'),
+  // Infraestructura — Hidráulica
+  proj('prj-13','pg-08','IH-2024-001','Presa Derivadora Río Majes',    '2024-03-15',  145000000,'PEN'),
+  // Infraestructura — Puentes
+  proj('prj-14','pg-09','IP-2025-001','Puente Vehicular Río Rímac',    '2025-02-01',  34000000,'PEN'),
+  // Salud — Hospitales
+  proj('prj-15','pg-10','SH-2024-001','Hospital Rebagliati — Módulo Oncología', '2024-06-01', 78000000,'PEN'),
+  // Salud — Personal Cirugía
+  proj('prj-16','pg-11','SC-2024-001','Equipamiento Quirófanos HN Dos de Mayo', '2024-10-01', 14500000,'PEN'),
+  proj('prj-17','pg-11','SC-2025-001','Sala de Cirugía Robótica INEN',  '2025-04-01', 21000000,'PEN'),
+  // BIM
+  proj('prj-18','pg-12','BIM-2024-001','Modelo BIM Integrado — Torre San Isidro', '2024-05-01', 1200000,'PEN'),
+];
+
+// ──────────────────────────────────────────────
+// LÓGICA DE RESTAURACIÓN
+// ──────────────────────────────────────────────
+const logEl = document.getElementById('log');
+function log(msg, cls='') {
+  logEl.style.display = 'block';
+  logEl.innerHTML += `<span class="${cls}">${msg}</span>\n`;
+  logEl.scrollTop = logEl.scrollHeight;
+}
+
+async function openDB() {
+  return new Promise((res, rej) => {
+    const req = indexedDB.open(DB_NAME, DB_VERSION);
+    req.onupgradeneeded = e => {
+      const db = e.target.result;
+      const tx = e.target.transaction;
+      const STORES_DEF = [
+        'organizations','memberships','portfolios','programs','projects','calendars',
+        'calendar_exceptions','tasks','task_dependencies','resources',
+        'task_resources','baselines','baseline_tasks','outbox','meta','risks',
+      ];
+      for (const name of STORES_DEF) {
+        let store;
+        if (!db.objectStoreNames.contains(name)) store = db.createObjectStore(name, { keyPath: 'id' });
+        else store = tx.objectStore(name);
+        if (name === 'tasks') {
+          if (!store.indexNames.contains('project_id')) store.createIndex('project_id','project_id',{unique:false});
+          if (!store.indexNames.contains('updated_at')) store.createIndex('updated_at','updated_at',{unique:false});
+        }
+        if (['task_dependencies','task_resources','risks','baselines'].includes(name)) {
+          if (!store.indexNames.contains('project_id')) store.createIndex('project_id','project_id',{unique:false});
+        }
+        if (name === 'baseline_tasks') {
+          if (!store.indexNames.contains('baseline_id')) store.createIndex('baseline_id','baseline_id',{unique:false});
+        }
+        if (name === 'task_resources' && !store.indexNames.contains('task_id'))
+          store.createIndex('task_id','task_id',{unique:false});
+        if (name === 'risks' && !store.indexNames.contains('deleted_at'))
+          store.createIndex('deleted_at','deleted_at',{unique:false});
+      }
+    };
+    req.onsuccess = e => res(e.target.result);
+    req.onerror   = e => rej(e.target.error);
+  });
+}
+
+async function putAll(db, storeName, records) {
+  return new Promise((res, rej) => {
+    const tx = db.transaction(storeName, 'readwrite');
+    const st = tx.objectStore(storeName);
+    for (const r of records) st.put(r);
+    tx.oncomplete = () => res(records.length);
+    tx.onerror = () => rej(tx.error);
+  });
+}
+
+document.getElementById('btn-restore').addEventListener('click', async () => {
+  document.getElementById('btn-restore').disabled = true;
+  log('Conectando con IndexedDB...', 'info');
+  try {
+    const db = await openDB();
+    log('✓ Base de datos abierta (v' + db.version + ')', 'ok');
+
+    await putAll(db, 'calendars', [CAL_COSAPI]);
+    log('✓ Calendario COSAPI registrado', 'ok');
+
+    await putAll(db, 'portfolios', PORTFOLIOS);
+    log(`✓ ${PORTFOLIOS.length} portafolios creados`, 'ok');
+
+    await putAll(db, 'programs', PROGRAMS);
+    log(`✓ ${PROGRAMS.length} programas creados`, 'ok');
+
+    await putAll(db, 'projects', PROJECTS);
+    log(`✓ ${PROJECTS.length} proyectos creados`, 'ok');
+
+    log('\n✅ RESTAURACIÓN COMPLETADA', 'ok');
+    log('Recargue ECM Project en la otra pestaña.', 'info');
+    log('Los proyectos aparecerán en el explorador lateral.', 'info');
+
+    document.getElementById('btn-clear').style.display = 'block';
+    db.close();
+  } catch (err) {
+    log('❌ Error: ' + err.message, 'err');
+    document.getElementById('btn-restore').disabled = false;
+  }
+});
+
+document.getElementById('btn-clear').addEventListener('click', async () => {
+  if (!confirm('¿Eliminar todos los proyectos restaurados? Esta acción no se puede deshacer.')) return;
+  try {
+    const db = await openDB();
+    const ids = [...PORTFOLIOS, ...PROGRAMS, ...PROJECTS, CAL_COSAPI].map(r => r.id);
+    const stores = ['portfolios','programs','projects','calendars'];
+    for (const s of stores) {
+      const tx = db.transaction(s, 'readwrite');
+      const st = tx.objectStore(s);
+      for (const id of ids) st.delete(id);
+      await new Promise(r => { tx.oncomplete = r; });
+    }
+    log('🗑 Datos de prueba eliminados. Recargue ECM Project.', 'info');
+    db.close();
+  } catch (err) {
+    log('❌ ' + err.message, 'err');
+  }
+});
+</script>
+</body>
+</html>

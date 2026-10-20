@@ -1729,7 +1729,7 @@ async function _showProjectRecovery() {
 
   const dlg = document.createElement('dialog');
   dlg.id = 'dlg-project-recovery';
-  dlg.style.cssText = 'border:none;border-radius:12px;padding:0;max-width:560px;width:95vw;box-shadow:0 8px 40px rgba(0,0,0,.25);background:var(--clr-surface);color:var(--clr-text)';
+  dlg.style.cssText = 'border:none;border-radius:12px;padding:0;max-width:580px;width:95vw;box-shadow:0 8px 40px rgba(0,0,0,.25);background:var(--clr-surface);color:var(--clr-text)';
   dlg.innerHTML = `
     <div data-drag-handle style="display:flex;align-items:center;gap:10px;padding:14px 18px;border-bottom:1px solid var(--clr-border);cursor:move;user-select:none;background:var(--clr-surface-2,#f8f9fa);border-radius:12px 12px 0 0">
       <span style="font-size:20px">🗂</span>
@@ -1739,9 +1739,9 @@ async function _showProjectRecovery() {
       </div>
       <button id="dlg-recovery-close" class="btn btn-ghost btn-icon btn-sm">✕</button>
     </div>
-    <div style="padding:16px 18px;max-height:60vh;overflow-y:auto">
+    <div style="padding:16px 18px;max-height:55vh;overflow-y:auto">
       ${deleted.length === 0
-        ? '<p style="color:var(--clr-text-3);text-align:center;padding:24px 0">No hay proyectos eliminados para recuperar.</p>'
+        ? '<p style="color:var(--clr-text-3);text-align:center;padding:16px 0">No hay proyectos eliminados para recuperar.</p>'
         : deleted.map(p => `
           <div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--clr-border)">
             <span style="font-size:16px">📋</span>
@@ -1752,6 +1752,14 @@ async function _showProjectRecovery() {
             <button class="btn btn-sm btn-primary" data-restore-id="${_escAttr(p.id)}" title="Recuperar proyecto">Recuperar</button>
             <button class="btn btn-sm btn-danger" data-purge-id="${_escAttr(p.id)}" title="Eliminar definitivamente" style="background:var(--clr-danger,#e74c3c);color:#fff;border:none">Borrar</button>
           </div>`).join('')}
+    </div>
+    <div style="border-top:2px solid var(--clr-border);padding:14px 18px;background:var(--clr-surface-2,#f8f9fa);border-radius:0 0 12px 12px">
+      <div style="font-size:13px;font-weight:600;margin-bottom:8px">🔄 Restaurar estructura COSAPI</div>
+      <div style="font-size:11px;color:var(--clr-text-3);margin-bottom:10px">
+        Recrea portafolios, programas y proyectos: Plantas Industriales, Edificaciones, Infraestructura, Personal Cirugía, BIM y más.
+      </div>
+      <button id="btn-restore-cosapi" class="btn btn-primary btn-sm" style="width:100%">⚡ Restaurar datos COSAPI ahora</button>
+      <div id="restore-cosapi-log" style="display:none;margin-top:8px;font-size:11px;font-family:monospace;background:#0f172a;color:#94a3b8;border-radius:6px;padding:10px;max-height:100px;overflow-y:auto"></div>
     </div>`;
 
   document.body.appendChild(dlg);
@@ -1793,6 +1801,103 @@ async function _showProjectRecovery() {
       dlg.close();
       dlg.remove();
     });
+  });
+
+  // ── Restaurar datos COSAPI ──
+  dlg.querySelector('#btn-restore-cosapi')?.addEventListener('click', async () => {
+    const logEl = /** @type {HTMLElement} */ (dlg.querySelector('#restore-cosapi-log'));
+    const btnEl = /** @type {HTMLButtonElement} */ (dlg.querySelector('#btn-restore-cosapi'));
+    if (!logEl || !btnEl) return;
+    logEl.style.display = 'block';
+    btnEl.disabled = true;
+    const log = (msg, color='#94a3b8') => { logEl.innerHTML += `<span style="color:${color}">${msg}</span>\n`; logEl.scrollTop = 99999; };
+
+    const NOW2 = new Date().toISOString();
+    const ORG2 = '00000000-0000-0000-0000-000000000001';
+    const pfData = [
+      { id:'pf-01', org_id:ORG2, name:'Plantas Industriales', description:'Proyectos de plantas de procesamiento, energía y manufactura.', created_at:NOW2, updated_at:NOW2, deleted_at:null },
+      { id:'pf-02', org_id:ORG2, name:'Edificaciones',         description:'Edificios corporativos, residenciales y públicos.',           created_at:NOW2, updated_at:NOW2, deleted_at:null },
+      { id:'pf-03', org_id:ORG2, name:'Infraestructura',       description:'Vialidad, obras hidráulicas, puentes y túneles.',             created_at:NOW2, updated_at:NOW2, deleted_at:null },
+      { id:'pf-04', org_id:ORG2, name:'Salud e Institucional', description:'Hospitales, clínicas y centros médicos.',                     created_at:NOW2, updated_at:NOW2, deleted_at:null },
+      { id:'pf-05', org_id:ORG2, name:'BIM & Digital',          description:'Modelado BIM, coordinación digital y tecnología.',            created_at:NOW2, updated_at:NOW2, deleted_at:null },
+    ];
+    const pgData = [
+      { id:'pg-01', org_id:ORG2, portfolio_id:'pf-01', name:'Procesamiento de Minerales',      description:'Plantas mineras.', created_at:NOW2, updated_at:NOW2, deleted_at:null },
+      { id:'pg-02', org_id:ORG2, portfolio_id:'pf-01', name:'Plantas de Energía',              description:'Termoeléctricas y subestaciones.', created_at:NOW2, updated_at:NOW2, deleted_at:null },
+      { id:'pg-03', org_id:ORG2, portfolio_id:'pf-01', name:'Plantas Químicas e Industriales', description:'Fertilizantes y manufactura.', created_at:NOW2, updated_at:NOW2, deleted_at:null },
+      { id:'pg-04', org_id:ORG2, portfolio_id:'pf-02', name:'Edificios Corporativos',          description:'Torres y sedes empresariales.', created_at:NOW2, updated_at:NOW2, deleted_at:null },
+      { id:'pg-05', org_id:ORG2, portfolio_id:'pf-02', name:'Edificios Residenciales',         description:'Condominios y edificios de vivienda.', created_at:NOW2, updated_at:NOW2, deleted_at:null },
+      { id:'pg-06', org_id:ORG2, portfolio_id:'pf-02', name:'Edificios Públicos',              description:'Ministerios, universidades, gobierno.', created_at:NOW2, updated_at:NOW2, deleted_at:null },
+      { id:'pg-07', org_id:ORG2, portfolio_id:'pf-03', name:'Vialidad y Carreteras',           description:'Carreteras, autopistas y pavimentación.', created_at:NOW2, updated_at:NOW2, deleted_at:null },
+      { id:'pg-08', org_id:ORG2, portfolio_id:'pf-03', name:'Obras Hidráulicas',               description:'Presas, irrigaciones y agua.', created_at:NOW2, updated_at:NOW2, deleted_at:null },
+      { id:'pg-09', org_id:ORG2, portfolio_id:'pf-03', name:'Puentes y Túneles',               description:'Estructuras especiales de conectividad.', created_at:NOW2, updated_at:NOW2, deleted_at:null },
+      { id:'pg-10', org_id:ORG2, portfolio_id:'pf-04', name:'Hospitales y Clínicas',           description:'Infraestructura hospitalaria.', created_at:NOW2, updated_at:NOW2, deleted_at:null },
+      { id:'pg-11', org_id:ORG2, portfolio_id:'pf-04', name:'Personal Cirugía',                description:'Equipamiento quirúrgico y quirófanos.', created_at:NOW2, updated_at:NOW2, deleted_at:null },
+      { id:'pg-12', org_id:ORG2, portfolio_id:'pf-05', name:'Modelado BIM',                    description:'Proyectos con metodología BIM.', created_at:NOW2, updated_at:NOW2, deleted_at:null },
+      { id:'pg-13', org_id:ORG2, portfolio_id:'pf-05', name:'Coordinación Digital',            description:'Coordinación multidisciplinaria digital.', created_at:NOW2, updated_at:NOW2, deleted_at:null },
+    ];
+    const mkProj = (id, pgId, code, name, start, budget, currency='USD') => ({
+      id, org_id:ORG2, program_id:pgId, code, name,
+      sponsor_id:null, start_date:start, actual_start_date:null, actual_finish_date:null,
+      data_date:null, calendar_id:'cal-cosapi-001', budget, currency,
+      is_template:false, settings:{}, created_at:NOW2, updated_at:NOW2, deleted_at:null,
+    });
+    const prjData = [
+      mkProj('prj-01','pg-01','PI-2024-001','Planta Concentradora Norte',         '2024-03-01', 42000000),
+      mkProj('prj-02','pg-01','PI-2024-002','Ampliación Planta Toquepala',        '2024-06-15', 28500000),
+      mkProj('prj-03','pg-02','PE-2024-001','Subestación Eléctrica 220kV',        '2024-04-01', 18000000),
+      mkProj('prj-04','pg-02','PE-2025-001','Planta de Gas Natural Licuado',      '2025-01-10', 65000000),
+      mkProj('prj-05','pg-03','PQ-2024-001','Planta de Fertilizantes Ica',        '2024-07-01', 31000000),
+      mkProj('prj-06','pg-04','EC-2024-001','Torre Corporativa San Isidro',       '2024-05-01', 55000000,'PEN'),
+      mkProj('prj-07','pg-04','EC-2025-001','Sede Central Lima',                  '2025-03-01', 38000000,'PEN'),
+      mkProj('prj-08','pg-05','ER-2024-001','Condominio Las Magnolias',           '2024-02-01', 22000000,'PEN'),
+      mkProj('prj-09','pg-05','ER-2025-001','Edificio Residencial El Golf',       '2025-06-01', 19500000,'PEN'),
+      mkProj('prj-10','pg-06','EP-2024-001','Hospital Regional Cajamarca',        '2024-08-01', 95000000,'PEN'),
+      mkProj('prj-11','pg-07','IV-2024-001','Carretera Longitudinal Sierra Km120','2024-01-15', 87000000,'PEN'),
+      mkProj('prj-12','pg-07','IV-2024-002','Pavimentación Av. Industrial Piura', '2024-09-01', 12000000,'PEN'),
+      mkProj('prj-13','pg-08','IH-2024-001','Presa Derivadora Río Majes',         '2024-03-15',145000000,'PEN'),
+      mkProj('prj-14','pg-09','IP-2025-001','Puente Vehicular Río Rímac',         '2025-02-01', 34000000,'PEN'),
+      mkProj('prj-15','pg-10','SH-2024-001','Hospital Rebagliati — Oncología',    '2024-06-01', 78000000,'PEN'),
+      mkProj('prj-16','pg-11','SC-2024-001','Equipamiento Quirófanos HN Dos de Mayo','2024-10-01',14500000,'PEN'),
+      mkProj('prj-17','pg-11','SC-2025-001','Sala de Cirugía Robótica INEN',      '2025-04-01', 21000000,'PEN'),
+      mkProj('prj-18','pg-12','BIM-2024-001','Modelo BIM Integrado Torre S.Isidro','2024-05-01',1200000,'PEN'),
+    ];
+    const calData = {
+      id:'cal-cosapi-001', org_id:ORG2, name:'Calendario COSAPI (Lun–Vie)',
+      work_week:[1,2,3,4,5], hours_per_day:8, shift_label:'Diurno',
+      shift_start:'07:00', shift_end:'17:00', created_at:NOW2, updated_at:NOW2, deleted_at:null,
+    };
+
+    try {
+      const { openDB: openIDB } = await import('./storage.js');
+      const db2 = await openIDB();
+
+      const putBatch = (store, records) => new Promise((res, rej) => {
+        const tx = db2.transaction(store, 'readwrite');
+        const st = tx.objectStore(store);
+        for (const r of records) st.put(r);
+        tx.oncomplete = () => res(records.length);
+        tx.onerror = () => rej(tx.error);
+      });
+
+      await putBatch('calendars',  [calData]);
+      log('✓ Calendario COSAPI', '#22c55e');
+      await putBatch('portfolios', pfData);
+      log(`✓ ${pfData.length} portafolios (Plantas Ind., Edificaciones, Infraestructura, Salud, BIM)`, '#22c55e');
+      await putBatch('programs',   pgData);
+      log(`✓ ${pgData.length} programas (incl. Personal Cirugía, Modelado BIM)`, '#22c55e');
+      await putBatch('projects',   prjData);
+      log(`✓ ${prjData.length} proyectos creados`, '#22c55e');
+      log('✅ Restauración completada', '#22c55e');
+
+      dlg.close();
+      dlg.remove();
+      await _renderProjectList();
+      _showToast('Datos COSAPI restaurados: ' + pfData.length + ' portafolios, ' + prjData.length + ' proyectos', 'success');
+    } catch (err) {
+      log('❌ Error: ' + err.message, '#ef4444');
+      btnEl.disabled = false;
+    }
   });
 
   dlg.showModal();
