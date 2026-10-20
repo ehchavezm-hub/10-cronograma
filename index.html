@@ -139,9 +139,12 @@
       box-shadow:0 8px 40px rgba(0,0,0,0.25);
       min-width:380px;max-width:500px;width:90vw;">
       <form method="dialog" id="form-new-item" style="padding:24px 28px;">
-        <h2 id="dlg-ni-title" style="margin:0 0 16px;font-size:16px;font-weight:700;color:var(--clr-text-1,#1a1a2e)">
-          Nuevo elemento
-        </h2>
+        <div style="display:flex;align-items:center;gap:8px;margin:0 0 16px">
+          <h2 id="dlg-ni-title" data-drag-handle style="flex:1;margin:0;font-size:16px;font-weight:700;color:var(--clr-text-1,#1a1a2e);cursor:move">
+            Nuevo elemento
+          </h2>
+          <button id="btn-ni-print" type="button" class="btn btn-ghost btn-icon btn-sm" aria-label="Imprimir" title="Imprimir" style="font-size:15px;flex-shrink:0">🖨</button>
+        </div>
 
         <!-- Selector de tipo -->
         <div style="display:flex;gap:8px;margin-bottom:18px">
@@ -204,12 +207,13 @@
       box-shadow:0 8px 40px rgba(0,0,0,0.25);
       min-width:360px;max-width:500px;width:92vw;
       font-family:var(--font-ui);">
-      <div style="display:flex;align-items:center;gap:8px;padding:14px 18px;border-bottom:1px solid var(--clr-border);">
+      <div data-drag-handle style="display:flex;align-items:center;gap:8px;padding:14px 18px;border-bottom:1px solid var(--clr-border);cursor:move">
         <span style="font-size:20px">📐</span>
         <div style="flex:1">
           <h2 id="dlg-bl-title" style="font-size:var(--text-md);font-weight:var(--fw-semi);margin:0;line-height:1.2">Línea base</h2>
 
         </div>
+        <button id="dlg-bl-print" class="btn btn-ghost btn-icon btn-sm" aria-label="Imprimir línea base" title="Imprimir">🖨</button>
         <button class="btn btn-ghost btn-icon btn-sm" id="dlg-bl-close" aria-label="Cerrar">✕</button>
       </div>
       <div style="padding:14px 18px;display:flex;flex-direction:column;gap:12px;">
@@ -275,13 +279,14 @@
 
     <!-- Panel: Nivelación de Recursos (overlay) -->
     <div id="panel-resource-leveling" style="display:none;position:fixed;inset:0;z-index:800;background:rgba(0,0,0,.35)" role="dialog" aria-labelledby="leveling-panel-title" aria-modal="true">
-      <div style="position:absolute;top:10vh;left:50%;transform:translateX(-50%);
+      <div id="rl-card" style="position:absolute;top:10vh;left:50%;transform:translateX(-50%);
         width:min(860px,96vw);max-height:80vh;overflow:auto;
         background:var(--clr-surface,#fff);border-radius:12px;
         box-shadow:0 12px 60px rgba(0,0,0,.3);display:flex;flex-direction:column;">
-        <div style="display:flex;align-items:center;gap:10px;padding:14px 18px;border-bottom:1px solid var(--clr-border);flex-shrink:0">
+        <div data-drag-handle style="display:flex;align-items:center;gap:10px;padding:14px 18px;border-bottom:1px solid var(--clr-border);flex-shrink:0;cursor:move">
           <span style="font-size:20px">⚖</span>
           <h2 id="leveling-panel-title" style="flex:1;margin:0;font-size:var(--text-md);font-weight:var(--fw-semi)">Nivelación de Recursos</h2>
+          <button id="btn-leveling-print" class="btn btn-ghost btn-icon btn-sm" aria-label="Imprimir" title="Imprimir">🖨</button>
           <button id="btn-leveling-panel-close" class="btn btn-ghost btn-icon btn-sm" aria-label="Cerrar">✕</button>
         </div>
         <div id="resource-leveling-container" style="flex:1;overflow:auto;padding:16px 18px"></div>

@@ -22,6 +22,7 @@ function _makeDraggable(dialog, handleSelector) {
     const rect = dialog.getBoundingClientRect();
     startX = e.clientX; startY = e.clientY;
     startLeft = rect.left; startTop = rect.top;
+    dialog.style.transform = 'none';
     dialog.style.position = 'fixed';
     dialog.style.margin = '0';
     dialog.style.left = startLeft + 'px';

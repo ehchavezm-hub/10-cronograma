@@ -236,6 +236,27 @@ function stats(arr) {
   return { mean, std: Math.sqrt(variance) };
 }
 
+// ─── Correlación de Pearson ───────────────────────────────────────────────────
+/**
+ * @param {number[]} x
+ * @param {number[]} y
+ * @returns {number}
+ */
+function pearsonCorr(x, y) {
+  const n = x.length;
+  if (n < 2) return 0;
+  let sx = 0, sy = 0, sxy = 0, sx2 = 0, sy2 = 0;
+  for (let i = 0; i < n; i++) {
+    sx += x[i]; sy += y[i];
+    sxy += x[i] * y[i];
+    sx2 += x[i] * x[i];
+    sy2 += y[i] * y[i];
+  }
+  const num = n * sxy - sx * sy;
+  const den = Math.sqrt((n * sx2 - sx * sx) * (n * sy2 - sy * sy));
+  return den === 0 ? 0 : Math.max(-1, Math.min(1, num / den));
+}
+
 // ─── Handler principal ────────────────────────────────────────────────────────
 self.onmessage = function (e) {
   const { tasks, deps, calendar_def, iterations = 1000, seed } = e.data;
@@ -261,10 +282,18 @@ self.onmessage = function (e) {
       const tp = t.three_point;
       if (tp && tp.optimistic != null && tp.most_likely != null && tp.pessimistic != null) {
         dur = samplePERT(tp.optimistic, tp.most_likely, tp.pessimistic, rng);
-        // Duración mínima = 0
         if (dur < 0) dur = 0;
       } else {
-        dur = t.dur ?? 0;
+        // Varianza por defecto ±15% cuando no hay estimados de 3 puntos
+        const nom = t.dur ?? 0;
+        if (nom > 0) {
+          const o = nom * 0.85;
+          const p = nom * 1.15 + 0.001;
+          dur = samplePERT(o, nom, p, rng);
+          if (dur < 0) dur = 0;
+        } else {
+          dur = 0;
+        }
       }
       sampledDurs.set(t.id, dur);
     }
@@ -284,12 +313,13 @@ self.onmessage = function (e) {
     }
   }
 
-  // 5. Calcular estadísticas por tarea
+  // 5. Calcular estadísticas + correlación por tarea
   const results = [];
   for (const t of tasks) {
     const arr = taskEFs.get(t.id) ?? [];
     const sorted = arr.slice().sort((a, b) => a - b);
     const { mean, std } = stats(arr);
+    const sensitivity = Math.abs(pearsonCorr(arr, projectFinishes));
     results.push({
       id: t.id,
       p50: percentile(sorted, 50),
@@ -297,6 +327,7 @@ self.onmessage = function (e) {
       p90: percentile(sorted, 90),
       mean,
       std,
+      sensitivity,
     });
   }
 
@@ -312,6 +343,6 @@ self.onmessage = function (e) {
     project_p90: percentile(pSorted, 90),
     project_mean: pMean,
     project_std: pStd,
-    project_finishes: pSorted,  // para el histograma
+    project_finishes: pSorted,
   });
 };
