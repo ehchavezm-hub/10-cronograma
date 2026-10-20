@@ -177,7 +177,7 @@ export function renderGanttSvg({ tasks, deps, cpmResult, calendar, projectStart,
     for (const col of rightCols) {
       let val = '';
       if (col.id === 'type')  val = isSummary ? 'Resumen' : (task.type === 'milestone' ? 'Hito' : 'Tarea');
-      if (col.id === 'dur')   val = task.type === 'milestone' ? '0 d' : (task.duration_days ?? cpm?.dur ?? '') + ' d';
+      if (col.id === 'dur')   val = task.type === 'milestone' ? '0 d' : (task.duration_days ?? (cpm ? cpm.ef - cpm.es : '')) + ' d';
       if (col.id === 'start'  && cpm?.es != null) val = _fmtDate(calendar.idxToDate(cpm.es, projectStart));
       if (col.id === 'finish' && cpm?.ef != null) val = _fmtDate(calendar.finishDate(cpm.ef, projectStart));
       if (col.id === 'pct')   val = `${task.percent_complete ?? 0}%`;
@@ -287,7 +287,7 @@ export function renderGanttSvg({ tasks, deps, cpmResult, calendar, projectStart,
     const cpmForLabel = cpmResult.tasks.get(id);
     const lblParts = [];
     if (barLabels.includes('name'))     lblParts.push(_esc(task.name));
-    if (barLabels.includes('duration')) lblParts.push((task.duration_days ?? cpm?.dur ?? 0) + ' d');
+    if (barLabels.includes('duration')) lblParts.push((task.duration_days ?? (cpm ? cpm.ef - cpm.es : 0)) + ' d');
     if (barLabels.includes('pct'))      lblParts.push((task.percent_complete ?? 0) + '%');
     if (barLabels.includes('start')  && cpmForLabel?.es != null) lblParts.push(_fmtDate(calendar.idxToDate(cpmForLabel.es, projectStart)));
     if (barLabels.includes('finish') && cpmForLabel?.ef != null) lblParts.push(_fmtDate(calendar.finishDate(cpmForLabel.ef, projectStart)));
