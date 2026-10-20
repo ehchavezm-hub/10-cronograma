@@ -276,15 +276,38 @@ export class SyncEngine {
 // Helpers internos
 // ============================================================
 
+const _UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+// Campos que Supabase espera como UUID o null — valores string no-UUID producen error 400
+const _UUID_FIELDS = ['id','org_id','project_id','calendar_id','sponsor_id','program_id','baseline_id','resource_id','task_id','from_task_id','to_task_id'];
+
+/** Reemplaza valores no-UUID en campos UUID por null para evitar errores 400 de Supabase. */
+function _sanitizeUUIDFields(campos) {
+  const clean = { ...campos };
+  for (const f of _UUID_FIELDS) {
+    if (clean[f] != null && !_UUID_RE.test(clean[f])) clean[f] = null;
+  }
+  return clean;
+}
+
 /**
  * Envía una operación del outbox a Supabase.
  * @param {{tabla:string, fila:string, tipo:'INSERT'|'UPDATE'|'DELETE', campos:object, baseUpdatedAt:string|null}} op
  */
 async function _pushOp(op) {
   if (!sb) return;
+
+  // Descartar ops cuyo ID de fila no sea UUID — Supabase las rechazaría con 400
+  if (!_UUID_RE.test(op.fila)) {
+    console.warn('[Sync] Descartando op con ID no-UUID (datos legado):', op.fila);
+    return;
+  }
+
+  const campos = _sanitizeUUIDFields(op.campos);
+
   switch (op.tipo) {
     case 'INSERT':
-      await sb.upsert(op.tabla, op.campos);
+      await sb.upsert(op.tabla, campos);
       break;
     case 'UPDATE': {
       // Verificar conflicto: leer updated_at remoto
@@ -296,12 +319,12 @@ async function _pushOp(op) {
         console.warn('[Sync] Conflicto last-write-wins en', op.tabla, op.fila);
         appState.setSyncStatus('conflict');
       }
-      await sb.update(op.tabla, op.fila, op.campos);
+      await sb.update(op.tabla, op.fila, campos);
       break;
     }
     case 'DELETE':
       // Enviar deleted_at y updated_at para que el merge remoto refleje el borrado
-      await sb.update(op.tabla, op.fila, { deleted_at: op.campos.deleted_at ?? new Date().toISOString(), updated_at: op.campos.updated_at ?? new Date().toISOString() });
+      await sb.update(op.tabla, op.fila, { deleted_at: campos.deleted_at ?? new Date().toISOString(), updated_at: campos.updated_at ?? new Date().toISOString() });
       break;
   }
 }
