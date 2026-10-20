@@ -168,7 +168,7 @@ export class ResourceHistogramPanel {
     const hoursPerDay = cal0?.hours_per_day ?? 8;
 
     const [resources, allTaskRes] = await Promise.all([
-      getAll('resources').then(r => r.filter(x => !x.deleted_at && x.type === 'work')),
+      getAll('resources').then(r => r.filter(x => !x.deleted_at && (x.type === 'work' || !x.type))),
       getAll('task_resources').then(r => r.filter(x => !x.deleted_at)),
     ]);
 
@@ -575,6 +575,10 @@ export class ResourceHistogramPanel {
   destroy() {
     this._resObs?.disconnect();
     this._resObs = null;
+    if (this._onGanttVp) {
+      document.removeEventListener('gantt-viewport', this._onGanttVp);
+      this._onGanttVp = null;
+    }
   }
 }
 
@@ -582,12 +586,8 @@ export class ResourceHistogramPanel {
 
 function _buildDateCache(cal, startDate, maxIdx) {
   const arr = new Array(maxIdx + 1);
-  let d = cal.nextWorkingDay(new Date(startDate.getTime()));
-  arr[0] = new Date(d.getTime());
-  for (let i = 1; i <= maxIdx; i++) {
-    d = new Date(d.getTime() + 86400000);
-    while (!cal.isWorkingDay(d)) d = new Date(d.getTime() + 86400000);
-    arr[i] = new Date(d.getTime());
+  for (let i = 0; i <= maxIdx; i++) {
+    arr[i] = cal.idxToDate(i, startDate);
   }
   return arr;
 }

@@ -10,6 +10,7 @@
 import { appState } from './state.js';
 import { t } from './i18n.js';
 import { fmtDate, isoToDate, Calendar } from './calendar.js';
+import { put as dbPut } from './storage.js';
 
 // ============================================================
 // Constantes de columnas
@@ -283,7 +284,7 @@ export class WbsTable {
 
       // IDs de tareas hoja críticas
       const criticalIds = new Set(
-        rows.filter(r => !r.isSummary && cpmTasks.get(r.task.id)?.is_critical).map(r => r.task.id)
+        rows.filter(r => !r.isSummary && cpmTasks.get(r.task.id)?.tf === 0).map(r => r.task.id)
       );
       if (criticalIds.size === 0) return rows;
 
@@ -707,8 +708,10 @@ export class WbsTable {
   }
 
   _isSummary(id) {
-    const tasks = [...appState.state.tasks.values()].filter(t => !t.deleted_at);
-    return tasks.some(t => t.parent_id === id && !t.deleted_at);
+    for (const t of appState.state.tasks.values()) {
+      if (!t.deleted_at && t.parent_id === id) return true;
+    }
+    return false;
   }
 
   _onKeyDown(e) {
@@ -881,8 +884,7 @@ export class WbsTable {
         } else if (currentLagDays !== p.lag) {
           // Lag cambió: reemplazar la dep para actualizar lag_days
           // Guardar la dep vieja con deleted_at antes de dispatch (onPersist la busca por ID)
-          const { put: dbPutSt } = await import('./storage.js');
-          await dbPutSt('task_dependencies', { ...existing, deleted_at: new Date().toISOString() });
+          await dbPut('task_dependencies', { ...existing, deleted_at: new Date().toISOString() });
           appState.dispatch({ type: 'REMOVE_DEP', payload: { id: existing.id } });
           appState.dispatch({ type: 'ADD_DEP', payload: { dep: {
             id: crypto.randomUUID(),
