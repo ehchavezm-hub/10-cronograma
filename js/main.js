@@ -1916,6 +1916,10 @@ async function init() {
       } catch {
         const proj = await _ensureDemoData();
         await _loadProject(proj.id);
+        // Informar al usuario que el proyecto anterior no se encontró
+        setTimeout(() => {
+          _showToast('⚠ Proyecto anterior no encontrado. Usa Exportar → Importar JSON para restaurar desde un respaldo.', 'warn');
+        }, 1500);
       }
     } else {
       const proj = await _ensureDemoData();
@@ -2886,17 +2890,26 @@ function _bindToolbar() {
   });
 
   // Importar JSON
-  document.getElementById('import-file')?.addEventListener('change', async (e) => {
-    const file = /** @type {HTMLInputElement} */ (e.target).files?.[0];
+  const _handleJsonImport = async (file) => {
     if (!file) return;
     try {
       const data = await importJson(file);
       await saveProjectSnapshot(data);
       await _loadProject(data.project.id);
+      _renderProjectList();
       _showToast('Proyecto importado: ' + data.project.name, 'success');
     } catch (err) {
       _showToast('Error al importar: ' + err.message, 'error');
     }
+  };
+  document.getElementById('import-file')?.addEventListener('change', async (e) => {
+    const file = /** @type {HTMLInputElement} */ (e.target).files?.[0];
+    await _handleJsonImport(file);
+    /** @type {HTMLInputElement} */ (e.target).value = '';
+  });
+  document.getElementById('sidebar-import-file')?.addEventListener('change', async (e) => {
+    const file = /** @type {HTMLInputElement} */ (e.target).files?.[0];
+    await _handleJsonImport(file);
     /** @type {HTMLInputElement} */ (e.target).value = '';
   });
 

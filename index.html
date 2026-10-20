@@ -74,7 +74,12 @@
     <nav id="explorer-panel" aria-label="Explorador de proyectos">
       <div class="panel-header" style="display:flex;align-items:center;justify-content:space-between;">
         <span>Proyectos</span>
-        <button id="btn-new-project" class="btn btn-primary btn-sm" title="Crear nuevo proyecto" aria-label="Crear nuevo proyecto" style="font-size:11px;padding:2px 8px;">＋ Nuevo</button>
+        <div style="display:flex;gap:4px">
+          <button id="btn-new-project" class="btn btn-primary btn-sm" title="Crear nuevo proyecto" aria-label="Crear nuevo proyecto" style="font-size:11px;padding:2px 8px;">＋ Nuevo</button>
+          <label id="btn-sidebar-import" class="btn btn-ghost btn-sm" title="Importar proyecto desde JSON" style="font-size:11px;padding:2px 8px;cursor:pointer">↩ Importar
+            <input type="file" id="sidebar-import-file" accept=".json,.xer" hidden aria-label="Importar proyecto desde JSON o XER">
+          </label>
+        </div>
       </div>
       <div class="explorer-list" id="explorer-list">
         <!-- Lista de proyectos generada por JS -->
