@@ -198,6 +198,8 @@ const CAUSAS = [
   'Contratos / órdenes de cambio',
   'Submittals / aprobaciones pendientes',
   'Condiciones climáticas',
+  'Me olvidé',
+  'Sin actualización / Info. faltante',
   'Permisos / autorizaciones faltantes',
   'Condición no prevista',
   'Otras causas',
@@ -675,6 +677,13 @@ export class LookaheadDetailedPanel {
         const rawStatus = get('estado','status').toLowerCase();
         const status = (rawStatus.includes('levant') || rawStatus === 'cleared' || rawStatus.includes('resuel'))
           ? 'cleared' : (rawStatus.includes('proceso') || rawStatus.includes('progress')) ? 'in-progress' : 'pending';
+        const rawIdentDate = get('fecha_identificada','fecha identificada','date_identified','fecha_id');
+        let dateIdentified = null;
+        if (rawIdentDate) {
+          const dmyMi = rawIdentDate.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+          if (dmyMi) dateIdentified = `${dmyMi[3]}-${dmyMi[2].padStart(2,'0')}-${dmyMi[1].padStart(2,'0')}`;
+          else if (/^\d{4}-\d{2}-\d{2}$/.test(rawIdentDate)) dateIdentified = rawIdentDate;
+        }
         rests.push({
           id:                `rest-${_genId()}`,
           desc,
@@ -683,6 +692,7 @@ export class LookaheadDetailedPanel {
           responsible:       get('responsable','responsible','resp') || null,
           responsibleCompany: get('empresa','company','area','área','empresa_area') || null,
           rfiNumber:         get('rfi','numero_rfi','rfi_number') || null,
+          dateIdentified,
           requiredDate:      requiredDate ?? dueDate,
           dueDate:           requiredDate ?? dueDate,
           promisedDate,
@@ -754,7 +764,7 @@ export class LookaheadDetailedPanel {
     const completedCpm    = cpmTasks.filter(r => !!weekData.tasks['cpm-' + r.task.id]).length;
     const totalCompleted  = completedManual + completedCpm;
     const ppc = totalPlanned > 0 ? Math.round((totalCompleted / totalPlanned) * 100) : null;
-    const ppcColor = ppc === null ? '#757575' : ppc >= 85 ? '#388E3C' : ppc >= 60 ? '#F57C00' : '#D32F2F';
+    const ppcColor = ppc === null ? '#757575' : ppc >= 75 ? '#388E3C' : ppc >= 60 ? '#F57C00' : '#D32F2F';
 
     let html = `
       <div class="lad-info-bar">
@@ -929,7 +939,7 @@ export class LookaheadDetailedPanel {
     let completed = 0, planned = chks.length;
     chks.forEach(c => { if (/** @type {HTMLInputElement} */ (c).checked) completed++; });
     const ppc = planned > 0 ? Math.round((completed/planned)*100) : null;
-    const ppcColor = ppc === null ? '#757575' : ppc >= 85 ? '#388E3C' : ppc >= 60 ? '#F57C00' : '#D32F2F';
+    const ppcColor = ppc === null ? '#757575' : ppc >= 75 ? '#388E3C' : ppc >= 60 ? '#F57C00' : '#D32F2F';
     const sp = this._body.querySelector('#lad-comp-planned');
     const sc = this._body.querySelector('#lad-comp-completed');
     const sv = this._body.querySelector('#lad-comp-ppc');
@@ -963,6 +973,7 @@ export class LookaheadDetailedPanel {
             <th>Tipo</th>
             <th>Empresa / Área</th>
             <th>Responsable</th>
+            <th>F. Identificada</th>
             <th>F. Requerida</th>
             <th>F. Prometida</th>
             <th>F. Efectiva</th>
@@ -980,6 +991,7 @@ export class LookaheadDetailedPanel {
                 <td style="font-size:11px">${_esc(r.type ?? '-')}</td>
                 <td style="font-size:11px">${_esc(r.responsibleCompany ?? '-')}</td>
                 <td>${_esc(r.responsible ?? '-')}</td>
+                <td class="lad-date">${r.dateIdentified ? _fmtDate(new Date(r.dateIdentified + 'T12:00:00')) : '-'}</td>
                 <td class="lad-date">${(r.requiredDate||r.dueDate) ? _fmtDate(new Date((r.requiredDate||r.dueDate) + 'T12:00:00')) : '-'}</td>
                 <td class="lad-date">${r.promisedDate ? _fmtDate(new Date(r.promisedDate + 'T12:00:00')) : '-'}</td>
                 <td class="lad-date">${r.effectiveDate ? _fmtDate(new Date(r.effectiveDate + 'T12:00:00')) : '-'}</td>
@@ -1105,7 +1117,10 @@ export class LookaheadDetailedPanel {
               </select>
             </label>
           </div>
-          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+            <label class="lad-label">F. Identificada
+              <input id="lad-f-identified" type="date" class="lad-input" value="${existing?.dateIdentified ?? ''}">
+            </label>
             <label class="lad-label">F. Requerida
               <input id="lad-f-required" type="date" class="lad-input" value="${existing?.requiredDate ?? existing?.dueDate ?? ''}">
             </label>
@@ -1145,6 +1160,7 @@ export class LookaheadDetailedPanel {
         responsible:       overlay.querySelector('#lad-f-resp').value.trim() || null,
         responsibleCompany: overlay.querySelector('#lad-f-company').value.trim() || null,
         rfiNumber:         overlay.querySelector('#lad-f-rfi').value.trim() || null,
+        dateIdentified:    overlay.querySelector('#lad-f-identified').value || null,
         requiredDate,
         dueDate:           requiredDate,
         promisedDate:      overlay.querySelector('#lad-f-promised').value || null,
@@ -1218,7 +1234,7 @@ export class LookaheadDetailedPanel {
       const val = h.ppc ?? 0;
       const barH = h.ppc !== null ? Math.max(4, Math.round((val / 100) * (chartH - 40))) : 0;
       const y = chartH - 20 - barH;
-      const color = h.ppc === null ? '#CFD8DC' : h.ppc >= 85 ? '#388E3C' : h.ppc >= 60 ? '#F57C00' : '#D32F2F';
+      const color = h.ppc === null ? '#CFD8DC' : h.ppc >= 75 ? '#388E3C' : h.ppc >= 60 ? '#F57C00' : '#D32F2F';
       return `
         <rect x="${x}" y="${y}" width="${barW}" height="${barH}" fill="${color}" rx="2">
           <title>${h.label}: ${h.ppc !== null ? h.ppc + '%' : 'Sin datos'}</title>
@@ -1226,18 +1242,22 @@ export class LookaheadDetailedPanel {
         ${h.ppc !== null ? `<text x="${x + barW/2}" y="${y - 3}" text-anchor="middle" font-size="9" fill="${color}" font-weight="600">${h.ppc}%</text>` : ''}
         <text x="${x + barW/2}" y="${chartH - 5}" text-anchor="middle" font-size="9" fill="#78909C">${h.label}</text>`;
     }).join('');
-    const refY = chartH - 20 - Math.round((85/100) * (chartH - 40));
+    const refY75 = chartH - 20 - Math.round((75/100) * (chartH - 40));
+    const refY90 = chartH - 20 - Math.round((90/100) * (chartH - 40));
 
     const chart = `
       <svg width="100%" viewBox="0 0 ${chartW} ${chartH}" style="max-width:${chartW}px;display:block">
-        <line x1="40" y1="${refY}" x2="${chartW}" y2="${refY}" stroke="#388E3C" stroke-dasharray="4,3" stroke-width="1.5"/>
-        <text x="${chartW - 4}" y="${refY - 3}" text-anchor="end" font-size="9" fill="#388E3C">85%</text>
+        <rect x="40" y="${refY90}" width="${chartW - 40}" height="${refY75 - refY90}" fill="#388E3C" opacity="0.07"/>
+        <line x1="40" y1="${refY75}" x2="${chartW}" y2="${refY75}" stroke="#F57C00" stroke-dasharray="4,3" stroke-width="1.5"/>
+        <text x="${chartW - 4}" y="${refY75 - 3}" text-anchor="end" font-size="9" fill="#F57C00">75% (meta LCI)</text>
+        <line x1="40" y1="${refY90}" x2="${chartW}" y2="${refY90}" stroke="#388E3C" stroke-dasharray="4,3" stroke-width="1.5"/>
+        <text x="${chartW - 4}" y="${refY90 - 3}" text-anchor="end" font-size="9" fill="#388E3C">90% (óptimo LCI)</text>
         ${chartBars}
         <line x1="40" y1="0" x2="40" y2="${chartH - 20}" stroke="#CFD8DC" stroke-width="1"/>
         <line x1="40" y1="${chartH - 20}" x2="${chartW}" y2="${chartH - 20}" stroke="#CFD8DC" stroke-width="1"/>
       </svg>`;
 
-    const avgColor = avgPpc === null ? '#757575' : avgPpc >= 85 ? '#388E3C' : avgPpc >= 60 ? '#F57C00' : '#D32F2F';
+    const avgColor = avgPpc === null ? '#757575' : avgPpc >= 75 ? '#388E3C' : avgPpc >= 60 ? '#F57C00' : '#D32F2F';
 
     this._body.innerHTML = `
       <div class="lad-dash-grid">
@@ -1285,7 +1305,7 @@ export class LookaheadDetailedPanel {
       ${rests.length > 0 ? `
       <div class="lad-section-title" style="margin-top:16px">Últimas restricciones</div>
       <table class="lad-table">
-        <thead><tr><th>Descripción</th><th>Tipo</th><th>Responsable</th><th>F. Requerida</th><th>Estado</th></tr></thead>
+        <thead><tr><th>Descripción</th><th>Tipo</th><th>Responsable</th><th>F. Identificada</th><th>F. Requerida</th><th>Estado</th></tr></thead>
         <tbody>
           ${rests.slice(0,5).map((r,i) => {
             const statusLabel = r.status === 'cleared' ? 'Levantada' : r.status === 'in-progress' ? 'En proceso' : 'Pendiente';
@@ -1294,6 +1314,7 @@ export class LookaheadDetailedPanel {
               <td>${_esc(r.desc)}</td>
               <td style="font-size:11px">${_esc(r.type ?? '-')}</td>
               <td>${_esc(r.responsible ?? '-')}</td>
+              <td class="lad-date">${r.dateIdentified ? _fmtDate(new Date(r.dateIdentified + 'T12:00:00')) : '-'}</td>
               <td class="lad-date">${(r.requiredDate||r.dueDate) ? _fmtDate(new Date((r.requiredDate||r.dueDate) + 'T12:00:00')) : '-'}</td>
               <td><span class="lad-badge" style="background:${statusColor}22;color:${statusColor}">${statusLabel}</span></td>
             </tr>`;
@@ -1373,10 +1394,10 @@ export class LookaheadDetailedPanel {
     const rests = _getRest(project.id);
     let html = `<h1>Lookahead — Restricciones</h1>
       <p>${rests.length} restricción(es)</p>
-      <table><thead><tr><th>Descripción</th><th>Tipo</th><th>Empresa/Área</th><th>Responsable</th><th>F. Requerida</th><th>F. Prometida</th><th>F. Efectiva</th><th>Estado</th></tr></thead><tbody>`;
+      <table><thead><tr><th>Descripción</th><th>Tipo</th><th>Empresa/Área</th><th>Responsable</th><th>F. Identificada</th><th>F. Requerida</th><th>F. Prometida</th><th>F. Efectiva</th><th>Estado</th></tr></thead><tbody>`;
     for (const r of rests) {
       const sl = r.status === 'cleared' ? 'Levantada' : r.status === 'in-progress' ? 'En proceso' : 'Pendiente';
-      html += `<tr><td>${_esc(r.desc)}</td><td>${_esc(r.type??'-')}</td><td>${_esc(r.responsibleCompany??'-')}</td><td>${_esc(r.responsible??'-')}</td><td>${(r.requiredDate||r.dueDate)?_fmtDate(new Date((r.requiredDate||r.dueDate)+'T12:00:00')):'-'}</td><td>${r.promisedDate?_fmtDate(new Date(r.promisedDate+'T12:00:00')):'-'}</td><td>${r.effectiveDate?_fmtDate(new Date(r.effectiveDate+'T12:00:00')):'-'}</td><td>${sl}</td></tr>`;
+      html += `<tr><td>${_esc(r.desc)}</td><td>${_esc(r.type??'-')}</td><td>${_esc(r.responsibleCompany??'-')}</td><td>${_esc(r.responsible??'-')}</td><td>${r.dateIdentified?_fmtDate(new Date(r.dateIdentified+'T12:00:00')):'-'}</td><td>${(r.requiredDate||r.dueDate)?_fmtDate(new Date((r.requiredDate||r.dueDate)+'T12:00:00')):'-'}</td><td>${r.promisedDate?_fmtDate(new Date(r.promisedDate+'T12:00:00')):'-'}</td><td>${r.effectiveDate?_fmtDate(new Date(r.effectiveDate+'T12:00:00')):'-'}</td><td>${sl}</td></tr>`;
     }
     html += `</tbody></table>`;
     _printToPdf('Lookahead - Restricciones', html);
@@ -1406,8 +1427,8 @@ export class LookaheadDetailedPanel {
     }
     html += `</tbody></table>`;
     const rests = _getRest(project.id);
-    html += `<h2>Restricciones (${rests.length})</h2><table><thead><tr><th>Descripción</th><th>Tipo</th><th>Responsable</th><th>Estado</th></tr></thead><tbody>`;
-    for (const r of rests) html += `<tr><td>${_esc(r.desc)}</td><td>${_esc(r.type??'-')}</td><td>${_esc(r.responsible??'-')}</td><td>${r.status==='cleared'?'Levantada':r.status==='in-progress'?'En proceso':'Pendiente'}</td></tr>`;
+    html += `<h2>Restricciones (${rests.length})</h2><table><thead><tr><th>Descripción</th><th>Tipo</th><th>Responsable</th><th>F. Identificada</th><th>Estado</th></tr></thead><tbody>`;
+    for (const r of rests) html += `<tr><td>${_esc(r.desc)}</td><td>${_esc(r.type??'-')}</td><td>${_esc(r.responsible??'-')}</td><td>${r.dateIdentified?_fmtDate(new Date(r.dateIdentified+'T12:00:00')):'-'}</td><td>${r.status==='cleared'?'Levantada':r.status==='in-progress'?'En proceso':'Pendiente'}</td></tr>`;
     html += `</tbody></table>`;
     _printToPdf('Lookahead - Dashboard', html);
   }
