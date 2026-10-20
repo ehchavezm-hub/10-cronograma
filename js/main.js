@@ -4228,47 +4228,71 @@ async function _renderOrgChart() {
     return { x: 60 + col * (CARD_W + COL_GAP), y: 60 + row * (CARD_H + ROW_GAP) };
   }
 
-  // Layout automático: asignar columnas/filas
-  const pfPositions = portfolios.map((pf, i) => ({ id: pf.id, col: i }));
+  // Layout automático: cursor de columnas acumulado — cada nodo ocupa columna entera
   let cardList = []; // { type, data, pos, parentKey }
+  let _col = 0; // cursor global de columna
 
-  portfolios.forEach((pf, pi) => {
-    const pos = defaultPos('pf', pf.id, pi, 0);
-    cardList.push({ type: 'portfolio', data: pf, pos, parentKey: null });
+  portfolios.forEach(pf => {
+    const pfFirstCol = _col;
+    let pfSpan = 0;
 
     const pfProgs = programs.filter(p => p.portfolio_id === pf.id);
-    pfProgs.forEach((prog, gi) => {
-      const progPos = defaultPos('prog', prog.id, pi + gi * 0.5, 1);
-      cardList.push({ type: 'program', data: prog, pos: progPos, parentKey: `pf:${pf.id}` });
+    pfProgs.forEach(prog => {
+      const progProjs = projects.filter(p => p.settings?.program_id === prog.id);
+      const progFirstCol = _col;
+      const numCols = Math.max(1, progProjs.length);
 
-      projects.filter(p => p.settings?.program_id === prog.id).forEach((proj, ji) => {
-        const projPos = defaultPos('proj', proj.id, pi + gi * 0.5 + ji * 0.3, 2);
+      progProjs.forEach((proj, ji) => {
+        const projPos = defaultPos('proj', proj.id, _col + ji, 2);
         cardList.push({ type: 'project', data: proj, pos: projPos, parentKey: `prog:${prog.id}` });
       });
+
+      const progCenterCol = progFirstCol + (numCols - 1) / 2;
+      const progPos = defaultPos('prog', prog.id, progCenterCol, 1);
+      cardList.push({ type: 'program', data: prog, pos: progPos, parentKey: `pf:${pf.id}` });
+
+      _col += numCols;
+      pfSpan += numCols;
     });
 
     // Proyectos directos del portafolio (sin programa)
-    projects.filter(p => p.settings?.portfolio_id === pf.id && !p.settings?.program_id).forEach((proj, ji) => {
-      const projPos = defaultPos('proj', proj.id, pi + 0.5 + ji * 0.3, 1);
+    const pfDirectProjs = projects.filter(p => p.settings?.portfolio_id === pf.id && !p.settings?.program_id);
+    pfDirectProjs.forEach((proj, ji) => {
+      const projPos = defaultPos('proj', proj.id, _col + ji, 1);
       cardList.push({ type: 'project', data: proj, pos: projPos, parentKey: `pf:${pf.id}` });
     });
+    if (pfDirectProjs.length > 0) { _col += pfDirectProjs.length; pfSpan += pfDirectProjs.length; }
+
+    if (pfSpan === 0) { pfSpan = 1; _col++; }
+
+    const pfCenterCol = pfFirstCol + (pfSpan - 1) / 2;
+    const pfPos = defaultPos('pf', pf.id, pfCenterCol, 0);
+    cardList.push({ type: 'portfolio', data: pf, pos: pfPos, parentKey: null });
+
+    _col += 0.5; // separación visual entre portafolios
   });
 
   // Programas sin portafolio
   const orphanProgs = programs.filter(p => !p.portfolio_id);
-  orphanProgs.forEach((prog, i) => {
-    const progPos = defaultPos('prog', prog.id, portfolios.length + i, 0);
-    cardList.push({ type: 'program', data: prog, pos: progPos, parentKey: null });
-    projects.filter(p => p.settings?.program_id === prog.id).forEach((proj, ji) => {
-      const projPos = defaultPos('proj', proj.id, portfolios.length + i + ji * 0.3, 1);
+  orphanProgs.forEach(prog => {
+    const progFirstCol = _col;
+    const progProjs = projects.filter(p => p.settings?.program_id === prog.id);
+    const numCols = Math.max(1, progProjs.length);
+
+    progProjs.forEach((proj, ji) => {
+      const projPos = defaultPos('proj', proj.id, _col + ji, 1);
       cardList.push({ type: 'project', data: proj, pos: projPos, parentKey: `prog:${prog.id}` });
     });
+
+    const progPos = defaultPos('prog', prog.id, progFirstCol + (numCols - 1) / 2, 0);
+    cardList.push({ type: 'program', data: prog, pos: progPos, parentKey: null });
+    _col += numCols + 0.5;
   });
 
   // Proyectos sin asignar
   const unassigned = projects.filter(p => !p.settings?.portfolio_id && !p.settings?.program_id);
   unassigned.forEach((proj, i) => {
-    const projPos = defaultPos('proj', proj.id, i, orphanProgs.length > 0 ? 2 : 1);
+    const projPos = defaultPos('proj', proj.id, _col + i, orphanProgs.length > 0 ? 2 : 1);
     cardList.push({ type: 'project', data: proj, pos: projPos, parentKey: null });
   });
 
