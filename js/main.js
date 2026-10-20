@@ -1149,7 +1149,7 @@ async function _openResourceAssign(preSelectedId = null) {
         <div style="font-size:11px;color:var(--clr-text-3);margin-top:2px">Selecciona un recurso y las actividades. Puedes filtrar y seleccionar todo.</div>
       </div>
       <div style="display:flex;gap:4px;align-items:center">
-        <button id="dlg-ra-print" class="btn btn-ghost btn-icon btn-sm" aria-label="Imprimir" title="Imprimir" style="font-size:15px">🖨</button>
+        <button id="dlg-ra-print" class="btn btn-ghost btn-sm" aria-label="Imprimir" title="Imprimir">🖨 Imprimir</button>
         <button id="dlg-ra-close" class="btn btn-icon btn-sm" aria-label="Cerrar asignación de recursos">✕</button>
       </div>
     </div>
@@ -1348,7 +1348,7 @@ async function _openCalendarEditor() {
     <div data-drag-handle style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid var(--clr-border);background:var(--clr-surface-2);cursor:move">
       <span id="dlg-cal-title" style="font-weight:700;font-size:15px">🗓 Calendario del proyecto</span>
       <div style="display:flex;gap:4px;align-items:center">
-        <button id="dlg-cal-print" class="btn btn-ghost btn-icon btn-sm" aria-label="Imprimir calendario" title="Imprimir" style="font-size:15px">🖨</button>
+        <button id="dlg-cal-print" class="btn btn-ghost btn-sm" aria-label="Imprimir calendario" title="Imprimir">🖨 Imprimir</button>
         <button id="dlg-cal-close" class="btn btn-icon btn-sm" aria-label="Cerrar calendario">✕</button>
       </div>
     </div>
@@ -2423,7 +2423,7 @@ function _showMonteCarloDlg(result, fmtDay) {
       <div data-drag-handle style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--clr-border);background:var(--clr-surface-2);border-radius:12px 12px 0 0">
         <span id="mc-dlg-title" style="font-weight:700;font-size:14px">🔮 Simulación Monte Carlo</span>
         <div style="display:flex;gap:4px;align-items:center">
-          <button id="mc-dlg-print" class="btn btn-ghost btn-icon btn-sm" aria-label="Imprimir PDF" style="font-size:15px">🖨</button>
+          <button id="mc-dlg-print" class="btn btn-ghost btn-sm" aria-label="Imprimir PDF">🖨 Imprimir</button>
           <button id="mc-dlg-close" class="btn btn-icon btn-sm" aria-label="Cerrar">✕</button>
         </div>
       </div>

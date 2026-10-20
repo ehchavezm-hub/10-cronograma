@@ -78,10 +78,10 @@ export class WbsDictionaryPanel {
         <div style="font-size:11px;color:var(--clr-text-3)">Alcance, criterios de aceptación y responsables por entregable</div>
       </div>`;
     const _printBtn = document.createElement('button');
-    _printBtn.innerHTML = '🖨';
+    _printBtn.innerHTML = '🖨 Imprimir';
     _printBtn.title = 'Imprimir PDF';
-    _printBtn.className = 'btn btn-ghost btn-icon btn-sm';
-    _printBtn.style.cssText = 'font-size:15px;flex-shrink:0';
+    _printBtn.className = 'btn btn-ghost btn-sm';
+    _printBtn.style.cssText = 'flex-shrink:0';
     _printBtn.addEventListener('click', () => {
       _printToPdf('Diccionario WBS', `<h1>Diccionario WBS</h1>${this._detailEl?.innerHTML ?? '<p>Sin tarea seleccionada.</p>'}`);
     });

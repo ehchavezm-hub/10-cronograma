@@ -146,7 +146,7 @@ export class RiskRegisterPanel {
         <button class="rr-btn rr-btn-sm rr-view-toggle" data-view="list" title="Vista Lista">&#9776; Lista</button>
         <button class="rr-btn rr-btn-sm rr-view-toggle" data-view="matrix" title="Vista Matriz">&#9724; Matriz</button>
         <button class="rr-btn rr-btn-primary" id="rr-new-btn">+ Nuevo Riesgo</button>
-        <button class="rr-print-btn btn btn-ghost btn-icon btn-sm" title="Imprimir PDF" aria-label="Imprimir PDF" style="font-size:15px">🖨</button>
+        <button class="rr-print-btn btn btn-ghost btn-sm" title="Imprimir PDF" aria-label="Imprimir PDF">🖨 Imprimir</button>
         <button class="rr-close-btn" title="Cerrar">&times;</button>
       </div>`;
     this.container.appendChild(hdr);

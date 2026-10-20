@@ -393,7 +393,7 @@ export class DcmaPanel {
             <h2>Evaluación DCMA 14 Puntos</h2>
           </div>
           <div class="dcma-meta" id="dcma-meta">—</div>
-          <button class="btn btn-ghost btn-icon btn-sm no-print" id="dcma-print-btn" title="Imprimir PDF" aria-label="Imprimir PDF DCMA" style="font-size:15px;flex-shrink:0">🖨</button>
+          <button class="btn btn-ghost btn-sm no-print" id="dcma-print-btn" title="Imprimir PDF" aria-label="Imprimir PDF DCMA" style="flex-shrink:0">🖨 Imprimir</button>
           <button class="btn btn-ghost btn-sm dcma-close-btn" id="dcma-close-btn" aria-label="Cerrar panel DCMA" title="Cerrar panel DCMA" style="font-size:14px;padding:4px 10px">✕ Cerrar</button>
         </div>
         <div class="dcma-body">

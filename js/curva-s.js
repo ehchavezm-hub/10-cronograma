@@ -74,10 +74,10 @@ export class CurvaSPanel {
         <div style="font-size:11px;color:var(--clr-text-3)">Planificado vs Real vs Proyectado</div>
       </div>`;
     const _printBtn = document.createElement('button');
-    _printBtn.innerHTML = '🖨';
+    _printBtn.innerHTML = '🖨 Imprimir';
     _printBtn.title = 'Imprimir PDF';
-    _printBtn.className = 'btn btn-ghost btn-icon btn-sm';
-    _printBtn.style.cssText = 'font-size:15px;flex-shrink:0';
+    _printBtn.className = 'btn btn-ghost btn-sm';
+    _printBtn.style.cssText = 'flex-shrink:0';
     _printBtn.addEventListener('click', () => {
       _printToPdf('Curva S de Avance', `<h1>Curva S de Avance</h1>${this._chartArea?.innerHTML ?? ''}`);
     });

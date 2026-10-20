@@ -149,10 +149,10 @@ export class NotificationsPanel {
         <div style="font-size:11px;color:var(--clr-text-3)">Alertas de tareas críticas y próximas a vencer</div>
       </div>`;
     const _printBtn = document.createElement('button');
-    _printBtn.innerHTML = '🖨';
+    _printBtn.innerHTML = '🖨 Imprimir';
     _printBtn.title = 'Imprimir PDF';
-    _printBtn.className = 'btn btn-ghost btn-icon btn-sm';
-    _printBtn.style.cssText = 'font-size:15px;flex-shrink:0';
+    _printBtn.className = 'btn btn-ghost btn-sm';
+    _printBtn.style.cssText = 'flex-shrink:0';
     _printBtn.addEventListener('click', () => {
       _printToPdf('Notificaciones', `<h1>Notificaciones</h1>${this._body?.innerHTML ?? ''}`);
     });

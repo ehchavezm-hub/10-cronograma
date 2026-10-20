@@ -51,7 +51,7 @@ export class ResourceHistogramPanel {
         <option value="">Todos</option>
       </select>
     </div>
-    <button id="btn-rh-print" class="rh-close no-print" title="Imprimir PDF" aria-label="Imprimir PDF histograma" style="font-size:15px;margin-right:2px">🖨</button>
+    <button id="btn-rh-print" class="rh-close no-print" title="Imprimir PDF" aria-label="Imprimir PDF histograma">🖨 Imprimir</button>
     <button id="btn-rh-close" class="rh-close" title="Cerrar histograma" aria-label="Cerrar histograma">✕</button>
   </div>
   <div id="rh-body" class="rh-body">

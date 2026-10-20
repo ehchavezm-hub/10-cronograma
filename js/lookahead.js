@@ -87,7 +87,7 @@ export class LookaheadPanel {
       <div style="display:flex;gap:4px">
         <button id="la-btn-3" class="btn btn-sm" style="padding:4px 12px;font-size:12px">3 semanas</button>
         <button id="la-btn-6" class="btn btn-sm" style="padding:4px 12px;font-size:12px">6 semanas</button>
-        <button id="la-btn-print" class="btn btn-ghost btn-icon btn-sm" title="Imprimir PDF" style="font-size:15px">🖨</button>
+        <button id="la-btn-print" class="btn btn-ghost btn-sm" title="Imprimir PDF">🖨 Imprimir</button>
       </div>`;
     this.el.appendChild(hdr);
 
