@@ -213,7 +213,7 @@ export class LookaheadDetailedPanel {
   /** @param {HTMLElement} containerEl */
   constructor(containerEl) {
     this.el = containerEl;
-    this._weeks  = 4;
+    this._weeks  = 6;
     this._tab    = 'planning';
     this._compWeekKey = null;
     this._refWeekKey  = _getWeekKey(new Date());
@@ -231,14 +231,14 @@ export class LookaheadDetailedPanel {
       <div style="display:flex;align-items:center;gap:10px;min-width:0">
         <span style="font-size:20px;flex-shrink:0">📋</span>
         <div style="min-width:0">
-          <div style="font-size:14px;font-weight:700;color:var(--clr-text)">Lookahead Detallado</div>
-          <div style="font-size:11px;color:var(--clr-text-3)">Sistema Last Planner — planificación semanal</div>
+          <div style="font-size:14px;font-weight:700;color:var(--clr-text)">Last Planner System® (LPS)</div>
+          <div style="font-size:11px;color:var(--clr-text-3)">LookAhead de 6 semanas — Estándar LCI 2023</div>
         </div>
       </div>
       <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
         <label style="font-size:12px;color:var(--clr-text-2);white-space:nowrap">Semanas:
           <select id="lad-weeks-sel" style="margin-left:4px;padding:3px 6px;border:1px solid var(--clr-border);border-radius:4px;background:var(--clr-surface);color:var(--clr-text);font-size:12px">
-            ${[1,2,3,4,5,6,7,8].map(n => `<option value="${n}"${n===4?' selected':''}>${n}</option>`).join('')}
+            ${[1,2,3,4,5,6,7,8].map(n => `<option value="${n}"${n===6?' selected':''}>${n}</option>`).join('')}
           </select>
         </label>
         <button id="lad-btn-print" class="btn btn-ghost btn-sm" title="Imprimir PDF" style="font-size:12px">🖨 PDF</button>
@@ -248,10 +248,10 @@ export class LookaheadDetailedPanel {
     const tabBar = document.createElement('div');
     tabBar.className = 'lad-tabbar';
     tabBar.innerHTML = `
-      <button class="lad-tab lad-tab-active" data-tab="planning">📅 Planificación</button>
-      <button class="lad-tab" data-tab="compliance">✅ Cumplimiento (PPC)</button>
-      <button class="lad-tab" data-tab="restrictions">🚧 Restricciones</button>
-      <button class="lad-tab" data-tab="dashboard">📊 Dashboard</button>`;
+      <button class="lad-tab lad-tab-active" data-tab="planning">📅 LookAhead (6 Semanas)</button>
+      <button class="lad-tab" data-tab="compliance">📋 Plan Semanal (WWP)</button>
+      <button class="lad-tab" data-tab="restrictions">🚧 Log de Restricciones</button>
+      <button class="lad-tab" data-tab="dashboard">📊 Métricas LPS / PPC</button>`;
     this.el.appendChild(tabBar);
 
     this._body = document.createElement('div');
@@ -442,7 +442,7 @@ export class LookaheadDetailedPanel {
 
     this._body.innerHTML = `
       <div class="lad-info-bar">
-        <span>📅 <strong>${this._weeks}</strong> semana${this._weeks!==1?'s':''} desde ${_fmtDate(_weekStart(this._refWeekKey))}</span>
+        <span>📅 LookAhead: <strong>${this._weeks}</strong> semana${this._weeks!==1?'s':''} — desde ${_fmtDate(_weekStart(this._refWeekKey))} <span style="font-size:10px;color:var(--clr-text-3);margin-left:4px">(CAN occur — LCI §7)</span></span>
         <span>${totalManual} actividad${totalManual!==1?'es':''} LPS planificada${totalManual!==1?'s':''}</span>
       </div>
       ${html}`;
@@ -767,6 +767,9 @@ export class LookaheadDetailedPanel {
     const ppcColor = ppc === null ? '#757575' : ppc >= 75 ? '#388E3C' : ppc >= 60 ? '#F57C00' : '#D32F2F';
 
     let html = `
+      <div style="background:var(--clr-surface-2,var(--clr-surface));border-left:3px solid #1976D2;padding:6px 12px;margin-bottom:6px;font-size:11px;color:var(--clr-text-2)">
+        <strong style="color:#1976D2">WWP — Plan de Trabajo Semanal (WILL occur)</strong> &nbsp;·&nbsp; Compromiso de actividades que se ejecutarán esta semana &nbsp;·&nbsp; Meta PPC: <strong>75–90%</strong> (LCI §11)
+      </div>
       <div class="lad-info-bar">
         <div style="display:flex;align-items:center;gap:12px">
           <label style="font-size:12px;color:var(--clr-text-2)">Semana:
@@ -1287,10 +1290,43 @@ export class LookaheadDetailedPanel {
         <div class="lad-section-title">Historial PPC — Últimas ${histLen} semanas</div>
         ${chart}
         <div style="display:flex;gap:16px;margin-top:8px;font-size:11px;color:var(--clr-text-3)">
-          <span style="display:flex;align-items:center;gap:4px"><span style="width:10px;height:10px;background:#388E3C;border-radius:2px;display:inline-block"></span>≥ 85%</span>
-          <span style="display:flex;align-items:center;gap:4px"><span style="width:10px;height:10px;background:#F57C00;border-radius:2px;display:inline-block"></span>60–84%</span>
+          <span style="display:flex;align-items:center;gap:4px"><span style="width:10px;height:10px;background:#388E3C;border-radius:2px;display:inline-block"></span>≥ 75%</span>
+          <span style="display:flex;align-items:center;gap:4px"><span style="width:10px;height:10px;background:#F57C00;border-radius:2px;display:inline-block"></span>60–74%</span>
           <span style="display:flex;align-items:center;gap:4px"><span style="width:10px;height:10px;background:#D32F2F;border-radius:2px;display:inline-block"></span>&lt;60%</span>
           <span style="display:flex;align-items:center;gap:4px"><span style="width:10px;height:10px;background:#CFD8DC;border-radius:2px;display:inline-block"></span>Sin datos</span>
+        </div>
+        <div style="overflow-x:auto;margin-top:12px">
+          <table class="lad-table" style="font-size:11px;min-width:480px">
+            <thead><tr>
+              <th style="text-align:center">Semana #</th>
+              <th>Fin de Semana</th>
+              <th style="text-align:center"># Planificadas</th>
+              <th style="text-align:center"># Completadas</th>
+              <th style="text-align:center">PPC</th>
+              <th style="text-align:center">Promedio</th>
+              <th style="text-align:center">No Completadas</th>
+            </tr></thead>
+            <tbody>
+              ${(() => {
+                let runSum = 0, runCnt = 0;
+                return history.map((h, i) => {
+                  if (h.ppc !== null) { runSum += h.ppc; runCnt++; }
+                  const runAvg = runCnt > 0 ? Math.round(runSum / runCnt) : null;
+                  const ppcColor = h.ppc === null ? '#757575' : h.ppc >= 75 ? '#388E3C' : h.ppc >= 60 ? '#F57C00' : '#D32F2F';
+                  const wEnd = _weekEnd(_addWeeks(this._refWeekKey, i - (histLen - 1)));
+                  return `<tr class="${i%2===0?'':'lad-row-alt'}">
+                    <td style="text-align:center">${h.label}</td>
+                    <td>${_fmtDate(wEnd)}</td>
+                    <td style="text-align:center">${h.planned}</td>
+                    <td style="text-align:center">${h.completed}</td>
+                    <td style="text-align:center;font-weight:700;color:${ppcColor}">${h.ppc !== null ? h.ppc + '%' : '—'}</td>
+                    <td style="text-align:center;color:${runAvg !== null ? (runAvg >= 75 ? '#388E3C' : runAvg >= 60 ? '#F57C00' : '#D32F2F') : '#757575'}">${runAvg !== null ? runAvg + '%' : '—'}</td>
+                    <td style="text-align:center">${h.ppc !== null ? h.planned - h.completed : '—'}</td>
+                  </tr>`;
+                }).join('');
+              })()}
+            </tbody>
+          </table>
         </div>
       </div>
 
