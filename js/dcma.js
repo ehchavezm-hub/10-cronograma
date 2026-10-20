@@ -486,12 +486,16 @@ export class DcmaPanel {
       projectStart = isoToDate(project.start_date);
     }
 
-    this._report = runDcmaChecks({
-      tasks, deps, cpmResult, taskResources,
-      nearThreshold: appState.state.nearThreshold,
-      dataDate: project.data_date ?? null,
-      calendar, projectStart,
-    });
+    try {
+      this._report = runDcmaChecks({
+        tasks, deps, cpmResult, taskResources,
+        nearThreshold: appState.state.nearThreshold,
+        dataDate: project.data_date ?? null,
+        calendar, projectStart,
+      });
+    } catch (err) {
+      console.error('[DCMA] runDcmaChecks error:', err);
+    }
     this._render();
   }
 
@@ -535,7 +539,9 @@ export class DcmaPanel {
 
   _drawGauge(score) {
     const canvas = this._gauge;
+    if (!canvas.width || !canvas.height) return;
     const ctx    = canvas.getContext('2d');
+    if (!ctx) return;
     const cx     = canvas.width / 2;
     const cy     = canvas.height / 2 + 10;
     const r      = 54;
