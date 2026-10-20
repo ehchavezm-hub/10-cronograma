@@ -219,7 +219,7 @@ export class GanttCanvas {
               lines += `\n─── ${blLabel} ───`;
               if (bl.es != null) lines += `\nBL Inicio: ${fmt(cal.idxToDate(bl.es, ps))}`;
               if (bl.ef != null) lines += `\nBL Fin: ${fmt(cal.finishDate(bl.ef, ps))}`;
-              if (bl.dur != null) lines += `\nBL Duración: ${bl.dur} d`;
+              if (bl.es != null && bl.ef != null) lines += `\nBL Duración: ${bl.ef - bl.es} d`;
               // Varianza (días laborables)
               if (cpm.es != null && bl.es != null) {
                 const vi = cpm.es - bl.es;

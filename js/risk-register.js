@@ -190,8 +190,8 @@ export class RiskRegisterPanel {
         <td>${_esc(r.owner ?? '')}</td>
         <td><span class="rr-status-chip">${_esc(r.status ?? '')}</span></td>
         <td class="rr-actions">
-          <button class="rr-btn rr-btn-xs rr-edit-btn" data-id="${r.id}">Editar</button>
-          <button class="rr-btn rr-btn-xs rr-btn-danger rr-del-btn" data-id="${r.id}">Eliminar</button>
+          <button class="rr-btn rr-btn-xs rr-edit-btn" data-id="${_esc(r.id)}">Editar</button>
+          <button class="rr-btn rr-btn-xs rr-btn-danger rr-del-btn" data-id="${_esc(r.id)}">Eliminar</button>
         </td>`;
       tbody.appendChild(tr);
     }
