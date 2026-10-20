@@ -4436,12 +4436,14 @@ function _renderCpmNetwork() {
   const STRIDE_X = BW + GAP_X;
   const STRIDE_Y = BH + GAP_Y;
 
-  // Calcular posición de cada tarea
+  // Calcular posición de cada tarea (centrado vertical por columna)
   const pos = new Map(); // id → {x, y, cx, cy}
+  const _maxColCount = Math.max(1, ...[...byLevel.values()].map(arr => arr.length));
   byLevel.forEach((tasks, lv) => {
+    const offsetY = Math.floor((_maxColCount - tasks.length) / 2) * STRIDE_Y;
     tasks.forEach((t, row) => {
       const x = lv * STRIDE_X;
-      const y = row * STRIDE_Y;
+      const y = offsetY + row * STRIDE_Y;
       pos.set(t.id, { x, y, cx: x + BW / 2, cy: y + BH / 2 });
     });
   });
