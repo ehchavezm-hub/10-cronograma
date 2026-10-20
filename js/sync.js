@@ -31,7 +31,7 @@ const PUSH_INTERVAL_MS = 5_000;    // Intento de vaciar outbox cada 5 s
 const RETRY_DELAY_MS   = 10_000;   // Espera tras un error de red
 
 // Tablas que se sincronizan (en orden de dependencia)
-const SYNC_TABLES = ['projects', 'calendars', 'calendar_exceptions', 'tasks', 'task_dependencies', 'resources', 'task_resources'];
+const SYNC_TABLES = ['projects', 'calendars', 'calendar_exceptions', 'tasks', 'task_dependencies', 'resources', 'task_resources', 'risks', 'baselines', 'baseline_tasks'];
 
 // ============================================================
 // SyncEngine

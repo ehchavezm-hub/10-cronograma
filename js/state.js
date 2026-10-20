@@ -41,7 +41,7 @@ const MAX_UNDO = 50;
 /** @typedef {import('./cpm.js').CpmResult} CpmResult_ */
 
 // ---- Tipos de tareas y dependencias ----
-/** @typedef {{id:string,org_id:string,project_id:string,parent_id:string|null,sort_order:number,name:string,type:'task'|'milestone',duration_days:number,work_hours:number,percent_complete:number,actual_start:string|null,actual_finish:string|null,constraint_type:string,constraint_date:string|null,planned_cost:number,actual_cost:number,notes:string|null,deleted_at:string|null}} Task */
+/** @typedef {{id:string,org_id:string,project_id:string,parent_id:string|null,sort_order:number,name:string,type:'task'|'milestone'|'summary',duration_days:number,work_hours:number,percent_complete:number,actual_start:string|null,actual_finish:string|null,constraint_type:string,constraint_date:string|null,planned_cost:number,actual_cost:number,notes:string|null,deleted_at:string|null}} Task */
 /** @typedef {{id:string,org_id:string,project_id:string,pred_id:string,succ_id:string,type:string,lag_days:number,deleted_at:string|null}} Dep */
 /** @typedef {{id:string,org_id:string,project_id:string|null,name:string,work_week:number[],hours_per_day:number,deleted_at:string|null}} Calendar_ */
 /** @typedef {{id:string,org_id:string,calendar_id:string,on_date:string,is_working:boolean,name:string|null,deleted_at:string|null}} CalEx */
