@@ -2957,7 +2957,7 @@ function _bindLinkMode() {
       pred_id:     predId,
       succ_id:     succId,
       type:        type ?? 'FS',
-      lag:         lag  ?? 0,
+      lag_days:    lag  ?? 0,
       created_at:  new Date().toISOString(),
       updated_at:  new Date().toISOString(),
       deleted_at:  null,
@@ -4434,12 +4434,12 @@ function _renderCpmNetwork() {
     line.setAttribute('marker-end', `url(#${marker})`);
     line.setAttribute('data-pred', d.pred_id);
     line.setAttribute('data-succ', d.succ_id);
-    if (d.lag) {
+    if (d.lag_days) {
       const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
       text.setAttribute('x', String(mx)); text.setAttribute('y', String((y1 + y2) / 2 - 4));
       text.setAttribute('text-anchor', 'middle'); text.setAttribute('font-size', '10');
       text.setAttribute('fill', color);
-      text.textContent = `${d.lag > 0 ? '+' : ''}${d.lag}d`;
+      text.textContent = `${d.lag_days > 0 ? '+' : ''}${d.lag_days}d`;
       svg.appendChild(text);
     }
     svg.appendChild(line);

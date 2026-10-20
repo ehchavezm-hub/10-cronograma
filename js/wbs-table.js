@@ -445,7 +445,7 @@ export class WbsTable {
     const predDeps = predMap.get(task.id) ?? [];
     const preds = predDeps.map(d => {
       const predWbs = wbsCodes.get(d.pred_id) ?? '?';
-      const lag = d.lag ?? d.lag_days ?? 0;
+      const lag = d.lag_days ?? 0;
       return `${predWbs}${d.type}${lag !== 0 ? (lag > 0 ? '+' + lag : lag) : ''}`;
     }).join(', ');
 
@@ -534,7 +534,7 @@ export class WbsTable {
 
     const vi = cpm.es  - bl.es;
     const vf = cpm.ef  - bl.ef;
-    const vd = (cpm.dur ?? (cpm.ef - cpm.es)) - bl.dur;
+    const vd = (cpm.ef - cpm.es) - bl.dur;
 
     const fmt = (v) => {
       const cls  = v > 0 ? 'bl-var-pos' : v < 0 ? 'bl-var-neg' : 'bl-var-zero';
@@ -775,7 +775,7 @@ export class WbsTable {
         .filter(d => !d.deleted_at && d.succ_id === rowId);
       val = predDeps.map(d => {
         const predWbs = wbsCodes.get(d.pred_id) ?? '?';
-        const lag = d.lag ?? d.lag_days ?? 0;
+        const lag = d.lag_days ?? 0;
         return `${predWbs}${d.type}${lag !== 0 ? (lag > 0 ? '+' + lag : lag) : ''}`;
       }).join(', ');
     } else if (col === 'wbs') {
