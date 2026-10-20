@@ -1,0 +1,900 @@
+// @ts-check
+/**
+ * lookahead-detailed.js — Sistema de Planificación Lookahead Detallado (Last Planner System)
+ *
+ * Módulo: LookaheadDetailedPanel
+ * Tabs:
+ *   1. Planificación  — Tareas agrupadas por semana según el cronograma CPM
+ *   2. Cumplimiento   — PPC (Plan Percent Complete) semanal con checkboxes y causas
+ *   3. Restricciones  — Gestión de impedimentos (CRUD), por proyecto
+ *   4. Dashboard      — Historial PPC (gráfico de barras) + resúmenes
+ */
+
+import { appState } from './state.js';
+import { Calendar, isoToDate } from './calendar.js';
+
+// ============================================================
+// Helpers ISO week
+// ============================================================
+
+/** Retorna 'YYYY-WNN' para una fecha dada (ISO 8601, semana empieza en lunes). */
+function _getWeekKey(date) {
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  const day = d.getUTCDay() || 7;
+  d.setUTCDate(d.getUTCDate() + 4 - day);
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  const weekNo = Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+  return `${d.getUTCFullYear()}-W${String(weekNo).padStart(2,'0')}`;
+}
+
+/** Lunes de una semana dada por clave 'YYYY-WNN'. */
+function _weekStart(weekKey) {
+  const [year, wn] = weekKey.split('-W').map(Number);
+  const jan4 = new Date(year, 0, 4);
+  const mon = new Date(jan4);
+  mon.setDate(jan4.getDate() - ((jan4.getDay() || 7) - 1) + (wn - 1) * 7);
+  return mon;
+}
+
+/** Domingo de una semana dada. */
+function _weekEnd(weekKey) {
+  const s = _weekStart(weekKey);
+  const e = new Date(s);
+  e.setDate(s.getDate() + 6);
+  return e;
+}
+
+/** Suma n semanas a una clave 'YYYY-WNN'. */
+function _addWeeks(weekKey, n) {
+  const s = _weekStart(weekKey);
+  s.setDate(s.getDate() + n * 7);
+  return _getWeekKey(s);
+}
+
+/** Formato DD/MM/YYYY. */
+function _fmtDate(d) {
+  return d.toLocaleDateString('es-PE', { day:'2-digit', month:'2-digit', year:'numeric' });
+}
+
+/** Label semana: "Sem N · DD/MM – DD/MM". */
+function _weekLabel(weekKey, idx) {
+  const s = _weekStart(weekKey);
+  const e = _weekEnd(weekKey);
+  const [yr, wn] = weekKey.split('-W');
+  const fmt = d => `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}`;
+  return `Sem ${idx + 1} · ${fmt(s)}–${fmt(e)} (${yr})`;
+}
+
+const _esc = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+
+// ============================================================
+// Persistencia localStorage
+// ============================================================
+
+const LS_PPC   = 'ecm-lad-ppc';
+const LS_REST  = 'ecm-lad-rest';
+
+function _getPPC() {
+  try { return JSON.parse(localStorage.getItem(LS_PPC) || '{}'); } catch { return {}; }
+}
+function _savePPC(data) {
+  try { localStorage.setItem(LS_PPC, JSON.stringify(data)); } catch { /* ignore */ }
+}
+function _getRest(projId) {
+  try {
+    const all = JSON.parse(localStorage.getItem(LS_REST) || '{}');
+    return all[projId] ?? [];
+  } catch { return []; }
+}
+function _saveRest(projId, list) {
+  try {
+    const all = JSON.parse(localStorage.getItem(LS_REST) || '{}');
+    all[projId] = list;
+    localStorage.setItem(LS_REST, JSON.stringify(all));
+  } catch { /* ignore */ }
+}
+
+// ============================================================
+// Draggable helper
+// ============================================================
+
+function _makeDraggable(dialog, handleSelector) {
+  const handle = handleSelector ? dialog.querySelector(handleSelector) : dialog;
+  if (!handle) return;
+  let startX, startY, startLeft, startTop;
+  handle.style.cursor = 'move';
+  handle.addEventListener('mousedown', e => {
+    if (e.button !== 0) return;
+    if (/** @type {HTMLElement} */ (e.target).closest('button,input,select,textarea,a')) return;
+    e.preventDefault();
+    const rect = dialog.getBoundingClientRect();
+    startX = e.clientX; startY = e.clientY;
+    startLeft = rect.left; startTop = rect.top;
+    dialog.style.transform = 'none';
+    dialog.style.position = 'fixed';
+    dialog.style.margin = '0';
+    dialog.style.left = startLeft + 'px';
+    dialog.style.top = startTop + 'px';
+    const onMove = mv => {
+      dialog.style.left = (startLeft + mv.clientX - startX) + 'px';
+      dialog.style.top  = (startTop  + mv.clientY - startY) + 'px';
+    };
+    const onUp = () => {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+    };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  });
+}
+
+// ============================================================
+// Print helper
+// ============================================================
+
+function _printToPdf(moduleName, htmlContent) {
+  const _proj = appState.state.project?.name ?? 'ECM Project';
+  const _d = new Date();
+  const _dd = String(_d.getDate()).padStart(2,'0');
+  const _mm = String(_d.getMonth()+1).padStart(2,'0');
+  const _yy = _d.getFullYear();
+  const title = `${_proj} - ${moduleName} - ${_dd}/${_mm}/${_yy}`;
+  const w = window.open('', '_blank', 'width=1100,height=800');
+  if (!w) return;
+  w.document.write(`<!DOCTYPE html><html><head>
+    <meta charset="utf-8">
+    <title>${_esc(title)}</title>
+    <style>
+      body { font-family: Arial, sans-serif; padding: 20px; font-size: 12px; }
+      h1 { font-size: 16px; color: #1976D2; margin-bottom: 4px; }
+      h2 { font-size: 13px; color: #37474F; margin: 16px 0 6px; border-bottom: 1px solid #ccc; padding-bottom: 4px; }
+      table { border-collapse: collapse; width: 100%; margin-bottom: 12px; }
+      th, td { border: 1px solid #ccc; padding: 5px 8px; }
+      th { background: #f4f5f7; font-weight: 600; }
+      .badge { display: inline-block; border-radius: 10px; padding: 1px 7px; font-size: 11px; font-weight: 600; }
+      @media print { body { margin: 0; } }
+    </style>
+  </head><body>
+    <h1>${_esc(title)}</h1>
+    <p style="font-size:11px;color:#888;margin:0 0 14px">${new Date().toLocaleString('es-PE')}</p>
+    ${htmlContent}
+    <script>window.print(); window.close();<\/script>
+  </body></html>`);
+  w.document.close();
+}
+
+// ============================================================
+// CAUSAS de incumplimiento
+// ============================================================
+
+const CAUSAS = [
+  'Materiales no disponibles',
+  'Equipos no disponibles',
+  'Mano de obra insuficiente',
+  'Planos / diseño pendiente',
+  'Condiciones climáticas',
+  'Dependencia no liberada',
+  'Cambio de prioridades',
+  'Otras causas',
+];
+
+// ============================================================
+// LookaheadDetailedPanel
+// ============================================================
+
+export class LookaheadDetailedPanel {
+  /** @param {HTMLElement} containerEl */
+  constructor(containerEl) {
+    this.el = containerEl;
+    this._weeks  = 4;
+    this._tab    = 'planning';
+    this._compWeekKey = null;
+    this._refWeekKey  = _getWeekKey(new Date());
+    this._build();
+  }
+
+  _build() {
+    this.el.innerHTML = '';
+    this.el.style.cssText = 'display:flex;flex-direction:column;height:100%;font-family:var(--font-ui,system-ui)';
+
+    const hdr = document.createElement('div');
+    hdr.setAttribute('data-drag-handle', '');
+    hdr.className = 'lad-header';
+    hdr.innerHTML = `
+      <div style="display:flex;align-items:center;gap:10px;min-width:0">
+        <span style="font-size:20px;flex-shrink:0">📋</span>
+        <div style="min-width:0">
+          <div style="font-size:14px;font-weight:700;color:var(--clr-text)">Lookahead Detallado</div>
+          <div style="font-size:11px;color:var(--clr-text-3)">Sistema Last Planner — planificación semanal</div>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
+        <label style="font-size:12px;color:var(--clr-text-2);white-space:nowrap">Semanas:
+          <select id="lad-weeks-sel" style="margin-left:4px;padding:3px 6px;border:1px solid var(--clr-border);border-radius:4px;background:var(--clr-surface);color:var(--clr-text);font-size:12px">
+            ${[1,2,3,4,5,6,7,8].map(n => `<option value="${n}"${n===4?' selected':''}>${n}</option>`).join('')}
+          </select>
+        </label>
+        <button id="lad-btn-print" class="btn btn-ghost btn-sm" title="Imprimir PDF" style="font-size:12px">🖨 PDF</button>
+      </div>`;
+    this.el.appendChild(hdr);
+
+    const tabBar = document.createElement('div');
+    tabBar.className = 'lad-tabbar';
+    tabBar.innerHTML = `
+      <button class="lad-tab lad-tab-active" data-tab="planning">📅 Planificación</button>
+      <button class="lad-tab" data-tab="compliance">✅ Cumplimiento (PPC)</button>
+      <button class="lad-tab" data-tab="restrictions">🚧 Restricciones</button>
+      <button class="lad-tab" data-tab="dashboard">📊 Dashboard</button>`;
+    this.el.appendChild(tabBar);
+
+    this._body = document.createElement('div');
+    this._body.className = 'lad-body';
+    this.el.appendChild(this._body);
+
+    tabBar.querySelectorAll('.lad-tab').forEach(btn => {
+      btn.addEventListener('click', () => {
+        this._tab = btn.getAttribute('data-tab');
+        tabBar.querySelectorAll('.lad-tab').forEach(b => b.classList.toggle('lad-tab-active', b === btn));
+        this._render();
+      });
+    });
+    hdr.querySelector('#lad-weeks-sel').addEventListener('change', e => {
+      this._weeks = parseInt(e.target.value);
+      this._render();
+    });
+    hdr.querySelector('#lad-btn-print').addEventListener('click', () => this._print());
+
+    if (this.el.parentElement) _makeDraggable(this.el.parentElement, '[data-drag-handle]');
+    this._render();
+  }
+
+  refresh() { this._render(); }
+
+  _render() {
+    switch (this._tab) {
+      case 'planning':     this._renderPlanning(); break;
+      case 'compliance':   this._renderCompliance(); break;
+      case 'restrictions': this._renderRestrictions(); break;
+      case 'dashboard':    this._renderDashboard(); break;
+    }
+  }
+
+  _getWeekGroups() {
+    const { project, tasks, cpmResult, calendar, calExceptions } = appState.state;
+    if (!project || !cpmResult) return null;
+
+    const cal = new Calendar({
+      work_week: calendar?.work_week ?? [1,2,3,4,5],
+      exceptions: calExceptions ?? [],
+    });
+    const startDate = isoToDate(project.start_date || new Date().toISOString().slice(0,10));
+
+    const groups = new Map();
+    for (let i = 0; i < this._weeks; i++) {
+      const wk = _addWeeks(this._refWeekKey, i);
+      groups.set(wk, []);
+    }
+
+    for (const task of tasks.values()) {
+      if (task.deleted_at || task.type === 'summary') continue;
+      const cpm = cpmResult.tasks?.get(task.id);
+      if (!cpm || cpm.is_summary) continue;
+
+      const sDate = cal.idxToDate(cpm.es, startDate);
+      const eDate = cal.idxToDate(Math.max(cpm.es, cpm.ef - 1), startDate);
+      const pct   = task.percent_complete ?? 0;
+
+      for (const [wk] of groups) {
+        const wStart = _weekStart(wk);
+        const wEnd   = _weekEnd(wk);
+        wEnd.setHours(23,59,59,999);
+        if (sDate <= wEnd && eDate >= wStart) {
+          groups.get(wk).push({ task, cpm, startDate: sDate, endDate: eDate, pct });
+        }
+      }
+    }
+
+    for (const [, arr] of groups) arr.sort((a,b) => a.cpm.es - b.cpm.es);
+    return groups;
+  }
+
+  _renderPlanning() {
+    const { project, cpmResult } = appState.state;
+    if (!project || !cpmResult) {
+      this._body.innerHTML = '<p class="lad-empty">Abre un proyecto con CPM calculado para ver el lookahead.</p>';
+      return;
+    }
+    const groups = this._getWeekGroups();
+    if (!groups) { this._body.innerHTML = '<p class="lad-empty">Sin datos de planificación.</p>'; return; }
+
+    let html = '';
+    let idx = 0;
+    let totalTasks = 0;
+    for (const [wk, rows] of groups) {
+      const label  = _weekLabel(wk, idx);
+      totalTasks += rows.length;
+      html += `
+        <div class="lad-week-block">
+          <div class="lad-week-title">
+            <span>${_esc(label)}</span>
+            <span class="lad-week-count">${rows.length} tarea${rows.length!==1?'s':''}</span>
+          </div>
+          ${rows.length === 0
+            ? `<p class="lad-empty-week">Sin tareas programadas esta semana.</p>`
+            : `<table class="lad-table">
+              <thead><tr>
+                <th>WBS</th><th>Tarea</th><th>Inicio</th><th>Fin</th>
+                <th>Dur.</th><th style="text-align:center">%</th>
+                <th style="text-align:center">HT</th><th>Estado</th>
+              </tr></thead>
+              <tbody>
+                ${rows.map((r,i) => {
+                  const status = r.pct >= 100 ? 'done' : r.cpm.tf === 0 ? 'critical' : r.pct > 0 ? 'progress' : 'todo';
+                  const statusLabel = { done:'Completada', critical:'Crítica', progress:'En Curso', todo:'Pendiente' }[status];
+                  const statusColor = { done:'#388E3C', critical:'#D32F2F', progress:'#1976D2', todo:'#757575' }[status];
+                  return `<tr class="${i%2===0?'':'lad-row-alt'}">
+                    <td class="lad-wbs">${_esc(r.task.wbs_code ?? '-')}</td>
+                    <td class="lad-name" title="${_esc(r.task.name)}">${_esc(r.task.name)}</td>
+                    <td class="lad-date">${_fmtDate(r.startDate)}</td>
+                    <td class="lad-date">${_fmtDate(r.endDate)}</td>
+                    <td class="lad-num">${r.cpm.ef - r.cpm.es}d</td>
+                    <td style="text-align:center">
+                      <div class="lad-pbar-wrap">
+                        <div class="lad-pbar" style="width:${r.pct}%;background:${r.pct>=100?'#388E3C':'#1976D2'}"></div>
+                      </div>
+                      <span class="lad-pct">${r.pct}%</span>
+                    </td>
+                    <td class="lad-num" style="color:${r.cpm.tf===0?'#D32F2F':'inherit'};font-weight:${r.cpm.tf===0?700:400}">${r.cpm.tf ?? '-'}</td>
+                    <td><span class="lad-badge" style="background:${statusColor}22;color:${statusColor}">${statusLabel}</span></td>
+                  </tr>`;
+                }).join('')}
+              </tbody>
+            </table>`}
+        </div>`;
+      idx++;
+    }
+
+    this._body.innerHTML = `
+      <div class="lad-info-bar">
+        <span>📅 <strong>${this._weeks}</strong> semanas desde ${_fmtDate(_weekStart(this._refWeekKey))}</span>
+        <span>${totalTasks} tarea(s) programada(s)</span>
+      </div>
+      ${html}`;
+  }
+
+  _renderCompliance() {
+    const { project, cpmResult } = appState.state;
+    if (!project || !cpmResult) {
+      this._body.innerHTML = '<p class="lad-empty">Abre un proyecto con CPM calculado.</p>';
+      return;
+    }
+    if (!this._compWeekKey) this._compWeekKey = _addWeeks(this._refWeekKey, -1);
+
+    const allPpc   = _getPPC();
+    const projPpc  = allPpc[project.id] ?? {};
+
+    const weekOpts = [];
+    for (let i = -(this._weeks); i <= 0; i++) {
+      const wk = _addWeeks(this._refWeekKey, i);
+      weekOpts.push(wk);
+    }
+    if (!weekOpts.includes(this._compWeekKey)) this._compWeekKey = weekOpts[weekOpts.length - 1];
+
+    const weekData   = projPpc[this._compWeekKey] ?? { tasks: {}, reasons: {} };
+    const weekTasks  = this._getWeekGroupForKey(this._compWeekKey);
+    const planned    = weekTasks.length;
+    const completed  = weekTasks.filter(r => !!weekData.tasks[r.task.id]).length;
+    const ppc        = planned > 0 ? Math.round((completed / planned) * 100) : null;
+
+    const ppcColor   = ppc === null ? '#757575' : ppc >= 85 ? '#388E3C' : ppc >= 60 ? '#F57C00' : '#D32F2F';
+
+    let html = `
+      <div class="lad-info-bar">
+        <div style="display:flex;align-items:center;gap:12px">
+          <label style="font-size:12px;color:var(--clr-text-2)">Semana:
+            <select id="lad-comp-week" style="margin-left:6px;padding:3px 8px;border:1px solid var(--clr-border);border-radius:4px;background:var(--clr-surface);color:var(--clr-text);font-size:12px">
+              ${weekOpts.map(wk => `<option value="${wk}"${wk===this._compWeekKey?' selected':''}>${_weekLabel(wk, weekOpts.indexOf(wk))}</option>`).join('')}
+            </select>
+          </label>
+        </div>
+        <div style="display:flex;align-items:center;gap:16px">
+          <span>Planificadas: <strong>${planned}</strong></span>
+          <span>Completadas: <strong>${completed}</strong></span>
+          <span>PPC: <strong style="font-size:15px;color:${ppcColor}">${ppc !== null ? ppc + '%' : 'N/A'}</strong></span>
+          <button id="lad-save-ppc" class="btn btn-primary btn-sm" style="font-size:12px">💾 Guardar</button>
+        </div>
+      </div>`;
+
+    if (weekTasks.length === 0) {
+      html += '<p class="lad-empty">No hay tareas planificadas para esta semana.</p>';
+    } else {
+      html += `<table class="lad-table">
+        <thead><tr>
+          <th style="width:42px;text-align:center">✓</th>
+          <th>Tarea</th>
+          <th>Inicio</th><th>Fin</th>
+          <th style="text-align:center">%</th>
+          <th>Estado CPM</th>
+          <th>Causa incumplimiento</th>
+        </tr></thead>
+        <tbody>
+          ${weekTasks.map((r,i) => {
+            const done   = !!weekData.tasks[r.task.id];
+            const reason = weekData.reasons[r.task.id] ?? '';
+            const status = r.pct >= 100 ? 'done' : r.cpm.tf === 0 ? 'critical' : r.pct > 0 ? 'progress' : 'todo';
+            const statusLabel = { done:'Completada', critical:'Crítica', progress:'En Curso', todo:'Pendiente' }[status];
+            const statusColor = { done:'#388E3C', critical:'#D32F2F', progress:'#1976D2', todo:'#757575' }[status];
+            return `<tr class="${i%2===0?'':'lad-row-alt'}" data-task-id="${r.task.id}">
+              <td style="text-align:center">
+                <input type="checkbox" class="lad-comp-chk" data-id="${r.task.id}" ${done?'checked':''} style="width:16px;height:16px;cursor:pointer">
+              </td>
+              <td class="lad-name" title="${_esc(r.task.name)}">${_esc(r.task.name)}</td>
+              <td class="lad-date">${_fmtDate(r.startDate)}</td>
+              <td class="lad-date">${_fmtDate(r.endDate)}</td>
+              <td style="text-align:center">${r.pct}%</td>
+              <td><span class="lad-badge" style="background:${statusColor}22;color:${statusColor}">${statusLabel}</span></td>
+              <td>
+                <select class="lad-reason-sel" data-id="${r.task.id}" ${done?'disabled':''} style="font-size:11px;padding:2px 4px;border:1px solid var(--clr-border);border-radius:4px;background:var(--clr-surface);color:var(--clr-text);width:100%">
+                  <option value="">— Sin causa —</option>
+                  ${CAUSAS.map(c => `<option value="${c}"${reason===c?' selected':''}>${c}</option>`).join('')}
+                </select>
+              </td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>`;
+    }
+
+    this._body.innerHTML = html;
+
+    this._body.querySelector('#lad-comp-week')?.addEventListener('change', e => {
+      this._compWeekKey = e.target.value;
+      this._renderCompliance();
+    });
+
+    this._body.querySelectorAll('.lad-comp-chk').forEach(chk => {
+      chk.addEventListener('change', () => {
+        const id = chk.getAttribute('data-id');
+        const reasonSel = this._body.querySelector(`.lad-reason-sel[data-id="${id}"]`);
+        if (reasonSel) reasonSel.disabled = chk.checked;
+        this._updatePpcDisplay();
+      });
+    });
+
+    this._body.querySelector('#lad-save-ppc')?.addEventListener('click', () => {
+      const allPpc2 = _getPPC();
+      if (!allPpc2[project.id]) allPpc2[project.id] = {};
+      const newWeekData = { tasks: {}, reasons: {}, saved: true, savedAt: new Date().toISOString() };
+      this._body.querySelectorAll('.lad-comp-chk').forEach(chk => {
+        const id = chk.getAttribute('data-id');
+        newWeekData.tasks[id] = chk.checked;
+      });
+      this._body.querySelectorAll('.lad-reason-sel').forEach(sel => {
+        const id = sel.getAttribute('data-id');
+        if (sel.value) newWeekData.reasons[id] = sel.value;
+      });
+      allPpc2[project.id][this._compWeekKey] = newWeekData;
+      _savePPC(allPpc2);
+      document.dispatchEvent(new CustomEvent('show-toast', { detail: { msg: 'PPC guardado correctamente.', type: 'success' } }));
+      this._renderCompliance();
+    });
+  }
+
+  _getWeekGroupForKey(weekKey) {
+    const { project, tasks, cpmResult, calendar, calExceptions } = appState.state;
+    if (!project || !cpmResult) return [];
+    const cal = new Calendar({
+      work_week: calendar?.work_week ?? [1,2,3,4,5],
+      exceptions: calExceptions ?? [],
+    });
+    const startDate = isoToDate(project.start_date || new Date().toISOString().slice(0,10));
+    const wStart = _weekStart(weekKey);
+    const wEnd   = _weekEnd(weekKey);
+    wEnd.setHours(23,59,59,999);
+    const result = [];
+    for (const task of tasks.values()) {
+      if (task.deleted_at || task.type === 'summary') continue;
+      const cpm = cpmResult.tasks?.get(task.id);
+      if (!cpm || cpm.is_summary) continue;
+      const sDate = cal.idxToDate(cpm.es, startDate);
+      const eDate = cal.idxToDate(Math.max(cpm.es, cpm.ef - 1), startDate);
+      if (sDate <= wEnd && eDate >= wStart) {
+        result.push({ task, cpm, startDate: sDate, endDate: eDate, pct: task.percent_complete ?? 0 });
+      }
+    }
+    result.sort((a,b) => a.cpm.es - b.cpm.es);
+    return result;
+  }
+
+  _updatePpcDisplay() {
+    const chks = this._body.querySelectorAll('.lad-comp-chk');
+    let completed = 0, planned = chks.length;
+    chks.forEach(c => { if (c.checked) completed++; });
+    const ppc = planned > 0 ? Math.round((completed/planned)*100) : null;
+    const ppcColor = ppc === null ? '#757575' : ppc >= 85 ? '#388E3C' : ppc >= 60 ? '#F57C00' : '#D32F2F';
+    const spans = this._body.querySelectorAll('.lad-info-bar span');
+    if (spans[1]) spans[1].innerHTML = `Planificadas: <strong>${planned}</strong>`;
+    if (spans[2]) spans[2].innerHTML = `Completadas: <strong>${completed}</strong>`;
+    if (spans[3]) spans[3].innerHTML = `PPC: <strong style="font-size:15px;color:${ppcColor}">${ppc !== null ? ppc + '%' : 'N/A'}</strong>`;
+  }
+
+  _renderRestrictions() {
+    const { project } = appState.state;
+    if (!project) { this._body.innerHTML = '<p class="lad-empty">Abre un proyecto primero.</p>'; return; }
+
+    const rests = _getRest(project.id);
+
+    this._body.innerHTML = `
+      <div class="lad-info-bar">
+        <span>🚧 <strong>${rests.length}</strong> restricción(es) registrada(s)</span>
+        <button id="lad-add-rest" class="btn btn-primary btn-sm" style="font-size:12px">+ Nueva restricción</button>
+      </div>
+      ${rests.length === 0
+        ? `<p class="lad-empty">No hay restricciones registradas. Usa "+ Nueva restricción" para agregar.</p>`
+        : `<table class="lad-table">
+          <thead><tr>
+            <th>Descripción</th>
+            <th>Tarea vinculada</th>
+            <th>Responsable</th>
+            <th>Fecha límite</th>
+            <th>Estado</th>
+            <th style="text-align:center">Acciones</th>
+          </tr></thead>
+          <tbody>
+            ${rests.map((r,i) => {
+              const isCleared = r.status === 'cleared';
+              const statusLabel = isCleared ? 'Levantada' : 'Pendiente';
+              const statusColor = isCleared ? '#388E3C' : '#D32F2F';
+              const taskName = this._getTaskName(r.taskId);
+              return `<tr class="${i%2===0?'':'lad-row-alt'}">
+                <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${_esc(r.desc)}">${_esc(r.desc)}</td>
+                <td class="lad-name" style="font-size:11px">${_esc(taskName)}</td>
+                <td>${_esc(r.responsible ?? '-')}</td>
+                <td class="lad-date">${r.dueDate ? _fmtDate(new Date(r.dueDate + 'T12:00:00')) : '-'}</td>
+                <td>
+                  <span class="lad-badge" style="background:${statusColor}22;color:${statusColor}">${statusLabel}</span>
+                </td>
+                <td style="text-align:center;white-space:nowrap">
+                  <button class="lad-btn-icon lad-rest-toggle" data-idx="${i}" title="${isCleared?'Marcar pendiente':'Marcar levantada'}">
+                    ${isCleared ? '🔓' : '🔒'}
+                  </button>
+                  <button class="lad-btn-icon lad-rest-edit" data-idx="${i}" title="Editar">✏️</button>
+                  <button class="lad-btn-icon lad-rest-del" data-idx="${i}" title="Eliminar" style="color:#D32F2F">🗑</button>
+                </td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+        </table>`}`;
+
+    this._body.querySelector('#lad-add-rest')?.addEventListener('click', () => {
+      this._openRestForm(null, rests, project.id, updatedRests => {
+        _saveRest(project.id, updatedRests);
+        this._renderRestrictions();
+      });
+    });
+
+    this._body.querySelectorAll('.lad-rest-toggle').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const idx = parseInt(btn.getAttribute('data-idx'));
+        rests[idx].status = rests[idx].status === 'cleared' ? 'pending' : 'cleared';
+        _saveRest(project.id, rests);
+        this._renderRestrictions();
+      });
+    });
+
+    this._body.querySelectorAll('.lad-rest-edit').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const idx = parseInt(btn.getAttribute('data-idx'));
+        this._openRestForm(idx, rests, project.id, updatedRests => {
+          _saveRest(project.id, updatedRests);
+          this._renderRestrictions();
+        });
+      });
+    });
+
+    this._body.querySelectorAll('.lad-rest-del').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const idx = parseInt(btn.getAttribute('data-idx'));
+        if (!confirm('¿Eliminar esta restricción?')) return;
+        rests.splice(idx, 1);
+        _saveRest(project.id, rests);
+        this._renderRestrictions();
+      });
+    });
+  }
+
+  _getTaskName(taskId) {
+    if (!taskId) return '-';
+    const task = appState.state.tasks?.get(taskId);
+    return task ? task.name : `(${taskId.slice(0,8)}…)`;
+  }
+
+  _openRestForm(editIdx, rests, projId, onSave) {
+    const existing = editIdx !== null ? rests[editIdx] : null;
+    const tasks = appState.state.tasks;
+
+    const overlay = document.createElement('div');
+    overlay.className = 'lad-form-overlay';
+    overlay.innerHTML = `
+      <div class="lad-form-modal">
+        <div class="lad-form-header">
+          <span>${existing ? '✏️ Editar Restricción' : '➕ Nueva Restricción'}</span>
+          <button id="lad-form-close" class="btn btn-ghost btn-icon btn-sm">✕</button>
+        </div>
+        <div class="lad-form-body">
+          <label class="lad-label">Descripción *
+            <textarea id="lad-f-desc" rows="3" class="lad-input" placeholder="Describe la restricción...">${_esc(existing?.desc ?? '')}</textarea>
+          </label>
+          <label class="lad-label">Tarea vinculada
+            <select id="lad-f-task" class="lad-input">
+              <option value="">— Ninguna —</option>
+              ${tasks ? [...tasks.values()].filter(t => !t.deleted_at && t.type !== 'summary').map(t =>
+                `<option value="${t.id}"${t.id===existing?.taskId?' selected':''}>${_esc((t.wbs_code?t.wbs_code+' – ':'')+t.name)}</option>`
+              ).join('') : ''}
+            </select>
+          </label>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+            <label class="lad-label">Responsable
+              <input id="lad-f-resp" type="text" class="lad-input" placeholder="Nombre del responsable" value="${_esc(existing?.responsible ?? '')}">
+            </label>
+            <label class="lad-label">Fecha límite
+              <input id="lad-f-due" type="date" class="lad-input" value="${existing?.dueDate ?? ''}">
+            </label>
+          </div>
+          <label class="lad-label">Estado
+            <select id="lad-f-status" class="lad-input">
+              <option value="pending"${(!existing||existing.status==='pending')?' selected':''}>Pendiente</option>
+              <option value="cleared"${existing?.status==='cleared'?' selected':''}>Levantada</option>
+            </select>
+          </label>
+        </div>
+        <div class="lad-form-footer">
+          <button id="lad-form-cancel" class="btn btn-ghost btn-sm">Cancelar</button>
+          <button id="lad-form-save" class="btn btn-primary btn-sm">Guardar</button>
+        </div>
+      </div>`;
+
+    document.body.appendChild(overlay);
+
+    const close = () => overlay.remove();
+    overlay.querySelector('#lad-form-close')?.addEventListener('click', close);
+    overlay.querySelector('#lad-form-cancel')?.addEventListener('click', close);
+    overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
+
+    overlay.querySelector('#lad-form-save')?.addEventListener('click', () => {
+      const desc = overlay.querySelector('#lad-f-desc').value.trim();
+      if (!desc) { alert('La descripción es obligatoria.'); return; }
+      const entry = {
+        id:          existing?.id ?? `rest-${Date.now()}`,
+        desc,
+        taskId:      overlay.querySelector('#lad-f-task').value || null,
+        responsible: overlay.querySelector('#lad-f-resp').value.trim() || null,
+        dueDate:     overlay.querySelector('#lad-f-due').value || null,
+        status:      overlay.querySelector('#lad-f-status').value,
+        createdAt:   existing?.createdAt ?? new Date().toISOString(),
+        updatedAt:   new Date().toISOString(),
+      };
+      if (editIdx !== null) rests[editIdx] = entry;
+      else rests.push(entry);
+      close();
+      onSave(rests);
+    });
+  }
+
+  _renderDashboard() {
+    const { project, cpmResult } = appState.state;
+    if (!project) { this._body.innerHTML = '<p class="lad-empty">Abre un proyecto primero.</p>'; return; }
+
+    const allPpc  = _getPPC();
+    const projPpc = allPpc[project.id] ?? {};
+    const rests   = _getRest(project.id);
+
+    const histLen = Math.max(this._weeks, 4);
+    const history = [];
+    for (let i = -(histLen - 1); i <= 0; i++) {
+      const wk      = _addWeeks(this._refWeekKey, i);
+      const wData   = projPpc[wk];
+      const tasks   = this._getWeekGroupForKey(wk);
+      const planned = tasks.length;
+      let completed = 0;
+      if (wData) tasks.forEach(r => { if (wData.tasks?.[r.task.id]) completed++; });
+      const ppc     = planned > 0 && wData?.saved ? Math.round((completed/planned)*100) : null;
+      history.push({ wk, planned, completed, ppc, label: `S${i + histLen}` });
+    }
+
+    const groups = cpmResult ? this._getWeekGroups() : null;
+    let totalPlanned = 0, totalDone = 0, totalCrit = 0, totalDelayed = 0;
+    if (groups) {
+      for (const [, rows] of groups) {
+        for (const r of rows) {
+          totalPlanned++;
+          if (r.pct >= 100) totalDone++;
+          if (r.cpm.tf === 0) totalCrit++;
+          const today = new Date(); today.setHours(0,0,0,0);
+          if (r.pct < 100 && r.endDate < today) totalDelayed++;
+        }
+      }
+    }
+
+    const restPending = rests.filter(r => r.status !== 'cleared').length;
+    const restCleared = rests.filter(r => r.status === 'cleared').length;
+
+    const validPpc = history.filter(h => h.ppc !== null).map(h => h.ppc);
+    const avgPpc   = validPpc.length > 0 ? Math.round(validPpc.reduce((a,b)=>a+b,0)/validPpc.length) : null;
+
+    const chartW = 520, chartH = 160, barW = Math.floor((chartW - 40) / history.length) - 4;
+    const chartBars = history.map((h, i) => {
+      const x = 40 + i * ((chartW - 40) / history.length) + 2;
+      const val = h.ppc ?? 0;
+      const barH = h.ppc !== null ? Math.max(4, Math.round((val / 100) * (chartH - 40))) : 0;
+      const y = chartH - 20 - barH;
+      const color = h.ppc === null ? '#CFD8DC' : h.ppc >= 85 ? '#388E3C' : h.ppc >= 60 ? '#F57C00' : '#D32F2F';
+      return `
+        <rect x="${x}" y="${y}" width="${barW}" height="${barH}" fill="${color}" rx="2">
+          <title>${h.label}: ${h.ppc !== null ? h.ppc + '%' : 'Sin datos'}</title>
+        </rect>
+        ${h.ppc !== null ? `<text x="${x + barW/2}" y="${y - 3}" text-anchor="middle" font-size="9" fill="${color}" font-weight="600">${h.ppc}%</text>` : ''}
+        <text x="${x + barW/2}" y="${chartH - 5}" text-anchor="middle" font-size="9" fill="#78909C">${h.label}</text>`;
+    }).join('');
+    const refY = chartH - 20 - Math.round((85/100) * (chartH - 40));
+
+    const chart = `
+      <svg width="100%" viewBox="0 0 ${chartW} ${chartH}" style="max-width:${chartW}px;display:block">
+        <line x1="40" y1="${refY}" x2="${chartW}" y2="${refY}" stroke="#388E3C" stroke-dasharray="4,3" stroke-width="1.5"/>
+        <text x="${chartW - 4}" y="${refY - 3}" text-anchor="end" font-size="9" fill="#388E3C">85%</text>
+        ${chartBars}
+        <line x1="40" y1="0" x2="40" y2="${chartH - 20}" stroke="#CFD8DC" stroke-width="1"/>
+        <line x1="40" y1="${chartH - 20}" x2="${chartW}" y2="${chartH - 20}" stroke="#CFD8DC" stroke-width="1"/>
+      </svg>`;
+
+    const avgColor = avgPpc === null ? '#757575' : avgPpc >= 85 ? '#388E3C' : avgPpc >= 60 ? '#F57C00' : '#D32F2F';
+
+    this._body.innerHTML = `
+      <div class="lad-dash-grid">
+        <div class="lad-kpi-card">
+          <div class="lad-kpi-val" style="color:${avgColor}">${avgPpc !== null ? avgPpc + '%' : 'N/A'}</div>
+          <div class="lad-kpi-label">PPC Promedio</div>
+          <div class="lad-kpi-sub">${validPpc.length} semana${validPpc.length!==1?'s':''} con datos</div>
+        </div>
+        <div class="lad-kpi-card">
+          <div class="lad-kpi-val" style="color:#1976D2">${totalPlanned}</div>
+          <div class="lad-kpi-label">Tareas en Lookahead</div>
+          <div class="lad-kpi-sub">${this._weeks} semana${this._weeks!==1?'s':''} adelante</div>
+        </div>
+        <div class="lad-kpi-card">
+          <div class="lad-kpi-val" style="color:#D32F2F">${totalCrit}</div>
+          <div class="lad-kpi-label">Tareas Críticas</div>
+          <div class="lad-kpi-sub">Holgura total = 0</div>
+        </div>
+        <div class="lad-kpi-card">
+          <div class="lad-kpi-val" style="color:${restPending>0?'#D32F2F':'#388E3C'}">${restPending}</div>
+          <div class="lad-kpi-label">Restricciones Pendientes</div>
+          <div class="lad-kpi-sub">${restCleared} levantada${restCleared!==1?'s':''}</div>
+        </div>
+      </div>
+
+      <div class="lad-chart-section">
+        <div class="lad-section-title">Historial PPC — Últimas ${histLen} semanas</div>
+        ${chart}
+        <div style="display:flex;gap:16px;margin-top:8px;font-size:11px;color:var(--clr-text-3)">
+          <span style="display:flex;align-items:center;gap:4px"><span style="width:10px;height:10px;background:#388E3C;border-radius:2px;display:inline-block"></span>≥ 85%</span>
+          <span style="display:flex;align-items:center;gap:4px"><span style="width:10px;height:10px;background:#F57C00;border-radius:2px;display:inline-block"></span>60–84%</span>
+          <span style="display:flex;align-items:center;gap:4px"><span style="width:10px;height:10px;background:#D32F2F;border-radius:2px;display:inline-block"></span>&lt;60%</span>
+          <span style="display:flex;align-items:center;gap:4px"><span style="width:10px;height:10px;background:#CFD8DC;border-radius:2px;display:inline-block"></span>Sin datos</span>
+        </div>
+      </div>
+
+      <div class="lad-section-title" style="margin-top:16px">Resumen tareas — Lookahead actual</div>
+      <div class="lad-dash-row">
+        <div class="lad-stat"><span>${totalPlanned}</span><small>Planificadas</small></div>
+        <div class="lad-stat"><span style="color:#388E3C">${totalDone}</span><small>Completadas</small></div>
+        <div class="lad-stat"><span style="color:#D32F2F">${totalDelayed}</span><small>Atrasadas</small></div>
+        <div class="lad-stat"><span style="color:${totalPlanned-totalDone-totalDelayed>0?'#1976D2':'#757575'}">${Math.max(0,totalPlanned-totalDone-totalDelayed)}</span><small>En progreso/pendiente</small></div>
+      </div>
+
+      ${rests.length > 0 ? `
+      <div class="lad-section-title" style="margin-top:16px">Últimas restricciones</div>
+      <table class="lad-table">
+        <thead><tr><th>Descripción</th><th>Responsable</th><th>Fecha límite</th><th>Estado</th></tr></thead>
+        <tbody>
+          ${rests.slice(0,5).map((r,i) => {
+            const isCleared = r.status === 'cleared';
+            return `<tr class="${i%2===0?'':'lad-row-alt'}">
+              <td>${_esc(r.desc)}</td>
+              <td>${_esc(r.responsible ?? '-')}</td>
+              <td class="lad-date">${r.dueDate ? _fmtDate(new Date(r.dueDate + 'T12:00:00')) : '-'}</td>
+              <td><span class="lad-badge" style="background:${isCleared?'#388E3C':'#D32F2F'}22;color:${isCleared?'#388E3C':'#D32F2F'}">${isCleared?'Levantada':'Pendiente'}</span></td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>` : ''}`;
+  }
+
+  _print() {
+    switch (this._tab) {
+      case 'planning':     this._printPlanning(); break;
+      case 'compliance':   this._printCompliance(); break;
+      case 'restrictions': this._printRestrictions(); break;
+      case 'dashboard':    this._printDashboard(); break;
+    }
+  }
+
+  _printPlanning() {
+    const groups = this._getWeekGroups();
+    if (!groups) return;
+    let html = `<h1>Lookahead Detallado — Planificación ${this._weeks} semanas</h1>`;
+    let idx = 0;
+    for (const [wk, rows] of groups) {
+      html += `<h2>${_weekLabel(wk, idx)}</h2>`;
+      if (!rows.length) { html += '<p>Sin tareas.</p>'; idx++; continue; }
+      html += `<table><thead><tr><th>WBS</th><th>Tarea</th><th>Inicio</th><th>Fin</th><th>Dur.</th><th>%</th><th>HT</th><th>Estado</th></tr></thead><tbody>`;
+      for (const r of rows) {
+        const status = r.pct >= 100 ? 'Completada' : r.cpm.tf === 0 ? 'Crítica' : r.pct > 0 ? 'En Curso' : 'Pendiente';
+        html += `<tr><td>${_esc(r.task.wbs_code??'-')}</td><td>${_esc(r.task.name)}</td><td>${_fmtDate(r.startDate)}</td><td>${_fmtDate(r.endDate)}</td><td>${r.cpm.ef-r.cpm.es}d</td><td>${r.pct}%</td><td>${r.cpm.tf??'-'}</td><td>${status}</td></tr>`;
+      }
+      html += `</tbody></table>`;
+      idx++;
+    }
+    _printToPdf('Lookahead - Planificación', html);
+  }
+
+  _printCompliance() {
+    const { project } = appState.state;
+    if (!project || !this._compWeekKey) return;
+    const allPpc  = _getPPC();
+    const projPpc = allPpc[project.id] ?? {};
+    const weekData = projPpc[this._compWeekKey] ?? { tasks:{}, reasons:{} };
+    const tasks   = this._getWeekGroupForKey(this._compWeekKey);
+    const completed = tasks.filter(r => !!weekData.tasks[r.task.id]).length;
+    const ppc     = tasks.length > 0 ? Math.round((completed/tasks.length)*100) : null;
+    let html = `<h1>Lookahead — Cumplimiento PPC</h1>
+      <p>Semana: ${_weekLabel(this._compWeekKey, 0)} | Planificadas: ${tasks.length} | Completadas: ${completed} | PPC: ${ppc !== null ? ppc + '%' : 'N/A'}</p>
+      <table><thead><tr><th>Tarea</th><th>Inicio</th><th>Fin</th><th>%</th><th>¿Completada?</th><th>Causa incumplimiento</th></tr></thead><tbody>`;
+    for (const r of tasks) {
+      const done = !!weekData.tasks[r.task.id];
+      const reason = weekData.reasons[r.task.id] ?? '-';
+      html += `<tr><td>${_esc(r.task.name)}</td><td>${_fmtDate(r.startDate)}</td><td>${_fmtDate(r.endDate)}</td><td>${r.pct}%</td><td>${done?'Sí':'No'}</td><td>${done?'-':_esc(reason)}</td></tr>`;
+    }
+    html += `</tbody></table>`;
+    _printToPdf('Lookahead - Cumplimiento PPC', html);
+  }
+
+  _printRestrictions() {
+    const { project } = appState.state;
+    if (!project) return;
+    const rests = _getRest(project.id);
+    let html = `<h1>Lookahead — Restricciones</h1>
+      <p>${rests.length} restricción(es)</p>
+      <table><thead><tr><th>Descripción</th><th>Tarea vinculada</th><th>Responsable</th><th>Fecha límite</th><th>Estado</th></tr></thead><tbody>`;
+    for (const r of rests) {
+      html += `<tr><td>${_esc(r.desc)}</td><td>${_esc(this._getTaskName(r.taskId))}</td><td>${_esc(r.responsible??'-')}</td><td>${r.dueDate?_fmtDate(new Date(r.dueDate+'T12:00:00')):'-'}</td><td>${r.status==='cleared'?'Levantada':'Pendiente'}</td></tr>`;
+    }
+    html += `</tbody></table>`;
+    _printToPdf('Lookahead - Restricciones', html);
+  }
+
+  _printDashboard() {
+    const { project } = appState.state;
+    if (!project) return;
+    const allPpc  = _getPPC();
+    const projPpc = allPpc[project.id] ?? {};
+    const histLen = Math.max(this._weeks, 4);
+    let html = `<h1>Lookahead — Dashboard</h1><table><thead><tr><th>Semana</th><th>Planificadas</th><th>Completadas</th><th>PPC</th></tr></thead><tbody>`;
+    for (let i = -(histLen-1); i <= 0; i++) {
+      const wk      = _addWeeks(this._refWeekKey, i);
+      const wData   = projPpc[wk];
+      const tasks   = this._getWeekGroupForKey(wk);
+      const planned = tasks.length;
+      let completed = 0;
+      if (wData) tasks.forEach(r => { if (wData.tasks?.[r.task.id]) completed++; });
+      const ppc = planned > 0 && wData?.saved ? Math.round((completed/planned)*100) + '%' : 'Sin datos';
+      html += `<tr><td>${_weekLabel(wk, i + histLen - 1)}</td><td>${planned}</td><td>${planned>0&&wData?.saved?completed:'-'}</td><td>${ppc}</td></tr>`;
+    }
+    html += `</tbody></table>`;
+    const rests = _getRest(project.id);
+    html += `<h2>Restricciones (${rests.length})</h2><table><thead><tr><th>Descripción</th><th>Estado</th></tr></thead><tbody>`;
+    for (const r of rests) html += `<tr><td>${_esc(r.desc)}</td><td>${r.status==='cleared'?'Levantada':'Pendiente'}</td></tr>`;
+    html += `</tbody></table>`;
+    _printToPdf('Lookahead - Dashboard', html);
+  }
+}
