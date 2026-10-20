@@ -2041,6 +2041,9 @@ async function init() {
       _showToast(e.detail.msg, e.detail.type ?? '');
     });
 
+    // Re-calcular CPM después de actualizaciones remotas (sync.js)
+    document.addEventListener('ecm-schedule-cpm', () => _requestCpm());
+
     // ---- Inicializar panel EVM ----
     const evmEl = document.getElementById('evm-panel');
     if (evmEl) {

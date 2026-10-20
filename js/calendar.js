@@ -137,7 +137,7 @@ export function _isoDate(d) {
 
 /** @param {Date} d @param {number} n @returns {Date} */
 function _addDays(d, n) {
-  return new Date(d.getTime() + n * 86_400_000);
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate() + n);
 }
 
 /**

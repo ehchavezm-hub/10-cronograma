@@ -42,7 +42,7 @@ export function getNotifications(horizonDays = 7) {
     todayIdx = 0;
     const d = new Date(startDate);
     while (d < today) {
-      if (cal.isWorkDay(d)) todayIdx++;
+      if (cal.isWorkingDay(d)) todayIdx++;
       d.setDate(d.getDate() + 1);
     }
     _todayCache = { key: cacheKey, idx: todayIdx };

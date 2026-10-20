@@ -27,6 +27,7 @@ import { isoToDate, Calendar } from './calendar.js';
  *   sv:number, cv:number, spi:number, cpi:number,
  *   eac:number, etc:number, tcpi:number, vac:number,
  *   pctComplete:number,
+ *   hasDataDate:boolean,
  *   tasks: EvmTask[],
  *   curve: CurvePoint[],
  * }} EvmResult
@@ -170,9 +171,11 @@ function _rebuildCurve(leafTasks, cpmTasks, cal, startDate, endDate) {
       const elapsedPv  = _clamp((d.getTime() - taskStart.getTime()) / dur, 0, 1);
       cumPv += taskBac * elapsedPv;
 
-      if (d >= taskFinish) {
-        cumEv += taskBac * (task.percent_complete ?? 0) / 100;
-        cumAc += task.actual_cost ?? 0;
+      if (d >= taskStart) {
+        const ratio = _clamp((d.getTime() - taskStart.getTime()) / dur, 0, 1);
+        const pct   = (task.percent_complete ?? 0) / 100;
+        cumEv += taskBac * pct * ratio;
+        cumAc += (task.actual_cost ?? 0) * ratio;
       }
     }
 
@@ -372,7 +375,8 @@ function _setKpi(container, key, val, fmt, cls = '') {
 
 function _fmtC(v) {
   if (v == null || !isFinite(v)) return '—';
-  return new Intl.NumberFormat('es-PE', { style: 'currency', currency: 'PEN', maximumFractionDigits: 0 }).format(v);
+  const currency = appState.state.project?.currency ?? 'PEN';
+  return new Intl.NumberFormat('es-PE', { style: 'currency', currency, maximumFractionDigits: 0 }).format(v);
 }
 
 function _fmtK(v) {

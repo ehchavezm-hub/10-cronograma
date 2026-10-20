@@ -10,7 +10,7 @@
  *   baseline_tasks { id, baseline_id, task_id, es, ef, dur }
  */
 
-import { put, getAll, remove } from './storage.js';
+import { put, getAll, getByIndex, remove } from './storage.js';
 import { appState } from './state.js';
 
 // ---- Guardar línea base ----
@@ -52,7 +52,12 @@ export async function saveBaseline(name) {
     });
   }
 
-  await Promise.all(taskRows.map(row => put('baseline_tasks', row)));
+  try {
+    await Promise.all(taskRows.map(row => put('baseline_tasks', row)));
+  } catch (err) {
+    await remove('baselines', baselineId).catch(() => {});
+    throw err;
+  }
 
   return baselineId;
 }
@@ -64,10 +69,8 @@ export async function saveBaseline(name) {
  * @returns {Promise<Array<{id:string, name:string, created_at:string, is_active:boolean}>>}
  */
 export async function listBaselines(projectId) {
-  const all = await getAll('baselines');
-  return all
-    .filter(b => b.project_id === projectId)
-    .sort((a, b) => b.created_at.localeCompare(a.created_at));
+  const all = await getByIndex('baselines', 'project_id', projectId);
+  return all.sort((a, b) => b.created_at.localeCompare(a.created_at));
 }
 
 // ---- Cargar datos de una línea base ----
@@ -77,12 +80,10 @@ export async function listBaselines(projectId) {
  * @returns {Promise<Map<string, {es:number, ef:number, dur:number}>>}
  */
 export async function loadBaselineData(baselineId) {
-  const all = await getAll('baseline_tasks');
+  const rows = await getByIndex('baseline_tasks', 'baseline_id', baselineId);
   const map = new Map();
-  for (const row of all) {
-    if (row.baseline_id === baselineId) {
-      map.set(row.task_id, { es: row.es, ef: row.ef, dur: row.dur });
-    }
+  for (const row of rows) {
+    map.set(row.task_id, { es: row.es, ef: row.ef, dur: row.dur });
   }
   return map;
 }
@@ -92,9 +93,7 @@ export async function loadBaselineData(baselineId) {
 /** @param {string} baselineId */
 export async function deleteBaseline(baselineId) {
   await remove('baselines', baselineId);
-  // Eliminar las tareas asociadas
-  const all = await getAll('baseline_tasks');
-  const toDelete = all.filter(row => row.baseline_id === baselineId);
+  const toDelete = await getByIndex('baseline_tasks', 'baseline_id', baselineId);
   await Promise.all(toDelete.map(row => remove('baseline_tasks', row.id)));
 }
 

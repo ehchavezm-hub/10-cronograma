@@ -176,7 +176,8 @@ export function topologicalSort(leafIds, deps) {
       if (deg === 0) queue.push(s);
     }
   }
-  const cyclic = leafIds.filter(id => !order.includes(id));
+  const orderSet = new Set(order);
+  const cyclic = leafIds.filter(id => !orderSet.has(id));
   return { order, cyclic };
 }
 
