@@ -15,6 +15,35 @@
 
 import { getByIndex, put } from './storage.js';
 
+function _makeDraggable(dialog, handleSelector) {
+  const handle = handleSelector ? dialog.querySelector(handleSelector) : dialog;
+  if (!handle) return;
+  let startX, startY, startLeft, startTop;
+  handle.style.cursor = 'move';
+  handle.addEventListener('mousedown', e => {
+    if (e.button !== 0) return;
+    if (/** @type {HTMLElement} */ (e.target).closest('button,input,select,textarea,a')) return;
+    e.preventDefault();
+    const rect = dialog.getBoundingClientRect();
+    startX = e.clientX; startY = e.clientY;
+    startLeft = rect.left; startTop = rect.top;
+    dialog.style.position = 'fixed';
+    dialog.style.margin = '0';
+    dialog.style.left = startLeft + 'px';
+    dialog.style.top = startTop + 'px';
+    const onMove = mv => {
+      dialog.style.left = (startLeft + mv.clientX - startX) + 'px';
+      dialog.style.top  = (startTop  + mv.clientY - startY) + 'px';
+    };
+    const onUp = () => {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+    };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  });
+}
+
 const CATEGORIES = ['Técnico', 'Externo', 'Organizacional', 'Gestión de proyectos', 'Otro'];
 const STATUSES   = ['Abierto', 'En seguimiento', 'Cerrado', 'Aceptado'];
 
@@ -98,6 +127,7 @@ export class RiskRegisterPanel {
     // Header
     const hdr = document.createElement('div');
     hdr.className = 'rr-header';
+    hdr.setAttribute('data-drag-handle', '');
     hdr.innerHTML = `
       <span class="rr-title">Registro de Riesgos</span>
       <div class="rr-header-actions">
@@ -129,6 +159,7 @@ export class RiskRegisterPanel {
     this.container.appendChild(this._formOverlay);
 
     this._updateViewButtons();
+    if (this.container.parentElement) _makeDraggable(this.container.parentElement, '[data-drag-handle]');
   }
 
   _updateViewButtons() {

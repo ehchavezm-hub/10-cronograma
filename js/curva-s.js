@@ -7,6 +7,50 @@
 import { appState } from './state.js';
 import { Calendar, isoToDate } from './calendar.js';
 
+function _makeDraggable(dialog, handleSelector) {
+  const handle = handleSelector ? dialog.querySelector(handleSelector) : dialog;
+  if (!handle) return;
+  let startX, startY, startLeft, startTop;
+  handle.style.cursor = 'move';
+  handle.addEventListener('mousedown', e => {
+    if (e.button !== 0) return;
+    if (/** @type {HTMLElement} */ (e.target).closest('button,input,select,textarea,a')) return;
+    e.preventDefault();
+    const rect = dialog.getBoundingClientRect();
+    startX = e.clientX; startY = e.clientY;
+    startLeft = rect.left; startTop = rect.top;
+    dialog.style.position = 'fixed';
+    dialog.style.margin = '0';
+    dialog.style.left = startLeft + 'px';
+    dialog.style.top = startTop + 'px';
+    const onMove = mv => {
+      dialog.style.left = (startLeft + mv.clientX - startX) + 'px';
+      dialog.style.top  = (startTop  + mv.clientY - startY) + 'px';
+    };
+    const onUp = () => {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+    };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  });
+}
+
+function _printToPdf(title, htmlContent) {
+  const w = window.open('', '_blank', 'width=900,height=700');
+  if (!w) return;
+  w.document.write(`<!DOCTYPE html><html><head>
+    <meta charset="utf-8">
+    <title>${title}</title>
+    <style>
+      body { font-family: Arial, sans-serif; padding: 24px; }
+      h1 { font-size: 18px; margin-bottom: 16px; }
+      @media print { body { margin: 0; } }
+    </style>
+  </head><body>${htmlContent}<script>window.print();window.close();<\/script></body></html>`);
+  w.document.close();
+}
+
 export class CurvaSPanel {
   /** @param {HTMLElement} containerEl */
   constructor(containerEl) {
@@ -20,6 +64,7 @@ export class CurvaSPanel {
     this.el.style.cssText = 'display:flex;flex-direction:column;height:100%;font-family:var(--font-ui)';
 
     const hdr = document.createElement('div');
+    hdr.setAttribute('data-drag-handle', '');
     hdr.style.cssText = 'display:flex;align-items:center;gap:10px;padding:14px 18px;border-bottom:1px solid var(--clr-border);flex-shrink:0';
     hdr.innerHTML = `
       <span style="font-size:20px">📈</span>
@@ -27,6 +72,15 @@ export class CurvaSPanel {
         <div style="font-size:var(--text-md,14px);font-weight:600;color:var(--clr-text)">Curva S de Avance</div>
         <div style="font-size:11px;color:var(--clr-text-3)">Planificado vs Real vs Proyectado</div>
       </div>`;
+    const _printBtn = document.createElement('button');
+    _printBtn.innerHTML = '🖨';
+    _printBtn.title = 'Imprimir PDF';
+    _printBtn.className = 'btn btn-ghost btn-icon btn-sm';
+    _printBtn.style.cssText = 'font-size:15px;flex-shrink:0';
+    _printBtn.addEventListener('click', () => {
+      _printToPdf('Curva S de Avance', `<h1>Curva S de Avance</h1>${this._chartArea?.innerHTML ?? ''}`);
+    });
+    hdr.appendChild(_printBtn);
     this.el.appendChild(hdr);
 
     // Leyenda
@@ -48,6 +102,7 @@ export class CurvaSPanel {
     this._ro = new ResizeObserver(() => this.refresh());
     this._ro.observe(this._chartArea);
 
+    if (this.el.parentElement) _makeDraggable(this.el.parentElement, '[data-drag-handle]');
     this.refresh();
   }
 

@@ -9,6 +9,21 @@ import { Calendar, isoToDate } from './calendar.js';
 
 const _esc = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 
+function _printToPdf(title, htmlContent) {
+  const w = window.open('', '_blank', 'width=900,height=700');
+  if (!w) return;
+  w.document.write(`<!DOCTYPE html><html><head>
+    <meta charset="utf-8">
+    <title>${title}</title>
+    <style>
+      body { font-family: Arial, sans-serif; padding: 24px; }
+      h1 { font-size: 18px; margin-bottom: 16px; }
+      @media print { body { margin: 0; } }
+    </style>
+  </head><body>${htmlContent}<script>window.print();window.close();<\/script></body></html>`);
+  w.document.close();
+}
+
 /**
  * @typedef {{ type: 'critical'|'upcoming'|'overdue', task: object, daysLeft: number }} Notification
  */
@@ -102,6 +117,15 @@ export class NotificationsPanel {
         <div style="font-size:var(--text-md,14px);font-weight:600;color:var(--clr-text)">Notificaciones</div>
         <div style="font-size:11px;color:var(--clr-text-3)">Alertas de tareas críticas y próximas a vencer</div>
       </div>`;
+    const _printBtn = document.createElement('button');
+    _printBtn.innerHTML = '🖨';
+    _printBtn.title = 'Imprimir PDF';
+    _printBtn.className = 'btn btn-ghost btn-icon btn-sm';
+    _printBtn.style.cssText = 'font-size:15px;flex-shrink:0';
+    _printBtn.addEventListener('click', () => {
+      _printToPdf('Notificaciones', `<h1>Notificaciones</h1>${this._body?.innerHTML ?? ''}`);
+    });
+    hdr.appendChild(_printBtn);
     this.el.appendChild(hdr);
 
     this._body = document.createElement('div');

@@ -10,6 +10,53 @@ import { Calendar, isoToDate } from './calendar.js';
 /** @param {*} s */
 const _esc = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 
+function _makeDraggable(dialog, handleSelector) {
+  const handle = handleSelector ? dialog.querySelector(handleSelector) : dialog;
+  if (!handle) return;
+  let startX, startY, startLeft, startTop;
+  handle.style.cursor = 'move';
+  handle.addEventListener('mousedown', e => {
+    if (e.button !== 0) return;
+    if (/** @type {HTMLElement} */ (e.target).closest('button,input,select,textarea,a')) return;
+    e.preventDefault();
+    const rect = dialog.getBoundingClientRect();
+    startX = e.clientX; startY = e.clientY;
+    startLeft = rect.left; startTop = rect.top;
+    dialog.style.position = 'fixed';
+    dialog.style.margin = '0';
+    dialog.style.left = startLeft + 'px';
+    dialog.style.top = startTop + 'px';
+    const onMove = mv => {
+      dialog.style.left = (startLeft + mv.clientX - startX) + 'px';
+      dialog.style.top  = (startTop  + mv.clientY - startY) + 'px';
+    };
+    const onUp = () => {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+    };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  });
+}
+
+function _printToPdf(title, htmlContent) {
+  const w = window.open('', '_blank', 'width=900,height=700');
+  if (!w) return;
+  w.document.write(`<!DOCTYPE html><html><head>
+    <meta charset="utf-8">
+    <title>${title}</title>
+    <style>
+      body { font-family: Arial, sans-serif; padding: 24px; }
+      h1 { font-size: 18px; margin-bottom: 16px; }
+      table { border-collapse: collapse; width: 100%; }
+      th, td { border: 1px solid #ccc; padding: 6px 10px; font-size: 12px; }
+      th { background: #f4f5f7; font-weight: 600; }
+      @media print { body { margin: 0; } }
+    </style>
+  </head><body>${htmlContent}<script>window.print();window.close();<\/script></body></html>`);
+  w.document.close();
+}
+
 const STATUS_LABEL = { todo: 'Pendiente', in_progress: 'En Curso', done: 'Completada', delayed: 'Atrasada' };
 const STATUS_COLOR = { todo: '#757575', in_progress: '#1976D2', done: '#388E3C', delayed: '#D32F2F' };
 
@@ -28,6 +75,7 @@ export class LookaheadPanel {
 
     // Header
     const hdr = document.createElement('div');
+    hdr.setAttribute('data-drag-handle', '');
     hdr.style.cssText = 'display:flex;align-items:center;gap:10px;padding:14px 18px;border-bottom:1px solid var(--clr-border);flex-shrink:0';
     hdr.innerHTML = `
       <span style="font-size:20px">📅</span>
@@ -38,6 +86,7 @@ export class LookaheadPanel {
       <div style="display:flex;gap:4px">
         <button id="la-btn-3" class="btn btn-sm" style="padding:4px 12px;font-size:12px">3 semanas</button>
         <button id="la-btn-6" class="btn btn-sm" style="padding:4px 12px;font-size:12px">6 semanas</button>
+        <button id="la-btn-print" class="btn btn-ghost btn-icon btn-sm" title="Imprimir PDF" style="font-size:15px">🖨</button>
       </div>`;
     this.el.appendChild(hdr);
 
@@ -47,6 +96,10 @@ export class LookaheadPanel {
 
     hdr.querySelector('#la-btn-3')?.addEventListener('click', () => { this._weeks = 3; this.refresh(); });
     hdr.querySelector('#la-btn-6')?.addEventListener('click', () => { this._weeks = 6; this.refresh(); });
+    hdr.querySelector('#la-btn-print')?.addEventListener('click', () => {
+      _printToPdf('Vista Lookahead', `<h1>Vista Lookahead — ${this._weeks} semanas</h1>${this._tbody?.innerHTML ?? ''}`);
+    });
+    if (this.el.parentElement) _makeDraggable(this.el.parentElement, '[data-drag-handle]');
     this.refresh();
   }
 
