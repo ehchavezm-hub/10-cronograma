@@ -271,8 +271,8 @@
 
     <!-- Panel: Registro de Riesgos (overlay) -->
     <div id="panel-risk-register" style="display:none;position:fixed;inset:0;z-index:800;background:rgba(0,0,0,.35)" role="dialog" aria-labelledby="risk-panel-title" aria-modal="true">
-      <div style="position:absolute;top:10vh;left:50%;transform:translateX(-50%);
-        width:min(900px,96vw);max-height:80vh;overflow:auto;
+      <div style="position:absolute;top:4vh;left:50%;transform:translateX(-50%);
+        width:min(1100px,98vw);max-height:92vh;overflow:hidden;
         background:var(--clr-surface,#fff);border-radius:12px;
         box-shadow:0 12px 60px rgba(0,0,0,.3);display:flex;flex-direction:column;">
         <div data-drag-handle style="display:flex;align-items:center;gap:10px;padding:14px 18px;border-bottom:1px solid var(--clr-border);flex-shrink:0;cursor:move">
@@ -280,7 +280,7 @@
           <h2 id="risk-panel-title" style="flex:1;margin:0;font-size:var(--text-md);font-weight:var(--fw-semi)">Registro de Riesgos</h2>
           <button id="btn-risk-panel-close" class="btn btn-ghost btn-icon btn-sm" aria-label="Cerrar">✕</button>
         </div>
-        <div id="risk-register-container" style="flex:1;overflow:auto;padding:0"></div>
+        <div id="risk-register-container" style="flex:1;overflow-y:auto;min-height:0;padding:0"></div>
       </div>
     </div>
 
