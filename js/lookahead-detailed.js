@@ -110,6 +110,22 @@ function _savePlan(projId, planData) {
   } catch { /* ignore */ }
 }
 
+const LS_META    = 'ecm-lad-meta';
+const LS_STANDUP = 'ecm-lad-standup';
+
+function _getMeta(projId) {
+  try { const all = JSON.parse(localStorage.getItem(LS_META) || '{}'); return all[projId] ?? {}; } catch { return {}; }
+}
+function _saveMeta(projId, data) {
+  try { const all = JSON.parse(localStorage.getItem(LS_META) || '{}'); all[projId] = data; localStorage.setItem(LS_META, JSON.stringify(all)); } catch {}
+}
+function _getStandup(projId) {
+  try { const all = JSON.parse(localStorage.getItem(LS_STANDUP) || '{}'); return all[projId] ?? {}; } catch { return {}; }
+}
+function _saveStandup(projId, data) {
+  try { const all = JSON.parse(localStorage.getItem(LS_STANDUP) || '{}'); all[projId] = data; localStorage.setItem(LS_STANDUP, JSON.stringify(all)); } catch {}
+}
+
 function _genId() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 }
@@ -251,7 +267,8 @@ export class LookaheadDetailedPanel {
       <button class="lad-tab lad-tab-active" data-tab="planning">📅 LookAhead (6 Semanas)</button>
       <button class="lad-tab" data-tab="compliance">📋 Plan Semanal (WWP)</button>
       <button class="lad-tab" data-tab="restrictions">🚧 Log de Restricciones</button>
-      <button class="lad-tab" data-tab="dashboard">📊 Métricas LPS / PPC</button>`;
+      <button class="lad-tab" data-tab="dashboard">📊 Métricas LPS / PPC</button>
+      <button class="lad-tab" data-tab="standup">🌅 Stand-Up Diario</button>`;
     this.el.appendChild(tabBar);
 
     this._body = document.createElement('div');
@@ -283,6 +300,7 @@ export class LookaheadDetailedPanel {
       case 'compliance':   this._renderCompliance(); break;
       case 'restrictions': this._renderRestrictions(); break;
       case 'dashboard':    this._renderDashboard(); break;
+      case 'standup':      this._renderStandup(); break;
     }
   }
 
@@ -766,9 +784,25 @@ export class LookaheadDetailedPanel {
     const ppc = totalPlanned > 0 ? Math.round((totalCompleted / totalPlanned) * 100) : null;
     const ppcColor = ppc === null ? '#757575' : ppc >= 75 ? '#388E3C' : ppc >= 60 ? '#F57C00' : '#D32F2F';
 
+    const meta = _getMeta(project.id);
+
     let html = `
       <div style="background:var(--clr-surface-2,var(--clr-surface));border-left:3px solid #1976D2;padding:6px 12px;margin-bottom:6px;font-size:11px;color:var(--clr-text-2)">
         <strong style="color:#1976D2">WWP — Plan de Trabajo Semanal (WILL occur)</strong> &nbsp;·&nbsp; Compromiso de actividades que se ejecutarán esta semana &nbsp;·&nbsp; Meta PPC: <strong>75–90%</strong> (LCI §11)
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:8px;padding:8px 0 6px;font-size:12px">
+        <label class="lad-label" style="font-size:11px;margin:0">Área
+          <input id="lad-meta-area" type="text" class="lad-input" style="font-size:11px;padding:3px 6px" placeholder="Área / Frente" value="${_esc(meta.area ?? '')}">
+        </label>
+        <label class="lad-label" style="font-size:11px;margin:0">Contratista
+          <input id="lad-meta-contratista" type="text" class="lad-input" style="font-size:11px;padding:3px 6px" placeholder="Contratista / Empresa" value="${_esc(meta.contratista ?? '')}">
+        </label>
+        <label class="lad-label" style="font-size:11px;margin:0">Turno
+          <input id="lad-meta-turno" type="text" class="lad-input" style="font-size:11px;padding:3px 6px" placeholder="Día / Noche / Especial" value="${_esc(meta.turno ?? '')}">
+        </label>
+        <label class="lad-label" style="font-size:11px;margin:0">Last Planner™
+          <input id="lad-meta-lp" type="text" class="lad-input" style="font-size:11px;padding:3px 6px" placeholder="Nombre del Last Planner" value="${_esc(meta.lastPlanner ?? '')}">
+        </label>
       </div>
       <div class="lad-info-bar">
         <div style="display:flex;align-items:center;gap:12px">
@@ -909,6 +943,19 @@ export class LookaheadDetailedPanel {
         compXlsInput.value = '';
       });
     }
+
+    const saveMetaField = (field, key) => {
+      const el = this._body.querySelector(field);
+      if (el) el.addEventListener('blur', () => {
+        const m = _getMeta(project.id);
+        m[key] = /** @type {HTMLInputElement} */ (el).value.trim();
+        _saveMeta(project.id, m);
+      });
+    };
+    saveMetaField('#lad-meta-area', 'area');
+    saveMetaField('#lad-meta-contratista', 'contratista');
+    saveMetaField('#lad-meta-turno', 'turno');
+    saveMetaField('#lad-meta-lp', 'lastPlanner');
   }
 
   _getWeekGroupForKey(weekKey) {
@@ -972,14 +1019,16 @@ export class LookaheadDetailedPanel {
         ? `<p class="lad-empty">No hay restricciones registradas. Usa "+ Nueva restricción" para agregar.</p>`
         : `<table class="lad-table">
           <thead><tr>
+            <th style="text-align:center">#Restricción</th>
+            <th>#Actividad</th>
             <th>Descripción</th>
-            <th>Tipo</th>
-            <th>Empresa / Área</th>
+            <th>#RFI</th>
             <th>Responsable</th>
+            <th>Empresa / Área</th>
             <th>F. Identificada</th>
-            <th>F. Requerida</th>
-            <th>F. Prometida</th>
-            <th>F. Efectiva</th>
+            <th>F. Necesita Res.</th>
+            <th>F. Prometida Res.</th>
+            <th>F. Res. Efectiva</th>
             <th>Estado</th>
             <th style="text-align:center">Acciones</th>
           </tr></thead>
@@ -990,10 +1039,12 @@ export class LookaheadDetailedPanel {
               const toggleIcon = r.status === 'cleared' ? '🔓' : r.status === 'in-progress' ? '⏳' : '🔒';
               const toggleTitle = r.status === 'cleared' ? 'Marcar pendiente' : r.status === 'in-progress' ? 'Marcar levantada' : 'Marcar en proceso';
               return `<tr class="${i%2===0?'':'lad-row-alt'}">
-                <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${_esc(r.desc)}">${_esc(r.desc)}</td>
-                <td style="font-size:11px">${_esc(r.type ?? '-')}</td>
-                <td style="font-size:11px">${_esc(r.responsibleCompany ?? '-')}</td>
+                <td style="text-align:center;font-size:11px;font-weight:600">${i+1}</td>
+                <td style="font-size:11px">${_esc(r.activityNumber ?? '-')}</td>
+                <td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${_esc(r.desc)}">${_esc(r.desc)}</td>
+                <td style="font-size:11px">${_esc(r.rfiNumber ?? '-')}</td>
                 <td>${_esc(r.responsible ?? '-')}</td>
+                <td style="font-size:11px">${_esc(r.responsibleCompany ?? '-')}</td>
                 <td class="lad-date">${r.dateIdentified ? _fmtDate(new Date(r.dateIdentified + 'T12:00:00')) : '-'}</td>
                 <td class="lad-date">${(r.requiredDate||r.dueDate) ? _fmtDate(new Date((r.requiredDate||r.dueDate) + 'T12:00:00')) : '-'}</td>
                 <td class="lad-date">${r.promisedDate ? _fmtDate(new Date(r.promisedDate + 'T12:00:00')) : '-'}</td>
@@ -1109,10 +1160,15 @@ export class LookaheadDetailedPanel {
             </label>
           </div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+            <label class="lad-label">Número de Actividad
+              <input id="lad-f-actnum" type="text" class="lad-input" placeholder="ID o código de actividad" value="${_esc(existing?.activityNumber ?? '')}">
+            </label>
             <label class="lad-label">Número RFI (opcional)
               <input id="lad-f-rfi" type="text" class="lad-input" placeholder="N° RFI" value="${_esc(existing?.rfiNumber ?? '')}">
             </label>
-            <label class="lad-label">Estado
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+            <label class="lad-label" style="grid-column:2">Estado
               <select id="lad-f-status" class="lad-input">
                 <option value="pending"${(!existing||existing.status==='pending')?' selected':''}>Pendiente</option>
                 <option value="in-progress"${existing?.status==='in-progress'?' selected':''}>En proceso</option>
@@ -1159,6 +1215,7 @@ export class LookaheadDetailedPanel {
         id:                existing?.id ?? `rest-${Date.now()}`,
         desc,
         type:              overlay.querySelector('#lad-f-type').value || null,
+        activityNumber:    overlay.querySelector('#lad-f-actnum').value.trim() || null,
         taskId:            overlay.querySelector('#lad-f-task').value || null,
         responsible:       overlay.querySelector('#lad-f-resp').value.trim() || null,
         responsibleCompany: overlay.querySelector('#lad-f-company').value.trim() || null,
@@ -1232,8 +1289,9 @@ export class LookaheadDetailedPanel {
     const avgPpc   = validPpc.length > 0 ? Math.round(validPpc.reduce((a,b)=>a+b,0)/validPpc.length) : null;
 
     const chartW = 520, chartH = 160, barW = Math.floor((chartW - 40) / history.length) - 4;
+    const colW = (chartW - 40) / history.length;
     const chartBars = history.map((h, i) => {
-      const x = 40 + i * ((chartW - 40) / history.length) + 2;
+      const x = 40 + i * colW + 2;
       const val = h.ppc ?? 0;
       const barH = h.ppc !== null ? Math.max(4, Math.round((val / 100) * (chartH - 40))) : 0;
       const y = chartH - 20 - barH;
@@ -1245,6 +1303,15 @@ export class LookaheadDetailedPanel {
         ${h.ppc !== null ? `<text x="${x + barW/2}" y="${y - 3}" text-anchor="middle" font-size="9" fill="${color}" font-weight="600">${h.ppc}%</text>` : ''}
         <text x="${x + barW/2}" y="${chartH - 5}" text-anchor="middle" font-size="9" fill="#78909C">${h.label}</text>`;
     }).join('');
+    const trendPoints = history.map((h, i) => {
+      if (h.ppc === null) return null;
+      const cx = 40 + i * colW + colW / 2;
+      const cy = chartH - 20 - Math.round((h.ppc / 100) * (chartH - 40));
+      return `${cx},${cy}`;
+    }).filter(Boolean);
+    const trendLine = trendPoints.length >= 2
+      ? `<polyline points="${trendPoints.join(' ')}" fill="none" stroke="#1565C0" stroke-width="2" stroke-dasharray="4,2" opacity="0.85"/>`
+      : '';
     const refY75 = chartH - 20 - Math.round((75/100) * (chartH - 40));
     const refY90 = chartH - 20 - Math.round((90/100) * (chartH - 40));
 
@@ -1256,6 +1323,7 @@ export class LookaheadDetailedPanel {
         <line x1="40" y1="${refY90}" x2="${chartW}" y2="${refY90}" stroke="#388E3C" stroke-dasharray="4,3" stroke-width="1.5"/>
         <text x="${chartW - 4}" y="${refY90 - 3}" text-anchor="end" font-size="9" fill="#388E3C">90% (óptimo LCI)</text>
         ${chartBars}
+        ${trendLine}
         <line x1="40" y1="0" x2="40" y2="${chartH - 20}" stroke="#CFD8DC" stroke-width="1"/>
         <line x1="40" y1="${chartH - 20}" x2="${chartW}" y2="${chartH - 20}" stroke="#CFD8DC" stroke-width="1"/>
       </svg>`;
@@ -1330,6 +1398,42 @@ export class LookaheadDetailedPanel {
         </div>
       </div>
 
+      ${(() => {
+        // Reasons for Variance — aggregate from all saved PPC weeks
+        const allPpcData = _getPPC();
+        const projPpcData = allPpcData[project.id] ?? {};
+        const causaCounts = {};
+        CAUSAS.forEach(c => { causaCounts[c] = 0; });
+        for (const wk of Object.keys(projPpcData)) {
+          const wd = projPpcData[wk];
+          if (!wd?.reasons) continue;
+          for (const cause of Object.values(wd.reasons)) {
+            if (cause && causaCounts[cause] !== undefined) causaCounts[cause]++;
+            else if (cause) causaCounts['Otras causas'] = (causaCounts['Otras causas'] || 0) + 1;
+          }
+        }
+        const totalVarCount = Object.values(causaCounts).reduce((s,v) => s+v, 0);
+        if (totalVarCount === 0) return '';
+        const sorted = Object.entries(causaCounts).filter(([,v]) => v > 0).sort((a,b) => b[1]-a[1]);
+        const maxVal = sorted[0][1];
+        const rvW = 520, rowH = 22, rvH = sorted.length * rowH + 30;
+        const bars = sorted.map(([label, val], i) => {
+          const barLen = Math.round((val / maxVal) * (rvW - 220));
+          const y = i * rowH + 10;
+          const pct = totalVarCount > 0 ? Math.round((val/totalVarCount)*100) : 0;
+          return `
+            <text x="0" y="${y + 15}" font-size="10" fill="#546E7A" text-anchor="start" dominant-baseline="auto">${_esc(label)}</text>
+            <rect x="210" y="${y + 4}" width="${barLen}" height="14" fill="#1976D2" rx="2" opacity="0.8"/>
+            <text x="${212 + barLen}" y="${y + 15}" font-size="10" fill="#37474F" font-weight="600">${val} (${pct}%)</text>`;
+        }).join('');
+        return `<div class="lad-chart-section" style="margin-top:16px">
+          <div class="lad-section-title">Razones de Varianza — §12 LCI (${totalVarCount} incidencias acumuladas)</div>
+          <svg width="100%" viewBox="0 0 ${rvW} ${rvH}" style="max-width:${rvW}px;display:block;overflow:visible">
+            ${bars}
+          </svg>
+        </div>`;
+      })()}
+
       <div class="lad-section-title" style="margin-top:16px">Resumen tareas — Lookahead actual</div>
       <div class="lad-dash-row">
         <div class="lad-stat"><span>${totalPlanned}</span><small>Planificadas</small></div>
@@ -1359,12 +1463,116 @@ export class LookaheadDetailedPanel {
       </table>` : ''}`;
   }
 
+  _renderStandup() {
+    const { project } = appState.state;
+    if (!project) { this._body.innerHTML = '<p class="lad-empty">Abre un proyecto primero.</p>'; return; }
+
+    const todayStr = new Date().toISOString().slice(0,10);
+    const allStandup = _getStandup(project.id);
+
+    this._body.innerHTML = `
+      <div class="lad-info-bar">
+        <span>🌅 <strong>Stand-Up Diario</strong> — Registro de aprendizaje LPS §10</span>
+      </div>
+      <div style="padding:12px 0;max-width:640px">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">
+          <label style="font-size:12px;color:var(--clr-text-2);font-weight:600">Fecha:
+            <input id="lad-su-date" type="date" class="lad-input" value="${todayStr}" style="margin-left:6px;width:140px">
+          </label>
+        </div>
+        <div id="lad-su-form" style="display:flex;flex-direction:column;gap:12px">
+          <label class="lad-label" style="font-size:12px">
+            <span style="font-weight:700;color:var(--clr-text)">1. ¿Qué aprendiste hoy?</span>
+            <textarea id="lad-su-q1" rows="3" class="lad-input" placeholder="Escribe tu aprendizaje del día..."></textarea>
+          </label>
+          <label class="lad-label" style="font-size:12px">
+            <span style="font-weight:700;color:var(--clr-text)">2. ¿Qué mejoraste hoy?</span>
+            <textarea id="lad-su-q2" rows="3" class="lad-input" placeholder="Describe qué mejoró en el proceso o trabajo..."></textarea>
+          </label>
+          <label class="lad-label" style="font-size:12px">
+            <span style="font-weight:700;color:var(--clr-text)">3. ¿Qué haría que mañana sea mejor?</span>
+            <textarea id="lad-su-q3" rows="3" class="lad-input" placeholder="Propón algo concreto para el día siguiente..."></textarea>
+          </label>
+          <div style="display:flex;gap:8px;margin-top:4px">
+            <button id="lad-su-save" class="btn btn-primary btn-sm">💾 Guardar Stand-Up</button>
+            <button id="lad-su-clear" class="btn btn-ghost btn-sm">🗑 Limpiar</button>
+          </div>
+        </div>
+      </div>
+
+      ${Object.keys(allStandup).length > 0 ? `
+      <div class="lad-section-title" style="margin-top:16px">Historial Stand-Up</div>
+      <div style="overflow-x:auto">
+        <table class="lad-table" style="font-size:11px">
+          <thead><tr>
+            <th>Fecha</th>
+            <th>¿Qué aprendiste?</th>
+            <th>¿Qué mejoraste?</th>
+            <th>¿Qué haría mejor mañana?</th>
+            <th style="text-align:center">Acción</th>
+          </tr></thead>
+          <tbody>
+            ${Object.entries(allStandup).sort((a,b) => b[0].localeCompare(a[0])).map(([date, entry], i) =>
+              `<tr class="${i%2===0?'':'lad-row-alt'}">
+                <td style="white-space:nowrap;font-weight:600">${_fmtDate(new Date(date+'T12:00:00'))}</td>
+                <td>${_esc(entry.q1 || '-')}</td>
+                <td>${_esc(entry.q2 || '-')}</td>
+                <td>${_esc(entry.q3 || '-')}</td>
+                <td style="text-align:center"><button class="lad-btn-icon lad-su-del" data-date="${date}" title="Eliminar">🗑</button></td>
+              </tr>`
+            ).join('')}
+          </tbody>
+        </table>
+      </div>` : ''}`;
+
+    const loadEntry = (dateStr) => {
+      const e = allStandup[dateStr] ?? {};
+      this._body.querySelector('#lad-su-q1').value = e.q1 ?? '';
+      this._body.querySelector('#lad-su-q2').value = e.q2 ?? '';
+      this._body.querySelector('#lad-su-q3').value = e.q3 ?? '';
+    };
+    loadEntry(todayStr);
+
+    this._body.querySelector('#lad-su-date').addEventListener('change', e => {
+      loadEntry(/** @type {HTMLInputElement} */ (e.target).value);
+    });
+
+    this._body.querySelector('#lad-su-save').addEventListener('click', () => {
+      const dateVal = /** @type {HTMLInputElement} */ (this._body.querySelector('#lad-su-date')).value;
+      if (!dateVal) return;
+      const q1 = this._body.querySelector('#lad-su-q1').value.trim();
+      const q2 = this._body.querySelector('#lad-su-q2').value.trim();
+      const q3 = this._body.querySelector('#lad-su-q3').value.trim();
+      if (!q1 && !q2 && !q3) { alert('Completa al menos una pregunta.'); return; }
+      allStandup[dateVal] = { q1, q2, q3, savedAt: new Date().toISOString() };
+      _saveStandup(project.id, allStandup);
+      this._renderStandup();
+    });
+
+    this._body.querySelector('#lad-su-clear').addEventListener('click', () => {
+      this._body.querySelector('#lad-su-q1').value = '';
+      this._body.querySelector('#lad-su-q2').value = '';
+      this._body.querySelector('#lad-su-q3').value = '';
+    });
+
+    this._body.querySelectorAll('.lad-su-del').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const date = btn.getAttribute('data-date');
+        if (!confirm('¿Eliminar este stand-up?')) return;
+        delete allStandup[date];
+        _saveStandup(project.id, allStandup);
+        this._renderStandup();
+      });
+    });
+  }
+
   _print() {
     switch (this._tab) {
       case 'planning':     this._printPlanning(); break;
       case 'compliance':   this._printCompliance(); break;
       case 'restrictions': this._printRestrictions(); break;
       case 'dashboard':    this._printDashboard(); break;
+      case 'standup':      this._printStandup(); break;
     }
   }
 
@@ -1407,36 +1615,71 @@ export class LookaheadDetailedPanel {
     manualActs.forEach(a => { if (weekData.tasks?.['lps-' + a.id]) completed++; });
     cpmTasks.forEach(r  => { if (weekData.tasks?.['cpm-' + r.task.id]) completed++; });
     const ppc = totalPlanned > 0 ? Math.round((completed/totalPlanned)*100) : null;
-    let html = `<h1>Lookahead — Cumplimiento PPC</h1>
-      <p>Semana: ${_weekLabel(this._compWeekKey, 0)} | Planificadas: ${totalPlanned} | Completadas: ${completed} | PPC: ${ppc !== null ? ppc + '%' : 'N/A'}</p>
-      <table><thead><tr><th>Origen</th><th>Actividad</th><th>Detalle</th><th>¿Completada?</th><th>Causa</th></tr></thead><tbody>`;
+    const meta = _getMeta(project.id);
+    const wEnd = _weekEnd(this._compWeekKey);
+    let html = `<h1>Plan de Trabajo Semanal (WWP) — LCI §9</h1>
+      <table style="margin-bottom:12px;font-size:12px"><tbody>
+        <tr><td style="font-weight:700;padding-right:16px">Proyecto:</td><td>${_esc(project.name)}</td><td style="font-weight:700;padding:0 16px">N° Proyecto:</td><td>${_esc(project.id?.slice(0,12) ?? '-')}</td></tr>
+        <tr><td style="font-weight:700">Área:</td><td>${_esc(meta.area ?? '-')}</td><td style="font-weight:700;padding:0 16px">Contratista:</td><td>${_esc(meta.contratista ?? '-')}</td></tr>
+        <tr><td style="font-weight:700">Turno:</td><td>${_esc(meta.turno ?? '-')}</td><td style="font-weight:700;padding:0 16px">Last Planner™:</td><td>${_esc(meta.lastPlanner ?? '-')}</td></tr>
+        <tr><td style="font-weight:700">Semana:</td><td>${_weekLabel(this._compWeekKey, 0)}</td><td style="font-weight:700;padding:0 16px">Fin de Semana:</td><td>${_fmtDate(wEnd)}</td></tr>
+      </tbody></table>
+      <p>Planificadas: <strong>${totalPlanned}</strong> | Completadas: <strong>${completed}</strong> | PPC: <strong>${ppc !== null ? ppc + '%' : 'N/A'}</strong></p>
+      <table><thead><tr><th>ID Actividad</th><th>Descripción Compromiso</th><th>Last Planner</th><th>F. Inicio</th><th>Cuadrilla (L-D)</th><th>¿HECHO?</th><th>Razón de Varianza</th><th>Notas</th></tr></thead><tbody>`;
     for (const a of manualActs) {
       const id = 'lps-' + a.id;
       const done = !!weekData.tasks[id];
-      html += `<tr><td>LPS</td><td>${_esc(a.name)}</td><td>${_esc(a.responsible||'-')}</td><td>${done?'Sí':'No'}</td><td>${done?'-':_esc(weekData.reasons[id]||'-')}</td></tr>`;
+      html += `<tr><td>${_esc(a.id?.slice(0,8) ?? '-')}</td><td>${_esc(a.name)}</td><td>${_esc(a.responsible||'-')}</td><td>-</td><td>-</td><td style="text-align:center;font-weight:700;color:${done?'#388E3C':'#D32F2F'}">${done?'SÍ':'NO'}</td><td>${done?'-':_esc(weekData.reasons[id]||'-')}</td><td>${_esc(a.unit||'')} ${a.qty!=null?a.qty:''}</td></tr>`;
     }
     for (const r of cpmTasks) {
       const id = 'cpm-' + r.task.id;
       const done = !!weekData.tasks[id];
-      html += `<tr><td>CPM</td><td>${_esc(r.task.name)}</td><td>${_fmtDate(r.startDate)}–${_fmtDate(r.endDate)}</td><td>${done?'Sí':'No'}</td><td>${done?'-':_esc(weekData.reasons[id]||'-')}</td></tr>`;
+      html += `<tr><td>${_esc(r.task.wbs_code||r.task.id?.slice(0,8)||'-')}</td><td>${_esc(r.task.name)}</td><td>-</td><td>${_fmtDate(r.startDate)}</td><td>-</td><td style="text-align:center;font-weight:700;color:${done?'#388E3C':'#D32F2F'}">${done?'SÍ':'NO'}</td><td>${done?'-':_esc(weekData.reasons[id]||'-')}</td><td>${r.pct}%</td></tr>`;
     }
     html += `</tbody></table>`;
-    _printToPdf('Lookahead - Cumplimiento PPC', html);
+    _printToPdf('Plan Semanal WWP - LCI §9', html);
   }
 
   _printRestrictions() {
     const { project } = appState.state;
     if (!project) return;
     const rests = _getRest(project.id);
-    let html = `<h1>Lookahead — Restricciones</h1>
+    const meta = _getMeta(project.id);
+    const today = _fmtDate(new Date());
+    let html = `<h1>Log de Restricciones — LCI §8</h1>
+      <table style="margin-bottom:12px;font-size:12px"><tbody>
+        <tr><td style="font-weight:700;padding-right:16px">Proyecto:</td><td>${_esc(project.name)}</td><td style="font-weight:700;padding:0 16px">N° Proyecto:</td><td>${_esc(project.id?.slice(0,12) ?? '-')}</td></tr>
+        <tr><td style="font-weight:700">Responsable:</td><td>${_esc(meta.lastPlanner ?? '-')}</td><td style="font-weight:700;padding:0 16px">F. Actualización:</td><td>${today}</td></tr>
+      </tbody></table>
       <p>${rests.length} restricción(es)</p>
-      <table><thead><tr><th>Descripción</th><th>Tipo</th><th>Empresa/Área</th><th>Responsable</th><th>F. Identificada</th><th>F. Requerida</th><th>F. Prometida</th><th>F. Efectiva</th><th>Estado</th></tr></thead><tbody>`;
-    for (const r of rests) {
-      const sl = r.status === 'cleared' ? 'Levantada' : r.status === 'in-progress' ? 'En proceso' : 'Pendiente';
-      html += `<tr><td>${_esc(r.desc)}</td><td>${_esc(r.type??'-')}</td><td>${_esc(r.responsibleCompany??'-')}</td><td>${_esc(r.responsible??'-')}</td><td>${r.dateIdentified?_fmtDate(new Date(r.dateIdentified+'T12:00:00')):'-'}</td><td>${(r.requiredDate||r.dueDate)?_fmtDate(new Date((r.requiredDate||r.dueDate)+'T12:00:00')):'-'}</td><td>${r.promisedDate?_fmtDate(new Date(r.promisedDate+'T12:00:00')):'-'}</td><td>${r.effectiveDate?_fmtDate(new Date(r.effectiveDate+'T12:00:00')):'-'}</td><td>${sl}</td></tr>`;
-    }
+      <table style="font-size:10px"><thead><tr>
+        <th style="text-align:center">#Restricción</th>
+        <th>#Actividad</th>
+        <th>Descripción</th>
+        <th>#RFI</th>
+        <th>Responsable</th>
+        <th>Empresa / Área</th>
+        <th>F. Identificada</th>
+        <th>F. Necesita Resolución</th>
+        <th>F. Prometida Resolución</th>
+        <th>F. Resolución Efectiva</th>
+      </tr></thead><tbody>`;
+    rests.forEach((r, i) => {
+      html += `<tr>
+        <td style="text-align:center">${i+1}</td>
+        <td>${_esc(r.activityNumber??'-')}</td>
+        <td>${_esc(r.desc)}</td>
+        <td>${_esc(r.rfiNumber??'-')}</td>
+        <td>${_esc(r.responsible??'-')}</td>
+        <td>${_esc(r.responsibleCompany??'-')}</td>
+        <td>${r.dateIdentified?_fmtDate(new Date(r.dateIdentified+'T12:00:00')):'-'}</td>
+        <td>${(r.requiredDate||r.dueDate)?_fmtDate(new Date((r.requiredDate||r.dueDate)+'T12:00:00')):'-'}</td>
+        <td>${r.promisedDate?_fmtDate(new Date(r.promisedDate+'T12:00:00')):'-'}</td>
+        <td>${r.effectiveDate?_fmtDate(new Date(r.effectiveDate+'T12:00:00')):'-'}</td>
+      </tr>`;
+    });
     html += `</tbody></table>`;
-    _printToPdf('Lookahead - Restricciones', html);
+    _printToPdf('Log de Restricciones - LCI §8', html);
   }
 
   _printDashboard() {
@@ -1467,5 +1710,21 @@ export class LookaheadDetailedPanel {
     for (const r of rests) html += `<tr><td>${_esc(r.desc)}</td><td>${_esc(r.type??'-')}</td><td>${_esc(r.responsible??'-')}</td><td>${r.dateIdentified?_fmtDate(new Date(r.dateIdentified+'T12:00:00')):'-'}</td><td>${r.status==='cleared'?'Levantada':r.status==='in-progress'?'En proceso':'Pendiente'}</td></tr>`;
     html += `</tbody></table>`;
     _printToPdf('Lookahead - Dashboard', html);
+  }
+
+  _printStandup() {
+    const { project } = appState.state;
+    if (!project) return;
+    const allStandup = _getStandup(project.id);
+    const entries = Object.entries(allStandup).sort((a,b) => b[0].localeCompare(a[0]));
+    if (entries.length === 0) { alert('No hay registros de Stand-Up.'); return; }
+    let html = `<h1>Stand-Up Diario — Registro LPS §10</h1>
+      <p>Proyecto: <strong>${_esc(project.name)}</strong> | ${entries.length} registro(s)</p>
+      <table><thead><tr><th>Fecha</th><th>¿Qué aprendiste hoy?</th><th>¿Qué mejoraste hoy?</th><th>¿Qué haría que mañana sea mejor?</th></tr></thead><tbody>`;
+    for (const [date, entry] of entries) {
+      html += `<tr><td style="white-space:nowrap;font-weight:600">${_fmtDate(new Date(date+'T12:00:00'))}</td><td>${_esc(entry.q1||'-')}</td><td>${_esc(entry.q2||'-')}</td><td>${_esc(entry.q3||'-')}</td></tr>`;
+    }
+    html += `</tbody></table>`;
+    _printToPdf('Stand-Up Diario LPS §10', html);
   }
 }
