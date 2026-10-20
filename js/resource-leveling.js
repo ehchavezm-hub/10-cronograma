@@ -28,10 +28,12 @@ export function detectOverAllocation(tasks, cpmTasks, resources, taskResources) 
   /** @type {Map<string, Map<number, { load: number, taskIds: string[] }>>} */
   const timeline = new Map();
 
+  const taskMap = new Map(tasks.map(t => [t.id, t]));
+
   for (const tr of taskResources) {
     const cpm = cpmTasks.get(tr.task_id);
     if (!cpm) continue;
-    const task = tasks.find(t => t.id === tr.task_id);
+    const task = taskMap.get(tr.task_id);
     if (task?.type === 'summary') continue;
     const units = tr.units || 1;
 
@@ -164,10 +166,12 @@ export function getResourceUtilization(tasks, cpmTasks, resources, taskResources
   /** @type {Map<string, Map<number, number>>} */
   const timeline = new Map();
 
+  const taskMapU = new Map(tasks.map(t => [t.id, t]));
+
   for (const tr of taskResources) {
     const cpm = cpmTasks.get(tr.task_id);
     if (!cpm) continue;
-    const task = tasks.find(t => t.id === tr.task_id);
+    const task = taskMapU.get(tr.task_id);
     if (task?.type === 'summary') continue;
 
     if (!timeline.has(tr.resource_id)) timeline.set(tr.resource_id, new Map());

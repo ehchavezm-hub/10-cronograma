@@ -7,8 +7,8 @@
 import { appState } from './state.js';
 import { Calendar, isoToDate } from './calendar.js';
 
-/** @param {number} n */
-const _esc = n => String(n ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+/** @param {*} s */
+const _esc = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 
 const STATUS_LABEL = { todo: 'Pendiente', in_progress: 'En Curso', done: 'Completada', delayed: 'Atrasada' };
 const STATUS_COLOR = { todo: '#757575', in_progress: '#1976D2', done: '#388E3C', delayed: '#D32F2F' };
@@ -75,7 +75,8 @@ export class LookaheadPanel {
       }
     }
 
-    const horizonDays = this._weeks * 5;  // ~5 días laborables por semana
+    const daysPerWeek = Math.max(1, (calendar?.work_week ?? [1,2,3,4,5]).length);
+    const horizonDays = this._weeks * daysPerWeek;
     const windowEnd = todayIdx + horizonDays;
 
     /** @type {Array<{task:object, cpm:object, status:string, pct:number, startDate:Date, endDate:Date}>} */
@@ -85,15 +86,17 @@ export class LookaheadPanel {
       if (task.deleted_at || task.type === 'summary') continue;
       const cpm = cpmResult.tasks?.get(task.id);
       if (!cpm) continue;
-      // La tarea intersecta la ventana lookahead: [es, ef) ∩ [todayIdx, windowEnd)
-      if (cpm.ef <= todayIdx || cpm.es >= windowEnd) continue;
-
       const pct = task.pct_complete ?? 0;
-      let status = pct >= 100 ? 'done' : pct > 0 ? 'in_progress' : 'todo';
-      if (status !== 'done' && cpm.ef < todayIdx) status = 'delayed';
+      // Tarea atrasada: ef ya pasó y no está completa — siempre incluir
+      const isDelayed = pct < 100 && cpm.ef <= todayIdx;
+      // Tarea en ventana lookahead: [es, ef) ∩ [todayIdx, windowEnd)
+      const inWindow = cpm.ef > todayIdx && cpm.es < windowEnd;
+      if (!isDelayed && !inWindow) continue;
+
+      let status = pct >= 100 ? 'done' : isDelayed ? 'delayed' : pct > 0 ? 'in_progress' : 'todo';
 
       const sDate = cal.idxToDate(cpm.es, startDate);
-      const eDate = cal.idxToDate(cpm.ef, startDate);
+      const eDate = cal.idxToDate(Math.max(cpm.es, cpm.ef - 1), startDate);
       rows.push({ task, cpm, status, pct, startDate: sDate, endDate: eDate });
     }
 

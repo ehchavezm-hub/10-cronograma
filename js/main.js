@@ -1540,7 +1540,6 @@ async function _ensureDemoData() {
   }
   // Siempre garantizar que los recursos demo existan
   if (DEMO_DATA.resources?.length) {
-    const { getAll, putMany } = await import('./storage.js');
     const existingRes = await getAll('resources').then(r => r.filter(x => !x.deleted_at));
     if (!existingRes.length) {
       await putMany('resources',      DEMO_DATA.resources);

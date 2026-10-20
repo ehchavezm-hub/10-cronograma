@@ -11,6 +11,7 @@ export class CurvaSPanel {
   /** @param {HTMLElement} containerEl */
   constructor(containerEl) {
     this.el = containerEl;
+    this._uid = Math.random().toString(36).slice(2, 8);
     this._build();
   }
 
@@ -43,6 +44,9 @@ export class CurvaSPanel {
     this._chartArea = document.createElement('div');
     this._chartArea.style.cssText = 'flex:1;padding:8px 18px 18px;overflow:auto;min-height:0';
     this.el.appendChild(this._chartArea);
+
+    this._ro = new ResizeObserver(() => this.refresh());
+    this._ro.observe(this._chartArea);
 
     this.refresh();
   }
@@ -99,15 +103,23 @@ export class CurvaSPanel {
       return (sum / totalWeight) * 100;
     });
 
-    // Real: basado en % completado de cada tarea
+    // Real: progreso ponderado por tiempo, no solo % instantáneo.
+    // Tarea terminada (ef <= day): aporta w * pct.
+    // Tarea en curso (es < day < ef): aporta w * pct * min(1, (day-es)/dur).
     const actual = days.map(day => {
       let sum = 0;
       for (const t of taskArr) {
         const cpm = cpmResult.tasks?.get(t.id);
-        if (!cpm) continue;
+        if (!cpm || cpm.es >= day) continue;
         const w = cpm.dur || 1;
         const pct = (t.pct_complete ?? 0) / 100;
-        if (cpm.es < day) sum += w * pct;
+        if (cpm.ef <= day) {
+          sum += w * pct;
+        } else {
+          // tarea en curso: aportar proporcional al tiempo transcurrido
+          const ratio = Math.min(1, (day - cpm.es) / w);
+          sum += w * pct * ratio;
+        }
       }
       return (sum / totalWeight) * 100;
     });
@@ -186,7 +198,7 @@ export class CurvaSPanel {
     this._chartArea.innerHTML = `
       <svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" style="overflow:visible;display:block">
         <defs>
-          <linearGradient id="cs-grad" x1="0" y1="0" x2="0" y2="1">
+          <linearGradient id="cs-grad-${this._uid}" x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stop-color="#1976D2" stop-opacity="0.18"/>
             <stop offset="100%" stop-color="#1976D2" stop-opacity="0.02"/>
           </linearGradient>
@@ -204,7 +216,7 @@ export class CurvaSPanel {
           <text x="${xOf(i).toFixed(1)}" y="${(pad.t+ch+14).toFixed(1)}" text-anchor="middle"
             font-size="9" fill="var(--clr-text-3,#999)">${fmtDate(days[i])}</text>`).join('')}
         <!-- Área planificado -->
-        <path d="${areaPath}" fill="url(#cs-grad)"/>
+        <path d="${areaPath}" fill="url(#cs-grad-${this._uid})"/>
         <!-- Línea planificado -->
         <path d="${pathLine(planned)}" fill="none" stroke="#1976D2" stroke-width="2" stroke-linejoin="round"/>
         <!-- Línea real -->
