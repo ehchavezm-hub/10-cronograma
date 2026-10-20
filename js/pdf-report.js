@@ -164,7 +164,7 @@ ${cpmResult ? `
         </td>
         <td>${cpm ? fmtDate(cpm.es) : '-'}</td>
         <td>${cpm ? fmtDate(Math.max(cpm.es, cpm.ef - 1)) : '-'}</td>
-        <td>${cpm ? cpm.dur + 'd' : '-'}</td>
+        <td>${cpm ? (cpm.ef - cpm.es) + 'd' : '-'}</td>
         <td>
           ${isSummary ? '' : `<div class="bar-wrap">
             <div class="bar-bg"><div class="bar-fill" style="width:${pct}%"></div></div>
@@ -190,7 +190,7 @@ ${criticalTasks.length ? `
         <td style="color:#D32F2F;font-weight:600">${_esc(t.name)}</td>
         <td>${cpm ? fmtDate(cpm.es) : '-'}</td>
         <td>${cpm ? fmtDate(Math.max(cpm.es, cpm.ef - 1)) : '-'}</td>
-        <td>${cpm ? cpm.dur + 'd' : '-'}</td>
+        <td>${cpm ? (cpm.ef - cpm.es) + 'd' : '-'}</td>
         <td>${t.percent_complete ?? 0}%</td>
       </tr>`;
     }).join('')}

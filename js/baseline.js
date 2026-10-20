@@ -48,7 +48,7 @@ export async function saveBaseline(name) {
       task_id:     taskId,
       es:          cpm.es,
       ef:          cpm.ef,
-      dur:         cpm.dur,
+      dur:         cpm.ef - cpm.es,
     });
   }
 

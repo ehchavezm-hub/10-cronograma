@@ -96,9 +96,10 @@ export class CurvaSPanel {
       for (const t of taskArr) {
         const cpm = cpmResult.tasks?.get(t.id);
         if (!cpm) continue;
-        const w = cpm.dur || 1;
+        const dur = cpm.ef - cpm.es || 1;
+        const w = dur;
         if (cpm.ef <= day) sum += w;
-        else if (cpm.es < day) sum += w * (day - cpm.es) / cpm.dur;
+        else if (cpm.es < day) sum += w * (day - cpm.es) / dur;
       }
       return (sum / totalWeight) * 100;
     });
@@ -111,7 +112,7 @@ export class CurvaSPanel {
       for (const t of taskArr) {
         const cpm = cpmResult.tasks?.get(t.id);
         if (!cpm || cpm.es >= day) continue;
-        const w = cpm.dur || 1;
+        const w = (cpm.ef - cpm.es) || 1;
         const pct = (t.percent_complete ?? 0) / 100;
         if (cpm.ef <= day) {
           sum += w * pct;

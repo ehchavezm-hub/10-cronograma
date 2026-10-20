@@ -198,7 +198,7 @@ export function exportCsv() {
       wbs, task.id, task.name, type,
       task.type === 'milestone' ? 0 : task.duration_days,
       startStr, finStr,
-      task.pct_complete ?? 0,
+      task.percent_complete ?? 0,
       tf, ff,
       (predMap.get(task.id) ?? []).join('; '),
       task.constraint_type ?? 'ASAP',
@@ -248,7 +248,7 @@ export function exportMspXml() {
     const durStr   = `PT${dur * 8}H0M0S`;
     const depth    = depths.get(task.id) ?? 0;
     const wbs      = codes.get(task.id) ?? String(uid);
-    const pct      = task.pct_complete ?? 0;
+    const pct      = task.percent_complete ?? 0;
 
     let startStr = _mspDate(startDate);
     let finStr   = _mspDate(startDate);
