@@ -1,17 +1,17 @@
 // sw.js — Service Worker para cache-first offline
 // Versión: incrementar al desplegar cambios a assets
-const CACHE = 'cronogramas-v85';
+const CACHE = 'cronogramas-v87';
 
 // Assets del shell de la app que siempre se cachean en la instalación
 const SHELL = [
   './',
   './index.html',
   './manifest.json',
-  './css/tokens.css?v=85',
-  './css/layout.css?v=85',
-  './css/components.css?v=85',
-  './css/print.css?v=85',
-  './js/main.js?v=85',
+  './css/tokens.css?v=86',
+  './css/layout.css?v=86',
+  './css/components.css?v=86',
+  './css/print.css?v=86',
+  './js/main.js?v=86',
   './js/state.js',
   './js/storage.js',
   './js/config.js',
@@ -20,7 +20,7 @@ const SHELL = [
   './js/cpm.js',
   './js/scene.js',
   './js/gantt-canvas.js',
-  './js/wbs-table.js?v=85',
+  './js/wbs-table.js?v=86',
   './js/evm.js',
   './js/dcma.js',
   './js/demo-data.js',
@@ -31,6 +31,17 @@ const SHELL = [
   './js/change-log.js',
   './js/gantt-svg.js',
   './js/supabase.js',
+  './js/xer-import.js',
+  './js/resource-leveling.js',
+  './js/monte-carlo.js',
+  './js/risk-register.js',
+  './js/baseline-compare.js',
+  './js/lookahead.js',
+  './js/curva-s.js',
+  './js/notifications.js',
+  './js/wbs-dictionary.js',
+  './js/pdf-report.js',
+  './js/workers/monte-carlo.worker.js',
 ];
 
 // ---- Install: pre-cachear el shell ----

@@ -12,7 +12,7 @@ import { GanttScene }    from './scene.js';
 import { DcmaPanel }     from './dcma.js';
 import { Calendar, isoToDate } from './calendar.js';
 import { computeCPM }    from './cpm.js';
-import { openDB, listProjects, loadProject, saveProjectSnapshot, putMany, put as dbPut, getByIndex, remove as dbRemove,
+import { openDB, listProjects, loadProject, saveProjectSnapshot, putMany, put as dbPut, getByIndex, getAll, remove as dbRemove,
          listPortfolios, savePortfolio, deletePortfolio, listPrograms, saveProgram, deleteProgram, loadHierarchy } from './storage.js';
 import { t }             from './i18n.js';
 import { DEMO_DATA }     from './demo-data.js';
@@ -24,6 +24,16 @@ import { EvmPanel }       from './evm.js';
 import { ChangeLogPanel, logCommand } from './change-log.js';
 import { ResourceHistogramPanel } from './resource-histogram.js';
 import { saveBaseline, listBaselines, loadBaselineData, deleteBaseline, setPrimaryBaseline, getBaseline } from './baseline.js';
+import { parseXer } from './xer-import.js';
+import { detectConflicts, levelResources } from './resource-leveling.js';
+import { MonteCarloPanel } from './monte-carlo.js';
+import { RiskRegisterPanel } from './risk-register.js';
+import { toggleBaselineCompare, disableBaselineCompare, getProjectBaselines, isBaselineCompareEnabled } from './baseline-compare.js';
+import { LookaheadPanel } from './lookahead.js';
+import { CurvaSPanel } from './curva-s.js';
+import { NotificationsPanel, updateNotificationBadge } from './notifications.js';
+import { WbsDictionaryPanel } from './wbs-dictionary.js';
+import { generatePdfReport } from './pdf-report.js';
 
 // ============================================================
 // Detectar file://
@@ -1507,6 +1517,8 @@ function _updateStatus() {
   if (durEl && cpmResult) {
     durEl.textContent = `${cpmResult.projectDuration ?? 0} d`;
   }
+  // Badge de notificaciones
+  updateNotificationBadge('notif-badge', 'btn-notifications');
 }
 
 function _updateUndoRedoBtns() {
@@ -2105,6 +2117,55 @@ function _syncGanttScene() {
 }
 
 // ============================================================
+// Diálogo de resultados Monte Carlo
+// ============================================================
+
+function _showMonteCarloDlg(result, fmtDay) {
+  let dlg = /** @type {HTMLDialogElement|null} */ (document.getElementById('dlg-monte-carlo'));
+  if (!dlg) {
+    dlg = document.createElement('dialog');
+    dlg.id = 'dlg-monte-carlo';
+    dlg.setAttribute('aria-modal', 'true');
+    dlg.setAttribute('aria-labelledby', 'mc-dlg-title');
+    dlg.style.cssText = 'padding:0;border:1px solid var(--clr-border);border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,.35);max-width:520px;width:96vw;background:var(--clr-surface);color:var(--clr-text)';
+    dlg.innerHTML = `
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--clr-border);background:var(--clr-surface-2);border-radius:12px 12px 0 0">
+        <span id="mc-dlg-title" style="font-weight:700;font-size:14px">🔮 Simulación Monte Carlo</span>
+        <button id="mc-dlg-close" class="btn btn-icon btn-sm" aria-label="Cerrar">✕</button>
+      </div>
+      <div id="mc-dlg-body" style="padding:20px 22px"></div>`;
+    document.body.appendChild(dlg);
+    dlg.querySelector('#mc-dlg-close')?.addEventListener('click', () => dlg.close());
+    dlg.addEventListener('click', e => { if (e.target === dlg) dlg.close(); });
+  }
+  const { p50, p80, p90, iterations: n } = result;
+  const body = dlg.querySelector('#mc-dlg-body');
+  if (body) {
+    body.innerHTML = `
+      <p style="font-size:13px;color:var(--clr-text-2);margin:0 0 16px">${n.toLocaleString()} iteraciones · distribución PERT por actividad</p>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:20px">
+        <div style="text-align:center;background:var(--clr-surface-2);border-radius:8px;padding:14px 8px">
+          <div style="font-size:11px;color:var(--clr-text-3);margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px">P50</div>
+          <div style="font-size:17px;font-weight:700;color:var(--clr-primary)">${fmtDay(p50)}</div>
+          <div style="font-size:10px;color:var(--clr-text-3);margin-top:2px">${p50} días lab.</div>
+        </div>
+        <div style="text-align:center;background:var(--clr-surface-2);border-radius:8px;padding:14px 8px">
+          <div style="font-size:11px;color:var(--clr-text-3);margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px">P80</div>
+          <div style="font-size:17px;font-weight:700;color:#fb8c00">${fmtDay(p80)}</div>
+          <div style="font-size:10px;color:var(--clr-text-3);margin-top:2px">${p80} días lab.</div>
+        </div>
+        <div style="text-align:center;background:var(--clr-surface-2);border-radius:8px;padding:14px 8px">
+          <div style="font-size:11px;color:var(--clr-text-3);margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px">P90</div>
+          <div style="font-size:17px;font-weight:700;color:#d32f2f">${fmtDay(p90)}</div>
+          <div style="font-size:10px;color:var(--clr-text-3);margin-top:2px">${p90} días lab.</div>
+        </div>
+      </div>
+      <p style="font-size:11px;color:var(--clr-text-3);margin:0">P50: 50% de probabilidad de terminar en esa fecha o antes. P80/P90: riesgo alto / muy alto.</p>`;
+  }
+  dlg.showModal();
+}
+
+// ============================================================
 // Manejadores de botones del toolbar
 // ============================================================
 
@@ -2370,6 +2431,31 @@ function _bindToolbar() {
     });
   }
 
+  // ---- Comparar con línea base ----
+  document.getElementById('btn-baseline-compare')?.addEventListener('click', async () => {
+    const { project, cpmResult } = appState.state;
+    if (!project) { _showToast('Abre un proyecto primero', 'warn'); return; }
+    if (!cpmResult) { _showToast('CPM aún calculando…', 'warn'); return; }
+    const btn = /** @type {HTMLElement} */ (document.getElementById('btn-baseline-compare'));
+    if (isBaselineCompareEnabled()) {
+      disableBaselineCompare();
+      btn?.setAttribute('aria-pressed', 'false');
+      btn?.classList.remove('active');
+      _showToast('Comparación de línea base desactivada', 'info');
+      _ganttCanvas?.render?.();
+      return;
+    }
+    const baselines = await getProjectBaselines();
+    if (!baselines.length) { _showToast('No hay líneas base guardadas', 'warn'); return; }
+    const enabled = await toggleBaselineCompare(baselines[0].id);
+    if (enabled) {
+      btn?.setAttribute('aria-pressed', 'true');
+      btn?.classList.add('active');
+      _showToast('Comparando con: ' + (baselines[0].name ?? 'Línea base'), 'success');
+      _ganttCanvas?.render?.();
+    }
+  });
+
   // ---- Menú etiquetas de barras Gantt ----
   const _barLabelsBtn  = document.getElementById('btn-bar-labels');
   const _barLabelsMenu = document.getElementById('bar-labels-menu');
@@ -2493,6 +2579,186 @@ function _bindToolbar() {
     }
   });
 
+  // ---- Importar XER (Primavera P6) ----
+  document.getElementById('import-xer-file')?.addEventListener('change', async (e) => {
+    const file = /** @type {HTMLInputElement} */ (e.target).files?.[0];
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const { project, tasks, deps, calendar, calExceptions, warnings } = parseXer(text);
+      // Importar como proyecto nuevo
+      await dbPut('projects', project);
+      if (calendar)    await dbPut('calendars', calendar);
+      if (calExceptions?.length) await Promise.all(calExceptions.map(ex => dbPut('calendar_exceptions', ex)));
+      await Promise.all(tasks.map(t => dbPut('tasks', t)));
+      await Promise.all(deps.map(d => dbPut('task_dependencies', d)));
+      if (warnings.length) _showToast(`XER importado con ${warnings.length} advertencias`, 'warn');
+      else _showToast('XER importado correctamente', 'success');
+      // Recargar lista de proyectos
+      await _renderProjectList();
+    } catch (err) {
+      _showToast('Error al importar XER: ' + err.message, 'error');
+    }
+    /** @type {HTMLInputElement} */ (e.target).value = '';
+  });
+
+  // ---- Registro de Riesgos ----
+  let _riskPanel = null;
+  document.getElementById('btn-risk-register')?.addEventListener('click', () => {
+    const { project } = appState.state;
+    if (!project) { _showToast('Abre un proyecto primero', 'warn'); return; }
+    const btn = document.getElementById('btn-risk-register');
+    const overlay = /** @type {HTMLElement} */ (document.getElementById('panel-risk-register'));
+    const container = /** @type {HTMLElement} */ (document.getElementById('risk-register-container'));
+    if (!overlay || !container) return;
+    const isOpen = overlay.style.display === 'flex' || overlay.style.display === '';
+    if (isOpen && overlay.style.display !== 'none') {
+      overlay.style.display = 'none';
+      btn?.setAttribute('aria-pressed', 'false');
+      return;
+    }
+    overlay.style.display = 'flex';
+    btn?.setAttribute('aria-pressed', 'true');
+    _riskPanel = new RiskRegisterPanel({ projectId: project.id, container, onClose: () => {
+      overlay.style.display = 'none';
+      btn?.setAttribute('aria-pressed', 'false');
+    }});
+  });
+  document.getElementById('btn-risk-panel-close')?.addEventListener('click', () => {
+    const overlay = document.getElementById('panel-risk-register');
+    if (overlay) overlay.style.display = 'none';
+    document.getElementById('btn-risk-register')?.setAttribute('aria-pressed', 'false');
+  });
+
+  // ---- Nivelación de recursos ----
+  document.getElementById('btn-resource-leveling')?.addEventListener('click', async () => {
+    const { project, tasks, cpmResult } = appState.state;
+    if (!project) { _showToast('Abre un proyecto primero', 'warn'); return; }
+    if (!cpmResult) { _showToast('Calculando CPM…', 'warn'); return; }
+    try {
+      const [resources, taskResources] = await Promise.all([
+        getAll('resources').then(r => r.filter(x => !x.deleted_at)),
+        getByIndex('task_resources', 'project_id', project.id).then(r => r.filter(x => !x.deleted_at)).catch(() => []),
+      ]);
+      const taskArr = [...tasks.values()].filter(t => !t.deleted_at);
+      const conflicts = detectConflicts(taskArr, cpmResult.tasks, resources, taskResources);
+      const panel = document.getElementById('panel-resource-leveling');
+      const container = document.getElementById('resource-leveling-container');
+      if (panel && container) {
+        if (!conflicts.overloaded.length) {
+          container.innerHTML = '<p style="font-size:13px;color:var(--clr-text)">✅ No se detectaron conflictos de recursos en el cronograma.</p>';
+        } else {
+          const esc = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+          container.innerHTML = `<p style="font-size:13px;color:var(--clr-text)">Se detectaron <strong>${conflicts.overloaded.length}</strong> conflicto(s) de recursos.</p>
+            <ul style="font-size:12px;color:var(--clr-text-2);margin:8px 0 0;padding-left:18px">
+              ${conflicts.overloaded.slice(0, 15).map(c => `<li>Recurso <strong>${esc(c.resource.name)}</strong> — día ${c.day}: carga ${c.load.toFixed(1)} / capacidad ${c.capacity}</li>`).join('')}
+              ${conflicts.overloaded.length > 15 ? `<li style="color:var(--clr-text-3)">… y ${conflicts.overloaded.length - 15} más</li>` : ''}
+            </ul>`;
+        }
+        panel.style.display = 'flex';
+      } else {
+        _showToast(conflicts.overloaded.length ? `${conflicts.overloaded.length} conflicto(s) de recursos` : 'Sin conflictos de recursos', conflicts.overloaded.length ? 'warn' : 'success');
+      }
+    } catch (err) {
+      _showToast('Error en nivelación: ' + err.message, 'error');
+    }
+  });
+  document.getElementById('btn-leveling-panel-close')?.addEventListener('click', () => {
+    const panel = document.getElementById('panel-resource-leveling');
+    if (panel) panel.style.display = 'none';
+  });
+
+  // ---- Monte Carlo ----
+  let _mcPanel = /** @type {MonteCarloPanel|null} */ (null);
+  document.getElementById('btn-monte-carlo')?.addEventListener('click', () => {
+    const { project, cpmResult, tasks } = appState.state;
+    if (!project) { _showToast('Abre un proyecto primero', 'warn'); return; }
+    if (!cpmResult) { _showToast('Calculando CPM…', 'warn'); return; }
+    const dlg = /** @type {HTMLDialogElement} */ (document.getElementById('dlg-monte-carlo'));
+    const container = /** @type {HTMLElement} */ (document.getElementById('monte-carlo-container'));
+    if (!dlg || !container) return;
+    if (!_mcPanel) {
+      _mcPanel = new MonteCarloPanel(container);
+    }
+    _mcPanel.onCpmUpdate(cpmResult, tasks);
+    _mcPanel.refresh(project.id);
+    dlg.showModal?.() ?? (dlg.style.display = 'block');
+  });
+  document.getElementById('dlg-mc-close')?.addEventListener('click', () => {
+    const dlg = /** @type {HTMLDialogElement} */ (document.getElementById('dlg-monte-carlo'));
+    dlg?.close?.() ?? (dlg && (dlg.style.display = 'none'));
+  });
+
+  // ---- Lookahead ----
+  let _lookaheadPanel = /** @type {LookaheadPanel|null} */ (null);
+  const _openPanel = (overlayId, containerId, PanelClass, panelRef, btnId) => {
+    const overlay = /** @type {HTMLElement} */ (document.getElementById(overlayId));
+    const container = /** @type {HTMLElement} */ (document.getElementById(containerId));
+    if (!overlay || !container) return null;
+    if (overlay.style.display !== 'none' && overlay.style.display !== '') {
+      overlay.style.display = 'none';
+      document.getElementById(btnId)?.setAttribute('aria-pressed', 'false');
+      return null;
+    }
+    overlay.style.display = 'flex';
+    document.getElementById(btnId)?.setAttribute('aria-pressed', 'true');
+    if (!panelRef) panelRef = new PanelClass(container);
+    else panelRef.refresh?.();
+    return panelRef;
+  };
+
+  document.getElementById('btn-lookahead')?.addEventListener('click', () => {
+    const { project } = appState.state;
+    if (!project) { _showToast('Abre un proyecto primero', 'warn'); return; }
+    _lookaheadPanel = _openPanel('panel-lookahead', 'lookahead-container', LookaheadPanel, _lookaheadPanel, 'btn-lookahead');
+  });
+  document.getElementById('btn-lookahead-close')?.addEventListener('click', () => {
+    document.getElementById('panel-lookahead')?.style && (document.getElementById('panel-lookahead').style.display = 'none');
+    document.getElementById('btn-lookahead')?.setAttribute('aria-pressed', 'false');
+  });
+
+  // ---- Curva S ----
+  let _curvaSPanel = /** @type {CurvaSPanel|null} */ (null);
+  document.getElementById('btn-curva-s')?.addEventListener('click', () => {
+    const { project } = appState.state;
+    if (!project) { _showToast('Abre un proyecto primero', 'warn'); return; }
+    _curvaSPanel = _openPanel('panel-curva-s', 'curva-s-container', CurvaSPanel, _curvaSPanel, 'btn-curva-s');
+  });
+  document.getElementById('btn-curva-s-close')?.addEventListener('click', () => {
+    document.getElementById('panel-curva-s')?.style && (document.getElementById('panel-curva-s').style.display = 'none');
+    document.getElementById('btn-curva-s')?.setAttribute('aria-pressed', 'false');
+  });
+
+  // ---- Notificaciones ----
+  let _notifPanel = /** @type {NotificationsPanel|null} */ (null);
+  document.getElementById('btn-notifications')?.addEventListener('click', () => {
+    const { project } = appState.state;
+    if (!project) { _showToast('Abre un proyecto primero', 'warn'); return; }
+    _notifPanel = _openPanel('panel-notifications', 'notifications-container', NotificationsPanel, _notifPanel, 'btn-notifications');
+  });
+  document.getElementById('btn-notif-close')?.addEventListener('click', () => {
+    document.getElementById('panel-notifications')?.style && (document.getElementById('panel-notifications').style.display = 'none');
+    document.getElementById('btn-notifications')?.setAttribute('aria-pressed', 'false');
+  });
+
+  // ---- Diccionario WBS ----
+  let _wbsDictPanel = /** @type {WbsDictionaryPanel|null} */ (null);
+  document.getElementById('btn-wbs-dictionary')?.addEventListener('click', () => {
+    const { project } = appState.state;
+    if (!project) { _showToast('Abre un proyecto primero', 'warn'); return; }
+    _wbsDictPanel = _openPanel('panel-wbs-dictionary', 'wbs-dictionary-container', WbsDictionaryPanel, _wbsDictPanel, 'btn-wbs-dictionary');
+  });
+  document.getElementById('btn-wbs-dict-close')?.addEventListener('click', () => {
+    document.getElementById('panel-wbs-dictionary')?.style && (document.getElementById('panel-wbs-dictionary').style.display = 'none');
+    document.getElementById('btn-wbs-dictionary')?.setAttribute('aria-pressed', 'false');
+  });
+
+  // ---- Reporte PDF ----
+  document.getElementById('btn-pdf-report')?.addEventListener('click', () => {
+    const result = generatePdfReport();
+    if (!result.ok) _showToast(result.error ?? 'Error al generar reporte', 'error');
+  });
+
   document.getElementById('btn-menu')?.addEventListener('click', () => {
     const panel = document.getElementById('explorer-panel');
     const overlay = document.getElementById('drawer-overlay');
@@ -2605,11 +2871,8 @@ function _bindToolbar() {
       case 'print-table': printWbsTable();           break;
       case 'print-gantt': printGantt(rows);          break;
       case 'print-pdf': {
-        const _pdfProj = appState.state.project;
-        const _origTitle = document.title;
-        if (_pdfProj) document.title = `${_pdfProj.name} — Informe completo PDF`;
-        window.print();
-        setTimeout(() => { document.title = _origTitle; }, 1500);
+        const result = generatePdfReport();
+        if (!result.ok) _showToast(result.error ?? 'Error al generar reporte', 'error');
         break;
       }
       case 'col-config':  _showPrintColConfig();     break;

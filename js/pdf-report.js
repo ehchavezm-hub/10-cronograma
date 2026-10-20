@@ -1,0 +1,214 @@
+// @ts-check
+/**
+ * pdf-report.js — Exportación de informe ejecutivo en PDF.
+ * Usa la API de impresión del navegador con estilos específicos.
+ * Captura: portada, EDT, KPIs y Gantt SVG.
+ */
+
+import { appState } from './state.js';
+import { Calendar, isoToDate } from './calendar.js';
+
+const _esc = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+
+/**
+ * Genera y abre el diálogo de impresión del informe ejecutivo.
+ */
+export function generatePdfReport() {
+  const { project, tasks, cpmResult, calendar, calExceptions } = appState.state;
+
+  if (!project) {
+    return { ok: false, error: 'Abre un proyecto primero.' };
+  }
+
+  const cal = new Calendar({
+    work_week: calendar?.work_week ?? [1,2,3,4,5],
+    exceptions: calExceptions ?? [],
+  });
+  const startDate = isoToDate(project.start_date || new Date().toISOString().slice(0,10));
+  const fmtDate = /** @param {number} d */ d => cal.idxToDate(d, startDate)
+    .toLocaleDateString('es-PE', { day:'2-digit', month:'2-digit', year:'numeric' });
+
+  const taskArr = [...(tasks?.values() ?? [])].filter(t => !t.deleted_at);
+  const nonSummary = taskArr.filter(t => t.type !== 'summary');
+
+  // KPIs básicos
+  const totalTasks = nonSummary.length;
+  const doneTasks = nonSummary.filter(t => (t.pct_complete ?? 0) >= 100).length;
+  const inProgress = nonSummary.filter(t => (t.pct_complete ?? 0) > 0 && (t.pct_complete ?? 0) < 100).length;
+  const pctAvg = totalTasks ? Math.round(nonSummary.reduce((s, t) => s + (t.pct_complete ?? 0), 0) / totalTasks) : 0;
+
+  // Ruta crítica
+  const criticalTasks = nonSummary.filter(t => cpmResult?.tasks?.get(t.id)?.tf === 0);
+
+  // Fecha fin (máx ef)
+  let maxEf = 0;
+  for (const t of nonSummary) {
+    const cpm = cpmResult?.tasks?.get(t.id);
+    if (cpm && cpm.ef > maxEf) maxEf = cpm.ef;
+  }
+
+  const generatedAt = new Date().toLocaleDateString('es-PE', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' });
+
+  const html = `<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Informe Ejecutivo — ${_esc(project.name)}</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: Arial, sans-serif; font-size: 11pt; color: #212121; background: #fff; }
+  @page { size: A4; margin: 18mm 16mm 18mm 16mm; }
+  @media print { body { font-size: 10pt; } }
+
+  .cover { min-height: 90vh; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; padding: 40px; border-bottom: 4px solid #1976D2; }
+  .cover-logo { font-size: 48pt; margin-bottom: 16px; }
+  .cover-title { font-size: 22pt; font-weight: 700; color: #1976D2; margin-bottom: 8px; }
+  .cover-project { font-size: 16pt; font-weight: 600; color: #212121; margin-bottom: 6px; }
+  .cover-meta { font-size: 10pt; color: #757575; margin-top: 12px; }
+
+  h2 { font-size: 13pt; font-weight: 700; color: #1976D2; margin: 24px 0 10px; border-bottom: 2px solid #E3F2FD; padding-bottom: 4px; }
+  h3 { font-size: 11pt; font-weight: 600; color: #424242; margin: 16px 0 8px; }
+
+  .kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 20px; }
+  .kpi-card { background: #F5F5F5; border-radius: 8px; padding: 14px; text-align: center; }
+  .kpi-value { font-size: 22pt; font-weight: 700; color: #1976D2; }
+  .kpi-label { font-size: 9pt; color: #757575; margin-top: 2px; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 9.5pt; margin-bottom: 16px; }
+  th { background: #1976D2; color: #fff; padding: 7px 10px; text-align: left; font-weight: 600; }
+  td { padding: 6px 10px; border-bottom: 1px solid #E0E0E0; }
+  tr:nth-child(even) td { background: #FAFAFA; }
+  .tag { display: inline-block; border-radius: 10px; padding: 2px 8px; font-size: 9pt; font-weight: 600; }
+  .tag-done { background: #E8F5E9; color: #388E3C; }
+  .tag-prog { background: #E3F2FD; color: #1976D2; }
+  .tag-todo { background: #F5F5F5; color: #757575; }
+  .tag-crit { background: #FFEBEE; color: #D32F2F; }
+  .bar-wrap { display: inline-flex; align-items: center; gap: 6px; }
+  .bar-bg { width: 60px; height: 7px; background: #E0E0E0; border-radius: 3px; overflow: hidden; display: inline-block; }
+  .bar-fill { height: 100%; background: #1976D2; border-radius: 3px; }
+  .footer { margin-top: 30px; font-size: 8pt; color: #9E9E9E; text-align: center; border-top: 1px solid #E0E0E0; padding-top: 10px; }
+  .page-break { page-break-before: always; }
+</style>
+</head>
+<body>
+
+<!-- PORTADA -->
+<div class="cover">
+  <div class="cover-logo">📊</div>
+  <div class="cover-title">ECM Project</div>
+  <div class="cover-project">${_esc(project.name)}</div>
+  <div class="cover-meta">
+    <div>Informe Ejecutivo de Cronograma</div>
+    <div style="margin-top:6px">Generado el ${generatedAt}</div>
+    <div style="margin-top:4px">Inicio: ${_esc(project.start_date ?? '-')}</div>
+  </div>
+</div>
+
+<!-- RESUMEN EJECUTIVO -->
+<h2>Resumen Ejecutivo</h2>
+<div class="kpi-grid">
+  <div class="kpi-card">
+    <div class="kpi-value">${totalTasks}</div>
+    <div class="kpi-label">Total Tareas</div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-value" style="color:#388E3C">${doneTasks}</div>
+    <div class="kpi-label">Completadas</div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-value" style="color:#F57C00">${inProgress}</div>
+    <div class="kpi-label">En Curso</div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-value">${pctAvg}%</div>
+    <div class="kpi-label">Avance Promedio</div>
+  </div>
+</div>
+${cpmResult ? `
+<div style="background:#F5F5F5;border-radius:8px;padding:14px;margin-bottom:20px;display:grid;grid-template-columns:1fr 1fr;gap:14px">
+  <div>
+    <div style="font-size:9pt;color:#757575;margin-bottom:2px">Fin proyectado</div>
+    <div style="font-size:13pt;font-weight:700;color:#1976D2">${maxEf ? fmtDate(maxEf) : '-'}</div>
+  </div>
+  <div>
+    <div style="font-size:9pt;color:#757575;margin-bottom:2px">Tareas en ruta crítica</div>
+    <div style="font-size:13pt;font-weight:700;color:#D32F2F">${criticalTasks.length}</div>
+  </div>
+</div>` : ''}
+
+<!-- EDT -->
+<h2>EDT — Estructura de Desglose del Trabajo</h2>
+<table>
+  <thead><tr>
+    <th style="width:42%">Tarea</th>
+    <th style="width:11%">Inicio</th>
+    <th style="width:11%">Fin</th>
+    <th style="width:8%">Dur</th>
+    <th style="width:14%">Avance</th>
+    <th style="width:14%">Estado</th>
+  </tr></thead>
+  <tbody>
+    ${taskArr.map(t => {
+      const cpm = cpmResult?.tasks?.get(t.id);
+      const pct = t.pct_complete ?? 0;
+      const isSummary = t.type === 'summary';
+      const isCrit = !isSummary && cpm?.tf === 0;
+      const statusTag = pct >= 100
+        ? '<span class="tag tag-done">Completada</span>'
+        : pct > 0
+          ? '<span class="tag tag-prog">En Curso</span>'
+          : '<span class="tag tag-todo">Pendiente</span>';
+      return `<tr>
+        <td style="${isSummary?'font-weight:600;':''}${isCrit?'color:#D32F2F;':''}">
+          ${isCrit?'🔴 ':''}${_esc(t.name)}
+        </td>
+        <td>${cpm ? fmtDate(cpm.es) : '-'}</td>
+        <td>${cpm ? fmtDate(cpm.ef) : '-'}</td>
+        <td>${cpm ? cpm.dur + 'd' : '-'}</td>
+        <td>
+          ${isSummary ? '' : `<div class="bar-wrap">
+            <div class="bar-bg"><div class="bar-fill" style="width:${pct}%"></div></div>
+            <span>${pct}%</span>
+          </div>`}
+        </td>
+        <td>${isSummary ? '' : statusTag}</td>
+      </tr>`;
+    }).join('')}
+  </tbody>
+</table>
+
+${criticalTasks.length ? `
+<h2>Ruta Crítica</h2>
+<table>
+  <thead><tr>
+    <th>Tarea crítica</th><th>Inicio</th><th>Fin</th><th>Duración</th><th>Avance</th>
+  </tr></thead>
+  <tbody>
+    ${criticalTasks.map(t => {
+      const cpm = cpmResult?.tasks?.get(t.id);
+      return `<tr>
+        <td style="color:#D32F2F;font-weight:600">${_esc(t.name)}</td>
+        <td>${cpm ? fmtDate(cpm.es) : '-'}</td>
+        <td>${cpm ? fmtDate(cpm.ef) : '-'}</td>
+        <td>${cpm ? cpm.dur + 'd' : '-'}</td>
+        <td>${t.pct_complete ?? 0}%</td>
+      </tr>`;
+    }).join('')}
+  </tbody>
+</table>` : ''}
+
+<div class="footer">
+  ECM Project — Informe generado automáticamente el ${generatedAt}
+</div>
+</body>
+</html>`;
+
+  // Abrir en nueva ventana e imprimir
+  const win = window.open('', '_blank', 'width=900,height=700');
+  if (!win) return { ok: false, error: 'Popup bloqueado. Permita ventanas emergentes para generar el PDF.' };
+  win.document.write(html);
+  win.document.close();
+  win.focus();
+  setTimeout(() => win.print(), 600);
+  return { ok: true };
+}

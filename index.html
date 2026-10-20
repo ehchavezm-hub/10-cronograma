@@ -113,6 +113,18 @@
           <span class="item-icon">📊</span>
           <span class="item-label">Histograma Recursos ✓</span>
         </div>
+        <div class="explorer-item" id="btn-resource-leveling-view" role="button" tabindex="0" style="cursor:pointer" title="Nivelación de Recursos" aria-label="Nivelación de Recursos">
+          <span class="item-icon">⚖</span>
+          <span class="item-label">Nivelación Recursos ✓</span>
+        </div>
+        <div class="explorer-item" id="btn-monte-carlo-view" role="button" tabindex="0" style="cursor:pointer" title="Simulación Monte Carlo" aria-label="Monte Carlo">
+          <span class="item-icon">🎲</span>
+          <span class="item-label">Monte Carlo ✓</span>
+        </div>
+        <div class="explorer-item" id="btn-risk-register-view" role="button" tabindex="0" style="cursor:pointer" title="Registro de Riesgos" aria-label="Registro de Riesgos">
+          <span class="item-icon">⚠</span>
+          <span class="item-label">Registro de Riesgos ✓</span>
+        </div>
       </div>
     </nav>
 
@@ -230,6 +242,95 @@
       </div>
     </dialog>
 
+    <!-- Diálogo: Monte Carlo -->
+    <dialog id="dlg-monte-carlo" aria-labelledby="dlg-mc-title" aria-modal="true" style="
+      border:none;border-radius:12px;padding:0;
+      box-shadow:0 8px 40px rgba(0,0,0,0.25);
+      min-width:500px;max-width:720px;width:96vw;max-height:90vh;overflow:hidden;
+      font-family:var(--font-ui);">
+      <button class="btn btn-ghost btn-icon btn-sm" id="dlg-mc-close" aria-label="Cerrar"
+        style="position:absolute;top:10px;right:12px;z-index:1">✕</button>
+      <div id="monte-carlo-container" style="overflow:auto;max-height:90vh"></div>
+    </dialog>
+
+    <!-- Panel: Registro de Riesgos (overlay) -->
+    <div id="panel-risk-register" style="display:none;position:fixed;inset:0;z-index:800;background:rgba(0,0,0,.35)" role="dialog" aria-labelledby="risk-panel-title" aria-modal="true">
+      <div style="position:absolute;top:10vh;left:50%;transform:translateX(-50%);
+        width:min(900px,96vw);max-height:80vh;overflow:auto;
+        background:var(--clr-surface,#fff);border-radius:12px;
+        box-shadow:0 12px 60px rgba(0,0,0,.3);display:flex;flex-direction:column;">
+        <div style="display:flex;align-items:center;gap:10px;padding:14px 18px;border-bottom:1px solid var(--clr-border);flex-shrink:0">
+          <span style="font-size:20px">⚠</span>
+          <h2 id="risk-panel-title" style="flex:1;margin:0;font-size:var(--text-md);font-weight:var(--fw-semi)">Registro de Riesgos</h2>
+          <button id="btn-risk-panel-close" class="btn btn-ghost btn-icon btn-sm" aria-label="Cerrar">✕</button>
+        </div>
+        <div id="risk-register-container" style="flex:1;overflow:auto;padding:0"></div>
+      </div>
+    </div>
+
+    <!-- Panel: Nivelación de Recursos (overlay) -->
+    <div id="panel-resource-leveling" style="display:none;position:fixed;inset:0;z-index:800;background:rgba(0,0,0,.35)" role="dialog" aria-labelledby="leveling-panel-title" aria-modal="true">
+      <div style="position:absolute;top:10vh;left:50%;transform:translateX(-50%);
+        width:min(860px,96vw);max-height:80vh;overflow:auto;
+        background:var(--clr-surface,#fff);border-radius:12px;
+        box-shadow:0 12px 60px rgba(0,0,0,.3);display:flex;flex-direction:column;">
+        <div style="display:flex;align-items:center;gap:10px;padding:14px 18px;border-bottom:1px solid var(--clr-border);flex-shrink:0">
+          <span style="font-size:20px">⚖</span>
+          <h2 id="leveling-panel-title" style="flex:1;margin:0;font-size:var(--text-md);font-weight:var(--fw-semi)">Nivelación de Recursos</h2>
+          <button id="btn-leveling-panel-close" class="btn btn-ghost btn-icon btn-sm" aria-label="Cerrar">✕</button>
+        </div>
+        <div id="resource-leveling-container" style="flex:1;overflow:auto;padding:16px 18px"></div>
+      </div>
+    </div>
+
+    <!-- Panel: Lookahead -->
+    <div id="panel-lookahead" style="display:none;position:fixed;inset:0;z-index:800;background:rgba(0,0,0,.35)" role="dialog" aria-modal="true">
+      <div style="position:absolute;top:6vh;left:50%;transform:translateX(-50%);
+        width:min(900px,96vw);height:min(80vh,700px);
+        background:var(--clr-surface,#fff);border-radius:12px;
+        box-shadow:0 12px 60px rgba(0,0,0,.3);display:flex;flex-direction:column;overflow:hidden">
+        <button id="btn-lookahead-close" class="btn btn-ghost btn-icon btn-sm"
+          style="position:absolute;top:10px;right:12px;z-index:1" aria-label="Cerrar">✕</button>
+        <div id="lookahead-container" style="flex:1;overflow:hidden;display:flex;flex-direction:column"></div>
+      </div>
+    </div>
+
+    <!-- Panel: Curva S -->
+    <div id="panel-curva-s" style="display:none;position:fixed;inset:0;z-index:800;background:rgba(0,0,0,.35)" role="dialog" aria-modal="true">
+      <div style="position:absolute;top:6vh;left:50%;transform:translateX(-50%);
+        width:min(860px,96vw);height:min(70vh,600px);
+        background:var(--clr-surface,#fff);border-radius:12px;
+        box-shadow:0 12px 60px rgba(0,0,0,.3);display:flex;flex-direction:column;overflow:hidden">
+        <button id="btn-curva-s-close" class="btn btn-ghost btn-icon btn-sm"
+          style="position:absolute;top:10px;right:12px;z-index:1" aria-label="Cerrar">✕</button>
+        <div id="curva-s-container" style="flex:1;overflow:hidden;display:flex;flex-direction:column"></div>
+      </div>
+    </div>
+
+    <!-- Panel: Notificaciones -->
+    <div id="panel-notifications" style="display:none;position:fixed;inset:0;z-index:800;background:rgba(0,0,0,.35)" role="dialog" aria-modal="true">
+      <div style="position:absolute;top:6vh;left:50%;transform:translateX(-50%);
+        width:min(680px,96vw);max-height:80vh;
+        background:var(--clr-surface,#fff);border-radius:12px;
+        box-shadow:0 12px 60px rgba(0,0,0,.3);display:flex;flex-direction:column;overflow:hidden">
+        <button id="btn-notif-close" class="btn btn-ghost btn-icon btn-sm"
+          style="position:absolute;top:10px;right:12px;z-index:1" aria-label="Cerrar">✕</button>
+        <div id="notifications-container" style="flex:1;overflow:auto;display:flex;flex-direction:column"></div>
+      </div>
+    </div>
+
+    <!-- Panel: Diccionario WBS -->
+    <div id="panel-wbs-dictionary" style="display:none;position:fixed;inset:0;z-index:800;background:rgba(0,0,0,.35)" role="dialog" aria-modal="true">
+      <div style="position:absolute;top:4vh;left:50%;transform:translateX(-50%);
+        width:min(900px,96vw);height:min(86vh,720px);
+        background:var(--clr-surface,#fff);border-radius:12px;
+        box-shadow:0 12px 60px rgba(0,0,0,.3);display:flex;flex-direction:column;overflow:hidden">
+        <button id="btn-wbs-dict-close" class="btn btn-ghost btn-icon btn-sm"
+          style="position:absolute;top:10px;right:12px;z-index:1" aria-label="Cerrar">✕</button>
+        <div id="wbs-dictionary-container" style="flex:1;overflow:hidden;display:flex;flex-direction:column"></div>
+      </div>
+    </div>
+
     <!-- ── Divisor: PROYECTOS / EDT ── -->
     <div class="resizer" id="resizer-explorer" role="separator" aria-orientation="vertical" aria-label="Ajustar ancho del panel PROYECTOS" aria-valuemin="160" aria-valuemax="400" aria-valuenow="220" tabindex="0"></div>
 
@@ -265,6 +366,36 @@
         <button id="btn-resource-histogram" class="btn btn-ghost btn-sm" title="Histograma de Recursos" aria-label="Abrir histograma de recursos" aria-pressed="false">
           📊 Histograma
         </button>
+        <button id="btn-resource-leveling" class="btn btn-ghost btn-sm" title="Nivelación de Recursos" aria-label="Nivelar recursos" aria-pressed="false">
+          ⚖ Nivelación
+        </button>
+        <button id="btn-monte-carlo" class="btn btn-ghost btn-sm" title="Simulación Monte Carlo de riesgo de cronograma" aria-label="Monte Carlo" aria-pressed="false">
+          🎲 Monte Carlo
+        </button>
+        <button id="btn-risk-register" class="btn btn-ghost btn-sm" title="Registro de Riesgos" aria-label="Abrir registro de riesgos" aria-pressed="false">
+          ⚠ Riesgos
+        </button>
+        <button id="btn-baseline-compare" class="btn btn-ghost btn-sm" title="Comparar con Línea Base (doble barra Gantt)" aria-label="Comparar línea base" aria-pressed="false">
+          📐 Comparar LB
+        </button>
+        <button id="btn-lookahead" class="btn btn-ghost btn-sm" title="Vista Lookahead 3/6 semanas" aria-label="Lookahead" aria-pressed="false">
+          📅 Lookahead
+        </button>
+        <button id="btn-curva-s" class="btn btn-ghost btn-sm" title="Curva S de Avance — Planificado vs Real" aria-label="Curva S" aria-pressed="false">
+          📈 Curva S
+        </button>
+        <button id="btn-notifications" class="btn btn-ghost btn-sm" title="Alertas de tareas críticas y próximas a vencer" aria-label="Notificaciones" aria-pressed="false" style="position:relative">
+          🔔 Alertas
+          <span id="notif-badge" style="display:none;position:absolute;top:2px;right:2px;
+            background:#D32F2F;color:#fff;border-radius:10px;
+            font-size:9px;font-weight:700;padding:1px 4px;min-width:14px;text-align:center"></span>
+        </button>
+        <button id="btn-wbs-dictionary" class="btn btn-ghost btn-sm" title="Diccionario WBS — Alcance y criterios de aceptación" aria-label="Diccionario WBS" aria-pressed="false">
+          📖 Dic. WBS
+        </button>
+        <button id="btn-pdf-report" class="btn btn-ghost btn-sm" title="Exportar informe ejecutivo PDF" aria-label="Reporte PDF">
+          📄 Reporte PDF
+        </button>
         <div class="toolbar-sep"></div>
         <span class="filter-bar-label">Filtrar:</span>
         <button class="filter-btn active" data-filter="all"      aria-pressed="true">Todas las tareas</button>
@@ -290,6 +421,10 @@
             <li role="none">
               <label for="import-file" class="menu-import-label" role="menuitem" tabindex="-1">📂 Importar JSON…</label>
               <input type="file" id="import-file" accept=".json" hidden aria-label="Importar archivo JSON">
+            </li>
+            <li role="none">
+              <label for="import-xer-file" class="menu-import-label" role="menuitem" tabindex="-1">📥 Importar XER (Primavera P6)…</label>
+              <input type="file" id="import-xer-file" accept=".xer" hidden aria-label="Importar archivo XER de Primavera P6">
             </li>
           </ul>
         </div>
@@ -449,7 +584,7 @@
     <span style="position:absolute;left:50%;transform:translateX(-50%);font-size:var(--text-xs);color:var(--clr-text-3);white-space:nowrap">ECM Project v1.0.0 | © 2026 E. Chávez</span>
     <span style="flex:1"></span>
     <span id="status-warnings" style="font-size:var(--text-xs);color:var(--clr-text-3)"></span>
-    <span>v85</span>
+    <span>v86</span>
   </footer>
 
   <!-- Pestañas inferiores (solo móvil) -->

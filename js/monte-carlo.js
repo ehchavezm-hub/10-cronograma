@@ -52,12 +52,6 @@ export class MonteCarloPanel {
     this.el.innerHTML = '';
     this.el.className = 'mc-panel';
 
-    // Encabezado
-    const header = document.createElement('div');
-    header.className = 'mc-header';
-    header.innerHTML = '<span class="mc-title">Simulación Monte Carlo</span>';
-    this.el.appendChild(header);
-
     // Formulario de control
     const form = document.createElement('div');
     form.className = 'mc-form';
