@@ -226,7 +226,7 @@ export function parseXer(xerText, projectId = crypto.randomUUID()) {
         duration_days: 0,
         start_date:    null,
         finish_date:   null,
-        pct_complete:  0,
+        percent_complete:  0,
         parent_id:     null,
         wbs_code:      null,
         constraint_type:  null,
@@ -257,7 +257,7 @@ export function parseXer(xerText, projectId = crypto.randomUUID()) {
       duration_days: Math.max(0, Math.round(durHr / hoursPerDay)),
       start_date:    (r.act_start_dt || r.target_start_dt || '').slice(0, 10) || null,
       finish_date:   (r.act_end_dt   || r.target_end_dt   || '').slice(0, 10) || null,
-      pct_complete:  parseFloat(r.phys_complete_pct || '0') || 0,
+      percent_complete:  parseFloat(r.phys_complete_pct || '0') || 0,
       parent_id:     null, // se rellena en el paso de jerarquía
       wbs_code:      null,
       constraint_type:  null,
@@ -340,7 +340,7 @@ export function parseXer(xerText, projectId = crypto.randomUUID()) {
     if (!r) continue;
     const pct = parseFloat(r.phys_complete_pct || '');
     if (!isNaN(pct)) {
-      t.pct_complete = Math.min(100, Math.max(0, pct));
+      t.percent_complete = Math.min(100, Math.max(0, pct));
     }
   }
 

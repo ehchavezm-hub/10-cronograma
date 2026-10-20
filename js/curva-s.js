@@ -112,7 +112,7 @@ export class CurvaSPanel {
         const cpm = cpmResult.tasks?.get(t.id);
         if (!cpm || cpm.es >= day) continue;
         const w = cpm.dur || 1;
-        const pct = (t.pct_complete ?? 0) / 100;
+        const pct = (t.percent_complete ?? 0) / 100;
         if (cpm.ef <= day) {
           sum += w * pct;
         } else {
