@@ -205,7 +205,7 @@ export class GanttCanvas {
         } else {
           if (cpm.es != null) lines += `\nInicio: ${fmt(cal.idxToDate(cpm.es, ps))}`;
           if (cpm.ef != null) lines += `\nFin: ${fmt(cal.finishDate(cpm.ef, ps))}`;
-          if (cpm.dur != null) lines += `\nDuración: ${cpm.dur} d`;
+          if (cpm.es != null && cpm.ef != null) lines += `\nDuración: ${cpm.ef - cpm.es} d`;
           if (cpm.tf != null) lines += `\nFloat: ${cpm.tf} d`;
           if (task.percent_complete != null) lines += `\nAvance: ${task.percent_complete}%`;
 
