@@ -307,14 +307,6 @@ export class ResourceHistogramPanel {
     }
     yMax = _niceMax(yMax * 1.2 || 10);
 
-    // Background
-    ctx.fillStyle = CLR_BG;
-    ctx.fillRect(0, 0, W, H);
-
-    // Chart surface
-    ctx.fillStyle = CLR_SURFACE;
-    ctx.fillRect(PL, PT, cW, cH);
-
     // Grid + Y labels
     const STEPS = 5;
     ctx.textBaseline = 'middle';
