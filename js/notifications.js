@@ -102,7 +102,7 @@ export function getNotifications(horizonDays = 7) {
     if (pct >= 100) continue;
 
     const cpm = cpmResult.tasks?.get(task.id);
-    if (!cpm) continue;
+    if (!cpm || cpm.is_summary) continue;
 
     const daysLeft = cpm.ef - todayIdx;
 

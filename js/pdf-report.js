@@ -29,7 +29,8 @@ export function generatePdfReport() {
     .toLocaleDateString('es-PE', { day:'2-digit', month:'2-digit', year:'numeric' });
 
   const taskArr = [...(tasks?.values() ?? [])].filter(t => !t.deleted_at);
-  const nonSummary = taskArr.filter(t => t.type !== 'summary');
+  const _pdfParentIds = new Set(taskArr.filter(t => t.parent_id).map(t => t.parent_id));
+  const nonSummary = taskArr.filter(t => t.type !== 'summary' && !_pdfParentIds.has(t.id));
 
   // KPIs básicos
   const totalTasks = nonSummary.length;
@@ -151,7 +152,7 @@ ${cpmResult ? `
     ${taskArr.map(t => {
       const cpm = cpmResult?.tasks?.get(t.id);
       const pct = t.percent_complete ?? 0;
-      const isSummary = t.type === 'summary';
+      const isSummary = t.type === 'summary' || _pdfParentIds.has(t.id);
       const isCrit = !isSummary && cpm?.tf === 0;
       const statusTag = pct >= 100
         ? '<span class="tag tag-done">Completada</span>'
