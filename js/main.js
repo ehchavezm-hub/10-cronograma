@@ -835,11 +835,16 @@ async function _openResourceManager() {
 
   dlg.innerHTML = `
     <div id="dlg-res-hdr" style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid var(--clr-border);background:var(--clr-surface-2);cursor:move;user-select:none" title="Arrastrar para mover">
-      <div>
+      <div style="flex:1;min-width:0">
         <div id="rm-dlg-title" style="font-weight:700;font-size:15px">Gestión de Recursos</div>
         <div style="font-size:11px;color:var(--clr-text-3);margin-top:2px">Catálogo, asignación y uso de recursos del proyecto</div>
+        <div style="display:flex;gap:4px;margin-top:7px">
+          <button id="rm-btn-import" class="btn btn-ghost btn-sm" title="Importar recursos desde archivo CSV" aria-label="Importar recursos CSV" style="font-size:11px;padding:3px 9px">⬆ Importar</button>
+          <button id="rm-btn-export" class="btn btn-ghost btn-sm" title="Exportar catálogo de recursos a CSV" aria-label="Exportar recursos CSV" style="font-size:11px;padding:3px 9px">⬇ Exportar</button>
+          <button id="rm-btn-print"  class="btn btn-ghost btn-sm" title="Imprimir catálogo de recursos" aria-label="Imprimir catálogo" style="font-size:11px;padding:3px 9px">🖨 Imprimir</button>
+        </div>
       </div>
-      <div style="display:flex;gap:6px;align-items:center">
+      <div style="display:flex;gap:6px;align-items:flex-start">
         <button id="btn-open-assign-dlg" class="btn btn-primary btn-sm" title="Asignar recursos a actividades (masivo)" aria-label="Asignar recursos a actividades" style="cursor:pointer">📌 Asignar Recursos</button>
         <button id="dlg-res-close" class="btn btn-icon btn-sm" style="cursor:default" aria-label="Cerrar gestión de recursos">✕</button>
       </div>
@@ -906,6 +911,65 @@ async function _openResourceManager() {
 
   dlg.querySelector('#dlg-res-close').addEventListener('click', () => dlg.close());
   dlg.querySelector('#btn-open-assign-dlg').addEventListener('click', () => { dlg.close(); _openResourceAssign(); });
+
+  // ---- Imprimir ----
+  dlg.querySelector('#rm-btn-print')?.addEventListener('click', () => {
+    const tbl = dlg.querySelector('#rm-panel-catalog table');
+    _printToPdf('Catálogo de Recursos', `<h1>Catálogo de Recursos</h1>${tbl ? tbl.outerHTML : '<p>Sin datos</p>'}`);
+  });
+
+  // ---- Exportar CSV ----
+  dlg.querySelector('#rm-btn-export')?.addEventListener('click', () => {
+    const header = 'nombre,tipo,rol,precio,unidad,disponibilidad_max\n';
+    const body = resources.map(r => [
+      '"' + (r.name ?? '').replace(/"/g, '""') + '"',
+      r.type ?? 'work',
+      '"' + (r.role ?? '').replace(/"/g, '""') + '"',
+      r.rate_per_hour ?? '',
+      '"' + (r.unit_label ?? '').replace(/"/g, '""') + '"',
+      r.max_units ?? '',
+    ].join(',')).join('\n');
+    const csv = '﻿' + header + body; // BOM for Excel UTF-8
+    const a = document.createElement('a');
+    a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
+    a.download = 'recursos_' + new Date().toISOString().slice(0, 10) + '.csv';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  });
+
+  // ---- Importar CSV ----
+  dlg.querySelector('#rm-btn-import')?.addEventListener('click', () => {
+    const inp = document.createElement('input');
+    inp.type = 'file'; inp.accept = '.csv,text/csv';
+    inp.addEventListener('change', async () => {
+      const file = inp.files?.[0];
+      if (!file) return;
+      const text = await file.text();
+      const lines = text.replace(/\r/g, '').split('\n').map(l => l.trim()).filter(Boolean);
+      if (!lines.length) return;
+      const start = lines[0].toLowerCase().startsWith('nombre') ? 1 : 0;
+      const { put: dbPutRes } = await import('./storage.js');
+      let count = 0;
+      for (const line of lines.slice(start)) {
+        const parts = line.split(',').map(p => p.trim().replace(/^"|"$/g, '').replace(/""/g, '"'));
+        const [name, type, role, rateStr, unitLabel, maxStr] = parts;
+        if (!name) continue;
+        const typ = ['work', 'material', 'equipment', 'cost'].includes(type) ? type : 'work';
+        await dbPutRes('resources', {
+          id: crypto.randomUUID(), name, type: typ,
+          role: role || null,
+          rate_per_hour: rateStr ? (parseFloat(rateStr) || null) : null,
+          unit_label: (typ === 'material' || typ === 'equipment') ? (unitLabel || null) : null,
+          max_units: typ === 'work' ? (maxStr ? (parseFloat(maxStr) || 100) : 100) : null,
+          org_id: null, deleted_at: null,
+        });
+        count++;
+      }
+      _showToast(`${count} recurso(s) importados correctamente`, 'success');
+      dlg.close();
+      _openResourceManager();
+    });
+    inp.click();
+  });
 
   // ---- Tab switching ----
   dlg.querySelectorAll('.rm-tab').forEach(btn => {
