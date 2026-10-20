@@ -139,7 +139,6 @@ export class RiskRegisterPanel {
     // Header
     const hdr = document.createElement('div');
     hdr.className = 'rr-header';
-    hdr.setAttribute('data-drag-handle', '');
     hdr.innerHTML = `
       <span class="rr-title">Registro de Riesgos</span>
       <div class="rr-header-actions">
@@ -152,7 +151,39 @@ export class RiskRegisterPanel {
     this.container.appendChild(hdr);
 
     hdr.querySelector('.rr-print-btn').addEventListener('click', () => {
-      _printToPdf('Registro de Riesgos', `<h1>Registro de Riesgos</h1>${this._bodyEl?.innerHTML ?? ''}`);
+      const rows = [...this.risks].sort((a,b) => (b.risk_score??0)-(a.risk_score??0));
+      const tableRows = rows.map(r => {
+        const score = r.risk_score ?? (r.probability * r.impact);
+        const level = score >= 10 ? 'Alto' : score >= 5 ? 'Medio' : 'Bajo';
+        const color = score >= 10 ? '#f44336' : score >= 5 ? '#ff9800' : '#4caf50';
+        return `<tr style="border-bottom:1px solid #eee">
+          <td style="padding:8px 10px;font-weight:500">${r.title}</td>
+          <td style="padding:8px 10px">${r.category??''}</td>
+          <td style="padding:8px 10px;text-align:center">${r.probability}</td>
+          <td style="padding:8px 10px;text-align:center">${r.impact}</td>
+          <td style="padding:8px 10px;text-align:center"><strong style="color:${color}">${score}</strong></td>
+          <td style="padding:8px 10px;text-align:center;color:${color};font-weight:600">${level}</td>
+          <td style="padding:8px 10px">${r.owner??''}</td>
+          <td style="padding:8px 10px">${r.status??''}</td>
+        </tr>`;
+      }).join('');
+      const html = `
+        <h1 style="font-size:18px;margin-bottom:4px">Registro de Riesgos</h1>
+        <p style="color:#666;font-size:12px;margin-bottom:16px">Total: ${rows.length} riesgo(s)</p>
+        <table style="width:100%;border-collapse:collapse;font-size:12px">
+          <thead><tr style="background:#f5f5f5;border-bottom:2px solid #ddd">
+            <th style="padding:8px 10px;text-align:left">Título</th>
+            <th style="padding:8px 10px;text-align:left">Categoría</th>
+            <th style="padding:8px 10px;text-align:center">Prob.</th>
+            <th style="padding:8px 10px;text-align:center">Impacto</th>
+            <th style="padding:8px 10px;text-align:center">Score</th>
+            <th style="padding:8px 10px;text-align:center">Nivel</th>
+            <th style="padding:8px 10px;text-align:left">Responsable</th>
+            <th style="padding:8px 10px;text-align:left">Estado</th>
+          </tr></thead>
+          <tbody>${tableRows}</tbody>
+        </table>`;
+      _printToPdf('Registro de Riesgos', html);
     });
     hdr.querySelector('.rr-close-btn').addEventListener('click', () => this.onClose());
     hdr.querySelector('#rr-new-btn').addEventListener('click', () => this._openForm(null));

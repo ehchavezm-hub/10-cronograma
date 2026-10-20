@@ -119,3 +119,15 @@ export async function setPrimaryBaseline(projectId, baselineId) {
 export async function getBaseline(baselineId) {
   return (await getById('baselines', baselineId)) ?? null;
 }
+
+// ---- Renombrar línea base ----
+
+/**
+ * @param {string} baselineId
+ * @param {string} newName
+ */
+export async function renameBaseline(baselineId, newName) {
+  const bl = await getById('baselines', baselineId);
+  if (!bl) return;
+  await put('baselines', { ...bl, name: newName.trim() || bl.name });
+}
