@@ -108,6 +108,7 @@ export class LookaheadPanel {
             style="width:54px;padding:3px 6px;border:1px solid var(--clr-border);border-radius:4px;background:var(--clr-surface);color:var(--clr-text);font-size:12px">
         </label>
         <button id="la-btn-print" class="btn btn-ghost btn-sm" title="Imprimir PDF" style="margin-left:2px">🖨 Imprimir</button>
+        <button id="la-btn-close" class="btn btn-ghost btn-icon btn-sm" title="Cerrar" aria-label="Cerrar" style="font-size:14px;flex-shrink:0">✕</button>
       </div>`;
     this.el.appendChild(hdr);
 
@@ -169,6 +170,10 @@ export class LookaheadPanel {
           </tbody>
         </table>`;
       _printToPdf('Vista Lookahead', html);
+    });
+    hdr.querySelector('#la-btn-close')?.addEventListener('click', () => {
+      const p = document.getElementById('panel-lookahead');
+      if (p) p.style.display = 'none';
     });
     if (this.el.parentElement) _makeDraggable(this.el.parentElement, '[data-drag-handle]');
     this.refresh();
