@@ -135,9 +135,11 @@ export function printGantt(rows) {
     * { box-sizing: border-box; }
     body  { margin: 0; padding: 0; font-family: 'Segoe UI', system-ui, sans-serif; }
     .header { display: flex; align-items: center; padding: 0 0 6px;
-              border-bottom: 2px solid #1976D2; margin-bottom: 8px; }
+              border-bottom: 2px solid #1976D2; margin-bottom: 8px;
+              page-break-after: avoid; break-after: avoid; }
     .proj-name { font-size: 16px; font-weight: 700; color: #1976D2; }
-    .gantt-frame { border: 0.25px solid #546E7A; display: inline-block; width: 100%; }
+    .gantt-frame { border: 0.25px solid #546E7A; display: block; width: 100%;
+                   page-break-before: avoid; break-before: avoid; }
     svg { width: var(--gantt-zoom, 100%); max-width: none; height: auto; display: block; }
     .controls { display: flex; align-items: center; gap: 12px; padding: 8px 0 10px;
                 font-family: 'Segoe UI', system-ui, sans-serif; font-size: 12px; flex-wrap: wrap; }
@@ -150,7 +152,9 @@ export function printGantt(rows) {
                  padding: 6px 16px; font-size: 13px; cursor: pointer; }
     .btn-print:hover { background: #1565C0; }
     .sep { width: 1px; height: 22px; background: #CFD8DC; }
-    @media print { .controls { display: none !important; }
+    @media print {
+      .controls { display: none !important; height: 0 !important;
+                  overflow: hidden !important; visibility: hidden !important; }
       footer.ecm-footer { display: block; position: fixed; bottom: 0; left: 0; right: 0;
         font-size: 7pt; color: #9E9E9E; text-align: center;
         border-top: 1px solid #E0E0E0; padding-top: 3px; padding-bottom: 2px;
@@ -159,6 +163,13 @@ export function printGantt(rows) {
     footer.ecm-footer { display: none; }
   </style>
 </head><body>
+  <div class="header">
+    <div class="proj-name">${_esc(project.name)}</div>
+  </div>
+  <div class="gantt-frame">
+    ${svgStr}
+  </div>
+  <footer class="ecm-footer">ECM Project v1.0.0 | &#169; 2026 E. Ch&#225;vez</footer>
   <div class="controls">
     <label>Zoom:
       <input type="range" id="zoom" min="30" max="300" value="100" step="5">
@@ -172,13 +183,6 @@ export function printGantt(rows) {
     <button class="btn-print" onclick="window.print()">🖨 Imprimir</button>
     <span style="color:#78909C;font-size:11px">${today}</span>
   </div>
-  <div class="header">
-    <div class="proj-name">${_esc(project.name)}</div>
-  </div>
-  <div class="gantt-frame">
-    ${svgStr}
-  </div>
-  <footer class="ecm-footer">ECM Project v1.0.0 | &#169; 2026 E. Ch&#225;vez</footer>
   <script>
     const zoom = document.getElementById('zoom');
     const zoomVal = document.getElementById('zoom-val');
