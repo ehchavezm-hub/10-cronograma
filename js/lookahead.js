@@ -107,6 +107,7 @@ export class LookaheadPanel {
           <input id="la-input-custom" type="number" min="1" max="52" value="${this._weeks}"
             style="width:54px;padding:3px 6px;border:1px solid var(--clr-border);border-radius:4px;background:var(--clr-surface);color:var(--clr-text);font-size:12px">
         </label>
+        <button id="la-btn-refresh" class="btn btn-primary btn-sm" title="Actualizar vista" style="padding:4px 12px;font-size:12px;flex-shrink:0">↺ Actualizar</button>
         <button id="la-btn-print" class="btn btn-ghost btn-sm" title="Imprimir PDF" style="margin-left:2px">🖨 Imprimir</button>
         <button id="la-btn-close" class="btn btn-ghost btn-icon btn-sm" title="Cerrar" aria-label="Cerrar" style="font-size:14px;flex-shrink:0">✕</button>
       </div>`;
@@ -116,11 +117,16 @@ export class LookaheadPanel {
     this._tbody.style.cssText = 'flex:1;overflow:auto;padding:12px 18px';
     this.el.appendChild(this._tbody);
 
-    hdr.querySelector('#la-input-date')?.addEventListener('change', e => {
-      const v = /** @type {HTMLInputElement} */ (e.target).value;
-      this._refDate = v ? new Date(v + 'T00:00:00') : null;
+    const _applyAndRefresh = () => {
+      const dateInp = /** @type {HTMLInputElement|null} */ (this.el.querySelector('#la-input-date'));
+      const weeksInp = /** @type {HTMLInputElement|null} */ (this.el.querySelector('#la-input-custom'));
+      if (dateInp?.value) this._refDate = new Date(dateInp.value + 'T00:00:00');
+      const w = parseInt(weeksInp?.value ?? '');
+      if (w >= 1 && w <= 52) this._weeks = w;
       this.refresh();
-    });
+    };
+    hdr.querySelector('#la-input-date')?.addEventListener('change', _applyAndRefresh);
+    hdr.querySelector('#la-input-date')?.addEventListener('input', _applyAndRefresh);
     hdr.querySelector('#la-btn-3')?.addEventListener('click', () => {
       this._weeks = 3;
       const inp = /** @type {HTMLInputElement|null} */ (this.el.querySelector('#la-input-custom'));
@@ -133,10 +139,9 @@ export class LookaheadPanel {
       if (inp) inp.value = '6';
       this.refresh();
     });
-    hdr.querySelector('#la-input-custom')?.addEventListener('change', e => {
-      const v = parseInt(/** @type {HTMLInputElement} */ (e.target).value);
-      if (v >= 1 && v <= 52) { this._weeks = v; this.refresh(); }
-    });
+    hdr.querySelector('#la-input-custom')?.addEventListener('change', _applyAndRefresh);
+    hdr.querySelector('#la-input-custom')?.addEventListener('input', _applyAndRefresh);
+    hdr.querySelector('#la-btn-refresh')?.addEventListener('click', _applyAndRefresh);
     hdr.querySelector('#la-btn-print')?.addEventListener('click', () => {
       const rows = this._rows ?? [];
       const fmtDate = d => d.toLocaleDateString('es-PE', { day:'2-digit', month:'2-digit', year:'numeric' });
