@@ -79,14 +79,14 @@ export class LookaheadPanel {
 
   _build() {
     this.el.innerHTML = '';
-    this.el.style.cssText = 'display:flex;flex-direction:column;height:100%;font-family:var(--font-ui)';
+    this.el.style.cssText = 'display:flex;flex-direction:column;height:100%;font-family:var(--font-ui);position:relative';
 
     const todayIso = new Date().toISOString().slice(0, 10);
 
     // Header
     const hdr = document.createElement('div');
     hdr.setAttribute('data-drag-handle', '');
-    hdr.style.cssText = 'display:flex;align-items:center;gap:10px;padding:14px 18px;border-bottom:1px solid var(--clr-border);flex-shrink:0;flex-wrap:wrap';
+    hdr.style.cssText = 'display:flex;align-items:center;gap:10px;padding:14px 18px;padding-right:44px;border-bottom:1px solid var(--clr-border);flex-shrink:0;flex-wrap:wrap';
     hdr.innerHTML = `
       <span style="font-size:20px">📅</span>
       <div style="flex:1;min-width:140px">
@@ -109,7 +109,6 @@ export class LookaheadPanel {
         </label>
         <button id="la-btn-refresh" class="btn btn-primary btn-sm" title="Actualizar vista" style="padding:4px 12px;font-size:12px;flex-shrink:0">↺ Actualizar</button>
         <button id="la-btn-print" class="btn btn-ghost btn-sm" title="Imprimir PDF" style="margin-left:2px">🖨 Imprimir</button>
-        <button id="la-btn-close" class="btn btn-ghost btn-icon btn-sm" title="Cerrar" aria-label="Cerrar" style="font-size:14px;flex-shrink:0">✕</button>
       </div>`;
     this.el.appendChild(hdr);
 
@@ -176,10 +175,17 @@ export class LookaheadPanel {
         </table>`;
       _printToPdf('Vista Lookahead', html);
     });
-    hdr.querySelector('#la-btn-close')?.addEventListener('click', () => {
+    const _laCloseBtn = document.createElement('button');
+    _laCloseBtn.className = 'btn btn-ghost btn-icon btn-sm';
+    _laCloseBtn.title = 'Cerrar';
+    _laCloseBtn.setAttribute('aria-label', 'Cerrar');
+    _laCloseBtn.textContent = '✕';
+    _laCloseBtn.style.cssText = 'position:absolute;top:8px;right:8px;z-index:20;font-size:16px;width:28px;height:28px;padding:0;display:flex;align-items:center;justify-content:center;border-radius:50%';
+    _laCloseBtn.addEventListener('click', () => {
       const p = document.getElementById('panel-lookahead');
       if (p) p.style.display = 'none';
     });
+    this.el.appendChild(_laCloseBtn);
     if (this.el.parentElement) _makeDraggable(this.el.parentElement, '[data-drag-handle]');
     this.refresh();
   }

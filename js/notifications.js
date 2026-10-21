@@ -140,11 +140,11 @@ export class NotificationsPanel {
 
   _build() {
     this.el.innerHTML = '';
-    this.el.style.cssText = 'display:flex;flex-direction:column;flex:1;min-height:0;font-family:var(--font-ui)';
+    this.el.style.cssText = 'display:flex;flex-direction:column;flex:1;min-height:0;font-family:var(--font-ui);position:relative';
 
     const hdr = document.createElement('div');
     hdr.setAttribute('data-drag-handle', '');
-    hdr.style.cssText = 'display:flex;align-items:center;gap:10px;padding:14px 18px;border-bottom:1px solid var(--clr-border);flex-shrink:0';
+    hdr.style.cssText = 'display:flex;align-items:center;gap:10px;padding:14px 18px;padding-right:44px;border-bottom:1px solid var(--clr-border);flex-shrink:0';
     hdr.innerHTML = `
       <span style="font-size:20px">🔔</span>
       <div style="flex:1">
@@ -187,19 +187,19 @@ export class NotificationsPanel {
       _printToPdf('Alertas', html);
     });
     hdr.appendChild(_printBtn);
+    this.el.appendChild(hdr);
     const _closeBtn = document.createElement('button');
     _closeBtn.id = 'btn-notif-close';
     _closeBtn.className = 'btn btn-ghost btn-icon btn-sm';
     _closeBtn.title = 'Cerrar';
     _closeBtn.setAttribute('aria-label', 'Cerrar');
     _closeBtn.textContent = '✕';
-    _closeBtn.style.cssText = 'flex-shrink:0';
+    _closeBtn.style.cssText = 'position:absolute;top:8px;right:8px;z-index:20;font-size:16px;width:28px;height:28px;padding:0;display:flex;align-items:center;justify-content:center;border-radius:50%';
     _closeBtn.addEventListener('click', () => {
       const p = document.getElementById('panel-notifications');
       if (p) p.style.display = 'none';
     });
-    hdr.appendChild(_closeBtn);
-    this.el.appendChild(hdr);
+    this.el.appendChild(_closeBtn);
 
     this._body = document.createElement('div');
     this._body.style.cssText = 'flex:1;overflow-y:auto;overflow-x:hidden;padding:12px 18px;min-height:0';
