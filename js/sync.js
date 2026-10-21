@@ -21,6 +21,7 @@ import {
   getByIndex,
 } from './storage.js';
 import { IS_LOCAL_MODE } from './config.js';
+import { cacheGet, cacheSet, cacheInvalidate, cacheInvalidateProject, CACHE_TTL } from './cache.js';
 
 // ============================================================
 // Constantes
@@ -127,18 +128,29 @@ export class SyncEngine {
       const since = full ? null : this._lastPullAt;
       const pid   = this._projectId;
 
+      // Etapa 2: intentar L1/L2 cache en pull completo para evitar round-trip a Supabase
+      let cachedTasks = null, cachedDeps = null;
+      if (full) {
+        cachedTasks = cacheGet(`project:${pid}:wbs`);
+        cachedDeps  = cacheGet(`project:${pid}:deps`);
+      }
+
       const [projects, calendars, calExceptions, tasks, deps] = await Promise.all([
         sb.select('projects',           { 'id': `eq.${pid}` }, '*'),
         sb.select('calendars',          { 'org_id': `eq.${this._orgId}` }, '*'),
         sb.select('calendar_exceptions', since
           ? { 'org_id': `eq.${this._orgId}`, 'updated_at': `gt.${since}` }
           : { 'org_id': `eq.${this._orgId}` }, '*'),
-        sb.select('tasks',              since
-          ? { 'project_id': `eq.${pid}`, 'updated_at': `gt.${since}` }
-          : { 'project_id': `eq.${pid}` }, '*'),
-        sb.select('task_dependencies',  since
-          ? { 'project_id': `eq.${pid}`, 'updated_at': `gt.${since}` }
-          : { 'project_id': `eq.${pid}` }, '*'),
+        cachedTasks
+          ? Promise.resolve(cachedTasks)
+          : sb.select('tasks', since
+              ? { 'project_id': `eq.${pid}`, 'updated_at': `gt.${since}` }
+              : { 'project_id': `eq.${pid}` }, '*'),
+        cachedDeps
+          ? Promise.resolve(cachedDeps)
+          : sb.select('task_dependencies', since
+              ? { 'project_id': `eq.${pid}`, 'updated_at': `gt.${since}` }
+              : { 'project_id': `eq.${pid}` }, '*'),
       ]);
 
       // Fusionar en IndexedDB y en estado (solo filas modificadas en pull incremental)
@@ -175,6 +187,9 @@ export class SyncEngine {
           }
 
           await saveProjectSnapshot({ project, tasks: mergedTasks, deps: mergedDeps, calendar, calExceptions });
+          // Etapa 2: guardar en cache L1/L2 las tareas y dependencias descargadas
+          cacheSet(`project:${pid}:wbs`,  mergedTasks, CACHE_TTL.wbs);
+          cacheSet(`project:${pid}:deps`, mergedDeps,  CACHE_TTL.deps);
           // Solo recargar la vista si el usuario sigue en este proyecto
           if (appState.state.project?.id === project.id) {
             appState.loadProject({ project, tasks: mergedTasks, deps: mergedDeps, calendar, calExceptions });
@@ -249,6 +264,8 @@ export class SyncEngine {
 
     const remaining = await outboxCount();
     if (remaining === 0) {
+      // Etapa 2: invalidar cache al vaciar el outbox (cambios locales ya están en servidor)
+      cacheInvalidateProject(this._projectId);
       appState.setSyncStatus('synced');
     }
   }
@@ -259,6 +276,10 @@ export class SyncEngine {
 
   _onRemoteEvent(tabla, { type, record }) {
     if (!record) return;
+
+    // Etapa 2: invalidar cache al recibir cambio remoto para que el siguiente pull sea fresco
+    if (tabla === 'tasks')             cacheInvalidate(`project:${this._projectId}:wbs`);
+    if (tabla === 'task_dependencies') cacheInvalidate(`project:${this._projectId}:deps`);
 
     // Ignorar si el cambio viene de esta sesión (updated_by podría verificarlo, pero
     // como no tenemos userId en el cliente, simplemente fusionamos por updated_at)
