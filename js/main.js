@@ -2676,20 +2676,6 @@ function _bindToolbar() {
     });
     try { const s = localStorage.getItem('app-theme'); if (s) document.documentElement.setAttribute('data-theme', s); } catch { /* ignore */ }
   }
-  document.getElementById('btn-dcma')?.addEventListener('click', () => {
-    const panel = document.getElementById('dcma-panel');
-    const btn   = document.getElementById('btn-dcma');
-    const isOpen = panel?.classList.toggle('open');
-    btn?.setAttribute('aria-pressed', String(isOpen));
-    if (isOpen) {
-      _dcmaPanel?.refresh();
-      btn.style.background = 'var(--clr-primary)';
-      btn.style.color = '#fff';
-    } else {
-      btn.style.background = '';
-      btn.style.color = '';
-    }
-  });
 
   document.getElementById('btn-resources')?.addEventListener('click', () => {
     const selectedId = appState.state.selectedTaskId;
@@ -5388,7 +5374,11 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   document.getElementById('btn-dcma-view')?.addEventListener('click', () => {
     _closeExplorer();
-    document.getElementById('btn-dcma')?.click();
+    const panel = document.getElementById('dcma-panel');
+    if (panel) {
+      const isOpen = panel.classList.toggle('open');
+      if (isOpen) _dcmaPanel?.refresh();
+    }
   });
   document.getElementById('btn-sync-view')?.addEventListener('click', () => {
     _closeExplorer();
