@@ -42,7 +42,7 @@ function _makeDraggable(dialog, handleSelector) {
 function _printToPdf(moduleName, htmlContent) {
   const _proj = appState.state.project?.name ?? 'ECM Project';
   const _d = new Date(), _dd = String(_d.getDate()).padStart(2,'0'), _mm = String(_d.getMonth()+1).padStart(2,'0'), _yy = _d.getFullYear();
-  const title = `${_proj} - ${moduleName} - ${_dd}/${_mm}/${_yy}`;
+  const title = `${_proj}-${moduleName}-${_dd}${_mm}${_yy}`;
   const w = window.open('', '_blank', 'width=900,height=700');
   if (!w) return;
   w.document.write(`<!DOCTYPE html><html><head>

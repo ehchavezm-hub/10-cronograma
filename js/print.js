@@ -53,7 +53,7 @@ export function printWbsTable() {
   const origTitle = document.title;
   const _wProj = appState.state.project;
   const _wD = new Date(), _wDD = String(_wD.getDate()).padStart(2,'0'), _wMM = String(_wD.getMonth()+1).padStart(2,'0'), _wYY = _wD.getFullYear();
-  document.title = _wProj ? `${_wProj.name} - Tabla EDT - ${_wDD}/${_wMM}/${_wYY}` : 'Tabla EDT';
+  document.title = _wProj ? `${_wProj.name}-Tabla EDT-${_wDD}${_wMM}${_wYY}` : 'Tabla EDT';
   const _footerStyle = document.createElement('style');
   _footerStyle.id = 'print-ecm-footer';
   _footerStyle.textContent = `@media print {
@@ -85,7 +85,7 @@ export function printWbsTable() {
 // ============================================================
 
 /**
- * Abre una ventana de impresión con el diagrama Gantt en SVG vectorial.
+ * Abre una ventana de vista previa del Gantt con botón para guardar PDF via jsPDF.
  * @param {Array<{id:string,isSummary:boolean,depth:number}>} rows
  */
 export function printGantt(rows) {
@@ -106,11 +106,9 @@ export function printGantt(rows) {
     const startDate = isoToDate(project.start_date || new Date().toISOString().slice(0,10));
 
     const savedCols = getPrintCols();
-    // Todas las columnas extra soportadas por gantt-svg (en orden de aparición)
     const ALL_EXTRA = ['wbs','type','dur','start','finish','pct','tf','ff','pred'];
     const ganttExtraCols = ALL_EXTRA.filter(c => savedCols.includes(c));
 
-    // Etiquetas de barras: leer la misma selección que usa el canvas
     let barLabels = ['name'];
     try { barLabels = JSON.parse(localStorage.getItem('gantt-bar-labels') || '["name"]'); } catch { /* ignore */ }
 
@@ -122,25 +120,28 @@ export function printGantt(rows) {
       barLabels,
     });
 
-    const _dG = new Date();
-    const today   = _dG.toLocaleDateString('es-PE');
-    const _gDateStr = `${String(_dG.getDate()).padStart(2,'0')}/${String(_dG.getMonth()+1).padStart(2,'0')}/${_dG.getFullYear()}`;
-    const _gTitle = `${project.name} - Gantt - ${_gDateStr}`;
-    const html    = `<!doctype html>
+    const _dG  = new Date();
+    const _gDD = String(_dG.getDate()).padStart(2,'0');
+    const _gMM = String(_dG.getMonth()+1).padStart(2,'0');
+    const _gYY = _dG.getFullYear();
+    const today      = _dG.toLocaleDateString('es-PE');
+    const _gTitle    = `${project.name} - Gantt - ${_gDD}/${_gMM}/${_gYY}`;
+    const _pdfFile   = `${project.name}-Gantt-${_gDD}${_gMM}${_gYY}.pdf`;
+    const _projLabel = _esc(project.name);
+
+    const html = `<!doctype html>
 <html lang="es"><head>
   <meta charset="UTF-8">
-  <title>${_gTitle}</title>
+  <title>${_esc(_gTitle)}</title>
   <style id="page-style">@page { size: landscape; margin: 10mm 10mm 15mm; }</style>
   <style>
     * { box-sizing: border-box; }
     body  { margin: 0; padding: 0; font-family: 'Segoe UI', system-ui, sans-serif; }
     .header { display: flex; align-items: center; padding: 0 0 6px;
-              border-bottom: 2px solid #1976D2; margin-bottom: 8px;
-              page-break-after: avoid; break-after: avoid; }
+              border-bottom: 2px solid #1976D2; margin-bottom: 8px; }
     .proj-name { font-size: 16px; font-weight: 700; color: #1976D2; }
-    .gantt-frame { border: 0.25px solid #546E7A; display: block; width: 100%;
-                   page-break-before: avoid; break-before: avoid; }
-    svg { width: var(--gantt-zoom, 100%); max-width: none; height: auto; display: block; }
+    .gantt-frame { border: 0.25px solid #546E7A; display: block; overflow: auto; }
+    svg { display: block; }
     .controls { display: flex; align-items: center; gap: 12px; padding: 8px 0 10px;
                 font-family: 'Segoe UI', system-ui, sans-serif; font-size: 12px; flex-wrap: wrap; }
     .controls label { display: flex; align-items: center; gap: 6px; color: #455A64; }
@@ -151,22 +152,24 @@ export function printGantt(rows) {
     .btn-print { background: #1976D2; color: #fff; border: none; border-radius: 6px;
                  padding: 6px 16px; font-size: 13px; cursor: pointer; }
     .btn-print:hover { background: #1565C0; }
+    .btn-print:disabled { background: #90A4AE; cursor: not-allowed; }
     .sep { width: 1px; height: 22px; background: #CFD8DC; }
+    footer.ecm-footer { display: none; }
     @media print {
-      .controls { display: none !important; height: 0 !important;
-                  overflow: hidden !important; visibility: hidden !important; }
+      .controls { display: none !important; }
       footer.ecm-footer { display: block; position: fixed; bottom: 0; left: 0; right: 0;
         font-size: 7pt; color: #9E9E9E; text-align: center;
-        border-top: 1px solid #E0E0E0; padding-top: 3px; padding-bottom: 2px;
-        background: white; }
+        border-top: 1px solid #E0E0E0; padding-top: 3px; background: white; }
+      .gantt-frame { overflow: visible; border: none; }
+      svg { width: 100% !important; max-width: 100% !important; height: auto !important; }
     }
-    footer.ecm-footer { display: none; }
   </style>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"><\/script>
 </head><body>
   <div class="header">
-    <div class="proj-name">${_esc(project.name)}</div>
+    <div class="proj-name">${_projLabel}</div>
   </div>
-  <div class="gantt-frame">
+  <div class="gantt-frame" id="gantt-wrap">
     ${svgStr}
   </div>
   <footer class="ecm-footer">ECM Project v1.0.0 | &#169; 2026 E. Ch&#225;vez</footer>
@@ -176,25 +179,131 @@ export function printGantt(rows) {
       <span id="zoom-val" style="min-width:40px">100%</span>
     </label>
     <div class="sep"></div>
-    <span style="color:#78909C">Orientación:</span>
-    <button class="btn-c active" id="btn-land" onclick="setOrient('landscape')">⬛ Horizontal</button>
-    <button class="btn-c" id="btn-port" onclick="setOrient('portrait')">🔲 Vertical</button>
+    <span style="color:#78909C">Orientación PDF:</span>
+    <button class="btn-c active" id="btn-land" onclick="setPdfOrient('landscape')">⬛ Horizontal</button>
+    <button class="btn-c" id="btn-port" onclick="setPdfOrient('portrait')">🔲 Vertical</button>
     <div class="sep"></div>
-    <button class="btn-print" onclick="typeof ecmGeneratePdf==='function'?ecmGeneratePdf():window.print()">🖨 Imprimir</button>
+    <button class="btn-print" id="btn-pdf" onclick="_savePdf()">🖨 Guardar PDF</button>
     <span style="color:#78909C;font-size:11px">${today}</span>
   </div>
   <script>
-    const zoom = document.getElementById('zoom');
+    const _PDF_FILENAME = ${JSON.stringify(_pdfFile)};
+    const _PROJ_NAME    = ${JSON.stringify(project.name)};
+    let   _pdfOrient    = 'landscape';
+
+    // Zoom SVG preview
+    const zoomEl  = document.getElementById('zoom');
     const zoomVal = document.getElementById('zoom-val');
-    const svg = document.querySelector('svg');
-    zoom.addEventListener('input', () => {
-      zoomVal.textContent = zoom.value + '%';
-      svg.style.width = zoom.value + '%';
-    });
-    function setOrient(o) {
-      document.getElementById('page-style').textContent = '@page { size: ' + o + '; margin: 10mm 10mm 15mm; }';
+    const svgEl   = document.querySelector('#gantt-wrap svg');
+    if (zoomEl && svgEl) {
+      zoomEl.addEventListener('input', () => {
+        zoomVal.textContent = zoomEl.value + '%';
+        svgEl.style.width  = zoomEl.value + '%';
+        svgEl.style.height = 'auto';
+      });
+    }
+
+    function setPdfOrient(o) {
+      _pdfOrient = o;
       document.getElementById('btn-land').classList.toggle('active', o === 'landscape');
       document.getElementById('btn-port').classList.toggle('active', o === 'portrait');
+    }
+
+    async function _savePdf() {
+      const btn = document.getElementById('btn-pdf');
+      if (!window.jspdf) { alert('Librería PDF no disponible. Verifique su conexión e intente de nuevo.'); return; }
+      if (btn) { btn.disabled = true; btn.textContent = '⏳ Generando…'; }
+      try {
+        const { jsPDF } = window.jspdf;
+        const svg = document.querySelector('#gantt-wrap svg');
+        if (!svg) throw new Error('SVG no encontrado');
+
+        // Dimensiones del SVG (usa atributos explícitos que genera gantt-svg.js)
+        const svgW = parseFloat(svg.getAttribute('width'))  || svg.viewBox.baseVal.width  || svg.getBoundingClientRect().width;
+        const svgH = parseFloat(svg.getAttribute('height')) || svg.viewBox.baseVal.height || svg.getBoundingClientRect().height;
+        if (!svgW || !svgH) throw new Error('Dimensiones SVG inválidas');
+
+        // Calcular escala para canvas: target ~200 DPI en A4
+        const isLand = _pdfOrient === 'landscape';
+        const A4w_mm = isLand ? 277 : 190;  // A4 con márgenes 10mm c/lado
+        const A4h_mm = isLand ? 190 : 277;
+        const MM2PX  = 200 / 25.4;          // 200 DPI → px/mm
+        const fitW   = (A4w_mm * MM2PX) / svgW;
+        const fitH   = (A4h_mm * MM2PX) / svgH;
+        const scale  = Math.min(fitW, fitH, 3);  // max 3x para no exceder memoria
+
+        const cw = Math.round(svgW * scale);
+        const ch = Math.round(svgH * scale);
+
+        const canvas = document.createElement('canvas');
+        canvas.width  = cw;
+        canvas.height = ch;
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, cw, ch);
+        ctx.scale(scale, scale);
+
+        // Serializar SVG y renderizar en canvas
+        const clone = svg.cloneNode(true);
+        clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+        clone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
+        const svgStr = new XMLSerializer().serializeToString(clone);
+        const blob   = new Blob([svgStr], { type: 'image/svg+xml;charset=utf-8' });
+        const url    = URL.createObjectURL(blob);
+
+        await new Promise((res, rej) => {
+          const img = new Image();
+          img.onload = () => { ctx.drawImage(img, 0, 0, svgW, svgH); URL.revokeObjectURL(url); res(); };
+          img.onerror = () => { URL.revokeObjectURL(url); rej(new Error('Error al renderizar SVG')); };
+          img.src = url;
+        });
+
+        const imgData = canvas.toDataURL('image/png', 0.92);
+
+        // Crear PDF con jsPDF
+        const doc   = new jsPDF({ orientation: _pdfOrient, unit: 'mm', format: 'a4' });
+        const pw    = doc.internal.pageSize.getWidth();
+        const ph    = doc.internal.pageSize.getHeight();
+        const marg  = 10;
+        const availW = pw - 2 * marg;
+        const availH = ph - 2 * marg - 10; // espacio para cabecera
+
+        const svgWmm  = svgW / (96 / 25.4);  // px → mm (96dpi base)
+        const svgHmm  = svgH / (96 / 25.4);
+        const ratio   = Math.min(availW / svgWmm, availH / svgHmm);
+        const imgW    = svgWmm * ratio;
+        const imgH    = svgHmm * ratio;
+
+        // Cabecera
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(11);
+        doc.setTextColor(25, 118, 210);
+        doc.text(_PROJ_NAME, marg, marg + 5);
+        doc.setDrawColor(25, 118, 210);
+        doc.setLineWidth(0.4);
+        doc.line(marg, marg + 7, pw - marg, marg + 7);
+
+        // Diagrama Gantt
+        doc.addImage(imgData, 'PNG', marg, marg + 10, imgW, imgH);
+
+        // Pie de página
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(7);
+        doc.setTextColor(158, 158, 158);
+        doc.text('ECM Project v1.0.0 | \\u00a9 2026 E. Ch\\u00e1vez', pw / 2, ph - 5, { align: 'center' });
+
+        // Guardar
+        if (window.ecmIsElectron && typeof window.ecmSavePdf === 'function') {
+          const b64 = doc.output('datauristring').split(',')[1];
+          window.ecmSavePdf(b64, _PDF_FILENAME);
+        } else {
+          doc.save(_PDF_FILENAME);
+        }
+      } catch (err) {
+        alert('Error al generar PDF: ' + err.message);
+      } finally {
+        if (btn) { btn.disabled = false; btn.textContent = '🖨 Guardar PDF'; }
+      }
     }
   <\/script>
 </body></html>`;
