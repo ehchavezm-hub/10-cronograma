@@ -180,7 +180,7 @@ export function printGantt(rows) {
     <button class="btn-c active" id="btn-land" onclick="setOrient('landscape')">⬛ Horizontal</button>
     <button class="btn-c" id="btn-port" onclick="setOrient('portrait')">🔲 Vertical</button>
     <div class="sep"></div>
-    <button class="btn-print" onclick="window.print()">🖨 Imprimir</button>
+    <button class="btn-print" onclick="typeof ecmGeneratePdf==='function'?ecmGeneratePdf():window.print()">🖨 Imprimir</button>
     <span style="color:#78909C;font-size:11px">${today}</span>
   </div>
   <script>
