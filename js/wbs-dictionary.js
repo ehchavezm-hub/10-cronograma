@@ -69,11 +69,11 @@ export class WbsDictionaryPanel {
 
   _build() {
     this.el.innerHTML = '';
-    this.el.style.cssText = 'display:flex;flex-direction:column;height:100%;font-family:var(--font-ui)';
+    this.el.style.cssText = 'display:flex;flex-direction:column;height:100%;font-family:var(--font-ui);position:relative';
 
     const hdr = document.createElement('div');
     hdr.setAttribute('data-drag-handle', '');
-    hdr.style.cssText = 'display:flex;align-items:center;gap:10px;padding:14px 18px;border-bottom:1px solid var(--clr-border);flex-shrink:0';
+    hdr.style.cssText = 'display:flex;align-items:center;gap:10px;padding:14px 18px;padding-right:44px;border-bottom:1px solid var(--clr-border);flex-shrink:0';
     hdr.innerHTML = `
       <span style="font-size:20px">📖</span>
       <div style="flex:1">
@@ -95,19 +95,19 @@ export class WbsDictionaryPanel {
     _printAllBtn.style.cssText = 'flex-shrink:0';
     _printAllBtn.addEventListener('click', () => this._printAll());
     hdr.appendChild(_printAllBtn);
+    this.el.appendChild(hdr);
     const _closeBtn = document.createElement('button');
     _closeBtn.id = 'btn-wbs-dict-close';
     _closeBtn.className = 'btn btn-ghost btn-icon btn-sm';
     _closeBtn.title = 'Cerrar';
     _closeBtn.setAttribute('aria-label', 'Cerrar');
     _closeBtn.textContent = '✕';
-    _closeBtn.style.cssText = 'flex-shrink:0';
+    _closeBtn.style.cssText = 'position:absolute;top:8px;right:8px;z-index:20;font-size:16px;width:28px;height:28px;padding:0;display:flex;align-items:center;justify-content:center;border-radius:50%';
     _closeBtn.addEventListener('click', () => {
       const p = document.getElementById('panel-wbs-dictionary');
       if (p) p.style.display = 'none';
     });
-    hdr.appendChild(_closeBtn);
-    this.el.appendChild(hdr);
+    this.el.appendChild(_closeBtn);
 
     const body = document.createElement('div');
     body.style.cssText = 'flex:1;display:flex;overflow:hidden;min-height:0';

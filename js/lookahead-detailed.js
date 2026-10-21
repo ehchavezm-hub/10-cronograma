@@ -246,7 +246,7 @@ export class LookaheadDetailedPanel {
 
   _build() {
     this.el.innerHTML = '';
-    this.el.style.cssText = 'display:flex;flex-direction:column;height:100%;font-family:var(--font-ui,system-ui)';
+    this.el.style.cssText = 'display:flex;flex-direction:column;height:100%;font-family:var(--font-ui,system-ui);position:relative';
 
     const hdr = document.createElement('div');
     hdr.setAttribute('data-drag-handle', '');
@@ -259,14 +259,13 @@ export class LookaheadDetailedPanel {
           <div style="font-size:11px;color:var(--clr-text-3)">LookAhead de 6 semanas — Estándar LCI 2023</div>
         </div>
       </div>
-      <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
+      <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;padding-right:32px">
         <label style="font-size:12px;color:var(--clr-text-2);white-space:nowrap">Semanas:
           <select id="lad-weeks-sel" style="margin-left:4px;padding:3px 6px;border:1px solid var(--clr-border);border-radius:4px;background:var(--clr-surface);color:var(--clr-text);font-size:12px">
             ${[1,2,3,4,5,6,7,8].map(n => `<option value="${n}"${n===6?' selected':''}>${n}</option>`).join('')}
           </select>
         </label>
         <button id="lad-btn-print" class="btn btn-ghost btn-sm" title="Imprimir" style="font-size:12px">🖨 Imprimir</button>
-        <button id="lad-btn-close" class="btn btn-ghost btn-icon btn-sm" title="Cerrar" aria-label="Cerrar" style="font-size:14px;flex-shrink:0">✕</button>
       </div>`;
     this.el.appendChild(hdr);
 
@@ -296,10 +295,17 @@ export class LookaheadDetailedPanel {
       this._render();
     });
     hdr.querySelector('#lad-btn-print').addEventListener('click', () => this._print());
-    hdr.querySelector('#lad-btn-close').addEventListener('click', () => {
+    const _ladCloseBtn = document.createElement('button');
+    _ladCloseBtn.className = 'btn btn-ghost btn-icon btn-sm';
+    _ladCloseBtn.title = 'Cerrar';
+    _ladCloseBtn.setAttribute('aria-label', 'Cerrar');
+    _ladCloseBtn.textContent = '✕';
+    _ladCloseBtn.style.cssText = 'position:absolute;top:8px;right:8px;z-index:20;font-size:16px;width:28px;height:28px;padding:0;display:flex;align-items:center;justify-content:center;border-radius:50%';
+    _ladCloseBtn.addEventListener('click', () => {
       const p = document.getElementById('panel-lookahead-detailed');
       if (p) p.style.display = 'none';
     });
+    this.el.appendChild(_ladCloseBtn);
 
     if (this.el.parentElement) _makeDraggable(this.el.parentElement, '[data-drag-handle]');
     this._render();
@@ -1115,23 +1121,26 @@ export class LookaheadDetailedPanel {
             📥 Importar XLS
             <input type="file" id="lad-rest-xls-input" accept=".xlsx,.xls,.csv" style="display:none">
           </label>
+          <button id="lad-rest-hist-toggle" class="btn btn-ghost btn-sm" style="font-size:11px">📋 Ver Historial</button>
           <button id="lad-add-rest" class="btn btn-primary btn-sm" style="font-size:12px">+ Nueva restricción</button>
         </div>
       </div>
-      ${rests.length > 0 ? `
-      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:8px 0 6px">
-        <span style="font-size:12px;font-weight:600;color:var(--clr-text)">Filtrar historial:</span>
-        <label style="font-size:12px;color:var(--clr-text-2);display:flex;align-items:center;gap:4px">
-          Desde:
-          <input id="lad-rest-hist-from" type="date" class="lad-input" style="width:130px;margin:0">
-        </label>
-        <label style="font-size:12px;color:var(--clr-text-2);display:flex;align-items:center;gap:4px">
-          Últimas
-          <input id="lad-rest-hist-weeks" type="number" min="1" max="52" class="lad-input" style="width:52px;margin:0" placeholder="sem.">
-          semanas
-        </label>
-        <button id="lad-rest-hist-clear" class="btn btn-ghost btn-sm" style="font-size:11px">Mostrar todo</button>
-      </div>` : ''}
+      <div id="lad-rest-hist-filters" style="display:none">
+        ${rests.length > 0 ? `
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:8px 0 6px">
+          <span style="font-size:12px;font-weight:600;color:var(--clr-text)">Filtrar historial:</span>
+          <label style="font-size:12px;color:var(--clr-text-2);display:flex;align-items:center;gap:4px">
+            Desde:
+            <input id="lad-rest-hist-from" type="date" class="lad-input" style="width:130px;margin:0">
+          </label>
+          <label style="font-size:12px;color:var(--clr-text-2);display:flex;align-items:center;gap:4px">
+            Últimas
+            <input id="lad-rest-hist-weeks" type="number" min="1" max="52" class="lad-input" style="width:52px;margin:0" placeholder="sem.">
+            semanas
+          </label>
+          <button id="lad-rest-hist-clear" class="btn btn-ghost btn-sm" style="font-size:11px">Mostrar todo</button>
+        </div>` : ''}
+      </div>
       ${rests.length === 0
         ? `<p class="lad-empty">No hay restricciones registradas. Usa "+ Nueva restricción" para agregar.</p>`
         : `<div id="lad-rest-table-wrap"><table class="lad-table">
@@ -1180,6 +1189,15 @@ export class LookaheadDetailedPanel {
             }).join('')}
           </tbody>
         </table></div>`}`;
+
+    this._body.querySelector('#lad-rest-hist-toggle')?.addEventListener('click', () => {
+      const panel = this._body.querySelector('#lad-rest-hist-filters');
+      const btn = this._body.querySelector('#lad-rest-hist-toggle');
+      if (!panel) return;
+      const open = panel.style.display !== 'none';
+      panel.style.display = open ? 'none' : '';
+      if (btn) btn.textContent = open ? '📋 Ver Historial' : '🔼 Ocultar Historial';
+    });
 
     this._body.querySelector('#lad-add-rest')?.addEventListener('click', () => {
       this._openRestForm(null, rests, project.id, updatedRests => {
@@ -1649,45 +1667,49 @@ export class LookaheadDetailedPanel {
         </div>
       </div>
 
-      ${Object.keys(allStandup).length > 0 ? `
       <hr style="border:none;border-top:1px solid var(--clr-border);margin:18px 0 12px">
-      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px">
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px">
         <span class="lad-section-title" style="margin:0">Historial Stand-Up</span>
-        <label style="font-size:12px;color:var(--clr-text-2);display:flex;align-items:center;gap:4px">
-          Desde:
-          <input id="lad-su-hist-from" type="date" class="lad-input" style="width:130px;margin:0"
-            value="">
-        </label>
-        <label style="font-size:12px;color:var(--clr-text-2);display:flex;align-items:center;gap:4px">
-          Últimas
-          <input id="lad-su-hist-weeks" type="number" min="1" max="52" class="lad-input"
-            style="width:52px;margin:0" placeholder="sem.">
-          semanas
-        </label>
-        <button id="lad-su-hist-clear-filter" class="btn btn-ghost btn-sm" style="font-size:11px">Mostrar todo</button>
+        <button id="lad-su-hist-toggle" class="btn btn-ghost btn-sm" style="font-size:11px">📋 Ver Historial</button>
       </div>
-      <div id="lad-su-hist-table" style="overflow-x:auto">
-        <table class="lad-table" style="font-size:11px">
-          <thead><tr>
-            <th>Fecha</th>
-            <th>¿Qué aprendiste?</th>
-            <th>¿Qué mejoraste?</th>
-            <th>¿Qué haría mejor mañana?</th>
-            <th style="text-align:center">Acción</th>
-          </tr></thead>
-          <tbody id="lad-su-hist-tbody">
-            ${Object.entries(allStandup).sort((a,b) => b[0].localeCompare(a[0])).map(([date, entry], i) =>
-              `<tr class="${i%2===0?'':'lad-row-alt'}" data-su-date="${date}">
-                <td style="white-space:nowrap;font-weight:600">${_fmtDate(new Date(date+'T12:00:00'))}</td>
-                <td>${_esc(entry.q1 || '-')}</td>
-                <td>${_esc(entry.q2 || '-')}</td>
-                <td>${_esc(entry.q3 || '-')}</td>
-                <td style="text-align:center"><button class="lad-btn-icon lad-su-del" data-date="${date}" title="Eliminar">🗑</button></td>
-              </tr>`
-            ).join('')}
-          </tbody>
-        </table>
-      </div>` : ''}`;
+      <div id="lad-su-hist-panel" style="display:none">
+        ${Object.keys(allStandup).length === 0
+          ? `<p style="color:var(--clr-text-3);font-size:12px;padding:8px 0">No hay registros de Stand-Up aún.</p>`
+          : `<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px">
+          <label style="font-size:12px;color:var(--clr-text-2);display:flex;align-items:center;gap:4px">
+            Desde:
+            <input id="lad-su-hist-from" type="date" class="lad-input" style="width:130px;margin:0" value="">
+          </label>
+          <label style="font-size:12px;color:var(--clr-text-2);display:flex;align-items:center;gap:4px">
+            Últimas
+            <input id="lad-su-hist-weeks" type="number" min="1" max="52" class="lad-input" style="width:52px;margin:0" placeholder="sem.">
+            semanas
+          </label>
+          <button id="lad-su-hist-clear-filter" class="btn btn-ghost btn-sm" style="font-size:11px">Mostrar todo</button>
+        </div>
+        <div id="lad-su-hist-table" style="overflow-x:auto">
+          <table class="lad-table" style="font-size:11px">
+            <thead><tr>
+              <th>Fecha</th>
+              <th>¿Qué aprendiste?</th>
+              <th>¿Qué mejoraste?</th>
+              <th>¿Qué haría mejor mañana?</th>
+              <th style="text-align:center">Acción</th>
+            </tr></thead>
+            <tbody id="lad-su-hist-tbody">
+              ${Object.entries(allStandup).sort((a,b) => b[0].localeCompare(a[0])).map(([date, entry], i) =>
+                `<tr class="${i%2===0?'':'lad-row-alt'}" data-su-date="${date}">
+                  <td style="white-space:nowrap;font-weight:600">${_fmtDate(new Date(date+'T12:00:00'))}</td>
+                  <td>${_esc(entry.q1 || '-')}</td>
+                  <td>${_esc(entry.q2 || '-')}</td>
+                  <td>${_esc(entry.q3 || '-')}</td>
+                  <td style="text-align:center"><button class="lad-btn-icon lad-su-del" data-date="${date}" title="Eliminar">🗑</button></td>
+                </tr>`
+              ).join('')}
+            </tbody>
+          </table>
+        </div>`}
+      </div>`;
 
     const loadEntry = (dateStr) => {
       const e = allStandup[dateStr] ?? {};
@@ -1715,6 +1737,15 @@ export class LookaheadDetailedPanel {
         row.style.display = (fromDate && rowDate < fromDate) ? 'none' : '';
       });
     };
+
+    this._body.querySelector('#lad-su-hist-toggle')?.addEventListener('click', () => {
+      const panel = this._body.querySelector('#lad-su-hist-panel');
+      const btn = this._body.querySelector('#lad-su-hist-toggle');
+      if (!panel) return;
+      const open = panel.style.display !== 'none';
+      panel.style.display = open ? 'none' : '';
+      if (btn) btn.textContent = open ? '📋 Ver Historial' : '🔼 Ocultar Historial';
+    });
 
     this._body.querySelector('#lad-su-date').addEventListener('change', e => {
       loadEntry(/** @type {HTMLInputElement} */ (e.target).value);
