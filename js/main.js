@@ -35,6 +35,7 @@ import { CurvaSPanel } from './curva-s.js';
 import { NotificationsPanel, updateNotificationBadge } from './notifications.js';
 import { WbsDictionaryPanel } from './wbs-dictionary.js';
 import { generatePdfReport } from './pdf-report.js';
+import { debouncedSave, queue } from './async-queue.js';
 
 // ============================================================
 // Detectar file://
@@ -639,6 +640,12 @@ async function _saveTaskDetail() {
   const taskId = panel.dataset.taskId;
   if (!taskId) return;
 
+  // Etapa 4: protección contra doble-clic
+  const saveBtn = /** @type {HTMLButtonElement|null} */ (panel.querySelector('#tdp-save'));
+  if (saveBtn?.disabled) return;
+  if (saveBtn) saveBtn.disabled = true;
+
+  try {
   const name   = /** @type {HTMLInputElement} */ (document.getElementById('tdp-name'))?.value?.trim();
   const type   = /** @type {HTMLSelectElement} */ (document.getElementById('tdp-type'))?.value;
   const dur    = parseInt(/** @type {HTMLInputElement} */ (document.getElementById('tdp-dur'))?.value ?? '0', 10);
@@ -706,6 +713,10 @@ async function _saveTaskDetail() {
 
   _showToast('Guardado', 'success');
   _closeTaskDetail();
+  } finally {
+    // Etapa 4: re-habilitar botón sea cual sea el resultado
+    if (saveBtn) saveBtn.disabled = false;
+  }
 }
 
 // ============================================================
@@ -2194,14 +2205,19 @@ function _bindNewProject() {
 
   form?.addEventListener('submit', async (e) => {
     e.preventDefault();
+    // Etapa 4: protección contra doble-envío del formulario
+    const submitBtn = /** @type {HTMLButtonElement|null} */ (form?.querySelector('[type="submit"]'));
+    if (submitBtn?.disabled) return;
+    if (submitBtn) submitBtn.disabled = true;
+
     const type   = /** @type {HTMLInputElement|null} */ (document.querySelector('input[name="ni-type"]:checked'))?.value ?? 'project';
     const name   = /** @type {HTMLInputElement} */ (document.getElementById('ni-name')).value.trim();
     const code   = /** @type {HTMLInputElement} */ (document.getElementById('ni-code')).value.trim();
     const start  = /** @type {HTMLInputElement} */ (document.getElementById('ni-start')).value;
     const parentVal = /** @type {HTMLSelectElement} */ (document.getElementById('ni-parent'))?.value ?? '';
 
-    if (!name) return;
-    if (type === 'project' && !start) return;
+    if (!name) { if (submitBtn) submitBtn.disabled = false; return; }
+    if (type === 'project' && !start) { if (submitBtn) submitBtn.disabled = false; return; }
 
     const id  = crypto.randomUUID();
     const now = new Date().toISOString();
@@ -2234,6 +2250,8 @@ function _bindNewProject() {
       await _renderProjectList();
     } catch (err) {
       _showToast('Error al crear: ' + err.message, 'error');
+    } finally {
+      if (submitBtn) submitBtn.disabled = false;
     }
   });
 }
@@ -2410,7 +2428,9 @@ async function init() {
     });
 
     // Re-calcular CPM después de actualizaciones remotas (sync.js)
-    document.addEventListener('ecm-schedule-cpm', () => _requestCpm());
+    // Etapa 3: debounce para evitar múltiples cálculos CPM durante ediciones rápidas
+    const _debouncedCpm = debouncedSave(() => _requestCpm(), 200);
+    document.addEventListener('ecm-schedule-cpm', () => _debouncedCpm());
 
     // ---- Inicializar panel EVM ----
     const evmEl = document.getElementById('evm-panel');
