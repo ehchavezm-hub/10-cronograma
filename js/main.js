@@ -1928,7 +1928,7 @@ async function _deleteProject(projectId) {
   await dbPut('projects', { ...proj, deleted_at: new Date().toISOString() });
   // If this was the active project, clear it
   if (appState.state.project?.id === projectId) {
-    appState.setState({ project: null, tasks: new Map(), cpmResult: null });
+    appState._applyRemote({ project: null, tasks: new Map(), deps: new Map(), cpmResult: null, cpmDirty: false });
   }
 }
 
