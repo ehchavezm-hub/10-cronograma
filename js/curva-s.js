@@ -130,7 +130,7 @@ export class CurvaSPanel {
     _printBtn.innerHTML = '🖨 Imprimir';
     _printBtn.title = 'Imprimir PDF';
     _printBtn.className = 'btn btn-ghost btn-sm';
-    _printBtn.style.cssText = 'flex-shrink:0';
+    _printBtn.style.cssText = 'flex-shrink:0;margin-right:36px';
     _printBtn.addEventListener('click', () => this._print());
     hdr.appendChild(_printBtn);
     this.el.appendChild(hdr);

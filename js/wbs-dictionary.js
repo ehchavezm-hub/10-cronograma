@@ -92,7 +92,7 @@ export class WbsDictionaryPanel {
     _printAllBtn.innerHTML = '🖨 Imprimir Todo';
     _printAllBtn.title = 'Imprimir todo el diccionario';
     _printAllBtn.className = 'btn btn-ghost btn-sm';
-    _printAllBtn.style.cssText = 'flex-shrink:0';
+    _printAllBtn.style.cssText = 'flex-shrink:0;margin-right:36px';
     _printAllBtn.addEventListener('click', () => this._printAll());
     hdr.appendChild(_printAllBtn);
     this.el.appendChild(hdr);

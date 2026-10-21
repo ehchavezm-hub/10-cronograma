@@ -265,7 +265,7 @@ export class LookaheadDetailedPanel {
             ${[1,2,3,4,5,6,7,8].map(n => `<option value="${n}"${n===6?' selected':''}>${n}</option>`).join('')}
           </select>
         </label>
-        <button id="lad-btn-print" class="btn btn-ghost btn-sm" title="Imprimir" style="font-size:12px">🖨 Imprimir</button>
+        <button id="lad-btn-print" class="btn btn-ghost btn-sm" title="Imprimir" style="font-size:12px;margin-right:36px">🖨 Imprimir</button>
       </div>`;
     this.el.appendChild(hdr);
 
