@@ -67,6 +67,14 @@ function _weekLabel(weekKey, idx) {
 
 const _esc = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 
+/** Cuenta restricciones activas (pending/in-progress) para una actividad LPS o tarea CPM. */
+function _getActiveRestCount(rests, actId, actCode) {
+  return rests.filter(r =>
+    r.status !== 'cleared' &&
+    ((actId && r.taskId === actId) || (actCode && r.activityNumber === actCode))
+  ).length;
+}
+
 // ============================================================
 // Persistencia localStorage
 // ============================================================
@@ -360,7 +368,10 @@ export class LookaheadDetailedPanel {
 
     let html = '';
     let totalManual = 0;
+    let totalReady = 0;
+    let totalBlocked = 0;
 
+    const rests = _getRest(project.id);
     const INP_CSS = 'padding:4px 8px;border:1px solid var(--clr-border);border-radius:4px;background:var(--clr-surface);color:var(--clr-text);font-size:12px;width:100%';
 
     for (let idx = 0; idx < this._weeks; idx++) {
@@ -369,8 +380,18 @@ export class LookaheadDetailedPanel {
       const manual  = planData[wk] ?? [];
       const cpmRows = cpmGroups?.get(wk) ?? [];
       totalManual  += manual.length;
+      const wkReady   = manual.filter(a => (a.status ?? 'ready') !== 'blocked').length;
+      const wkBlocked = manual.filter(a => a.status === 'blocked').length;
+      totalReady   += wkReady;
+      totalBlocked += wkBlocked;
 
-      const manualRows = manual.map((act, i) => `
+      const manualRows = manual.map((act, i) => {
+        const isBlocked = act.status === 'blocked';
+        const restCount = _getActiveRestCount(rests, act.id, act.code);
+        const stColor = isBlocked ? '#D32F2F' : '#388E3C';
+        const stLabel = isBlocked ? '🚧 Bloqueada' : '✅ Lista';
+        const stTitle = isBlocked ? 'Marcar como Lista' : 'Marcar como Bloqueada';
+        return `
         <tr class="${i%2===0?'':'lad-row-alt'}" data-act-id="${act.id}" data-wk="${wk}">
           <td style="padding:5px 8px;width:22px;text-align:center">
             <span class="lad-badge" style="background:#1976D222;color:#1976D2;font-size:10px">LPS</span>
@@ -378,22 +399,34 @@ export class LookaheadDetailedPanel {
           <td class="lad-code" style="font-size:11px;color:var(--clr-text-3);white-space:nowrap">${_esc(act.code || '—')}</td>
           <td class="lad-name" title="${_esc(act.name)}">${_esc(act.name)}</td>
           <td class="lad-date" style="color:var(--clr-text-2)">${_esc(act.responsible || '—')}</td>
+          <td class="lad-date" style="font-size:11px;color:var(--clr-text-2)">${_esc(act.trade || '—')}</td>
           <td class="lad-date" style="color:var(--clr-text-2)">${_esc(act.unit || '—')}</td>
           <td class="lad-num" style="text-align:center">${_esc(act.qty != null ? act.qty : '—')}</td>
+          <td style="text-align:center;padding:5px 6px">
+            ${restCount > 0
+              ? `<span class="lad-badge" style="background:#D32F2F22;color:#D32F2F;font-size:10px;cursor:default" title="${restCount} restricción(es) activa(s) vinculada(s)">🚧 ${restCount}</span>`
+              : `<span style="font-size:11px;color:#388E3C">—</span>`}
+          </td>
+          <td style="text-align:center;padding:5px 4px">
+            <button class="btn btn-ghost btn-sm lad-toggle-status" data-act-id="${act.id}" data-wk="${wk}" title="${stTitle}" style="font-size:11px;padding:2px 7px;color:${stColor};border-color:${stColor}22">${stLabel}</button>
+          </td>
           <td style="white-space:nowrap;padding:5px 6px">
             <button class="btn btn-ghost btn-sm lad-edit-act" data-act-id="${act.id}" data-wk="${wk}" title="Editar" style="font-size:11px;padding:2px 6px">✏</button>
             <button class="btn btn-ghost btn-sm lad-del-act" data-act-id="${act.id}" data-wk="${wk}" title="Eliminar" style="font-size:11px;padding:2px 6px;color:#D32F2F">✕</button>
           </td>
-        </tr>`).join('');
+        </tr>`;
+      }).join('');
 
       const cpmSection = cpmRows.length > 0 ? `
-        <tr><td colspan="7" style="padding:4px 8px;background:var(--clr-surface-2);font-size:11px;color:var(--clr-text-3);font-weight:600">
+        <tr><td colspan="10" style="padding:4px 8px;background:var(--clr-surface-2);font-size:11px;color:var(--clr-text-3);font-weight:600">
           📌 Del cronograma maestro (${cpmRows.length} tarea${cpmRows.length!==1?'s':''})
         </td></tr>
         ${cpmRows.map((r,i) => {
           const status = r.pct >= 100 ? 'done' : r.cpm.tf === 0 ? 'critical' : r.pct > 0 ? 'progress' : 'todo';
           const sc = { done:'#388E3C', critical:'#D32F2F', progress:'#1976D2', todo:'#757575' }[status];
           const sl = { done:'Completada', critical:'Crítica', progress:'En Curso', todo:'Pendiente' }[status];
+          const cpmRestCount = _getActiveRestCount(rests, r.task.id, r.task.wbs_code);
+          const cpmReady = cpmRestCount === 0 && status !== 'critical';
           return `<tr class="${i%2===0?'':'lad-row-alt'}" style="opacity:.85">
             <td style="padding:5px 8px;text-align:center">
               <span class="lad-badge" style="background:${sc}22;color:${sc};font-size:10px">CPM</span>
@@ -401,16 +434,31 @@ export class LookaheadDetailedPanel {
             <td class="lad-code" style="font-size:11px;color:var(--clr-text-3)">${_esc(r.task.wbs_code||'—')}</td>
             <td class="lad-name" title="${_esc(r.task.name)}">${_esc(r.task.name)}</td>
             <td class="lad-date">${_fmtDate(r.startDate)}</td>
+            <td class="lad-date">—</td>
             <td class="lad-date">${_fmtDate(r.endDate)}</td>
             <td class="lad-num" style="text-align:center">${r.pct}%</td>
-            <td style="padding:5px 6px"><span class="lad-badge" style="background:${sc}22;color:${sc}">${sl}</span></td>
+            <td style="text-align:center;padding:5px 6px">
+              ${cpmRestCount > 0
+                ? `<span class="lad-badge" style="background:#D32F2F22;color:#D32F2F;font-size:10px" title="${cpmRestCount} restricción(es) activa(s)">🚧 ${cpmRestCount}</span>`
+                : `<span style="font-size:11px;color:#388E3C">—</span>`}
+            </td>
+            <td style="text-align:center;padding:5px 4px">
+              <span class="lad-badge" style="background:${sc}22;color:${sc};font-size:10px">${sl}</span>
+            </td>
+            <td style="padding:5px 6px;text-align:center">—</td>
           </tr>`;
         }).join('')}` : '';
 
       html += `
         <div class="lad-week-block" data-wk="${wk}">
           <div class="lad-week-title">
-            <span>${_esc(label)}</span>
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+              <span>${_esc(label)}</span>
+              ${manual.length > 0 ? `
+                <span style="font-size:10px;padding:2px 7px;border-radius:10px;background:#388E3C22;color:#388E3C;font-weight:600">✅ ${wkReady} lista${wkReady!==1?'s':''}</span>
+                ${wkBlocked > 0 ? `<span style="font-size:10px;padding:2px 7px;border-radius:10px;background:#D32F2F22;color:#D32F2F;font-weight:600">🚧 ${wkBlocked} bloqueada${wkBlocked!==1?'s':''}</span>` : ''}
+              ` : ''}
+            </div>
             <div style="display:flex;align-items:center;gap:6px">
               <span class="lad-week-count">${manual.length} actividad${manual.length!==1?'es':''} LPS</span>
               <label class="btn btn-ghost btn-sm" title="Importar actividades desde Excel / CSV" style="font-size:11px;padding:3px 9px;cursor:pointer;display:flex;align-items:center;gap:4px">
@@ -430,6 +478,9 @@ export class LookaheadDetailedPanel {
               </label>
               <label style="font-size:12px;display:flex;flex-direction:column;gap:3px;flex:1;min-width:100px">
                 Responsable <input class="lad-inp-resp" placeholder="Nombre" style="${INP_CSS}">
+              </label>
+              <label style="font-size:12px;display:flex;flex-direction:column;gap:3px;flex:0 0 100px">
+                Gremio / Trade <input class="lad-inp-trade" placeholder="Especialidad" style="${INP_CSS}">
               </label>
               <label style="font-size:12px;display:flex;flex-direction:column;gap:3px;flex:0 0 75px">
                 Unidad <input class="lad-inp-unit" placeholder="m², m³…" style="${INP_CSS}">
@@ -451,8 +502,11 @@ export class LookaheadDetailedPanel {
                 <th style="width:80px">Código</th>
                 <th>Actividad</th>
                 <th>Responsable / Inicio</th>
+                <th>Gremio / Trade</th>
                 <th>Unidad / Fin</th>
                 <th style="text-align:center">Metrado / %</th>
+                <th style="text-align:center;width:56px">Restricc.</th>
+                <th style="text-align:center;width:90px">Estado</th>
                 <th style="text-align:center;width:70px">Acciones</th>
               </tr></thead>
               <tbody>
@@ -464,9 +518,20 @@ export class LookaheadDetailedPanel {
     }
 
     this._body.innerHTML = `
+      <div style="background:var(--clr-surface-2);border-left:3px solid #1976D2;padding:7px 14px;font-size:11px;color:var(--clr-text-2);line-height:1.6">
+        <strong style="color:#1976D2">📋 Paso 1 de 3 — LookAhead (CAN occur):</strong>
+        Registra aquí las actividades que <strong>pueden</strong> ejecutarse en las próximas semanas.
+        Luego levanta sus restricciones en <strong>"Log de Restricciones"</strong>.
+        Solo las actividades con estado <span style="color:#388E3C;font-weight:600">✅ Lista</span> (sin restricciones pendientes) deben pasar al <strong>"Plan Semanal"</strong>.
+        <span style="float:right;font-size:10px;opacity:.7">LCI §7 — CAN occur</span>
+      </div>
       <div class="lad-info-bar">
-        <span>📅 LookAhead: <strong>${this._weeks}</strong> semana${this._weeks!==1?'s':''} — desde ${_fmtDate(_weekStart(this._refWeekKey))} <span style="font-size:10px;color:var(--clr-text-3);margin-left:4px">(CAN occur — LCI §7)</span></span>
-        <span>${totalManual} actividad${totalManual!==1?'es':''} LPS planificada${totalManual!==1?'s':''}</span>
+        <span>📅 LookAhead: <strong>${this._weeks}</strong> semana${this._weeks!==1?'s':''} — desde ${_fmtDate(_weekStart(this._refWeekKey))}</span>
+        <div style="display:flex;gap:12px;align-items:center">
+          <span>${totalManual} actividad${totalManual!==1?'es':''} LPS</span>
+          ${totalManual > 0 ? `<span style="color:#388E3C;font-weight:600">✅ ${totalReady} lista${totalReady!==1?'s':''}</span>` : ''}
+          ${totalBlocked > 0 ? `<span style="color:#D32F2F;font-weight:600">🚧 ${totalBlocked} bloqueada${totalBlocked!==1?'s':''}</span>` : ''}
+        </div>
       </div>
       ${html}`;
 
@@ -492,11 +557,12 @@ export class LookaheadDetailedPanel {
         const wk   = btn.getAttribute('data-wk');
         const form = this._body.querySelector(`.lad-add-form[data-wk="${wk}"]`);
         if (!form) return;
-        const codeInp = /** @type {HTMLInputElement} */ (form.querySelector('.lad-inp-code'));
-        const nameInp = /** @type {HTMLInputElement} */ (form.querySelector('.lad-inp-name'));
-        const respInp = /** @type {HTMLInputElement} */ (form.querySelector('.lad-inp-resp'));
-        const unitInp = /** @type {HTMLInputElement} */ (form.querySelector('.lad-inp-unit'));
-        const qtyInp  = /** @type {HTMLInputElement} */ (form.querySelector('.lad-inp-qty'));
+        const codeInp  = /** @type {HTMLInputElement} */ (form.querySelector('.lad-inp-code'));
+        const nameInp  = /** @type {HTMLInputElement} */ (form.querySelector('.lad-inp-name'));
+        const respInp  = /** @type {HTMLInputElement} */ (form.querySelector('.lad-inp-resp'));
+        const tradeInp = /** @type {HTMLInputElement} */ (form.querySelector('.lad-inp-trade'));
+        const unitInp  = /** @type {HTMLInputElement} */ (form.querySelector('.lad-inp-unit'));
+        const qtyInp   = /** @type {HTMLInputElement} */ (form.querySelector('.lad-inp-qty'));
         const name = nameInp?.value.trim();
         if (!name) { nameInp?.focus(); return; }
         const plan = _getPlan(project.id);
@@ -508,11 +574,12 @@ export class LookaheadDetailedPanel {
             ex.code = codeInp?.value.trim() || '';
             ex.name = name;
             ex.responsible = respInp?.value.trim() || '';
+            ex.trade = tradeInp?.value.trim() || '';
             ex.unit = unitInp?.value.trim() || '';
             ex.qty = qtyInp?.value ? parseFloat(qtyInp.value) : null;
           }
         } else {
-          plan[wk].push({ id: _genId(), code: codeInp?.value.trim() || '', name, responsible: respInp?.value.trim() || '', unit: unitInp?.value.trim() || '', qty: qtyInp?.value ? parseFloat(qtyInp.value) : null });
+          plan[wk].push({ id: _genId(), code: codeInp?.value.trim() || '', name, responsible: respInp?.value.trim() || '', trade: tradeInp?.value.trim() || '', unit: unitInp?.value.trim() || '', qty: qtyInp?.value ? parseFloat(qtyInp.value) : null, status: 'ready' });
         }
         _savePlan(project.id, plan);
         document.dispatchEvent(new CustomEvent('show-toast', { detail: { msg: 'Actividad guardada.', type: 'success' } }));
@@ -542,16 +609,18 @@ export class LookaheadDetailedPanel {
         const form = this._body.querySelector(`.lad-add-form[data-wk="${wk}"]`);
         if (!form) return;
         form.style.display = 'block';
-        const codeInp = /** @type {HTMLInputElement} */ (form.querySelector('.lad-inp-code'));
-        const nameInp = /** @type {HTMLInputElement} */ (form.querySelector('.lad-inp-name'));
-        const respInp = /** @type {HTMLInputElement} */ (form.querySelector('.lad-inp-resp'));
-        const unitInp = /** @type {HTMLInputElement} */ (form.querySelector('.lad-inp-unit'));
-        const qtyInp  = /** @type {HTMLInputElement} */ (form.querySelector('.lad-inp-qty'));
-        if (codeInp) codeInp.value = act.code || '';
-        if (nameInp) nameInp.value = act.name;
-        if (respInp) respInp.value = act.responsible || '';
-        if (unitInp) unitInp.value = act.unit || '';
-        if (qtyInp)  qtyInp.value  = act.qty != null ? String(act.qty) : '';
+        const codeInp  = /** @type {HTMLInputElement} */ (form.querySelector('.lad-inp-code'));
+        const nameInp  = /** @type {HTMLInputElement} */ (form.querySelector('.lad-inp-name'));
+        const respInp  = /** @type {HTMLInputElement} */ (form.querySelector('.lad-inp-resp'));
+        const tradeInp = /** @type {HTMLInputElement} */ (form.querySelector('.lad-inp-trade'));
+        const unitInp  = /** @type {HTMLInputElement} */ (form.querySelector('.lad-inp-unit'));
+        const qtyInp   = /** @type {HTMLInputElement} */ (form.querySelector('.lad-inp-qty'));
+        if (codeInp)  codeInp.value  = act.code || '';
+        if (nameInp)  nameInp.value  = act.name;
+        if (respInp)  respInp.value  = act.responsible || '';
+        if (tradeInp) tradeInp.value = act.trade || '';
+        if (unitInp)  unitInp.value  = act.unit || '';
+        if (qtyInp)   qtyInp.value   = act.qty != null ? String(act.qty) : '';
         const saveBtn = /** @type {HTMLButtonElement|null} */ (form.querySelector('.lad-save-act'));
         if (saveBtn) saveBtn.setAttribute('data-edit-id', actId);
         nameInp?.focus();
@@ -564,6 +633,19 @@ export class LookaheadDetailedPanel {
         const file = /** @type {HTMLInputElement} */ (e.target).files?.[0];
         if (file && wk) this._importXlsForWeek(wk, file, project.id);
         /** @type {HTMLInputElement} */ (input).value = '';
+      });
+    });
+
+    this._body.querySelectorAll('.lad-toggle-status').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const actId = btn.getAttribute('data-act-id');
+        const wk    = btn.getAttribute('data-wk');
+        const plan  = _getPlan(project.id);
+        const act   = plan[wk]?.find(a => a.id === actId);
+        if (!act) return;
+        act.status = act.status === 'blocked' ? 'ready' : 'blocked';
+        _savePlan(project.id, plan);
+        this._renderPlanning();
       });
     });
   }
@@ -790,10 +872,23 @@ export class LookaheadDetailedPanel {
     const ppcColor = ppc === null ? '#757575' : ppc >= 75 ? '#388E3C' : ppc >= 60 ? '#F57C00' : '#D32F2F';
 
     const meta = _getMeta(project.id);
+    const planDataForWeek = planData[this._compWeekKey] ?? [];
+    const readyFromLookahead = planDataForWeek.filter(a => (a.status ?? 'ready') !== 'blocked').length;
+    const blockedFromLookahead = planDataForWeek.filter(a => a.status === 'blocked').length;
 
     let html = `
-      <div style="background:var(--clr-surface-2,var(--clr-surface));border-left:3px solid #1976D2;padding:6px 12px;margin-bottom:6px;font-size:11px;color:var(--clr-text-2)">
-        <strong style="color:#1976D2">WWP — Plan de Trabajo Semanal (WILL occur)</strong> &nbsp;·&nbsp; Compromiso de actividades que se ejecutarán esta semana &nbsp;·&nbsp; Meta PPC: <strong>75–90%</strong> (LCI §11)
+      <div style="background:var(--clr-surface-2);border-left:3px solid #388E3C;padding:7px 14px;font-size:11px;color:var(--clr-text-2);line-height:1.6;margin-bottom:2px">
+        <strong style="color:#388E3C">📋 Paso 3 de 3 — Plan Semanal / WWP (WILL occur):</strong>
+        Marca las actividades que tu equipo <strong>se compromete</strong> a ejecutar esta semana.
+        Solo incluye actividades que estén <span style="color:#388E3C;font-weight:600">✅ Listas</span> (sin restricciones pendientes en LookAhead).
+        Al finalizar la semana, registra los incumplimientos con su causa → se calcula el <strong>PPC</strong>.
+        <span style="float:right;font-size:10px;opacity:.7">LCI §9 — WILL occur · Meta PPC: 75–90%</span>
+      </div>
+      <div style="background:var(--clr-surface-2,var(--clr-surface));border-left:3px solid #1976D2;padding:6px 12px;margin-bottom:6px;font-size:11px;color:var(--clr-text-2);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+        <span><strong style="color:#1976D2">De LookAhead esta semana:</strong>
+          <span style="margin-left:8px;color:#388E3C;font-weight:600">✅ ${readyFromLookahead} lista${readyFromLookahead!==1?'s':''} para comprometer</span>
+          ${blockedFromLookahead > 0 ? `<span style="margin-left:6px;color:#D32F2F;font-weight:600">🚧 ${blockedFromLookahead} bloqueada${blockedFromLookahead!==1?'s':''}</span>` : ''}
+        </span>
       </div>
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:8px;padding:8px 0 6px;font-size:12px">
         <label class="lad-label" style="font-size:11px;margin:0">Área
@@ -830,7 +925,7 @@ export class LookaheadDetailedPanel {
       </div>`;
 
     if (totalPlanned === 0) {
-      html += '<p class="lad-empty">No hay actividades planificadas para esta semana. Usa "📥 XLS" para importar o registra actividades en la pestaña "Planificación".</p>';
+      html += '<p class="lad-empty">No hay actividades planificadas para esta semana. Usa "📥 Importar XLS" o regístralas en la pestaña "LookAhead (6 Semanas)".</p>';
     } else {
       const manualRows = manualActs.map((act, i) => {
         const itemId = 'lps-' + act.id;
@@ -846,6 +941,7 @@ export class LookaheadDetailedPanel {
           <td class="lad-code" style="font-size:11px;color:var(--clr-text-3);white-space:nowrap">${_esc(act.code || '—')}</td>
           <td class="lad-name" title="${_esc(act.name)}">${_esc(act.name)}</td>
           <td class="lad-date">${_esc(act.responsible || '—')}</td>
+          <td class="lad-date" style="font-size:11px">${_esc(act.trade || '—')}</td>
           <td class="lad-date">${_esc(act.unit || '—')}${act.qty != null ? ' · ' + act.qty : ''}</td>
           <td>
             <select class="lad-reason-sel" data-id="${itemId}" ${done?'disabled':''} style="font-size:11px;padding:2px 4px;border:1px solid var(--clr-border);border-radius:4px;background:var(--clr-surface);color:var(--clr-text);width:100%">
@@ -873,6 +969,7 @@ export class LookaheadDetailedPanel {
           <td class="lad-code" style="font-size:11px;color:var(--clr-text-3)">${_esc(r.task.wbs_code || '—')}</td>
           <td class="lad-name" title="${_esc(r.task.name)}">${_esc(r.task.name)}</td>
           <td class="lad-date">${_fmtDate(r.startDate)}</td>
+          <td class="lad-date" style="font-size:11px">—</td>
           <td class="lad-date">${r.pct}%</td>
           <td>
             <select class="lad-reason-sel" data-id="${itemId}" ${done?'disabled':''} style="font-size:11px;padding:2px 4px;border:1px solid var(--clr-border);border-radius:4px;background:var(--clr-surface);color:var(--clr-text);width:100%">
@@ -884,7 +981,7 @@ export class LookaheadDetailedPanel {
       }).join('');
 
       const cpmHeader = cpmTasks.length > 0 ? `
-        <tr><td colspan="7" style="padding:4px 8px;background:var(--clr-surface-2);font-size:11px;color:var(--clr-text-3);font-weight:600">
+        <tr><td colspan="8" style="padding:4px 8px;background:var(--clr-surface-2);font-size:11px;color:var(--clr-text-3);font-weight:600">
           📌 Del cronograma maestro (referencia)
         </td></tr>` : '';
 
@@ -895,6 +992,7 @@ export class LookaheadDetailedPanel {
           <th style="width:80px">Código</th>
           <th>Actividad</th>
           <th>Responsable / Inicio</th>
+          <th>Gremio / Trade</th>
           <th>Unidad / %</th>
           <th>Causa incumplimiento</th>
         </tr></thead>
