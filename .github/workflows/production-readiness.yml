@@ -1,0 +1,112 @@
+# Automatizado por ECM Project v89
+# Workflow: Production Readiness — se ejecuta en cada PR a main
+name: "ECM Project — Production Readiness"
+
+on:
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  production-readiness:
+    name: Production Readiness Checks
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. Checkout
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # 2. Node.js 20
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: electron/package-lock.json
+
+      # 3. Audit de dependencias (solo electron/)
+      - name: Audit dependencies
+        working-directory: ./electron
+        run: |
+          npm install --ignore-scripts
+          npm audit --audit-level=high
+        continue-on-error: false
+
+      # 4. Detectar secretos hardcodeados
+      - name: Check for hardcoded secrets
+        run: |
+          echo "Buscando patrones de secretos en el código fuente..."
+          FOUND=0
+          # Supabase keys
+          if grep -rn "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9" js/ --include="*.js" 2>/dev/null; then
+            echo "::error::Posible JWT hardcodeado detectado"
+            FOUND=1
+          fi
+          # Generic API keys pattern
+          if grep -rEn "(api[_-]?key|apikey|secret[_-]?key)\s*[=:]\s*['\"][a-zA-Z0-9+/]{20,}" js/ --include="*.js" -i 2>/dev/null; then
+            echo "::error::Posible API key hardcodeada detectada"
+            FOUND=1
+          fi
+          # Password patterns
+          if grep -rEn "password\s*[=:]\s*['\"][^'\"]{6,}" js/ --include="*.js" -i 2>/dev/null | grep -v "placeholder\|type.*password\|getPassword\|setPassword"; then
+            echo "::warning::Posible contraseña hardcodeada — verificar manualmente"
+          fi
+          if [ $FOUND -eq 1 ]; then exit 1; fi
+          echo "✅ Sin secretos hardcodeados detectados"
+
+      # 5. Validar sintaxis JS
+      - name: Validate JS syntax
+        run: |
+          echo "Validando sintaxis de archivos JS..."
+          ERRORS=0
+          for f in js/*.js; do
+            node --check "$f" 2>&1 && echo "  ✅ $f" || { echo "  ❌ $f"; ERRORS=$((ERRORS+1)); }
+          done
+          if [ $ERRORS -gt 0 ]; then
+            echo "::error::$ERRORS archivo(s) con errores de sintaxis"
+            exit 1
+          fi
+          echo "✅ Todos los archivos JS son sintácticamente válidos"
+
+      # 6. Advertir sobre console.log en producción (no bloquea)
+      - name: Check console.log usage
+        run: |
+          COUNT=$(grep -rn "console\.log(" js/ --include="*.js" 2>/dev/null | wc -l)
+          if [ "$COUNT" -gt 0 ]; then
+            echo "::warning::Se encontraron $COUNT llamadas a console.log() en js/. Considerar removerlas antes de producción."
+            grep -rn "console\.log(" js/ --include="*.js" | head -20
+          else
+            echo "✅ Sin console.log() en producción"
+          fi
+        continue-on-error: true
+
+      # 7. Validar HTML
+      - name: Validate index.html
+        run: |
+          if [ ! -f "index.html" ]; then
+            echo "::error::index.html no encontrado"
+            exit 1
+          fi
+          # Verificar meta tags esenciales
+          grep -q 'charset' index.html         && echo "  ✅ charset" || echo "::warning::Falta meta charset"
+          grep -q 'viewport' index.html        && echo "  ✅ viewport" || echo "::warning::Falta meta viewport"
+          grep -q '<title>' index.html         && echo "  ✅ title" || echo "::warning::Falta <title>"
+          grep -q 'manifest.json' index.html   && echo "  ✅ manifest" || echo "::warning::Falta link a manifest.json"
+          grep -q 'service' index.html         && echo "  ✅ service worker" || echo "::warning::Falta registro de service worker"
+          echo "✅ index.html validado"
+
+      # 8. Control de tamaño de archivos JS
+      - name: Check JS file sizes
+        run: |
+          echo "Verificando tamaños de archivos JS (límite advertencia: 500 KB)..."
+          LIMIT=512000
+          for f in js/*.js; do
+            SIZE=$(wc -c < "$f")
+            if [ "$SIZE" -gt "$LIMIT" ]; then
+              KB=$((SIZE/1024))
+              echo "::warning::$f tiene ${KB} KB (> 500 KB). Considerar dividir o minificar."
+            fi
+          done
+          echo "✅ Revisión de tamaños completada"
+        continue-on-error: true

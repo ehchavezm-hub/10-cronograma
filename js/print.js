@@ -81,11 +81,12 @@ export function printWbsTable() {
 }
 
 // ============================================================
-// Imprimir Gantt (ventana con SVG)
+// Imprimir Gantt (ventana con SVG vectorial + window.print)
 // ============================================================
 
 /**
- * Abre una ventana de vista previa del Gantt con botón para guardar PDF via jsPDF.
+ * Abre una ventana de vista previa del Gantt con botón para guardar PDF via window.print.
+ * Los SVG se dividen en tiles usando viewBox para cortar el contenido sin rasterizar.
  * @param {Array<{id:string,isSummary:boolean,depth:number}>} rows
  */
 export function printGantt(rows) {
@@ -129,180 +130,150 @@ export function printGantt(rows) {
     const _pdfFile   = `${project.name}-Gantt-${_gDD}${_gMM}${_gYY}.pdf`;
     const _projLabel = _esc(project.name);
 
+    // Extraer atributos del SVG raíz para obtener dimensiones reales
+    const _svgWMatch = svgStr.match(/\swidth="([^"]+)"/);
+    const _svgHMatch = svgStr.match(/\sheight="([^"]+)"/);
+    const _svgW = _svgWMatch ? parseFloat(_svgWMatch[1]) : 1200;
+    const _svgH = _svgHMatch ? parseFloat(_svgHMatch[1]) : 800;
+
+    // Extraer el contenido interior del SVG (sin la etiqueta <svg>...</svg>)
+    // para re-usarlo en cada tile con diferente viewBox
+    const _svgInnerMatch = svgStr.match(/^<svg[^>]*>([\s\S]*)<\/svg>$/);
+    const _svgInner = _svgInnerMatch ? _svgInnerMatch[1] : svgStr;
+
     const html = `<!doctype html>
 <html lang="es"><head>
   <meta charset="UTF-8">
   <title>${_esc(_gTitle)}</title>
   <style>
-    * { box-sizing: border-box; }
-    body  { margin: 0; padding: 0; font-family: 'Segoe UI', system-ui, sans-serif; background:#f5f7fa; }
-    .controls { display: flex; align-items: center; gap: 10px; padding: 8px 12px;
-                font-size: 12px; flex-wrap: wrap; background:#fff;
-                border-bottom: 1px solid #CFD8DC; position: sticky; top:0; z-index:10; }
-    .controls label { display: flex; align-items: center; gap: 5px; color: #455A64; }
-    .controls input[type=range] { width: 100px; accent-color: #1976D2; }
-    .controls input[type=number] { width: 46px; padding: 2px 4px; border: 1px solid #90A4AE;
-                                   border-radius: 4px; font-size: 12px; text-align:center; }
-    .btn-c { border: 1px solid #90A4AE; border-radius: 6px; padding: 4px 11px;
-             font-size: 12px; cursor: pointer; background: #fff; color: #455A64; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body  { font-family: 'Segoe UI', system-ui, sans-serif; background:#cfd8dc; }
+    .controls { display: flex; align-items: center; gap: 8px; padding: 8px 12px;
+                font-size: 12px; flex-wrap: wrap; background:#263238;
+                border-bottom: 2px solid #37474f; position: sticky; top:0; z-index:10; }
+    .controls label { display: flex; align-items: center; gap: 5px; color: #90a4ae; }
+    .controls input[type=number] { width: 46px; padding: 2px 4px; border: 1px solid #546e7a;
+                                   border-radius: 4px; font-size: 12px; text-align:center;
+                                   background:#37474f; color:#ecf0f1; }
+    .btn-c { border: 1px solid #546e7a; border-radius: 4px; padding: 4px 10px;
+             font-size: 12px; cursor: pointer; background: #37474f; color: #ecf0f1; white-space:nowrap; }
     .btn-c:hover, .btn-c.active { background: #1976D2; color: #fff; border-color: #1976D2; }
-    .btn-print { background: #1976D2; color: #fff; border: none; border-radius: 6px;
+    .btn-print { background: #1976D2; color: #fff; border: none; border-radius: 4px;
                  padding: 6px 16px; font-size: 13px; cursor: pointer; font-weight:600; }
     .btn-print:hover { background: #1565C0; }
-    .btn-print:disabled { background: #90A4AE; cursor: not-allowed; }
-    .sep { width: 1px; height: 20px; background: #CFD8DC; flex-shrink:0; }
-    .lbl-sm { font-size:11px; color:#78909C; }
-    .header { display: flex; align-items: center; padding: 6px 12px 4px;
-              border-bottom: 2px solid #1976D2; background:#fff; }
-    .proj-name { font-size: 15px; font-weight: 700; color: #1976D2; }
-    .gantt-frame { border: 0.25px solid #546E7A; display: block; overflow: auto;
-                   margin: 8px 12px; background:#fff; }
-    svg { display: block; }
+    .sep { width: 1px; height: 20px; background: #546e7a; flex-shrink:0; }
+    .lbl-sm { font-size:11px; color:#78909C; white-space:nowrap; }
+    input[type=text].fn-inp { font-size:12px; padding:3px 8px; border:1px solid #546e7a;
+                border-radius:3px; background:#37474f; color:#ecf0f1; width:260px; }
+    .preview { padding: 20px; display:flex; flex-direction:column; align-items:center; gap:16px; min-height:calc(100vh - 52px); }
+    .page-tile { background:#fff; box-shadow:0 4px 14px rgba(0,0,0,.4); position:relative; flex-shrink:0; }
+    .page-tile svg { display:block; }
+    .page-foot { position:absolute; bottom:4mm; left:10mm; right:10mm;
+                 display:flex; justify-content:space-between; font-size:7pt; color:#9e9e9e;
+                 border-top:1px solid #e0e0e0; padding-top:2px; }
+    @media print {
+      body { background:#fff; }
+      .controls { display:none !important; }
+      .preview { padding:0; gap:0; background:#fff; min-height:0; }
+      .page-tile { box-shadow:none; break-after:page; page-break-after:always; margin:0; }
+      .page-tile:last-child { break-after:avoid; page-break-after:avoid; }
+      .page-foot { display:flex !important; }
+    }
   </style>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"><\/script>
 </head><body>
   <div class="controls">
-    <label>Zoom:
-      <input type="range" id="zoom" min="30" max="300" value="100" step="5">
-      <span id="zoom-val" style="min-width:38px">100%</span>
-    </label>
+    <button class="btn-print" id="btn-pdf" onclick="window.print()">&#x1F5A8; Guardar PDF</button>
     <div class="sep"></div>
-    <span class="lbl-sm">Orientación:</span>
-    <button class="btn-c active" id="btn-land" onclick="setPdfOrient('landscape')">⬛ Horizontal</button>
-    <button class="btn-c" id="btn-port" onclick="setPdfOrient('portrait')">🔲 Vertical</button>
+    <span class="lbl-sm">Orientaci&#243;n:</span>
+    <button class="btn-c active" id="btn-land" onclick="setOrient('landscape')">&#x2B1B; Horizontal</button>
+    <button class="btn-c" id="btn-port" onclick="setOrient('portrait')">&#x1F532; Vertical</button>
     <div class="sep"></div>
-    <label>Hojas H: <input type="number" id="h-pages" min="1" max="10" value="1"></label>
-    <label>Hojas V: <input type="number" id="v-pages" min="1" max="10" value="1"></label>
+    <label>Hojas H: <input type="number" id="h-pages" min="1" max="10" value="1" onchange="renderTiles()"></label>
+    <label>Hojas V: <input type="number" id="v-pages" min="1" max="10" value="1" onchange="renderTiles()"></label>
     <div class="sep"></div>
     <span class="lbl-sm">&#x1F4C1; Archivo:</span>
-    <input type="text" id="fn-inp" value="${_pdfFile}" title="Nombre del archivo PDF" style="width:280px;padding:2px 6px;border:1px solid #90A4AE;border-radius:4px;font-size:12px">
+    <input type="text" id="fn-inp" class="fn-inp" value="${_pdfFile}" title="Nombre sugerido del archivo PDF">
     <div class="sep"></div>
-    <button class="btn-print" id="btn-pdf" onclick="_savePdf()">🖨 Guardar PDF</button>
     <span class="lbl-sm">${today}</span>
+    <div class="sep"></div>
+    <button class="btn-c" onclick="window.close()">&#x2715; Cerrar</button>
   </div>
-  <div class="header">
-    <div class="proj-name">${_projLabel}</div>
-  </div>
-  <div class="gantt-frame" id="gantt-wrap">
-    ${svgStr}
-  </div>
+  <div class="preview" id="preview"></div>
+
   <script>
-    const _PDF_FILENAME = ${JSON.stringify(_pdfFile)};
-    const _PROJ_NAME    = ${JSON.stringify(project.name)};
-    let   _pdfOrient    = 'landscape';
+    const SVG_W = ${_svgW};
+    const SVG_H = ${_svgH};
+    const SVG_INNER = ${JSON.stringify(_svgInner)};
+    const PROJ_NAME = ${JSON.stringify(project.name)};
+    const TOTAL_PAGES_REF = { v: 1 };
 
-    const zoomEl  = document.getElementById('zoom');
-    const zoomVal = document.getElementById('zoom-val');
-    const svgEl   = document.querySelector('#gantt-wrap svg');
-    if (zoomEl && svgEl) {
-      zoomEl.addEventListener('input', () => {
-        zoomVal.textContent = zoomEl.value + '%';
-        svgEl.style.width  = zoomEl.value + '%';
-        svgEl.style.height = 'auto';
-      });
-    }
+    let _orient = 'landscape';
 
-    function setPdfOrient(o) {
-      _pdfOrient = o;
+    function setOrient(o) {
+      _orient = o;
       document.getElementById('btn-land').classList.toggle('active', o === 'landscape');
       document.getElementById('btn-port').classList.toggle('active', o === 'portrait');
+      renderTiles();
     }
 
-    async function _savePdf() {
-      const btn = document.getElementById('btn-pdf');
-      if (!window.jspdf) { alert('Librería PDF no disponible. Verifique su conexión e intente de nuevo.'); return; }
-      if (btn) { btn.disabled = true; btn.textContent = '⏳ Generando…'; }
-
+    function renderTiles() {
       const hPages = Math.max(1, Math.min(10, parseInt(document.getElementById('h-pages').value) || 1));
       const vPages = Math.max(1, Math.min(10, parseInt(document.getElementById('v-pages').value) || 1));
+      const isLand = _orient === 'landscape';
+      const MARG = 10; // mm
+      const A4w = isLand ? 297 : 210;
+      const A4h = isLand ? 210 : 297;
+      const availW = A4w - 2 * MARG; // mm
+      const availH = A4h - 2 * MARG - 8; // mm (8mm reservado para footer)
 
-      try {
-        const { jsPDF } = window.jspdf;
-        const svg = document.querySelector('#gantt-wrap svg');
-        if (!svg) throw new Error('SVG no encontrado');
+      const cellW = SVG_W / hPages;
+      const cellH = SVG_H / vPages;
+      const totalPages = hPages * vPages;
+      TOTAL_PAGES_REF.v = totalPages;
 
-        const svgW = parseFloat(svg.getAttribute('width'))  || svg.viewBox.baseVal.width  || svg.getBoundingClientRect().width;
-        const svgH = parseFloat(svg.getAttribute('height')) || svg.viewBox.baseVal.height || svg.getBoundingClientRect().height;
-        if (!svgW || !svgH) throw new Error('Dimensiones SVG inválidas');
+      // @page CSS
+      let ps = document.getElementById('_ps') || document.createElement('style');
+      ps.id = '_ps';
+      ps.textContent = '@page{size:A4 ' + _orient + ';margin:' + MARG + 'mm ' + MARG + 'mm ' + (MARG+8) + 'mm ' + MARG + 'mm}';
+      document.head.appendChild(ps);
 
-        const isLand    = _pdfOrient === 'landscape';
-        const MARG      = 10;
-        const RENDER_DPI = 600;
-        const MM2PX     = RENDER_DPI / 25.4;
-        const A4w_mm    = isLand ? 297 : 210;
-        const A4h_mm    = isLand ? 210 : 297;
-        const availW_mm = A4w_mm - 2 * MARG;
-        const availH_mm = A4h_mm - 2 * MARG - 7;
-        const tileW_px  = Math.round(availW_mm * MM2PX);
-        const tileH_px  = Math.round(availH_mm * MM2PX);
+      const preview = document.getElementById('preview');
+      preview.innerHTML = '';
+      let pageNum = 0;
 
-        const cellW = svgW / hPages;
-        const cellH = svgH / vPages;
+      for (let j = 0; j < vPages; j++) {
+        for (let i = 0; i < hPages; i++) {
+          pageNum++;
+          const vbX = i * cellW;
+          const vbY = j * cellH;
 
-        const doc = new jsPDF({ orientation: _pdfOrient, unit: 'mm', format: 'a4' });
-        const totalPages = hPages * vPages;
-        let pageNum = 0;
+          const tile = document.createElement('div');
+          tile.className = 'page-tile';
+          tile.style.width = availW + 'mm';
+          tile.style.height = (availH + 8) + 'mm';
 
-        for (let j = 0; j < vPages; j++) {
-          for (let i = 0; i < hPages; i++) {
-            if (pageNum > 0) doc.addPage();
+          const svgEl = document.createElementNS('http://www.w3.org/2000/svg','svg');
+          svgEl.setAttribute('viewBox', vbX + ' ' + vbY + ' ' + cellW + ' ' + cellH);
+          svgEl.setAttribute('width', availW + 'mm');
+          svgEl.setAttribute('height', availH + 'mm');
+          svgEl.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+          svgEl.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
+          svgEl.setAttribute('preserveAspectRatio', 'xMinYMin meet');
+          svgEl.innerHTML = SVG_INNER;
+          tile.appendChild(svgEl);
 
-            const pw = doc.internal.pageSize.getWidth();
-            const ph = doc.internal.pageSize.getHeight();
+          // Footer por tile
+          const foot = document.createElement('div');
+          foot.className = 'page-foot';
+          foot.innerHTML = '<span>' + PROJ_NAME + '</span><span>ECM Project</span><span>' + pageNum + ' / ' + totalPages + '</span>';
+          tile.appendChild(foot);
 
-            const clone = svg.cloneNode(true);
-            clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
-            clone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
-            clone.setAttribute('viewBox', i * cellW + ' ' + j * cellH + ' ' + cellW + ' ' + cellH);
-            clone.setAttribute('width', String(tileW_px));
-            clone.setAttribute('height', String(tileH_px));
-
-            const svgBlob = new Blob([new XMLSerializer().serializeToString(clone)],
-                                     { type: 'image/svg+xml;charset=utf-8' });
-            const svgUrl = URL.createObjectURL(svgBlob);
-
-            const tileCanvas = document.createElement('canvas');
-            tileCanvas.width  = tileW_px;
-            tileCanvas.height = tileH_px;
-            const ctx = tileCanvas.getContext('2d');
-            ctx.fillStyle = '#ffffff';
-            ctx.fillRect(0, 0, tileW_px, tileH_px);
-
-            await new Promise((res, rej) => {
-              const img = new Image();
-              img.onload = () => { ctx.drawImage(img, 0, 0, tileW_px, tileH_px); URL.revokeObjectURL(svgUrl); res(); };
-              img.onerror = () => { URL.revokeObjectURL(svgUrl); rej(new Error('Error en tile ' + (pageNum + 1))); };
-              img.src = svgUrl;
-            });
-
-            doc.addImage(tileCanvas.toDataURL('image/png', 0.85), 'PNG', MARG, MARG, availW_mm, availH_mm);
-
-            doc.setFont('helvetica', 'normal');
-            doc.setFontSize(7);
-            doc.setTextColor(120, 120, 120);
-            doc.text(_PROJ_NAME, MARG, ph - 4);
-            doc.text('ECM Project', pw / 2, ph - 4, { align: 'center' });
-            doc.text((pageNum + 1) + ' / ' + totalPages, pw - MARG, ph - 4, { align: 'right' });
-            doc.setDrawColor(200, 200, 200);
-            doc.setLineWidth(0.2);
-            doc.line(MARG, ph - 7, pw - MARG, ph - 7);
-
-            pageNum++;
-          }
+          preview.appendChild(tile);
         }
-
-        const _fnVal = (document.getElementById('fn-inp')?.value || '').trim() || _PDF_FILENAME;
-        if (window.ecmIsElectron && typeof window.ecmSavePdf === 'function') {
-          window.ecmSavePdf(doc.output('datauristring').split(',')[1], _fnVal);
-        } else {
-          doc.save(_fnVal);
-        }
-      } catch (err) {
-        alert('Error al generar PDF: ' + err.message);
-      } finally {
-        if (btn) { btn.disabled = false; btn.textContent = '🖨 Guardar PDF'; }
       }
     }
+
+    renderTiles();
   <\/script>
 </body></html>`;
 

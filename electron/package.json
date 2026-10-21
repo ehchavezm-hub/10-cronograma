@@ -1,7 +1,7 @@
 {
   "name": "ecm-project",
   "productName": "ECM Project",
-  "version": "1.0.134",
+  "version": "1.0.135",
   "description": "Gestión de cronogramas y proyectos ECM",
   "main": "main.js",
   "author": "E. Chávez",
@@ -46,7 +46,9 @@
       "target": [
         {
           "target": "zip",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         }
       ],
       "icon": "../icon.ico"

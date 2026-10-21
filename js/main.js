@@ -1201,7 +1201,16 @@ async function _openResourceAssign(preSelectedId = null) {
 
   dlg.querySelector('#dlg-ra-close').addEventListener('click', () => dlg.close());
   dlg.querySelector('#dlg-ra-print')?.addEventListener('click', () => {
-    _printToPdf('Asignación de Recursos', `<h1>Asignación de Recursos</h1>${dlg.innerHTML}`);
+    const resChecked = dlg.querySelector('input[name="ra-res"]:checked');
+    const resName = resChecked ? (resChecked.closest('label')?.textContent?.trim() ?? resChecked.value) : '—';
+    const taskRows = [...dlg.querySelectorAll('.ra-task-cb')].map(cb => {
+      const lbl = cb.closest('label');
+      const name = lbl ? lbl.textContent.trim().replace(/^[\s​]+|[\s​]+$/g,'') : cb.value;
+      return `<tr><td style="text-align:center;color:${cb.checked?'#1976d2':'#aaa'}">${cb.checked?'✓':'○'}</td><td>${_escHtml(name)}</td></tr>`;
+    }).join('');
+    const html = `<h1>Asignación de Recursos</h1><p style="margin:0 0 14px;font-size:13px;color:#555">Recurso seleccionado: <strong>${_escHtml(resName)}</strong></p>
+      <table><thead><tr><th>Asignado</th><th>Actividad</th></tr></thead><tbody>${taskRows || '<tr><td colspan="2" style="text-align:center;color:#999">Sin actividades</td></tr>'}</tbody></table>`;
+    _printToPdf('Asignación de Recursos', html);
   });
 
   _makeDraggable(dlg, '[data-drag-handle]');
@@ -2471,7 +2480,7 @@ async function init() {
 
     // El motor de sync ya fue iniciado dentro de _loadProject.
 
-    console.log('[ECM Project] v87 completo — modo', IS_LOCAL_MODE ? 'local' : 'Supabase');
+    console.log('[ECM Project] v89 completo — modo', IS_LOCAL_MODE ? 'local' : 'Supabase');
   } catch (err) {
     console.error('[init]', err);
     _showToast('Error al iniciar: ' + err.message, 'error');
@@ -2539,6 +2548,29 @@ function _makeDraggable(dialog, handleSelector) {
   });
 }
 
+/** Extrae todas las variables CSS custom de :root y las devuelve como bloque :root{…} */
+function _getCssVarsInline() {
+  try {
+    const cs = getComputedStyle(document.documentElement);
+    const seen = new Set(), vars = [];
+    for (const sheet of document.styleSheets) {
+      try {
+        for (const rule of sheet.cssRules) {
+          if (/** @type {CSSStyleRule} */ (rule).selectorText === ':root') {
+            for (const p of /** @type {CSSStyleRule} */ (rule).style) {
+              if (p.startsWith('--') && !seen.has(p)) {
+                seen.add(p);
+                vars.push(`${p}:${cs.getPropertyValue(p)}`);
+              }
+            }
+          }
+        }
+      } catch(_e) { /* cross-origin sheet */ }
+    }
+    return vars.length ? `:root{${vars.join(';')}}` : '';
+  } catch(_e) { return ''; }
+}
+
 function _printToPdf(moduleName, htmlContent) {
   const _proj = appState.state.project?.name ?? 'ECM Project';
   const _d = new Date();
@@ -2546,6 +2578,7 @@ function _printToPdf(moduleName, htmlContent) {
   const _mm = String(_d.getMonth()+1).padStart(2,'0');
   const _yy = _d.getFullYear();
   const title = `${_proj}-${moduleName}-${_dd}${_mm}${_yy}`;
+  const _appCssVars = _getCssVarsInline();
   const w = window.open('', '_blank', 'width=1100,height=880');
   if (!w) {
     document.dispatchEvent(new CustomEvent('show-toast', { detail: { msg: 'El navegador bloqueó la ventana emergente. Permítala e intente de nuevo.', type: 'warn' } }));
@@ -2554,8 +2587,9 @@ function _printToPdf(moduleName, htmlContent) {
   w.document.write(`<!DOCTYPE html><html><head>
 <meta charset="utf-8"><title>${title}</title>
 <style>
+  ${_appCssVars}
   *{box-sizing:border-box}
-  body{font-family:Arial,sans-serif;margin:0;padding:0;background:#cfd8dc}
+  body{font-family:Arial,sans-serif;margin:0;padding:0;background:#cfd8dc;color:var(--clr-text,#1a1a2e)}
   .tb{background:#263238;padding:8px 14px;display:flex;align-items:center;gap:7px;flex-wrap:wrap;position:sticky;top:0;z-index:100;border-bottom:2px solid #37474f}
   .tb button{padding:5px 11px;border:1px solid #546e7a;border-radius:4px;cursor:pointer;font-size:12px;background:#37474f;color:#ecf0f1;white-space:nowrap}
   .tb button.pri{background:#1976d2;color:#fff;border-color:#1976d2;font-weight:600;font-size:13px;padding:6px 16px}
@@ -2634,7 +2668,9 @@ function _showMonteCarloDlg(result, fmtDay) {
     dlg.querySelector('#mc-dlg-close')?.addEventListener('click', () => dlg.close());
     dlg.querySelector('#mc-dlg-print')?.addEventListener('click', () => {
       const body = dlg.querySelector('#mc-dlg-body');
-      _printToPdf('Simulación Monte Carlo', `<h1>Simulación Monte Carlo</h1>${body?.innerHTML ?? ''}`);
+      const _mcCss = document.getElementById('mc-styles')?.textContent ?? '';
+      const _mcVars = ':root{--mc-accent:#2563eb;--mc-kpi-bg:#f3f4f6;--mc-hist-fill:#60a5fa;--mc-p80-color:#dc2626;--mc-fg:#333;--mc-border:#e5e7eb;--mc-warn:#b45309;--mc-surface:#f5f7ff;--mc-hist-axis-stroke:#aaa;--mc-tick-fill:#666}';
+      _printToPdf('Simulación Monte Carlo', `<style>${_mcCss}\n${_mcVars}</style><h1>Simulación Monte Carlo</h1>${body?.innerHTML ?? ''}`);
     });
     dlg.addEventListener('click', e => { if (e.target === dlg) dlg.close(); });
     _makeDraggable(dlg, '[data-drag-handle]');
@@ -3224,7 +3260,9 @@ function _bindToolbar() {
   });
   document.getElementById('dlg-mc-print')?.addEventListener('click', () => {
     const body = document.getElementById('monte-carlo-container');
-    _printToPdf('Simulación Monte Carlo', `<h1>Simulación Monte Carlo</h1>${body?.innerHTML ?? ''}`);
+    const _mcCss = document.getElementById('mc-styles')?.textContent ?? '';
+    const _mcVars = ':root{--mc-accent:#2563eb;--mc-kpi-bg:#f3f4f6;--mc-hist-fill:#60a5fa;--mc-p80-color:#dc2626;--mc-fg:#333;--mc-border:#e5e7eb;--mc-warn:#b45309;--mc-surface:#f5f7ff;--mc-hist-axis-stroke:#aaa;--mc-tick-fill:#666}';
+    _printToPdf('Simulación Monte Carlo', `<style>${_mcCss}\n${_mcVars}</style><h1>Simulación Monte Carlo</h1>${body?.innerHTML ?? ''}`);
   });
   _makeDraggable(document.getElementById('dlg-monte-carlo'), '[data-drag-handle]');
 
@@ -4796,7 +4834,7 @@ function _exportCpmNetwork(fmt, dlg) {
     return;
   }
 
-  // ---- PDF: SVG vectorial inline en ventana de impresión ----
+  // ---- PDF: SVG vectorial en tiles con window.print ----
   if (fmt === 'pdf') {
     const _d = new Date();
     const today = _d.toLocaleDateString('es-PE');
@@ -4804,199 +4842,155 @@ function _exportCpmNetwork(fmt, dlg) {
     const projDisplayName = _escHtml(appState.state.project?.name ?? projName);
     const fileTitle = `${appState.state.project?.name ?? projName} - Red CPM - ${fileDateStr}`;
 
-    // Quitar width/height fijos; dejar solo viewBox para que CSS controle el tamaño
-    clone.removeAttribute('width');
-    clone.removeAttribute('height');
-    clone.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+    // Obtener dimensiones del SVG clonado
+    const _cpmSvgW = vbW;
+    const _cpmSvgH = vbH;
 
     // Serializar el SVG para incrustar directamente en el HTML
-    // Se usa blob URL en lugar de document.write para evitar que el parser HTML
-    // reordene el DOM al encontrar SVG (problema histórico con document.write + SVG)
     const svgInline = serializer.serializeToString(clone);
 
     const _cpmPdfFile = `${appState.state.project?.name ?? projName}-Red CPM-${String(_d.getDate()).padStart(2,'0')}${String(_d.getMonth()+1).padStart(2,'0')}${_d.getFullYear()}.pdf`;
+    const _svgInnerMatch = svgInline.match(/^<svg[^>]*>([\s\S]*)<\/svg>$/);
+    const _svgInnerCpm = _svgInnerMatch ? _svgInnerMatch[1] : svgInline;
+
     const html = `<!doctype html>
 <html lang="es"><head>
   <meta charset="UTF-8">
   <title>${fileTitle}</title>
   <style>
-    * { box-sizing: border-box; }
-    body  { margin: 0; padding: 0; font-family: 'Segoe UI', system-ui, sans-serif; background:#f5f7fa; }
-    .controls { display: flex; align-items: center; gap: 10px; padding: 8px 12px;
-                font-size: 12px; flex-wrap: wrap; background:#fff;
-                border-bottom: 1px solid #CFD8DC; position: sticky; top:0; z-index:10; }
-    .controls label { display: flex; align-items: center; gap: 5px; color: #455A64; }
-    .controls input[type=range] { width: 100px; accent-color: #1976D2; }
-    .controls input[type=number] { width: 46px; padding: 2px 4px; border: 1px solid #90A4AE;
-                                   border-radius: 4px; font-size: 12px; text-align:center; }
-    .btn-c { border: 1px solid #90A4AE; border-radius: 6px; padding: 4px 11px;
-             font-size: 12px; cursor: pointer; background: #fff; color: #455A64; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body  { font-family: 'Segoe UI', system-ui, sans-serif; background:#cfd8dc; }
+    .controls { display: flex; align-items: center; gap: 8px; padding: 8px 12px;
+                font-size: 12px; flex-wrap: wrap; background:#263238;
+                border-bottom: 2px solid #37474f; position: sticky; top:0; z-index:10; }
+    .controls label { display: flex; align-items: center; gap: 5px; color: #90a4ae; }
+    .controls input[type=number] { width: 46px; padding: 2px 4px; border: 1px solid #546e7a;
+                                   border-radius: 4px; font-size: 12px; text-align:center;
+                                   background:#37474f; color:#ecf0f1; }
+    .btn-c { border: 1px solid #546e7a; border-radius: 4px; padding: 4px 10px;
+             font-size: 12px; cursor: pointer; background: #37474f; color: #ecf0f1; white-space:nowrap; }
     .btn-c:hover, .btn-c.active { background: #1976D2; color: #fff; border-color: #1976D2; }
-    .btn-print { background: #1976D2; color: #fff; border: none; border-radius: 6px;
+    .btn-print { background: #1976D2; color: #fff; border: none; border-radius: 4px;
                  padding: 6px 16px; font-size: 13px; cursor: pointer; font-weight:600; }
     .btn-print:hover { background: #1565C0; }
-    .btn-print:disabled { background: #90A4AE; cursor: not-allowed; }
-    .sep { width: 1px; height: 20px; background: #CFD8DC; flex-shrink:0; }
-    .lbl-sm { font-size:11px; color:#78909C; }
-    .header { display: flex; align-items: center; padding: 6px 12px 4px;
-              border-bottom: 2px solid #1976D2; background:#fff; }
-    .proj-name { font-size: 15px; font-weight: 700; color: #1976D2; }
-    .gantt-frame { border: 0.25px solid #546E7A; display: block; overflow: auto;
-                   margin: 8px 12px; background:#fff; }
-    .gantt-frame svg { width: var(--zoom-w, 100%); height: auto; display: block; }
-    .legend-wrap { margin: 4px 12px 8px; display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
-    .legend-item { display: flex; align-items: center; gap: 5px; font-size: 12px; color: #444; }
-    .legend-swatch { width: 13px; height: 13px; border-radius: 2px; flex-shrink: 0; }
+    .sep { width: 1px; height: 20px; background: #546e7a; flex-shrink:0; }
+    .lbl-sm { font-size:11px; color:#78909C; white-space:nowrap; }
+    input[type=text].fn-inp { font-size:12px; padding:3px 8px; border:1px solid #546e7a;
+                border-radius:3px; background:#37474f; color:#ecf0f1; width:260px; }
+    .preview { padding: 20px; display:flex; flex-direction:column; align-items:center; gap:16px; min-height:calc(100vh - 52px); }
+    .page-tile { background:#fff; box-shadow:0 4px 14px rgba(0,0,0,.4); position:relative; flex-shrink:0; }
+    .page-tile svg { display:block; }
+    .page-foot { position:absolute; bottom:4mm; left:10mm; right:10mm;
+                 display:flex; justify-content:space-between; font-size:7pt; color:#9e9e9e;
+                 border-top:1px solid #e0e0e0; padding-top:2px; }
+    @media print {
+      body { background:#fff; }
+      .controls { display:none !important; }
+      .preview { padding:0; gap:0; background:#fff; min-height:0; }
+      .page-tile { box-shadow:none; break-after:page; page-break-after:always; margin:0; }
+      .page-tile:last-child { break-after:avoid; page-break-after:avoid; }
+      .page-foot { display:flex !important; }
+    }
   </style>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"><\/script>
 </head><body>
   <div class="controls">
-    <label>Zoom:
-      <input type="range" id="zoom" min="30" max="300" value="100" step="5">
-      <span id="zoom-val" style="min-width:38px">100%</span>
-    </label>
+    <button class="btn-print" onclick="window.print()">&#x1F5A8; Guardar PDF</button>
     <div class="sep"></div>
     <span class="lbl-sm">Orientaci&#243;n:</span>
-    <button class="btn-c active" id="btn-land">&#x2B1B; Horizontal</button>
-    <button class="btn-c" id="btn-port">&#x1F532; Vertical</button>
+    <button class="btn-c active" id="btn-land" onclick="setOrient('landscape')">&#x2B1B; Horizontal</button>
+    <button class="btn-c" id="btn-port" onclick="setOrient('portrait')">&#x1F532; Vertical</button>
     <div class="sep"></div>
-    <label>Hojas H: <input type="number" id="h-pages" min="1" max="10" value="1"></label>
-    <label>Hojas V: <input type="number" id="v-pages" min="1" max="10" value="1"></label>
+    <label>Hojas H: <input type="number" id="h-pages" min="1" max="10" value="1" onchange="renderTiles()"></label>
+    <label>Hojas V: <input type="number" id="v-pages" min="1" max="10" value="1" onchange="renderTiles()"></label>
     <div class="sep"></div>
     <span class="lbl-sm">&#x1F4C1; Archivo:</span>
-    <input type="text" id="fn-inp" value="${_cpmPdfFile}" title="Nombre del archivo PDF" style="width:280px;padding:2px 6px;border:1px solid #90A4AE;border-radius:4px;font-size:12px">
+    <input type="text" id="fn-inp" class="fn-inp" value="${_cpmPdfFile}" title="Nombre sugerido del archivo PDF">
     <div class="sep"></div>
-    <button class="btn-print" id="btn-pdf">&#x1F5A8; Guardar PDF</button>
     <span class="lbl-sm">${today}</span>
+    <div class="sep"></div>
+    <button class="btn-c" onclick="window.close()">&#x2715; Cerrar</button>
   </div>
-  <div class="header">
-    <div class="proj-name">${projDisplayName}</div>
-  </div>
-  <div class="gantt-frame" id="cpm-frame">${svgInline}</div>
-  <div class="legend-wrap">
-    <div class="legend-item"><div class="legend-swatch" style="background:#e74c3c"></div>Cr&#237;tica</div>
-    <div class="legend-item"><div class="legend-swatch" style="background:#f39c12"></div>Casi cr&#237;tica</div>
-    <div class="legend-item"><div class="legend-swatch" style="background:#2980b9"></div>Normal</div>
-    <div class="legend-item"><div class="legend-swatch" style="background:#27ae60"></div>Completa</div>
-  </div>
+  <div class="preview" id="preview"></div>
+
   <script>
-    const _PDF_FILENAME = ${JSON.stringify(_cpmPdfFile)};
-    const _PROJ_NAME    = ${JSON.stringify(appState.state.project?.name ?? projName)};
-    let _pdfOrient = 'landscape';
-    const zoom = document.getElementById('zoom');
-    const zoomVal = document.getElementById('zoom-val');
-    const frame = document.getElementById('cpm-frame');
-    zoom.addEventListener('input', () => {
-      zoomVal.textContent = zoom.value + '%';
-      frame.style.setProperty('--zoom-w', zoom.value + '%');
-    });
+    const SVG_W = ${_cpmSvgW};
+    const SVG_H = ${_cpmSvgH};
+    const SVG_INNER = ${JSON.stringify(_svgInnerCpm)};
+    const PROJ_NAME = ${JSON.stringify(appState.state.project?.name ?? projName)};
+    const TOTAL_PAGES_REF = { v: 1 };
+
+    let _orient = 'landscape';
+
     function setOrient(o) {
-      _pdfOrient = o;
+      _orient = o;
       document.getElementById('btn-land').classList.toggle('active', o === 'landscape');
       document.getElementById('btn-port').classList.toggle('active', o === 'portrait');
+      renderTiles();
     }
-    document.getElementById('btn-land').addEventListener('click', () => setOrient('landscape'));
-    document.getElementById('btn-port').addEventListener('click', () => setOrient('portrait'));
-    document.getElementById('btn-pdf').addEventListener('click', _savePdf);
 
-    async function _savePdf() {
-      const btn = document.getElementById('btn-pdf');
-      if (!window.jspdf) { alert('Librería PDF no disponible.'); return; }
-      if (btn) { btn.disabled = true; btn.textContent = '⏳ Generando…'; }
-
+    function renderTiles() {
       const hPages = Math.max(1, Math.min(10, parseInt(document.getElementById('h-pages').value) || 1));
       const vPages = Math.max(1, Math.min(10, parseInt(document.getElementById('v-pages').value) || 1));
+      const isLand = _orient === 'landscape';
+      const MARG = 10;
+      const A4w = isLand ? 297 : 210;
+      const A4h = isLand ? 210 : 297;
+      const availW = A4w - 2 * MARG;
+      const availH = A4h - 2 * MARG - 8;
 
-      try {
-        const { jsPDF } = window.jspdf;
-        const svg = document.querySelector('#cpm-frame svg');
-        if (!svg) throw new Error('SVG no encontrado');
+      const cellW = SVG_W / hPages;
+      const cellH = SVG_H / vPages;
+      const totalPages = hPages * vPages;
+      TOTAL_PAGES_REF.v = totalPages;
 
-        const svgW = svg.viewBox.baseVal.width  || parseFloat(svg.getAttribute('width'))  || svg.getBoundingClientRect().width;
-        const svgH = svg.viewBox.baseVal.height || parseFloat(svg.getAttribute('height')) || svg.getBoundingClientRect().height;
-        if (!svgW || !svgH) throw new Error('Dimensiones SVG inválidas');
+      let ps = document.getElementById('_ps') || document.createElement('style');
+      ps.id = '_ps';
+      ps.textContent = '@page{size:A4 ' + _orient + ';margin:' + MARG + 'mm ' + MARG + 'mm ' + (MARG+8) + 'mm ' + MARG + 'mm}';
+      document.head.appendChild(ps);
 
-        const isLand    = _pdfOrient === 'landscape';
-        const MARG      = 10;
-        const RENDER_DPI = 600;
-        const MM2PX     = RENDER_DPI / 25.4;
-        const A4w_mm    = isLand ? 297 : 210;
-        const A4h_mm    = isLand ? 210 : 297;
-        const availW_mm = A4w_mm - 2 * MARG;
-        const availH_mm = A4h_mm - 2 * MARG - 7;
-        const tileW_px  = Math.round(availW_mm * MM2PX);
-        const tileH_px  = Math.round(availH_mm * MM2PX);
+      const preview = document.getElementById('preview');
+      preview.innerHTML = '';
+      let pageNum = 0;
 
-        const cellW = svgW / hPages;
-        const cellH = svgH / vPages;
+      for (let j = 0; j < vPages; j++) {
+        for (let i = 0; i < hPages; i++) {
+          pageNum++;
+          const vbX = i * cellW;
+          const vbY = j * cellH;
 
-        const doc = new jsPDF({ orientation: _pdfOrient, unit: 'mm', format: 'a4' });
-        const totalPages = hPages * vPages;
-        let pageNum = 0;
+          const tile = document.createElement('div');
+          tile.className = 'page-tile';
+          tile.style.width = availW + 'mm';
+          tile.style.height = (availH + 8) + 'mm';
 
-        for (let j = 0; j < vPages; j++) {
-          for (let i = 0; i < hPages; i++) {
-            if (pageNum > 0) doc.addPage();
-            const pw = doc.internal.pageSize.getWidth();
-            const ph = doc.internal.pageSize.getHeight();
+          const svgEl = document.createElementNS('http://www.w3.org/2000/svg','svg');
+          svgEl.setAttribute('viewBox', vbX + ' ' + vbY + ' ' + cellW + ' ' + cellH);
+          svgEl.setAttribute('width', availW + 'mm');
+          svgEl.setAttribute('height', availH + 'mm');
+          svgEl.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+          svgEl.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
+          svgEl.setAttribute('preserveAspectRatio', 'xMinYMin meet');
+          svgEl.innerHTML = SVG_INNER;
+          tile.appendChild(svgEl);
 
-            const clone = svg.cloneNode(true);
-            clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
-            clone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
-            clone.setAttribute('viewBox', i*cellW + ' ' + j*cellH + ' ' + cellW + ' ' + cellH);
-            clone.setAttribute('width', String(tileW_px));
-            clone.setAttribute('height', String(tileH_px));
+          const foot = document.createElement('div');
+          foot.className = 'page-foot';
+          foot.innerHTML = '<span>' + PROJ_NAME + '</span><span>ECM Project</span><span>' + pageNum + ' / ' + totalPages + '</span>';
+          tile.appendChild(foot);
 
-            const svgBlob = new Blob([new XMLSerializer().serializeToString(clone)],
-                                     { type: 'image/svg+xml;charset=utf-8' });
-            const svgUrl = URL.createObjectURL(svgBlob);
-
-            const tc = document.createElement('canvas');
-            tc.width = tileW_px; tc.height = tileH_px;
-            const ctx = tc.getContext('2d');
-            ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, tileW_px, tileH_px);
-
-            await new Promise((res, rej) => {
-              const img = new Image();
-              img.onload = () => { ctx.drawImage(img, 0, 0, tileW_px, tileH_px); URL.revokeObjectURL(svgUrl); res(); };
-              img.onerror = () => { URL.revokeObjectURL(svgUrl); rej(new Error('Tile ' + (pageNum+1))); };
-              img.src = svgUrl;
-            });
-
-            doc.addImage(tc.toDataURL('image/png', 0.85), 'PNG', MARG, MARG, availW_mm, availH_mm);
-            doc.setFont('helvetica', 'normal'); doc.setFontSize(7); doc.setTextColor(120, 120, 120);
-            doc.text(_PROJ_NAME, MARG, ph - 4);
-            doc.text('ECM Project', pw/2, ph - 4, { align: 'center' });
-            doc.text((pageNum+1) + ' / ' + totalPages, pw - MARG, ph - 4, { align: 'right' });
-            doc.setDrawColor(200,200,200); doc.setLineWidth(0.2);
-            doc.line(MARG, ph - 7, pw - MARG, ph - 7);
-            pageNum++;
-          }
+          preview.appendChild(tile);
         }
-
-        const _fnVal = (document.getElementById('fn-inp')?.value || '').trim() || _PDF_FILENAME;
-        if (window.ecmIsElectron && typeof window.ecmSavePdf === 'function') {
-          window.ecmSavePdf(doc.output('datauristring').split(',')[1], _fnVal);
-        } else {
-          doc.save(_fnVal);
-        }
-      } catch (err) {
-        alert('Error al generar PDF: ' + err.message);
-      } finally {
-        if (btn) { btn.disabled = false; btn.textContent = '&#x1F5A8; Guardar PDF'; }
       }
     }
+
+    renderTiles();
   <\/script>
 </body></html>`;
 
-    // Usar blob URL: el navegador carga el documento completo de forma normal,
-    // sin document.write, sin reordenamiento del parser al encontrar SVG inline
-    const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
-    const blobUrl = URL.createObjectURL(blob);
-    const win = window.open(blobUrl, '_blank', 'width=1300,height=900');
-    if (!win) { URL.revokeObjectURL(blobUrl); _showToast('El navegador bloqueó la ventana emergente. Permítala e intente de nuevo.', 'warn'); return; }
-    // Liberar blob URL después de que la ventana haya cargado
-    setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
+    const win = window.open('', '_blank', 'width=1200,height=800');
+    if (!win) { _showToast('El navegador bloqueó la ventana emergente. Permítala e intente de nuevo.', 'warn'); return; }
+    win.document.write(html);
+    win.document.close();
   }
 }
 
@@ -5444,6 +5438,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (panel) {
       const isOpen = panel.classList.toggle('open');
       if (isOpen) _dcmaPanel?.refresh();
+      document.getElementById('btn-dcma-view')?.classList.toggle('active', isOpen);
     }
   });
   document.getElementById('btn-sync-view')?.addEventListener('click', () => {
@@ -5463,6 +5458,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const panel = document.getElementById('evm-panel');
     const isOpen = panel?.classList.toggle('open');
     if (isOpen) _evmPanel?.refresh();
+    document.getElementById('btn-evm-view')?.classList.toggle('active', !!isOpen);
   });
   document.getElementById('btn-resource-histogram-view')?.addEventListener('click', () => {
     _closeExplorer();
@@ -5470,6 +5466,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const rc    = document.getElementById('right-content');
     const isOpen = panel?.classList.toggle('open');
     rc?.classList.toggle('has-histogram', !!isOpen);
+    document.getElementById('btn-resource-histogram-view')?.classList.toggle('active', !!isOpen);
     if (isOpen) {
       _rhPanel?.refresh();
       const wbs = document.getElementById('wbs-panel');
@@ -5503,6 +5500,7 @@ document.addEventListener('DOMContentLoaded', () => {
             </ul>`;
         }
         levelPanel.style.display = 'flex';
+        document.getElementById('btn-resource-leveling-view')?.classList.add('active');
       } else {
         _showToast(conflicts.overloaded.length ? `${conflicts.overloaded.length} conflicto(s) de recursos` : 'Sin conflictos de recursos', conflicts.overloaded.length ? 'warn' : 'success');
       }
@@ -5526,6 +5524,7 @@ document.addEventListener('DOMContentLoaded', () => {
     _mcPanel.onCpmUpdate(cpmResult, tasks, project, _mcCal, [...(deps?.values() ?? [])]);
     _mcPanel.refresh(project.id);
     dlg.showModal?.() ?? (dlg.style.display = 'block');
+    document.getElementById('btn-monte-carlo-view')?.classList.add('active');
   });
   document.getElementById('btn-risk-register-view')?.addEventListener('click', () => {
     _closeExplorer();
@@ -5534,8 +5533,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const overlay = /** @type {HTMLElement} */ (document.getElementById('panel-risk-register'));
     const container = /** @type {HTMLElement} */ (document.getElementById('risk-register-container'));
     if (!overlay || !container) return;
-    if (overlay.style.display === 'flex') { overlay.style.display = 'none'; return; }
+    if (overlay.style.display === 'flex') { overlay.style.display = 'none'; document.getElementById('btn-risk-register-view')?.classList.remove('active'); return; }
     overlay.style.display = 'flex';
+    document.getElementById('btn-risk-register-view')?.classList.add('active');
     _riskPanel = new RiskRegisterPanel({ projectId: project.id, container, onClose: () => {
       overlay.style.display = 'none';
     }});
