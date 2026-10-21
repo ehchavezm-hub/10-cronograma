@@ -414,7 +414,7 @@ export class LookaheadDetailedPanel {
             <div style="display:flex;align-items:center;gap:6px">
               <span class="lad-week-count">${manual.length} actividad${manual.length!==1?'es':''} LPS</span>
               <label class="btn btn-ghost btn-sm" title="Importar actividades desde Excel / CSV" style="font-size:11px;padding:3px 9px;cursor:pointer;display:flex;align-items:center;gap:4px">
-                📥 XLS
+                📥 Importar XLS
                 <input type="file" class="lad-xls-input" data-wk="${wk}" accept=".xlsx,.xls,.csv" style="display:none">
               </label>
               <button class="btn btn-primary btn-sm lad-add-act" data-wk="${wk}" style="font-size:11px;padding:3px 10px">+ Agregar</button>
@@ -444,7 +444,7 @@ export class LookaheadDetailedPanel {
             </div>
           </div>
           ${manual.length === 0 && cpmRows.length === 0
-            ? `<p class="lad-empty-week">Sin actividades registradas. Usa "+ Agregar" o "📥 XLS" para planificar esta semana.</p>`
+            ? `<p class="lad-empty-week">Sin actividades registradas. Usa "+ Agregar" o "📥 Importar XLS" para planificar esta semana.</p>`
             : `<table class="lad-table">
               <thead><tr>
                 <th style="width:44px">Origen</th>
@@ -822,7 +822,7 @@ export class LookaheadDetailedPanel {
           <span id="lad-comp-completed">Completadas: <strong>${totalCompleted}</strong></span>
           <span id="lad-comp-ppc">PPC: <strong style="font-size:15px;color:${ppcColor}">${ppc !== null ? ppc + '%' : 'N/A'}</strong></span>
           <label class="btn btn-ghost btn-sm" title="Importar actividades desde Excel / CSV" style="font-size:11px;padding:3px 9px;cursor:pointer;display:flex;align-items:center;gap:4px">
-            📥 XLS
+            📥 Importar XLS
             <input type="file" id="lad-comp-xls-input" accept=".xlsx,.xls,.csv" style="display:none">
           </label>
           <button id="lad-save-ppc" class="btn btn-primary btn-sm" style="font-size:12px">💾 Guardar PPC</button>
@@ -1014,15 +1014,29 @@ export class LookaheadDetailedPanel {
         <span>🚧 <strong>${rests.length}</strong> restricción(es) registrada(s)</span>
         <div style="display:flex;align-items:center;gap:8px">
           <label class="btn btn-ghost btn-sm" title="Importar restricciones desde Excel / CSV" style="font-size:11px;padding:3px 9px;cursor:pointer;display:flex;align-items:center;gap:4px">
-            📥 XLS
+            📥 Importar XLS
             <input type="file" id="lad-rest-xls-input" accept=".xlsx,.xls,.csv" style="display:none">
           </label>
           <button id="lad-add-rest" class="btn btn-primary btn-sm" style="font-size:12px">+ Nueva restricción</button>
         </div>
       </div>
+      ${rests.length > 0 ? `
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:8px 0 6px">
+        <span style="font-size:12px;font-weight:600;color:var(--clr-text)">Filtrar historial:</span>
+        <label style="font-size:12px;color:var(--clr-text-2);display:flex;align-items:center;gap:4px">
+          Desde:
+          <input id="lad-rest-hist-from" type="date" class="lad-input" style="width:130px;margin:0">
+        </label>
+        <label style="font-size:12px;color:var(--clr-text-2);display:flex;align-items:center;gap:4px">
+          Últimas
+          <input id="lad-rest-hist-weeks" type="number" min="1" max="52" class="lad-input" style="width:52px;margin:0" placeholder="sem.">
+          semanas
+        </label>
+        <button id="lad-rest-hist-clear" class="btn btn-ghost btn-sm" style="font-size:11px">Mostrar todo</button>
+      </div>` : ''}
       ${rests.length === 0
         ? `<p class="lad-empty">No hay restricciones registradas. Usa "+ Nueva restricción" para agregar.</p>`
-        : `<table class="lad-table">
+        : `<div id="lad-rest-table-wrap"><table class="lad-table">
           <thead><tr>
             <th style="text-align:center">#Restricción</th>
             <th>#Actividad</th>
@@ -1067,7 +1081,7 @@ export class LookaheadDetailedPanel {
               </tr>`;
             }).join('')}
           </tbody>
-        </table>`}`;
+        </table></div>`}`;
 
     this._body.querySelector('#lad-add-rest')?.addEventListener('click', () => {
       this._openRestForm(null, rests, project.id, updatedRests => {
@@ -1114,6 +1128,38 @@ export class LookaheadDetailedPanel {
         restXlsInput.value = '';
       });
     }
+
+    const _applyRestFilter = () => {
+      const fromInp = /** @type {HTMLInputElement|null} */ (this._body.querySelector('#lad-rest-hist-from'));
+      const weeksInp = /** @type {HTMLInputElement|null} */ (this._body.querySelector('#lad-rest-hist-weeks'));
+      const tableWrap = this._body.querySelector('#lad-rest-table-wrap');
+      if (!tableWrap) return;
+      let fromDate = fromInp?.value || null;
+      const weeks = parseInt(weeksInp?.value ?? '');
+      if (!isNaN(weeks) && weeks >= 1) {
+        const d = new Date(); d.setDate(d.getDate() - weeks * 7);
+        fromDate = d.toISOString().slice(0, 10);
+        if (fromInp && !fromInp.value) fromInp.value = fromDate;
+      }
+      const rows = /** @type {NodeListOf<HTMLTableRowElement>} */ (tableWrap.querySelectorAll('tbody tr'));
+      rows.forEach((row, idx) => {
+        const r = rests[idx];
+        const rowDate = r?.dateIdentified || r?.createdAt || '';
+        row.style.display = (fromDate && rowDate && rowDate < fromDate) ? 'none' : '';
+      });
+    };
+
+    this._body.querySelector('#lad-rest-hist-from')?.addEventListener('input', _applyRestFilter);
+    this._body.querySelector('#lad-rest-hist-from')?.addEventListener('change', _applyRestFilter);
+    this._body.querySelector('#lad-rest-hist-weeks')?.addEventListener('input', _applyRestFilter);
+    this._body.querySelector('#lad-rest-hist-weeks')?.addEventListener('change', _applyRestFilter);
+    this._body.querySelector('#lad-rest-hist-clear')?.addEventListener('click', () => {
+      const fi = /** @type {HTMLInputElement|null} */ (this._body.querySelector('#lad-rest-hist-from'));
+      const wi = /** @type {HTMLInputElement|null} */ (this._body.querySelector('#lad-rest-hist-weeks'));
+      if (fi) fi.value = ''; if (wi) wi.value = '';
+      const tableWrap = this._body.querySelector('#lad-rest-table-wrap');
+      tableWrap?.querySelectorAll('tbody tr').forEach(r => (/** @type {HTMLElement} */ (r)).style.display = '');
+    });
   }
 
   _getTaskName(taskId) {
