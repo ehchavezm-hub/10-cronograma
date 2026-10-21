@@ -108,7 +108,7 @@ export class LookaheadPanel {
             style="width:54px;padding:3px 6px;border:1px solid var(--clr-border);border-radius:4px;background:var(--clr-surface);color:var(--clr-text);font-size:12px">
         </label>
         <button id="la-btn-refresh" class="btn btn-primary btn-sm" title="Actualizar vista" style="padding:4px 12px;font-size:12px;flex-shrink:0">↺ Actualizar</button>
-        <button id="la-btn-print" class="btn btn-ghost btn-sm" title="Imprimir PDF" style="margin-left:2px">🖨 Imprimir</button>
+        <button id="la-btn-print" class="btn btn-ghost btn-sm" title="Imprimir PDF" style="margin-left:2px;margin-right:36px">🖨 Imprimir</button>
       </div>`;
     this.el.appendChild(hdr);
 

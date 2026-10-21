@@ -155,7 +155,7 @@ export class NotificationsPanel {
     _printBtn.innerHTML = '🖨 Imprimir';
     _printBtn.title = 'Imprimir PDF';
     _printBtn.className = 'btn btn-ghost btn-sm';
-    _printBtn.style.cssText = 'flex-shrink:0';
+    _printBtn.style.cssText = 'flex-shrink:0;margin-right:36px';
     _printBtn.addEventListener('click', () => {
       const notes = getNotifications(7);
       const COLORS = { overdue:'#D32F2F', upcoming:'#F57C00', critical:'#1565C0' };
