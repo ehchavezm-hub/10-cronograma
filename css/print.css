@@ -84,6 +84,10 @@
   .wbs-table th[data-col="alerts"], .wbs-table td[data-col="alerts"],
   .wbs-table .td-actions { display: none; }
 
+  /* Ocultar iconos de la aplicación en la tabla impresa */
+  .expand-btn, .task-notes-icon, .sort-indicator,
+  .indent-spacer { display: none !important; }
+
   /* ---- Encabezado de página (logo + nombre proyecto) ---- */
   #app::before {
     content: attr(data-print-title);
