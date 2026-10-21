@@ -92,9 +92,24 @@ async function createWindow() {
 
   mainWindow.loadURL(`http://127.0.0.1:${port}/`);
 
-  // Open external links in the system browser
+  // Open external links in the system browser; allow blank popups for print preview
   mainWindow.webContents.setWindowOpenHandler(({ url: u }) => {
-    if (!u.startsWith('http://127.0.0.1')) shell.openExternal(u);
+    // Ventana en blanco → vista previa de impresión (printGantt usa window.open('','_blank'))
+    if (!u || u === 'about:blank') {
+      return {
+        action: 'allow',
+        overrideBrowserWindowOptions: {
+          width: 1200, height: 800,
+          title: 'ECM Project — Impresión',
+          autoHideMenuBar: true,
+          webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true }
+        }
+      };
+    }
+    // Solo abrir externamente URLs http/https fuera del servidor local
+    if ((u.startsWith('https://') || u.startsWith('http://')) && !u.startsWith('http://127.0.0.1')) {
+      shell.openExternal(u);
+    }
     return { action: 'deny' };
   });
 
