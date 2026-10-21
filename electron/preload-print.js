@@ -2,18 +2,14 @@
 'use strict';
 /**
  * preload-print.js — Preload para ventanas de vista previa de impresión.
- * Reemplaza window.print() con generación directa de PDF vía IPC,
- * mostrando un modal personalizado en lugar del diálogo nativo.
+ * Expone window.ecmSavePdf(b64, fileName) para guardar PDF generado por jsPDF,
+ * mostrando un modal personalizado con progreso, éxito o error.
  */
 
 const { ipcRenderer } = require('electron');
 
-function _ecmGeneratePdf() {
-  const title     = document.title || 'ECM Project-Gantt';
-  const pageStyleEl = document.getElementById('page-style');
-  const isLandscape = !pageStyleEl || pageStyleEl.textContent.includes('landscape');
-
-  // Mostrar overlay de "Generando PDF..."
+function _ecmSavePdf(b64, fileName) {
+  // Mostrar overlay de "Guardando PDF..."
   let overlay = document.getElementById('ecm-pdf-overlay');
   if (overlay) overlay.remove();
   overlay = document.createElement('div');
@@ -28,22 +24,21 @@ function _ecmGeneratePdf() {
     <div style="background:#fff;border-radius:16px;padding:40px 48px;text-align:center;
                 box-shadow:0 16px 48px rgba(0,0,0,0.28);min-width:340px;max-width:480px;">
       <div style="font-size:52px;margin-bottom:18px;line-height:1">📄</div>
-      <div style="font-size:17px;font-weight:700;color:#1565C0;margin-bottom:8px">Generando PDF…</div>
+      <div style="font-size:17px;font-weight:700;color:#1565C0;margin-bottom:8px">Guardando PDF…</div>
       <div style="font-size:13px;color:#78909C">El archivo se guardará en Documentos / ECM Project</div>
       <div style="margin-top:20px;height:4px;border-radius:2px;background:#E3F2FD;overflow:hidden">
         <div id="ecm-progress-bar"
              style="height:100%;border-radius:2px;background:#1976D2;width:0%;
-                    transition:width 2.5s ease-out"></div>
+                    transition:width 1.5s ease-out"></div>
       </div>
     </div>`;
   document.body.appendChild(overlay);
-  // Animar barra
   requestAnimationFrame(() => {
     const bar = document.getElementById('ecm-progress-bar');
     if (bar) bar.style.width = '85%';
   });
 
-  ipcRenderer.invoke('ecm-print-pdf', { title, landscape: isLandscape })
+  ipcRenderer.invoke('ecm-save-pdf-buffer', { b64, fileName })
     .then((result) => {
       const bar = document.getElementById('ecm-progress-bar');
       if (bar) { bar.style.transition = 'width 0.3s'; bar.style.width = '100%'; }
@@ -53,7 +48,7 @@ function _ecmGeneratePdf() {
         overlay.querySelector('div > div').innerHTML = `
           <div style="font-size:52px;margin-bottom:18px;line-height:1">✅</div>
           <div style="font-size:17px;font-weight:700;color:#2E7D32;margin-bottom:10px">
-            PDF generado exitosamente</div>
+            PDF guardado exitosamente</div>
           <div style="font-size:12px;color:#546E7A;word-break:break-all;margin-bottom:20px;
                       background:#F1F8E9;border-radius:8px;padding:8px 12px">
             📁 ${shortPath}</div>
@@ -66,7 +61,7 @@ function _ecmGeneratePdf() {
         overlay.querySelector('div > div').innerHTML = `
           <div style="font-size:52px;margin-bottom:18px;line-height:1">❌</div>
           <div style="font-size:17px;font-weight:700;color:#C62828;margin-bottom:10px">
-            Error al generar PDF</div>
+            Error al guardar PDF</div>
           <div style="font-size:13px;color:#78909C;margin-bottom:20px">
             ${(result && result.error) ? result.error : 'Error desconocido'}</div>
           <button onclick="document.getElementById('ecm-pdf-overlay').remove()"
@@ -78,13 +73,6 @@ function _ecmGeneratePdf() {
     .catch(() => { overlay.remove(); });
 }
 
-// Override window.print() — sobrevive a document.write() porque window persiste
-Object.defineProperty(window, 'print', {
-  configurable: true,
-  writable:     true,
-  value:        _ecmGeneratePdf,
-});
-
-// Exponer también como global para onclick directo
-window.ecmIsElectron  = true;
-window.ecmGeneratePdf = _ecmGeneratePdf;
+// Exponer como globals para ser llamados desde el HTML del popup
+window.ecmIsElectron = true;
+window.ecmSavePdf    = _ecmSavePdf;

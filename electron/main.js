@@ -71,35 +71,21 @@ function startServer() {
   });
 }
 
-// ── IPC: Generar PDF desde ventana de impresión ───────────────
-// Convierte el título al formato NOMBRE-PROCESO-FECHA.pdf
-function _buildPdfFilename(rawTitle) {
-  // rawTitle: "Edificio Las Palmas - Gantt - 20/10/2026"
-  // Objetivo: "Edificio Las Palmas-Gantt-20102026.pdf"
-  return rawTitle
-    .replace(/\//g, '')               // "20/10/2026" → "20102026"
-    .replace(/\s+-\s+/g, '-')         // " - " → "-"
-    .replace(/[<>:"/\\|?*\x00-\x1f]/g, '_')  // caracteres inválidos
-    .replace(/-+/g, '-')              // dobles guiones
-    .trim() + '.pdf';
-}
-
-ipcMain.handle('ecm-print-pdf', async (event, /** @type {{title:string,landscape:boolean}} */ opts) => {
-  const win = BrowserWindow.fromWebContents(event.sender);
-  if (!win) return { error: 'no window' };
+// ── IPC: Guardar PDF generado por jsPDF en el renderer ───────
+ipcMain.handle('ecm-save-pdf-buffer', async (event, /** @type {{b64:string,fileName:string}} */ opts) => {
   try {
-    const pdfData = await win.webContents.printToPDF({
-      printBackground: true,
-      landscape: opts.landscape !== false,
-      pageSize: 'A4',
-    });
-
-    const fileName = _buildPdfFilename(opts.title || 'ECM Project-Gantt');
-    const docsDir  = path.join(os.homedir(), 'Documents', 'ECM Project');
+    const pdfBuf = Buffer.from(opts.b64 || '', 'base64');
+    const rawName = opts.fileName || 'ECM-Project.pdf';
+    const safeFileName = rawName
+      .replace(/[<>:"/\\|?*\x00-\x1f]/g, '_')
+      .replace(/-+/g, '-')
+      .replace(/^[_\-]+|[_\-]+$/g, '')
+      .trim()
+      || 'ECM-Project.pdf';
+    const docsDir = path.join(os.homedir(), 'Documents', 'ECM Project');
     fs.mkdirSync(docsDir, { recursive: true });
-    const pdfPath  = path.join(docsDir, fileName);
-    fs.writeFileSync(pdfPath, pdfData);
-
+    const pdfPath = path.join(docsDir, safeFileName);
+    fs.writeFileSync(pdfPath, pdfBuf);
     shell.openPath(pdfPath);
     return { success: true, path: pdfPath };
   } catch (err) {
