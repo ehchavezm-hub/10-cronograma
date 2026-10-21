@@ -133,65 +133,61 @@ export function printGantt(rows) {
 <html lang="es"><head>
   <meta charset="UTF-8">
   <title>${_esc(_gTitle)}</title>
-  <style id="page-style">@page { size: landscape; margin: 10mm 10mm 15mm; }</style>
   <style>
     * { box-sizing: border-box; }
-    body  { margin: 0; padding: 0; font-family: 'Segoe UI', system-ui, sans-serif; }
-    .header { display: flex; align-items: center; padding: 0 0 6px;
-              border-bottom: 2px solid #1976D2; margin-bottom: 8px; }
-    .proj-name { font-size: 16px; font-weight: 700; color: #1976D2; }
-    .gantt-frame { border: 0.25px solid #546E7A; display: block; overflow: auto; }
-    svg { display: block; }
-    .controls { display: flex; align-items: center; gap: 12px; padding: 8px 0 10px;
-                font-family: 'Segoe UI', system-ui, sans-serif; font-size: 12px; flex-wrap: wrap; }
-    .controls label { display: flex; align-items: center; gap: 6px; color: #455A64; }
-    .controls input[type=range] { width: 120px; accent-color: #1976D2; }
-    .btn-c { border: 1px solid #90A4AE; border-radius: 6px; padding: 5px 13px;
+    body  { margin: 0; padding: 0; font-family: 'Segoe UI', system-ui, sans-serif; background:#f5f7fa; }
+    .controls { display: flex; align-items: center; gap: 10px; padding: 8px 12px;
+                font-size: 12px; flex-wrap: wrap; background:#fff;
+                border-bottom: 1px solid #CFD8DC; position: sticky; top:0; z-index:10; }
+    .controls label { display: flex; align-items: center; gap: 5px; color: #455A64; }
+    .controls input[type=range] { width: 100px; accent-color: #1976D2; }
+    .controls input[type=number] { width: 46px; padding: 2px 4px; border: 1px solid #90A4AE;
+                                   border-radius: 4px; font-size: 12px; text-align:center; }
+    .btn-c { border: 1px solid #90A4AE; border-radius: 6px; padding: 4px 11px;
              font-size: 12px; cursor: pointer; background: #fff; color: #455A64; }
     .btn-c:hover, .btn-c.active { background: #1976D2; color: #fff; border-color: #1976D2; }
     .btn-print { background: #1976D2; color: #fff; border: none; border-radius: 6px;
-                 padding: 6px 16px; font-size: 13px; cursor: pointer; }
+                 padding: 6px 16px; font-size: 13px; cursor: pointer; font-weight:600; }
     .btn-print:hover { background: #1565C0; }
     .btn-print:disabled { background: #90A4AE; cursor: not-allowed; }
-    .sep { width: 1px; height: 22px; background: #CFD8DC; }
-    footer.ecm-footer { display: none; }
-    @media print {
-      .controls { display: none !important; }
-      footer.ecm-footer { display: block; position: fixed; bottom: 0; left: 0; right: 0;
-        font-size: 7pt; color: #9E9E9E; text-align: center;
-        border-top: 1px solid #E0E0E0; padding-top: 3px; background: white; }
-      .gantt-frame { overflow: visible; border: none; }
-      svg { width: 100% !important; max-width: 100% !important; height: auto !important; }
-    }
+    .sep { width: 1px; height: 20px; background: #CFD8DC; flex-shrink:0; }
+    .lbl-sm { font-size:11px; color:#78909C; }
+    .header { display: flex; align-items: center; padding: 6px 12px 4px;
+              border-bottom: 2px solid #1976D2; background:#fff; }
+    .proj-name { font-size: 15px; font-weight: 700; color: #1976D2; }
+    .gantt-frame { border: 0.25px solid #546E7A; display: block; overflow: auto;
+                   margin: 8px 12px; background:#fff; }
+    svg { display: block; }
   </style>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"><\/script>
 </head><body>
+  <div class="controls">
+    <label>Zoom:
+      <input type="range" id="zoom" min="30" max="300" value="100" step="5">
+      <span id="zoom-val" style="min-width:38px">100%</span>
+    </label>
+    <div class="sep"></div>
+    <span class="lbl-sm">Orientación:</span>
+    <button class="btn-c active" id="btn-land" onclick="setPdfOrient('landscape')">⬛ Horizontal</button>
+    <button class="btn-c" id="btn-port" onclick="setPdfOrient('portrait')">🔲 Vertical</button>
+    <div class="sep"></div>
+    <label>Hojas H: <input type="number" id="h-pages" min="1" max="10" value="1"></label>
+    <label>Hojas V: <input type="number" id="v-pages" min="1" max="10" value="1"></label>
+    <div class="sep"></div>
+    <button class="btn-print" id="btn-pdf" onclick="_savePdf()">🖨 Guardar PDF</button>
+    <span class="lbl-sm">${today}</span>
+  </div>
   <div class="header">
     <div class="proj-name">${_projLabel}</div>
   </div>
   <div class="gantt-frame" id="gantt-wrap">
     ${svgStr}
   </div>
-  <footer class="ecm-footer">ECM Project v1.0.0 | &#169; 2026 E. Ch&#225;vez</footer>
-  <div class="controls">
-    <label>Zoom:
-      <input type="range" id="zoom" min="30" max="300" value="100" step="5">
-      <span id="zoom-val" style="min-width:40px">100%</span>
-    </label>
-    <div class="sep"></div>
-    <span style="color:#78909C">Orientación PDF:</span>
-    <button class="btn-c active" id="btn-land" onclick="setPdfOrient('landscape')">⬛ Horizontal</button>
-    <button class="btn-c" id="btn-port" onclick="setPdfOrient('portrait')">🔲 Vertical</button>
-    <div class="sep"></div>
-    <button class="btn-print" id="btn-pdf" onclick="_savePdf()">🖨 Guardar PDF</button>
-    <span style="color:#78909C;font-size:11px">${today}</span>
-  </div>
   <script>
     const _PDF_FILENAME = ${JSON.stringify(_pdfFile)};
     const _PROJ_NAME    = ${JSON.stringify(project.name)};
     let   _pdfOrient    = 'landscape';
 
-    // Zoom SVG preview
     const zoomEl  = document.getElementById('zoom');
     const zoomVal = document.getElementById('zoom-val');
     const svgEl   = document.querySelector('#gantt-wrap svg');
@@ -213,89 +209,87 @@ export function printGantt(rows) {
       const btn = document.getElementById('btn-pdf');
       if (!window.jspdf) { alert('Librería PDF no disponible. Verifique su conexión e intente de nuevo.'); return; }
       if (btn) { btn.disabled = true; btn.textContent = '⏳ Generando…'; }
+
+      const hPages = Math.max(1, Math.min(10, parseInt(document.getElementById('h-pages').value) || 1));
+      const vPages = Math.max(1, Math.min(10, parseInt(document.getElementById('v-pages').value) || 1));
+
       try {
         const { jsPDF } = window.jspdf;
         const svg = document.querySelector('#gantt-wrap svg');
         if (!svg) throw new Error('SVG no encontrado');
 
-        // Dimensiones del SVG (usa atributos explícitos que genera gantt-svg.js)
         const svgW = parseFloat(svg.getAttribute('width'))  || svg.viewBox.baseVal.width  || svg.getBoundingClientRect().width;
         const svgH = parseFloat(svg.getAttribute('height')) || svg.viewBox.baseVal.height || svg.getBoundingClientRect().height;
         if (!svgW || !svgH) throw new Error('Dimensiones SVG inválidas');
 
-        // Calcular escala para canvas: target ~200 DPI en A4
-        const isLand = _pdfOrient === 'landscape';
-        const A4w_mm = isLand ? 277 : 190;  // A4 con márgenes 10mm c/lado
-        const A4h_mm = isLand ? 190 : 277;
-        const MM2PX  = 200 / 25.4;          // 200 DPI → px/mm
-        const fitW   = (A4w_mm * MM2PX) / svgW;
-        const fitH   = (A4h_mm * MM2PX) / svgH;
-        const scale  = Math.min(fitW, fitH, 3);  // max 3x para no exceder memoria
+        const isLand    = _pdfOrient === 'landscape';
+        const MARG      = 10;
+        const RENDER_DPI = 350;
+        const MM2PX     = RENDER_DPI / 25.4;
+        const A4w_mm    = isLand ? 297 : 210;
+        const A4h_mm    = isLand ? 210 : 297;
+        const availW_mm = A4w_mm - 2 * MARG;
+        const availH_mm = A4h_mm - 2 * MARG - 7;
+        const tileW_px  = Math.round(availW_mm * MM2PX);
+        const tileH_px  = Math.round(availH_mm * MM2PX);
 
-        const cw = Math.round(svgW * scale);
-        const ch = Math.round(svgH * scale);
+        const cellW = svgW / hPages;
+        const cellH = svgH / vPages;
 
-        const canvas = document.createElement('canvas');
-        canvas.width  = cw;
-        canvas.height = ch;
-        const ctx = canvas.getContext('2d');
-        ctx.fillStyle = '#ffffff';
-        ctx.fillRect(0, 0, cw, ch);
-        ctx.scale(scale, scale);
+        const doc = new jsPDF({ orientation: _pdfOrient, unit: 'mm', format: 'a4' });
+        const totalPages = hPages * vPages;
+        let pageNum = 0;
 
-        // Serializar SVG y renderizar en canvas
-        const clone = svg.cloneNode(true);
-        clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
-        clone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
-        const svgStr = new XMLSerializer().serializeToString(clone);
-        const blob   = new Blob([svgStr], { type: 'image/svg+xml;charset=utf-8' });
-        const url    = URL.createObjectURL(blob);
+        for (let j = 0; j < vPages; j++) {
+          for (let i = 0; i < hPages; i++) {
+            if (pageNum > 0) doc.addPage();
 
-        await new Promise((res, rej) => {
-          const img = new Image();
-          img.onload = () => { ctx.drawImage(img, 0, 0, svgW, svgH); URL.revokeObjectURL(url); res(); };
-          img.onerror = () => { URL.revokeObjectURL(url); rej(new Error('Error al renderizar SVG')); };
-          img.src = url;
-        });
+            const pw = doc.internal.pageSize.getWidth();
+            const ph = doc.internal.pageSize.getHeight();
 
-        const imgData = canvas.toDataURL('image/png', 0.92);
+            const clone = svg.cloneNode(true);
+            clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+            clone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
+            clone.setAttribute('viewBox', i * cellW + ' ' + j * cellH + ' ' + cellW + ' ' + cellH);
+            clone.setAttribute('width', String(tileW_px));
+            clone.setAttribute('height', String(tileH_px));
 
-        // Crear PDF con jsPDF
-        const doc   = new jsPDF({ orientation: _pdfOrient, unit: 'mm', format: 'a4' });
-        const pw    = doc.internal.pageSize.getWidth();
-        const ph    = doc.internal.pageSize.getHeight();
-        const marg  = 10;
-        const availW = pw - 2 * marg;
-        const availH = ph - 2 * marg - 10; // espacio para cabecera
+            const svgBlob = new Blob([new XMLSerializer().serializeToString(clone)],
+                                     { type: 'image/svg+xml;charset=utf-8' });
+            const svgUrl = URL.createObjectURL(svgBlob);
 
-        const svgWmm  = svgW / (96 / 25.4);  // px → mm (96dpi base)
-        const svgHmm  = svgH / (96 / 25.4);
-        const ratio   = Math.min(availW / svgWmm, availH / svgHmm);
-        const imgW    = svgWmm * ratio;
-        const imgH    = svgHmm * ratio;
+            const tileCanvas = document.createElement('canvas');
+            tileCanvas.width  = tileW_px;
+            tileCanvas.height = tileH_px;
+            const ctx = tileCanvas.getContext('2d');
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, tileW_px, tileH_px);
 
-        // Cabecera
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(11);
-        doc.setTextColor(25, 118, 210);
-        doc.text(_PROJ_NAME, marg, marg + 5);
-        doc.setDrawColor(25, 118, 210);
-        doc.setLineWidth(0.4);
-        doc.line(marg, marg + 7, pw - marg, marg + 7);
+            await new Promise((res, rej) => {
+              const img = new Image();
+              img.onload = () => { ctx.drawImage(img, 0, 0, tileW_px, tileH_px); URL.revokeObjectURL(svgUrl); res(); };
+              img.onerror = () => { URL.revokeObjectURL(svgUrl); rej(new Error('Error en tile ' + (pageNum + 1))); };
+              img.src = svgUrl;
+            });
 
-        // Diagrama Gantt
-        doc.addImage(imgData, 'PNG', marg, marg + 10, imgW, imgH);
+            doc.addImage(tileCanvas.toDataURL('image/png', 0.85), 'PNG', MARG, MARG, availW_mm, availH_mm);
 
-        // Pie de página
-        doc.setFont('helvetica', 'normal');
-        doc.setFontSize(7);
-        doc.setTextColor(158, 158, 158);
-        doc.text('ECM Project v1.0.0 | \\u00a9 2026 E. Ch\\u00e1vez', pw / 2, ph - 5, { align: 'center' });
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(7);
+            doc.setTextColor(120, 120, 120);
+            doc.text(_PROJ_NAME, MARG, ph - 4);
+            doc.text('ECM Project', pw / 2, ph - 4, { align: 'center' });
+            doc.text((pageNum + 1) + ' / ' + totalPages, pw - MARG, ph - 4, { align: 'right' });
+            doc.setDrawColor(200, 200, 200);
+            doc.setLineWidth(0.2);
+            doc.line(MARG, ph - 7, pw - MARG, ph - 7);
 
-        // Guardar
+            pageNum++;
+          }
+        }
+
         if (window.ecmIsElectron && typeof window.ecmSavePdf === 'function') {
-          const b64 = doc.output('datauristring').split(',')[1];
-          window.ecmSavePdf(b64, _PDF_FILENAME);
+          window.ecmSavePdf(doc.output('datauristring').split(',')[1], _PDF_FILENAME);
         } else {
           doc.save(_PDF_FILENAME);
         }

@@ -48,6 +48,8 @@ export class MonteCarloPanel {
     this._project = null;
     /** @type {import('./calendar.js').Calendar|null} */
     this._calendar = null;
+    /** @type {Array<{pred_id:string,succ_id:string,type:string,lag_days:number}>} */
+    this._deps = [];
 
     this._buildUI();
   }
@@ -157,11 +159,12 @@ export class MonteCarloPanel {
    * @param {object|null} cpmResult
    * @param {Map<string,object>} tasks
    */
-  onCpmUpdate(cpmResult, tasks, project, calendar) {
+  onCpmUpdate(cpmResult, tasks, project, calendar, deps) {
     this._cpmResult = cpmResult;
     this._tasks = tasks;
     this._project = project ?? null;
     this._calendar = calendar ?? null;
+    this._deps = deps ? [...deps].filter(d => !d.deleted_at) : [];
     // Limpiar resultado anterior si los datos cambiaron
     if (this._lastResult) {
       this._lastResult = null;
@@ -232,15 +235,13 @@ export class MonteCarloPanel {
 
     // Dependencias
     const depsArr = [];
-    if (this._cpmResult.deps) {
-      for (const dep of this._cpmResult.deps) {
-        depsArr.push({
-          predecessor_id: dep.pred_id ?? dep.predecessor_id,
-          successor_id: dep.succ_id ?? dep.successor_id,
-          type: dep.type ?? 'FS',
-          lag: dep.lag_days ?? dep.lag ?? 0,
-        });
-      }
+    for (const dep of this._deps) {
+      depsArr.push({
+        predecessor_id: dep.pred_id ?? dep.predecessor_id,
+        successor_id: dep.succ_id ?? dep.successor_id,
+        type: dep.type ?? 'FS',
+        lag: dep.lag_days ?? dep.lag ?? 0,
+      });
     }
 
     // Calendario

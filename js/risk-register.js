@@ -20,13 +20,39 @@ function _printToPdf(moduleName, htmlContent) {
   const _proj = appState.state.project?.name ?? 'ECM Project';
   const _d = new Date(), _dd = String(_d.getDate()).padStart(2,'0'), _mm = String(_d.getMonth()+1).padStart(2,'0'), _yy = _d.getFullYear();
   const title = `${_proj}-${moduleName}-${_dd}${_mm}${_yy}`;
-  const w = window.open('', '_blank', 'width=900,height=700');
+  const w = window.open('', '_blank', 'width=1000,height=750');
   if (!w) return;
   w.document.write(`<!DOCTYPE html><html><head>
-    <meta charset="utf-8">
-    <title>${title}</title>
-    <style>body { font-family: Arial, sans-serif; padding: 24px; } h1 { font-size: 18px; margin-bottom: 16px; } @media print { body { margin: 0; } }</style>
-  </head><body>${htmlContent}<script>window.print();window.close();<\/script></body></html>`);
+    <meta charset="utf-8"><title>${title}</title>
+    <style>
+      *{box-sizing:border-box}body{font-family:Arial,sans-serif;margin:0;padding:0}
+      .np{background:#f5f5f5;border-bottom:1px solid #ddd;padding:8px 16px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+      .np button{padding:6px 14px;border:1px solid #999;border-radius:4px;cursor:pointer;font-size:13px;background:#fff}
+      .np button.pri{background:#0066cc;color:#fff;border-color:#0066cc}
+      .np label{font-size:12px;color:#666}
+      .ct{padding:24px}h1{font-size:18px;margin-bottom:16px}
+      table{border-collapse:collapse;width:100%}th,td{border:1px solid #ccc;padding:6px 10px;font-size:12px}th{background:#f4f5f7;font-weight:600}
+      @media print{.np{display:none!important}.ct{padding:8px}}
+    </style>
+  </head><body>
+  <div class="np">
+    <button class="pri" onclick="window.print()">&#x1F5A8; Guardar PDF</button>
+    <span style="color:#bbb">|</span>
+    <label>Orientaci&#243;n:</label>
+    <button onclick="setOri('portrait')">Vertical</button>
+    <button onclick="setOri('landscape')">Horizontal</button>
+    <span style="color:#bbb">|</span>
+    <label>Hojas H: <input type="number" min="1" max="10" value="1" style="width:44px;padding:2px 4px;border:1px solid #ccc;border-radius:3px;font-size:12px;text-align:center"></label>
+    <label>Hojas V: <input type="number" min="1" max="10" value="1" style="width:44px;padding:2px 4px;border:1px solid #ccc;border-radius:3px;font-size:12px;text-align:center"></label>
+    <span style="color:#bbb">|</span>
+    <button onclick="window.close()">&#x2715; Cerrar</button>
+  </div>
+  <div class="ct">${htmlContent}</div>
+  <script>
+    function setOri(o){var s=document.getElementById('ps')||document.createElement('style');s.id='ps';s.textContent='@page{size:A4 '+o+'}';document.head.appendChild(s);}
+    setOri('portrait');
+  <\/script>
+  </body></html>`);
   w.document.close();
 }
 
