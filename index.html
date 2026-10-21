@@ -57,6 +57,10 @@
     <span class="topbar-sep"></span>
     <span id="project-name-display" class="project-name" aria-live="polite">—</span>
     <button id="btn-hard-reload" class="btn btn-ghost btn-sm" title="Vaciar caché y volver a cargar" aria-label="Vaciar caché y volver a cargar" style="font-size:11px;flex-shrink:0">↺ Actualizar</button>
+    <label class="tq-autocalc" style="flex-shrink:0">
+      <input id="btn-auto-calc" type="checkbox" checked aria-label="Cálculo automático">
+      Auto-calc
+    </label>
     <div class="spacer"></div>
     <!-- Indicador de modo -->
     <span id="sync-mode-badge" class="local-mode-badge" style="display:none">Modo local</span>
@@ -380,11 +384,6 @@
         <button id="btn-baseline-compare" class="btn btn-ghost btn-sm" title="Comparar con Línea Base (doble barra Gantt)" aria-label="Comparar línea base" aria-pressed="false">
           📐 Comparar LB
         </button>
-        <div class="toolbar-sep"></div>
-        <label class="tq-autocalc">
-          <input id="btn-auto-calc" type="checkbox" checked aria-label="Cálculo automático">
-          Auto-calc
-        </label>
         <div class="toolbar-sep"></div>
         <button id="btn-changelog" class="btn btn-ghost btn-sm" title="Historial de cambios" aria-label="Abrir historial de cambios" aria-pressed="false">
           📋 Historial
