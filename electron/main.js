@@ -81,7 +81,7 @@ async function createWindow() {
     height: 900,
     minWidth:  900,
     minHeight: 600,
-    title: 'ECM Cronograma',
+    title: 'ECM Project',
     icon: path.join(APP_ROOT, 'icon.png'),
     webPreferences: {
       contextIsolation: true,

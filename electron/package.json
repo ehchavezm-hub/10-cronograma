@@ -1,7 +1,7 @@
 {
-  "name": "ecm-cronograma",
-  "productName": "ECM Cronograma",
-  "version": "1.0.1",
+  "name": "ecm-project",
+  "productName": "ECM Project",
+  "version": "1.0.127",
   "description": "Gestión de cronogramas y proyectos ECM",
   "main": "main.js",
   "author": "E. Chávez",
@@ -12,10 +12,10 @@
     "dist:win": "electron-builder --win --x64"
   },
   "build": {
-    "appId": "com.ecm.cronograma",
-    "productName": "ECM Cronograma",
+    "appId": "com.ecmproject.app",
+    "productName": "ECM Project",
     "copyright": "© 2026 E. Chávez",
-    "asar": true,
+    "asar": false,
     "files": [
       "main.js"
     ],
@@ -57,7 +57,7 @@
       "createStartMenuShortcut": true,
       "installerIcon": "../icon.ico",
       "uninstallerIcon": "../icon.ico",
-      "shortcutName": "ECM Cronograma"
+      "shortcutName": "ECM Project"
     },
     "directories": {
       "output": "../dist-win",
