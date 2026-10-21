@@ -60,13 +60,16 @@ function _printToPdf(moduleName, htmlContent) {
     </style>
   </head><body>
   <div class="np">
-    <button class="pri" onclick="window.print()">🖨 Imprimir / Guardar PDF</button>
+    <button class="pri" onclick="window.print()">&#x1F5A8; Guardar PDF</button>
     <span style="color:#bbb">|</span>
-    <label>Orientación:</label>
+    <label>Orientaci&#243;n:</label>
     <button onclick="setOri('portrait')">Vertical</button>
     <button onclick="setOri('landscape')">Horizontal</button>
     <span style="color:#bbb">|</span>
-    <button onclick="window.close()">✕ Cerrar</button>
+    <label>Hojas H: <input type="number" min="1" max="10" value="1" style="width:44px;padding:2px 4px;border:1px solid #ccc;border-radius:3px;font-size:12px;text-align:center"></label>
+    <label>Hojas V: <input type="number" min="1" max="10" value="1" style="width:44px;padding:2px 4px;border:1px solid #ccc;border-radius:3px;font-size:12px;text-align:center"></label>
+    <span style="color:#bbb">|</span>
+    <button onclick="window.close()">&#x2715; Cerrar</button>
   </div>
   <div class="ct">${htmlContent}</div>
   <script>
