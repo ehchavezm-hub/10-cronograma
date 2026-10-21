@@ -70,14 +70,14 @@ export function generatePdfReport() {
   h2 { font-size: 13pt; font-weight: 700; color: #1976D2; margin: 24px 0 10px; border-bottom: 2px solid #E3F2FD; padding-bottom: 4px; }
   h3 { font-size: 11pt; font-weight: 600; color: #424242; margin: 16px 0 8px; }
 
-  .kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 20px; }
-  .kpi-card { background: #F5F5F5; border-radius: 8px; padding: 14px; text-align: center; }
-  .kpi-value { font-size: 22pt; font-weight: 700; color: #1976D2; }
-  .kpi-label { font-size: 9pt; color: #757575; margin-top: 2px; }
+  .kpi-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; margin-bottom: 16px; }
+  .kpi-card { background: #F5F5F5; border-radius: 6px; padding: 8px 6px; text-align: center; }
+  .kpi-value { font-size: 15pt; font-weight: 700; color: #1976D2; }
+  .kpi-label { font-size: 8pt; color: #757575; margin-top: 2px; }
 
   table { width: 100%; border-collapse: collapse; font-size: 9.5pt; margin-bottom: 16px; }
   th { background: #1976D2; color: #fff; padding: 7px 10px; text-align: left; font-weight: 600; }
-  td { padding: 6px 10px; border-bottom: 1px solid #E0E0E0; }
+  td { padding: 6px 10px; border: 1px solid #E0E0E0; }
   tr:nth-child(even) td { background: #FAFAFA; }
   .tag { display: inline-block; border-radius: 10px; padding: 2px 8px; font-size: 9pt; font-weight: 600; }
   .tag-done { background: #E8F5E9; color: #388E3C; }
@@ -124,18 +124,15 @@ export function generatePdfReport() {
     <div class="kpi-value">${pctAvg}%</div>
     <div class="kpi-label">Avance Promedio</div>
   </div>
+  <div class="kpi-card">
+    <div class="kpi-value" style="color:#1976D2">${cpmResult && maxEf ? fmtDate(maxEf - 1) : '-'}</div>
+    <div class="kpi-label">Fin Proyectado</div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-value" style="color:#D32F2F">${criticalTasks.length}</div>
+    <div class="kpi-label">Tareas Críticas</div>
+  </div>
 </div>
-${cpmResult ? `
-<div style="background:#F5F5F5;border-radius:8px;padding:14px;margin-bottom:20px;display:grid;grid-template-columns:1fr 1fr;gap:14px">
-  <div>
-    <div style="font-size:9pt;color:#757575;margin-bottom:2px">Fin proyectado</div>
-    <div style="font-size:13pt;font-weight:700;color:#1976D2">${maxEf ? fmtDate(maxEf - 1) : '-'}</div>
-  </div>
-  <div>
-    <div style="font-size:9pt;color:#757575;margin-bottom:2px">Tareas en ruta crítica</div>
-    <div style="font-size:13pt;font-weight:700;color:#D32F2F">${criticalTasks.length}</div>
-  </div>
-</div>` : ''}
 
 <!-- EDT -->
 <h2>EDT — Estructura de Desglose del Trabajo</h2>
@@ -161,7 +158,7 @@ ${cpmResult ? `
           : '<span class="tag tag-todo">Pendiente</span>';
       return `<tr>
         <td style="${isSummary?'font-weight:600;':''}${isCrit?'color:#D32F2F;':''}">
-          ${isCrit?'🔴 ':''}${_esc(t.name)}
+          ${_esc(t.name)}
         </td>
         <td>${cpm ? fmtDate(cpm.es) : '-'}</td>
         <td>${cpm ? fmtDate(Math.max(cpm.es, cpm.ef - 1)) : '-'}</td>

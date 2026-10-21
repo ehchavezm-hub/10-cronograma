@@ -234,7 +234,7 @@ export function printGantt(rows) {
       // @page CSS
       let ps = document.getElementById('_ps') || document.createElement('style');
       ps.id = '_ps';
-      ps.textContent = '@page{size:A4 ' + _orient + ';margin:' + MARG + 'mm ' + MARG + 'mm ' + (MARG+8) + 'mm ' + MARG + 'mm}';
+      ps.textContent = '@page{size:A4 ' + _orient + ';margin:' + MARG + 'mm}';
       document.head.appendChild(ps);
 
       const preview = document.getElementById('preview');
