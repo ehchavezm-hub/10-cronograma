@@ -2546,17 +2546,40 @@ function _printToPdf(moduleName, htmlContent) {
   const _mm = String(_d.getMonth()+1).padStart(2,'0');
   const _yy = _d.getFullYear();
   const title = `${_proj}-${moduleName}-${_dd}${_mm}${_yy}`;
-  const w = window.open('', '_blank', 'width=900,height=700');
+  const w = window.open('', '_blank', 'width=1000,height=750');
   if (!w) return;
   w.document.write(`<!DOCTYPE html><html><head>
-    <meta charset="utf-8">
-    <title>${title}</title>
+    <meta charset="utf-8"><title>${title}</title>
     <style>
-      body { font-family: Arial, sans-serif; padding: 24px; }
-      h1 { font-size: 18px; margin-bottom: 16px; }
-      @media print { body { margin: 0; } }
+      *{box-sizing:border-box}body{font-family:Arial,sans-serif;margin:0;padding:0}
+      .np{background:#f5f5f5;border-bottom:1px solid #ddd;padding:8px 16px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+      .np button{padding:6px 14px;border:1px solid #999;border-radius:4px;cursor:pointer;font-size:13px;background:#fff}
+      .np button.pri{background:#0066cc;color:#fff;border-color:#0066cc}
+      .np label{font-size:12px;color:#666}
+      .ct{padding:24px}h1{font-size:18px;margin-bottom:16px}
+      table{border-collapse:collapse;width:100%}th,td{border:1px solid #ccc;padding:6px 10px;font-size:12px}th{background:#f4f5f7;font-weight:600}
+      svg{max-width:100%;height:auto}img{max-width:100%}
+      @media print{.np{display:none!important}.ct{padding:8px}}
     </style>
-  </head><body>${htmlContent}<script>window.print();window.close();<\/script></body></html>`);
+  </head><body>
+  <div class="np">
+    <button class="pri" onclick="window.print()">&#x1F5A8; Guardar PDF</button>
+    <span style="color:#bbb">|</span>
+    <label>Orientaci&#243;n:</label>
+    <button onclick="setOri('portrait')">Vertical</button>
+    <button onclick="setOri('landscape')">Horizontal</button>
+    <span style="color:#bbb">|</span>
+    <label>Hojas H: <input type="number" min="1" max="10" value="1" style="width:44px;padding:2px 4px;border:1px solid #ccc;border-radius:3px;font-size:12px;text-align:center"></label>
+    <label>Hojas V: <input type="number" min="1" max="10" value="1" style="width:44px;padding:2px 4px;border:1px solid #ccc;border-radius:3px;font-size:12px;text-align:center"></label>
+    <span style="color:#bbb">|</span>
+    <button onclick="window.close()">&#x2715; Cerrar</button>
+  </div>
+  <div class="ct">${htmlContent}</div>
+  <script>
+    function setOri(o){var s=document.getElementById('ps')||document.createElement('style');s.id='ps';s.textContent='@page{size:A4 '+o+'}';document.head.appendChild(s);}
+    setOri('portrait');
+  <\/script>
+  </body></html>`);
   w.document.close();
 }
 
@@ -3849,43 +3872,52 @@ function _printOrgChart() {
             --clr-surface-2:#f5f7fa; --clr-text:#1a1d23; --clr-text-2:#4a5568;
             --clr-border:#e2e8f0; }
     * { box-sizing:border-box; }
-    body { margin:0; padding:0; font-family:'Segoe UI',system-ui,sans-serif; background:#fff; }
-    .header { display:flex; align-items:center; padding:0 0 6px;
-              border-bottom:2px solid #1976D2; margin-bottom:8px; }
-    .proj-name { font-size:16px; font-weight:700; color:#1976D2; }
-    .oc-frame { border:0.25px solid #546E7A; overflow:hidden; }
-    .controls { display:flex; align-items:center; gap:12px; padding:8px 0 10px;
-                font-size:12px; flex-wrap:wrap; }
-    .controls label { display:flex; align-items:center; gap:6px; color:#455A64; }
-    .controls input[type=range] { width:120px; accent-color:#1976D2; }
-    .btn-c { border:1px solid #90A4AE; border-radius:6px; padding:5px 13px;
+    body { margin:0; padding:0; font-family:'Segoe UI',system-ui,sans-serif; background:#f5f7fa; }
+    .header { display:flex; align-items:center; padding:6px 12px 4px;
+              border-bottom:2px solid #1976D2; background:#fff; }
+    .proj-name { font-size:15px; font-weight:700; color:#1976D2; }
+    .oc-frame { border:0.25px solid #546E7A; overflow:hidden; margin:8px 12px; background:#fff; }
+    .controls { display:flex; align-items:center; gap:10px; padding:8px 12px;
+                font-size:12px; flex-wrap:wrap; background:#fff;
+                border-bottom:1px solid #CFD8DC; position:sticky; top:0; z-index:10; }
+    .controls label { display:flex; align-items:center; gap:5px; color:#455A64; }
+    .controls input[type=range] { width:100px; accent-color:#1976D2; }
+    .controls input[type=number] { width:46px; padding:2px 4px; border:1px solid #90A4AE;
+                                   border-radius:4px; font-size:12px; text-align:center; }
+    .btn-c { border:1px solid #90A4AE; border-radius:6px; padding:4px 11px;
              font-size:12px; cursor:pointer; background:#fff; color:#455A64; }
     .btn-c:hover,.btn-c.active { background:#1976D2; color:#fff; border-color:#1976D2; }
     .btn-print { background:#1976D2; color:#fff; border:none; border-radius:6px;
-                 padding:6px 16px; font-size:13px; cursor:pointer; }
+                 padding:6px 16px; font-size:13px; cursor:pointer; font-weight:600; }
     .btn-print:hover { background:#1565C0; }
-    .sep { width:1px; height:22px; background:#CFD8DC; }
+    .sep { width:1px; height:20px; background:#CFD8DC; flex-shrink:0; }
+    .lbl-sm { font-size:11px; color:#78909C; }
     @media print { .controls { display:none !important; }
       footer.ecm-footer { display:block; position:fixed; bottom:0; left:0; right:0;
         font-size:7pt; color:#9E9E9E; text-align:center;
         border-top:1px solid #E0E0E0; padding-top:3px; padding-bottom:2px;
         background:white; }
+      .oc-frame { margin:0; border:none; }
     }
     footer.ecm-footer { display:none; }
   </style>
+  <style id="page-style">@page { size: landscape; margin: 10mm 10mm 15mm; }</style>
 </head><body>
   <div class="controls">
     <label>Zoom:
       <input type="range" id="zoom" min="10" max="200" value="100" step="5">
-      <span id="zoom-val" style="min-width:40px">100%</span>
+      <span id="zoom-val" style="min-width:38px">100%</span>
     </label>
     <div class="sep"></div>
-    <span style="color:#78909C">Orientación:</span>
-    <button class="btn-c active" id="btn-land" onclick="setOrient('landscape')">⬛ Horizontal</button>
-    <button class="btn-c" id="btn-port" onclick="setOrient('portrait')">🔲 Vertical</button>
+    <span class="lbl-sm">Orientaci&#243;n:</span>
+    <button class="btn-c active" id="btn-land" onclick="setOrient('landscape')">&#x2B1B; Horizontal</button>
+    <button class="btn-c" id="btn-port" onclick="setOrient('portrait')">&#x1F532; Vertical</button>
     <div class="sep"></div>
-    <button class="btn-print" onclick="window.print()">🖨 Imprimir</button>
-    <span style="color:#78909C;font-size:11px">${today}</span>
+    <label>Hojas H: <input type="number" id="h-pages" min="1" max="10" value="1"></label>
+    <label>Hojas V: <input type="number" id="v-pages" min="1" max="10" value="1"></label>
+    <div class="sep"></div>
+    <button class="btn-print" onclick="window.print()">&#x1F5A8; Imprimir</button>
+    <span class="lbl-sm">${today}</span>
   </div>
   <div class="header">
     <div class="proj-name">Estructura de Proyectos${projName ? ' — ' + projName : ''}</div>
@@ -4756,84 +4788,174 @@ function _exportCpmNetwork(fmt, dlg) {
     // reordene el DOM al encontrar SVG (problema histórico con document.write + SVG)
     const svgInline = serializer.serializeToString(clone);
 
+    const _cpmPdfFile = `${appState.state.project?.name ?? projName}-Red CPM-${String(_d.getDate()).padStart(2,'0')}${String(_d.getMonth()+1).padStart(2,'0')}${_d.getFullYear()}.pdf`;
     const html = `<!doctype html>
 <html lang="es"><head>
   <meta charset="UTF-8">
   <title>${fileTitle}</title>
-  <style id="page-style">@page { size: landscape; margin: 10mm 10mm 15mm; }</style>
   <style>
     * { box-sizing: border-box; }
-    body  { margin: 0; padding: 8px 12px; font-family: 'Segoe UI', system-ui, sans-serif; }
-    .header { display: flex; align-items: center; padding: 0 0 6px;
-              border-bottom: 2px solid #1976D2; margin-bottom: 8px; }
-    .proj-name { font-size: 16px; font-weight: 700; color: #1976D2; }
-    .gantt-frame { border: 0.25px solid #546E7A; display: block; width: 100%; overflow: hidden; }
-    .gantt-frame svg { width: var(--zoom-w, 100%); height: auto; display: block; }
-    .controls { display: flex; align-items: center; gap: 12px; padding: 8px 0 10px;
-                font-size: 12px; flex-wrap: wrap; }
-    .controls label { display: flex; align-items: center; gap: 6px; color: #455A64; }
-    .controls input[type=range] { width: 120px; accent-color: #1976D2; }
-    .btn-c { border: 1px solid #90A4AE; border-radius: 6px; padding: 5px 13px;
+    body  { margin: 0; padding: 0; font-family: 'Segoe UI', system-ui, sans-serif; background:#f5f7fa; }
+    .controls { display: flex; align-items: center; gap: 10px; padding: 8px 12px;
+                font-size: 12px; flex-wrap: wrap; background:#fff;
+                border-bottom: 1px solid #CFD8DC; position: sticky; top:0; z-index:10; }
+    .controls label { display: flex; align-items: center; gap: 5px; color: #455A64; }
+    .controls input[type=range] { width: 100px; accent-color: #1976D2; }
+    .controls input[type=number] { width: 46px; padding: 2px 4px; border: 1px solid #90A4AE;
+                                   border-radius: 4px; font-size: 12px; text-align:center; }
+    .btn-c { border: 1px solid #90A4AE; border-radius: 6px; padding: 4px 11px;
              font-size: 12px; cursor: pointer; background: #fff; color: #455A64; }
     .btn-c:hover, .btn-c.active { background: #1976D2; color: #fff; border-color: #1976D2; }
     .btn-print { background: #1976D2; color: #fff; border: none; border-radius: 6px;
-                 padding: 6px 16px; font-size: 13px; cursor: pointer; }
+                 padding: 6px 16px; font-size: 13px; cursor: pointer; font-weight:600; }
     .btn-print:hover { background: #1565C0; }
-    .sep { width: 1px; height: 22px; background: #CFD8DC; }
-    .legend-wrap { margin-top: 8px; display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
+    .btn-print:disabled { background: #90A4AE; cursor: not-allowed; }
+    .sep { width: 1px; height: 20px; background: #CFD8DC; flex-shrink:0; }
+    .lbl-sm { font-size:11px; color:#78909C; }
+    .header { display: flex; align-items: center; padding: 6px 12px 4px;
+              border-bottom: 2px solid #1976D2; background:#fff; }
+    .proj-name { font-size: 15px; font-weight: 700; color: #1976D2; }
+    .gantt-frame { border: 0.25px solid #546E7A; display: block; overflow: auto;
+                   margin: 8px 12px; background:#fff; }
+    .gantt-frame svg { width: var(--zoom-w, 100%); height: auto; display: block; }
+    .legend-wrap { margin: 4px 12px 8px; display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
     .legend-item { display: flex; align-items: center; gap: 5px; font-size: 12px; color: #444; }
-    .legend-swatch { width: 13px; height: 13px; border-radius: 2px; flex-shrink: 0; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
-    @media print { .controls { display: none !important; }
-      .legend-swatch { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
-      * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-      footer.ecm-footer { display: block; position: fixed; bottom: 0; left: 0; right: 0;
-        font-size: 7pt; color: #9E9E9E; text-align: center;
-        border-top: 1px solid #E0E0E0; padding-top: 3px; padding-bottom: 2px;
-        background: white; }
-    }
-    footer.ecm-footer { display: none; }
+    .legend-swatch { width: 13px; height: 13px; border-radius: 2px; flex-shrink: 0; }
   </style>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"><\/script>
 </head><body>
   <div class="controls">
     <label>Zoom:
       <input type="range" id="zoom" min="30" max="300" value="100" step="5">
-      <span id="zoom-val" style="min-width:40px">100%</span>
+      <span id="zoom-val" style="min-width:38px">100%</span>
     </label>
     <div class="sep"></div>
-    <span style="color:#78909C">Orientaci&#243;n:</span>
+    <span class="lbl-sm">Orientaci&#243;n:</span>
     <button class="btn-c active" id="btn-land">&#x2B1B; Horizontal</button>
     <button class="btn-c" id="btn-port">&#x1F532; Vertical</button>
     <div class="sep"></div>
-    <button class="btn-print" id="btn-print">&#x1F5A8; Imprimir</button>
-    <span style="color:#78909C;font-size:11px">${today}</span>
+    <label>Hojas H: <input type="number" id="h-pages" min="1" max="10" value="1"></label>
+    <label>Hojas V: <input type="number" id="v-pages" min="1" max="10" value="1"></label>
+    <div class="sep"></div>
+    <button class="btn-print" id="btn-pdf">&#x1F5A8; Guardar PDF</button>
+    <span class="lbl-sm">${today}</span>
   </div>
   <div class="header">
     <div class="proj-name">${projDisplayName}</div>
   </div>
-  <div class="gantt-frame">${svgInline}</div>
+  <div class="gantt-frame" id="cpm-frame">${svgInline}</div>
   <div class="legend-wrap">
     <div class="legend-item"><div class="legend-swatch" style="background:#e74c3c"></div>Cr&#237;tica</div>
     <div class="legend-item"><div class="legend-swatch" style="background:#f39c12"></div>Casi cr&#237;tica</div>
     <div class="legend-item"><div class="legend-swatch" style="background:#2980b9"></div>Normal</div>
     <div class="legend-item"><div class="legend-swatch" style="background:#27ae60"></div>Completa</div>
   </div>
-  <footer class="ecm-footer">ECM Project v1.0.0 | &#169; 2026 E. Ch&#225;vez</footer>
   <script>
+    const _PDF_FILENAME = ${JSON.stringify(_cpmPdfFile)};
+    const _PROJ_NAME    = ${JSON.stringify(appState.state.project?.name ?? projName)};
+    let _pdfOrient = 'landscape';
     const zoom = document.getElementById('zoom');
     const zoomVal = document.getElementById('zoom-val');
-    const frame = document.querySelector('.gantt-frame');
+    const frame = document.getElementById('cpm-frame');
     zoom.addEventListener('input', () => {
       zoomVal.textContent = zoom.value + '%';
       frame.style.setProperty('--zoom-w', zoom.value + '%');
     });
     function setOrient(o) {
-      document.getElementById('page-style').textContent = '@page { size: ' + o + '; margin: 10mm 10mm 15mm; }';
+      _pdfOrient = o;
       document.getElementById('btn-land').classList.toggle('active', o === 'landscape');
       document.getElementById('btn-port').classList.toggle('active', o === 'portrait');
     }
     document.getElementById('btn-land').addEventListener('click', () => setOrient('landscape'));
     document.getElementById('btn-port').addEventListener('click', () => setOrient('portrait'));
-    document.getElementById('btn-print').addEventListener('click', () => window.print());
+    document.getElementById('btn-pdf').addEventListener('click', _savePdf);
+
+    async function _savePdf() {
+      const btn = document.getElementById('btn-pdf');
+      if (!window.jspdf) { alert('Librería PDF no disponible.'); return; }
+      if (btn) { btn.disabled = true; btn.textContent = '⏳ Generando…'; }
+
+      const hPages = Math.max(1, Math.min(10, parseInt(document.getElementById('h-pages').value) || 1));
+      const vPages = Math.max(1, Math.min(10, parseInt(document.getElementById('v-pages').value) || 1));
+
+      try {
+        const { jsPDF } = window.jspdf;
+        const svg = document.querySelector('#cpm-frame svg');
+        if (!svg) throw new Error('SVG no encontrado');
+
+        const svgW = svg.viewBox.baseVal.width  || parseFloat(svg.getAttribute('width'))  || svg.getBoundingClientRect().width;
+        const svgH = svg.viewBox.baseVal.height || parseFloat(svg.getAttribute('height')) || svg.getBoundingClientRect().height;
+        if (!svgW || !svgH) throw new Error('Dimensiones SVG inválidas');
+
+        const isLand    = _pdfOrient === 'landscape';
+        const MARG      = 10;
+        const RENDER_DPI = 350;
+        const MM2PX     = RENDER_DPI / 25.4;
+        const A4w_mm    = isLand ? 297 : 210;
+        const A4h_mm    = isLand ? 210 : 297;
+        const availW_mm = A4w_mm - 2 * MARG;
+        const availH_mm = A4h_mm - 2 * MARG - 7;
+        const tileW_px  = Math.round(availW_mm * MM2PX);
+        const tileH_px  = Math.round(availH_mm * MM2PX);
+
+        const cellW = svgW / hPages;
+        const cellH = svgH / vPages;
+
+        const doc = new jsPDF({ orientation: _pdfOrient, unit: 'mm', format: 'a4' });
+        const totalPages = hPages * vPages;
+        let pageNum = 0;
+
+        for (let j = 0; j < vPages; j++) {
+          for (let i = 0; i < hPages; i++) {
+            if (pageNum > 0) doc.addPage();
+            const pw = doc.internal.pageSize.getWidth();
+            const ph = doc.internal.pageSize.getHeight();
+
+            const clone = svg.cloneNode(true);
+            clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+            clone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
+            clone.setAttribute('viewBox', i*cellW + ' ' + j*cellH + ' ' + cellW + ' ' + cellH);
+            clone.setAttribute('width', String(tileW_px));
+            clone.setAttribute('height', String(tileH_px));
+
+            const svgBlob = new Blob([new XMLSerializer().serializeToString(clone)],
+                                     { type: 'image/svg+xml;charset=utf-8' });
+            const svgUrl = URL.createObjectURL(svgBlob);
+
+            const tc = document.createElement('canvas');
+            tc.width = tileW_px; tc.height = tileH_px;
+            const ctx = tc.getContext('2d');
+            ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, tileW_px, tileH_px);
+
+            await new Promise((res, rej) => {
+              const img = new Image();
+              img.onload = () => { ctx.drawImage(img, 0, 0, tileW_px, tileH_px); URL.revokeObjectURL(svgUrl); res(); };
+              img.onerror = () => { URL.revokeObjectURL(svgUrl); rej(new Error('Tile ' + (pageNum+1))); };
+              img.src = svgUrl;
+            });
+
+            doc.addImage(tc.toDataURL('image/png', 0.85), 'PNG', MARG, MARG, availW_mm, availH_mm);
+            doc.setFont('helvetica', 'normal'); doc.setFontSize(7); doc.setTextColor(120, 120, 120);
+            doc.text(_PROJ_NAME, MARG, ph - 4);
+            doc.text('ECM Project', pw/2, ph - 4, { align: 'center' });
+            doc.text((pageNum+1) + ' / ' + totalPages, pw - MARG, ph - 4, { align: 'right' });
+            doc.setDrawColor(200,200,200); doc.setLineWidth(0.2);
+            doc.line(MARG, ph - 7, pw - MARG, ph - 7);
+            pageNum++;
+          }
+        }
+
+        if (window.ecmIsElectron && typeof window.ecmSavePdf === 'function') {
+          window.ecmSavePdf(doc.output('datauristring').split(',')[1], _PDF_FILENAME);
+        } else {
+          doc.save(_PDF_FILENAME);
+        }
+      } catch (err) {
+        alert('Error al generar PDF: ' + err.message);
+      } finally {
+        if (btn) { btn.disabled = false; btn.textContent = '&#x1F5A8; Guardar PDF'; }
+      }
+    }
   <\/script>
 </body></html>`;
 
@@ -5360,7 +5482,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   document.getElementById('btn-monte-carlo-view')?.addEventListener('click', () => {
     _closeExplorer();
-    const { project, cpmResult, tasks, calendar, calExceptions } = appState.state;
+    const { project, cpmResult, tasks, deps, calendar, calExceptions } = appState.state;
     if (!project) { _showToast('Abre un proyecto primero', 'warn'); return; }
     if (!cpmResult) { _showToast('Calculando CPM…', 'warn'); return; }
     const dlg = /** @type {HTMLDialogElement} */ (document.getElementById('dlg-monte-carlo'));
@@ -5371,7 +5493,7 @@ document.addEventListener('DOMContentLoaded', () => {
       work_week: calendar?.work_week ?? [1,2,3,4,5],
       exceptions: (calExceptions ?? []).filter(e => !e.deleted_at).map(e => ({ on_date: e.on_date, is_working: e.is_working })),
     });
-    _mcPanel.onCpmUpdate(cpmResult, tasks, project, _mcCal);
+    _mcPanel.onCpmUpdate(cpmResult, tasks, project, _mcCal, [...(deps?.values() ?? [])]);
     _mcPanel.refresh(project.id);
     dlg.showModal?.() ?? (dlg.style.display = 'block');
   });

@@ -186,23 +186,43 @@ function _printToPdf(moduleName, htmlContent) {
   const w = window.open('', '_blank', 'width=1100,height=800');
   if (!w) return;
   w.document.write(`<!DOCTYPE html><html><head>
-    <meta charset="utf-8">
-    <title>${_esc(title)}</title>
+    <meta charset="utf-8"><title>${_esc(title)}</title>
     <style>
-      body { font-family: Arial, sans-serif; padding: 20px; font-size: 12px; }
-      h1 { font-size: 16px; color: #1976D2; margin-bottom: 4px; }
-      h2 { font-size: 13px; color: #37474F; margin: 16px 0 6px; border-bottom: 1px solid #ccc; padding-bottom: 4px; }
-      table { border-collapse: collapse; width: 100%; margin-bottom: 12px; }
-      th, td { border: 1px solid #ccc; padding: 5px 8px; }
-      th { background: #f4f5f7; font-weight: 600; }
-      .badge { display: inline-block; border-radius: 10px; padding: 1px 7px; font-size: 11px; font-weight: 600; }
-      @media print { body { margin: 0; } }
+      *{box-sizing:border-box}body{font-family:Arial,sans-serif;margin:0;padding:0;font-size:12px}
+      .np{background:#f5f5f5;border-bottom:1px solid #ddd;padding:8px 16px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+      .np button{padding:6px 14px;border:1px solid #999;border-radius:4px;cursor:pointer;font-size:13px;background:#fff}
+      .np button.pri{background:#0066cc;color:#fff;border-color:#0066cc}
+      .np label{font-size:12px;color:#666}
+      .ct{padding:20px}
+      h1{font-size:16px;color:#1976D2;margin-bottom:4px}
+      h2{font-size:13px;color:#37474F;margin:16px 0 6px;border-bottom:1px solid #ccc;padding-bottom:4px}
+      table{border-collapse:collapse;width:100%;margin-bottom:12px}
+      th,td{border:1px solid #ccc;padding:5px 8px}th{background:#f4f5f7;font-weight:600}
+      .badge{display:inline-block;border-radius:10px;padding:1px 7px;font-size:11px;font-weight:600}
+      @media print{.np{display:none!important}.ct{padding:8px}}
     </style>
   </head><body>
+  <div class="np">
+    <button class="pri" onclick="window.print()">&#x1F5A8; Guardar PDF</button>
+    <span style="color:#bbb">|</span>
+    <label>Orientaci&#243;n:</label>
+    <button onclick="setOri('portrait')">Vertical</button>
+    <button onclick="setOri('landscape')">Horizontal</button>
+    <span style="color:#bbb">|</span>
+    <label>Hojas H: <input type="number" min="1" max="10" value="1" style="width:44px;padding:2px 4px;border:1px solid #ccc;border-radius:3px;font-size:12px;text-align:center"></label>
+    <label>Hojas V: <input type="number" min="1" max="10" value="1" style="width:44px;padding:2px 4px;border:1px solid #ccc;border-radius:3px;font-size:12px;text-align:center"></label>
+    <span style="color:#bbb">|</span>
+    <button onclick="window.close()">&#x2715; Cerrar</button>
+  </div>
+  <div class="ct">
     <h1>${_esc(title)}</h1>
     <p style="font-size:11px;color:#888;margin:0 0 14px">${new Date().toLocaleString('es-PE')}</p>
     ${htmlContent}
-    <script>window.print(); window.close();<\/script>
+  </div>
+  <script>
+    function setOri(o){var s=document.getElementById('ps')||document.createElement('style');s.id='ps';s.textContent='@page{size:A4 '+o+'}';document.head.appendChild(s);}
+    setOri('portrait');
+  <\/script>
   </body></html>`);
   w.document.close();
 }
