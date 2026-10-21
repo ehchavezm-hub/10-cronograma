@@ -2427,7 +2427,6 @@ async function init() {
       evmEl.addEventListener('click', (e) => {
         if (/** @type {HTMLElement} */ (e.target).id === 'btn-evm-close') {
           evmEl.classList.remove('open');
-          document.getElementById('btn-evm')?.removeAttribute('aria-pressed');
         }
       });
     }
@@ -3090,20 +3089,6 @@ function _bindToolbar() {
     else if (e.key === 'ArrowUp') { items[(idx - 1 + items.length) % items.length]?.focus(); e.preventDefault(); }
   });
 
-  document.getElementById('btn-evm')?.addEventListener('click', () => {
-    const panel = document.getElementById('evm-panel');
-    const btn   = document.getElementById('btn-evm');
-    const isOpen = panel?.classList.toggle('open');
-    btn?.setAttribute('aria-pressed', String(isOpen));
-    if (isOpen) {
-      _evmPanel?.refresh();
-      btn.style.background = 'var(--clr-primary)';
-      btn.style.color = '#fff';
-    } else {
-      btn.style.background = '';
-      btn.style.color = '';
-    }
-  });
 
   document.getElementById('btn-changelog')?.addEventListener('click', () => {
     const panel = document.getElementById('changelog-panel');
@@ -3120,26 +3105,6 @@ function _bindToolbar() {
     }
   });
 
-  document.getElementById('btn-resource-histogram')?.addEventListener('click', () => {
-    const panel = document.getElementById('resource-histogram-panel');
-    const btn   = document.getElementById('btn-resource-histogram');
-    const rc    = document.getElementById('right-content');
-    const isOpen = panel?.classList.toggle('open');
-    rc?.classList.toggle('has-histogram', !!isOpen);
-    btn?.setAttribute('aria-pressed', String(isOpen));
-    if (isOpen) {
-      _rhPanel?.refresh();
-      btn.style.background = 'var(--clr-primary)';
-      btn.style.color = '#fff';
-      // Sync resource-table-panel width to match wbs-panel (P6 2×2 layout)
-      const wbs = document.getElementById('wbs-panel');
-      const rt  = document.getElementById('resource-table-panel');
-      if (wbs && rt) rt.style.width = wbs.offsetWidth + 'px';
-    } else {
-      btn.style.background = '';
-      btn.style.color = '';
-    }
-  });
 
   // ---- Importar XER (Primavera P6) ----
   document.getElementById('import-xer-file')?.addEventListener('change', async (e) => {
@@ -3166,65 +3131,12 @@ function _bindToolbar() {
 
   // ---- Registro de Riesgos ----
   let _riskPanel = null;
-  document.getElementById('btn-risk-register')?.addEventListener('click', () => {
-    const { project } = appState.state;
-    if (!project) { _showToast('Abre un proyecto primero', 'warn'); return; }
-    const btn = document.getElementById('btn-risk-register');
-    const overlay = /** @type {HTMLElement} */ (document.getElementById('panel-risk-register'));
-    const container = /** @type {HTMLElement} */ (document.getElementById('risk-register-container'));
-    if (!overlay || !container) return;
-    const isOpen = overlay.style.display === 'flex' || overlay.style.display === '';
-    if (isOpen && overlay.style.display !== 'none') {
-      overlay.style.display = 'none';
-      btn?.setAttribute('aria-pressed', 'false');
-      return;
-    }
-    overlay.style.display = 'flex';
-    btn?.setAttribute('aria-pressed', 'true');
-    _riskPanel = new RiskRegisterPanel({ projectId: project.id, container, onClose: () => {
-      overlay.style.display = 'none';
-      btn?.setAttribute('aria-pressed', 'false');
-    }});
-  });
   document.getElementById('btn-risk-panel-close')?.addEventListener('click', () => {
     const overlay = document.getElementById('panel-risk-register');
     if (overlay) overlay.style.display = 'none';
-    document.getElementById('btn-risk-register')?.setAttribute('aria-pressed', 'false');
   });
 
   // ---- Nivelación de recursos ----
-  document.getElementById('btn-resource-leveling')?.addEventListener('click', async () => {
-    const { project, tasks, cpmResult } = appState.state;
-    if (!project) { _showToast('Abre un proyecto primero', 'warn'); return; }
-    if (!cpmResult) { _showToast('Calculando CPM…', 'warn'); return; }
-    try {
-      const [resources, taskResources] = await Promise.all([
-        getAll('resources').then(r => r.filter(x => !x.deleted_at)),
-        getByIndex('task_resources', 'project_id', project.id).then(r => r.filter(x => !x.deleted_at)).catch(() => []),
-      ]);
-      const taskArr = [...tasks.values()].filter(t => !t.deleted_at);
-      const conflicts = detectConflicts(taskArr, cpmResult.tasks, resources, taskResources);
-      const panel = document.getElementById('panel-resource-leveling');
-      const container = document.getElementById('resource-leveling-container');
-      if (panel && container) {
-        if (!conflicts.overloaded.length) {
-          container.innerHTML = '<p style="font-size:13px;color:var(--clr-text)">✅ No se detectaron conflictos de recursos en el cronograma.</p>';
-        } else {
-          const esc = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-          container.innerHTML = `<p style="font-size:13px;color:var(--clr-text)">Se detectaron <strong>${conflicts.overloaded.length}</strong> conflicto(s) de recursos.</p>
-            <ul style="font-size:12px;color:var(--clr-text-2);margin:8px 0 0;padding-left:18px">
-              ${conflicts.overloaded.slice(0, 15).map(c => `<li>Recurso <strong>${esc(c.resource.name)}</strong> — día ${c.day}: carga ${c.load.toFixed(1)} / capacidad ${c.capacity}</li>`).join('')}
-              ${conflicts.overloaded.length > 15 ? `<li style="color:var(--clr-text-3)">… y ${conflicts.overloaded.length - 15} más</li>` : ''}
-            </ul>`;
-        }
-        panel.style.display = 'flex';
-      } else {
-        _showToast(conflicts.overloaded.length ? `${conflicts.overloaded.length} conflicto(s) de recursos` : 'Sin conflictos de recursos', conflicts.overloaded.length ? 'warn' : 'success');
-      }
-    } catch (err) {
-      _showToast('Error en nivelación: ' + err.message, 'error');
-    }
-  });
   document.getElementById('btn-leveling-panel-close')?.addEventListener('click', () => {
     const panel = document.getElementById('panel-resource-leveling');
     if (panel) panel.style.display = 'none';
@@ -3237,24 +3149,6 @@ function _bindToolbar() {
 
   // ---- Monte Carlo ----
   let _mcPanel = /** @type {MonteCarloPanel|null} */ (null);
-  document.getElementById('btn-monte-carlo')?.addEventListener('click', () => {
-    const { project, cpmResult, tasks, calendar, calExceptions } = appState.state;
-    if (!project) { _showToast('Abre un proyecto primero', 'warn'); return; }
-    if (!cpmResult) { _showToast('Calculando CPM…', 'warn'); return; }
-    const dlg = /** @type {HTMLDialogElement} */ (document.getElementById('dlg-monte-carlo'));
-    const container = /** @type {HTMLElement} */ (document.getElementById('monte-carlo-container'));
-    if (!dlg || !container) return;
-    if (!_mcPanel) {
-      _mcPanel = new MonteCarloPanel(container);
-    }
-    const _mcCal = new Calendar({
-      work_week: calendar?.work_week ?? [1,2,3,4,5],
-      exceptions: (calExceptions ?? []).filter(e => !e.deleted_at).map(e => ({ on_date: e.on_date, is_working: e.is_working })),
-    });
-    _mcPanel.onCpmUpdate(cpmResult, tasks, project, _mcCal);
-    _mcPanel.refresh(project.id);
-    dlg.showModal?.() ?? (dlg.style.display = 'block');
-  });
   document.getElementById('dlg-mc-close')?.addEventListener('click', () => {
     const dlg = /** @type {HTMLDialogElement} */ (document.getElementById('dlg-monte-carlo'));
     dlg?.close?.() ?? (dlg && (dlg.style.display = 'none'));
@@ -5394,23 +5288,85 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   document.getElementById('btn-evm-view')?.addEventListener('click', () => {
     _closeExplorer();
-    document.getElementById('btn-evm')?.click();
+    const panel = document.getElementById('evm-panel');
+    const isOpen = panel?.classList.toggle('open');
+    if (isOpen) _evmPanel?.refresh();
   });
   document.getElementById('btn-resource-histogram-view')?.addEventListener('click', () => {
     _closeExplorer();
-    document.getElementById('btn-resource-histogram')?.click();
+    const panel = document.getElementById('resource-histogram-panel');
+    const rc    = document.getElementById('right-content');
+    const isOpen = panel?.classList.toggle('open');
+    rc?.classList.toggle('has-histogram', !!isOpen);
+    if (isOpen) {
+      _rhPanel?.refresh();
+      const wbs = document.getElementById('wbs-panel');
+      const rt  = document.getElementById('resource-table-panel');
+      if (wbs && rt) rt.style.width = wbs.offsetWidth + 'px';
+    }
   });
-  document.getElementById('btn-resource-leveling-view')?.addEventListener('click', () => {
+  document.getElementById('btn-resource-leveling-view')?.addEventListener('click', async () => {
     _closeExplorer();
-    document.getElementById('btn-resource-leveling')?.click();
+    const { project, tasks, cpmResult } = appState.state;
+    if (!project) { _showToast('Abre un proyecto primero', 'warn'); return; }
+    if (!cpmResult) { _showToast('Calculando CPM…', 'warn'); return; }
+    try {
+      const [resources, taskResources] = await Promise.all([
+        getAll('resources').then(r => r.filter(x => !x.deleted_at)),
+        getByIndex('task_resources', 'project_id', project.id).then(r => r.filter(x => !x.deleted_at)).catch(() => []),
+      ]);
+      const taskArr = [...tasks.values()].filter(t => !t.deleted_at);
+      const conflicts = detectConflicts(taskArr, cpmResult.tasks, resources, taskResources);
+      const levelPanel = document.getElementById('panel-resource-leveling');
+      const container = document.getElementById('resource-leveling-container');
+      if (levelPanel && container) {
+        if (!conflicts.overloaded.length) {
+          container.innerHTML = '<p style="font-size:13px;color:var(--clr-text)">✅ No se detectaron conflictos de recursos en el cronograma.</p>';
+        } else {
+          const esc = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+          container.innerHTML = `<p style="font-size:13px;color:var(--clr-text)">Se detectaron <strong>${conflicts.overloaded.length}</strong> conflicto(s) de recursos.</p>
+            <ul style="font-size:12px;color:var(--clr-text-2);margin:8px 0 0;padding-left:18px">
+              ${conflicts.overloaded.slice(0, 15).map(c => `<li>Recurso <strong>${esc(c.resource.name)}</strong> — día ${c.day}: carga ${c.load.toFixed(1)} / capacidad ${c.capacity}</li>`).join('')}
+              ${conflicts.overloaded.length > 15 ? `<li style="color:var(--clr-text-3)">… y ${conflicts.overloaded.length - 15} más</li>` : ''}
+            </ul>`;
+        }
+        levelPanel.style.display = 'flex';
+      } else {
+        _showToast(conflicts.overloaded.length ? `${conflicts.overloaded.length} conflicto(s) de recursos` : 'Sin conflictos de recursos', conflicts.overloaded.length ? 'warn' : 'success');
+      }
+    } catch (err) {
+      _showToast('Error en nivelación: ' + err.message, 'error');
+    }
   });
   document.getElementById('btn-monte-carlo-view')?.addEventListener('click', () => {
     _closeExplorer();
-    document.getElementById('btn-monte-carlo')?.click();
+    const { project, cpmResult, tasks, calendar, calExceptions } = appState.state;
+    if (!project) { _showToast('Abre un proyecto primero', 'warn'); return; }
+    if (!cpmResult) { _showToast('Calculando CPM…', 'warn'); return; }
+    const dlg = /** @type {HTMLDialogElement} */ (document.getElementById('dlg-monte-carlo'));
+    const container = /** @type {HTMLElement} */ (document.getElementById('monte-carlo-container'));
+    if (!dlg || !container) return;
+    if (!_mcPanel) _mcPanel = new MonteCarloPanel(container);
+    const _mcCal = new Calendar({
+      work_week: calendar?.work_week ?? [1,2,3,4,5],
+      exceptions: (calExceptions ?? []).filter(e => !e.deleted_at).map(e => ({ on_date: e.on_date, is_working: e.is_working })),
+    });
+    _mcPanel.onCpmUpdate(cpmResult, tasks, project, _mcCal);
+    _mcPanel.refresh(project.id);
+    dlg.showModal?.() ?? (dlg.style.display = 'block');
   });
   document.getElementById('btn-risk-register-view')?.addEventListener('click', () => {
     _closeExplorer();
-    document.getElementById('btn-risk-register')?.click();
+    const { project } = appState.state;
+    if (!project) { _showToast('Abre un proyecto primero', 'warn'); return; }
+    const overlay = /** @type {HTMLElement} */ (document.getElementById('panel-risk-register'));
+    const container = /** @type {HTMLElement} */ (document.getElementById('risk-register-container'));
+    if (!overlay || !container) return;
+    if (overlay.style.display === 'flex') { overlay.style.display = 'none'; return; }
+    overlay.style.display = 'flex';
+    _riskPanel = new RiskRegisterPanel({ projectId: project.id, container, onClose: () => {
+      overlay.style.display = 'none';
+    }});
   });
 
   init();
