@@ -258,6 +258,7 @@ export class LookaheadDetailedPanel {
           </select>
         </label>
         <button id="lad-btn-print" class="btn btn-ghost btn-sm" title="Imprimir PDF" style="font-size:12px">🖨 PDF</button>
+        <button id="lad-btn-close" class="btn btn-ghost btn-icon btn-sm" title="Cerrar" aria-label="Cerrar" style="font-size:14px;flex-shrink:0">✕</button>
       </div>`;
     this.el.appendChild(hdr);
 
@@ -287,6 +288,10 @@ export class LookaheadDetailedPanel {
       this._render();
     });
     hdr.querySelector('#lad-btn-print').addEventListener('click', () => this._print());
+    hdr.querySelector('#lad-btn-close').addEventListener('click', () => {
+      const p = document.getElementById('panel-lookahead-detailed');
+      if (p) p.style.display = 'none';
+    });
 
     if (this.el.parentElement) _makeDraggable(this.el.parentElement, '[data-drag-handle]');
     this._render();

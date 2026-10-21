@@ -133,6 +133,18 @@ export class CurvaSPanel {
     _printBtn.style.cssText = 'flex-shrink:0';
     _printBtn.addEventListener('click', () => this._print());
     hdr.appendChild(_printBtn);
+    const _closeBtn = document.createElement('button');
+    _closeBtn.id = 'btn-curva-s-close';
+    _closeBtn.className = 'btn btn-ghost btn-icon btn-sm';
+    _closeBtn.title = 'Cerrar';
+    _closeBtn.setAttribute('aria-label', 'Cerrar');
+    _closeBtn.textContent = '✕';
+    _closeBtn.style.cssText = 'flex-shrink:0';
+    _closeBtn.addEventListener('click', () => {
+      const p = document.getElementById('panel-curva-s');
+      if (p) p.style.display = 'none';
+    });
+    hdr.appendChild(_closeBtn);
     this.el.appendChild(hdr);
 
     // Opciones de vista (toggles)

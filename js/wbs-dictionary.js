@@ -95,6 +95,18 @@ export class WbsDictionaryPanel {
     _printAllBtn.style.cssText = 'flex-shrink:0';
     _printAllBtn.addEventListener('click', () => this._printAll());
     hdr.appendChild(_printAllBtn);
+    const _closeBtn = document.createElement('button');
+    _closeBtn.id = 'btn-wbs-dict-close';
+    _closeBtn.className = 'btn btn-ghost btn-icon btn-sm';
+    _closeBtn.title = 'Cerrar';
+    _closeBtn.setAttribute('aria-label', 'Cerrar');
+    _closeBtn.textContent = '✕';
+    _closeBtn.style.cssText = 'flex-shrink:0';
+    _closeBtn.addEventListener('click', () => {
+      const p = document.getElementById('panel-wbs-dictionary');
+      if (p) p.style.display = 'none';
+    });
+    hdr.appendChild(_closeBtn);
     this.el.appendChild(hdr);
 
     const body = document.createElement('div');
