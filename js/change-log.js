@@ -152,40 +152,67 @@ function _esc(s) {
 
 function _printToPdf(moduleName, htmlContent) {
   const _proj = appState.state.project?.name ?? 'ECM Project';
-  const _d = new Date(), _dd = String(_d.getDate()).padStart(2,'0'), _mm = String(_d.getMonth()+1).padStart(2,'0'), _yy = _d.getFullYear();
+  const _d = new Date();
+  const _dd = String(_d.getDate()).padStart(2,'0');
+  const _mm = String(_d.getMonth()+1).padStart(2,'0');
+  const _yy = _d.getFullYear();
   const title = `${_proj}-${moduleName}-${_dd}${_mm}${_yy}`;
-  const w = window.open('', '_blank', 'width=1000,height=750');
-  if (!w) return;
+  const w = window.open('', '_blank', 'width=1100,height=880');
+  if (!w) {
+    document.dispatchEvent(new CustomEvent('show-toast', { detail: { msg: 'El navegador bloqueó la ventana emergente. Permítala e intente de nuevo.', type: 'warn' } }));
+    return;
+  }
   w.document.write(`<!DOCTYPE html><html><head>
-    <meta charset="utf-8"><title>${title}</title>
-    <style>
-      *{box-sizing:border-box}body{font-family:Arial,sans-serif;margin:0;padding:0}
-      .np{background:#f5f5f5;border-bottom:1px solid #ddd;padding:8px 16px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-      .np button{padding:6px 14px;border:1px solid #999;border-radius:4px;cursor:pointer;font-size:13px;background:#fff}
-      .np button.pri{background:#0066cc;color:#fff;border-color:#0066cc}
-      .np label{font-size:12px;color:#666}
-      .ct{padding:24px}h1{font-size:18px;margin-bottom:16px}
-      table{border-collapse:collapse;width:100%}th,td{border:1px solid #ccc;padding:6px 10px;font-size:12px}th{background:#f4f5f7;font-weight:600}
-      @media print{.np{display:none!important}.ct{padding:8px}}
-    </style>
-  </head><body>
-  <div class="np">
-    <button class="pri" onclick="window.print()">&#x1F5A8; Guardar PDF</button>
-    <span style="color:#bbb">|</span>
-    <label>Orientaci&#243;n:</label>
-    <button onclick="setOri('portrait')">Vertical</button>
-    <button onclick="setOri('landscape')">Horizontal</button>
-    <span style="color:#bbb">|</span>
-    <label>Hojas H: <input type="number" min="1" max="10" value="1" style="width:44px;padding:2px 4px;border:1px solid #ccc;border-radius:3px;font-size:12px;text-align:center"></label>
-    <label>Hojas V: <input type="number" min="1" max="10" value="1" style="width:44px;padding:2px 4px;border:1px solid #ccc;border-radius:3px;font-size:12px;text-align:center"></label>
-    <span style="color:#bbb">|</span>
-    <button onclick="window.close()">&#x2715; Cerrar</button>
-  </div>
-  <div class="ct">${htmlContent}</div>
-  <script>
-    function setOri(o){var s=document.getElementById('ps')||document.createElement('style');s.id='ps';s.textContent='@page{size:A4 '+o+'}';document.head.appendChild(s);}
-    setOri('portrait');
-  <\/script>
-  </body></html>`);
+<meta charset="utf-8"><title>${title}</title>
+<style>
+  *{box-sizing:border-box}
+  body{font-family:Arial,sans-serif;margin:0;padding:0;background:#cfd8dc}
+  .tb{background:#263238;padding:8px 14px;display:flex;align-items:center;gap:7px;flex-wrap:wrap;position:sticky;top:0;z-index:100;border-bottom:2px solid #37474f}
+  .tb button{padding:5px 11px;border:1px solid #546e7a;border-radius:4px;cursor:pointer;font-size:12px;background:#37474f;color:#ecf0f1;white-space:nowrap}
+  .tb button.pri{background:#1976d2;color:#fff;border-color:#1976d2;font-weight:600;font-size:13px;padding:6px 16px}
+  .tb button.pri:hover{background:#1565c0}
+  .tb button.act{background:#0d47a1;color:#fff;border-color:#1565c0}
+  .tb button:hover:not(.pri){background:#455a64}
+  .tb .sep{width:1px;height:20px;background:#546e7a;flex-shrink:0}
+  .tb .lbl{font-size:11px;color:#90a4ae;white-space:nowrap}
+  .tb input[type=text]{font-size:12px;padding:3px 8px;border:1px solid #546e7a;border-radius:3px;background:#37474f;color:#ecf0f1;width:300px}
+  .pv{padding:20px;display:flex;flex-direction:column;align-items:center;gap:16px;min-height:calc(100vh - 52px)}
+  .a4{background:#fff;box-shadow:0 4px 14px rgba(0,0,0,.4);padding:14mm 15mm;width:210mm;min-height:297mm;overflow:hidden}
+  .a4.land{width:297mm;min-height:210mm}
+  h1{font-size:18px;margin-bottom:16px}
+  h2{font-size:14px;margin:14px 0 6px}
+  table{border-collapse:collapse;width:100%}th,td{border:1px solid #ccc;padding:6px 10px;font-size:12px}th{background:#f4f5f7;font-weight:600}
+  svg{max-width:100%;height:auto}img{max-width:100%}
+  .badge{display:inline-block;border-radius:10px;padding:1px 7px;font-size:11px;font-weight:600}
+  @media print{body{background:#fff}.tb{display:none!important}.pv{padding:0;min-height:0}.a4{box-shadow:none;width:100%;min-height:0;padding:8mm 10mm}@page{margin:0}}
+</style>
+</head><body>
+<div class="tb">
+  <button class="pri" onclick="window.print()">&#x1F5A8; Guardar PDF</button>
+  <div class="sep"></div>
+  <span class="lbl">Orientaci&#243;n:</span>
+  <button id="bp" class="act" onclick="setOri('portrait')">&#x1F4C4; Vertical</button>
+  <button id="bl" onclick="setOri('landscape')">&#x1F5C2; Horizontal</button>
+  <div class="sep"></div>
+  <span class="lbl">&#x1F4C1; Archivo:</span>
+  <input type="text" id="fn" value="${title}.pdf" title="Nombre sugerido del archivo PDF">
+  <div class="sep"></div>
+  <button onclick="window.close()">&#x2715; Cerrar</button>
+</div>
+<div class="pv">
+  <div class="a4" id="a4">${htmlContent}</div>
+</div>
+<script>
+  document.title=${JSON.stringify(title)};
+  function setOri(o){
+    document.getElementById('a4').classList.toggle('land',o==='landscape');
+    document.getElementById('bp').classList.toggle('act',o==='portrait');
+    document.getElementById('bl').classList.toggle('act',o==='landscape');
+    var s=document.getElementById('_ps')||document.createElement('style');
+    s.id='_ps';s.textContent='@page{size:A4 '+o+'}';document.head.appendChild(s);
+  }
+  setOri('portrait');
+<\/script>
+</body></html>`);
   w.document.close();
 }

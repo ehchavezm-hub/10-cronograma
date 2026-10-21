@@ -174,6 +174,9 @@ export function printGantt(rows) {
     <label>Hojas H: <input type="number" id="h-pages" min="1" max="10" value="1"></label>
     <label>Hojas V: <input type="number" id="v-pages" min="1" max="10" value="1"></label>
     <div class="sep"></div>
+    <span class="lbl-sm">&#x1F4C1; Archivo:</span>
+    <input type="text" id="fn-inp" value="${_pdfFile}" title="Nombre del archivo PDF" style="width:280px;padding:2px 6px;border:1px solid #90A4AE;border-radius:4px;font-size:12px">
+    <div class="sep"></div>
     <button class="btn-print" id="btn-pdf" onclick="_savePdf()">🖨 Guardar PDF</button>
     <span class="lbl-sm">${today}</span>
   </div>
@@ -224,7 +227,7 @@ export function printGantt(rows) {
 
         const isLand    = _pdfOrient === 'landscape';
         const MARG      = 10;
-        const RENDER_DPI = 350;
+        const RENDER_DPI = 600;
         const MM2PX     = RENDER_DPI / 25.4;
         const A4w_mm    = isLand ? 297 : 210;
         const A4h_mm    = isLand ? 210 : 297;
@@ -288,10 +291,11 @@ export function printGantt(rows) {
           }
         }
 
+        const _fnVal = (document.getElementById('fn-inp')?.value || '').trim() || _PDF_FILENAME;
         if (window.ecmIsElectron && typeof window.ecmSavePdf === 'function') {
-          window.ecmSavePdf(doc.output('datauristring').split(',')[1], _PDF_FILENAME);
+          window.ecmSavePdf(doc.output('datauristring').split(',')[1], _fnVal);
         } else {
-          doc.save(_PDF_FILENAME);
+          doc.save(_fnVal);
         }
       } catch (err) {
         alert('Error al generar PDF: ' + err.message);
