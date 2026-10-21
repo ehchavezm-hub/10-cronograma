@@ -2471,7 +2471,7 @@ async function init() {
 
     // El motor de sync ya fue iniciado dentro de _loadProject.
 
-    console.log('[ECM Project] v85 completo — modo', IS_LOCAL_MODE ? 'local' : 'Supabase');
+    console.log('[ECM Project] v86 completo — modo', IS_LOCAL_MODE ? 'local' : 'Supabase');
   } catch (err) {
     console.error('[init]', err);
     _showToast('Error al iniciar: ' + err.message, 'error');
@@ -2586,6 +2586,9 @@ function _printToPdf(moduleName, htmlContent) {
 // ============================================================
 // Diálogo de resultados Monte Carlo
 // ============================================================
+
+/** @type {import('./monte-carlo.js').MonteCarloPanel|null} */
+let _mcPanel = null;
 
 function _showMonteCarloDlg(result, fmtDay) {
   let dlg = /** @type {HTMLDialogElement|null} */ (document.getElementById('dlg-monte-carlo'));
@@ -3191,7 +3194,7 @@ function _bindToolbar() {
   _makeDraggable(document.getElementById('rl-card'), '[data-drag-handle]');
 
   // ---- Monte Carlo ----
-  let _mcPanel = /** @type {MonteCarloPanel|null} */ (null);
+  _mcPanel = null;
   document.getElementById('dlg-mc-close')?.addEventListener('click', () => {
     const dlg = /** @type {HTMLDialogElement} */ (document.getElementById('dlg-monte-carlo'));
     dlg?.close?.() ?? (dlg && (dlg.style.display = 'none'));
