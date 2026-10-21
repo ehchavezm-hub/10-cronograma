@@ -257,7 +257,7 @@ export class LookaheadDetailedPanel {
             ${[1,2,3,4,5,6,7,8].map(n => `<option value="${n}"${n===6?' selected':''}>${n}</option>`).join('')}
           </select>
         </label>
-        <button id="lad-btn-print" class="btn btn-ghost btn-sm" title="Imprimir PDF" style="font-size:12px">🖨 PDF</button>
+        <button id="lad-btn-print" class="btn btn-ghost btn-sm" title="Imprimir" style="font-size:12px">🖨 Imprimir</button>
         <button id="lad-btn-close" class="btn btn-ghost btn-icon btn-sm" title="Cerrar" aria-label="Cerrar" style="font-size:14px;flex-shrink:0">✕</button>
       </div>`;
     this.el.appendChild(hdr);
@@ -1506,8 +1506,23 @@ export class LookaheadDetailedPanel {
       </div>
 
       ${Object.keys(allStandup).length > 0 ? `
-      <div class="lad-section-title" style="margin-top:16px">Historial Stand-Up</div>
-      <div style="overflow-x:auto">
+      <hr style="border:none;border-top:1px solid var(--clr-border);margin:18px 0 12px">
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px">
+        <span class="lad-section-title" style="margin:0">Historial Stand-Up</span>
+        <label style="font-size:12px;color:var(--clr-text-2);display:flex;align-items:center;gap:4px">
+          Desde:
+          <input id="lad-su-hist-from" type="date" class="lad-input" style="width:130px;margin:0"
+            value="">
+        </label>
+        <label style="font-size:12px;color:var(--clr-text-2);display:flex;align-items:center;gap:4px">
+          Últimas
+          <input id="lad-su-hist-weeks" type="number" min="1" max="52" class="lad-input"
+            style="width:52px;margin:0" placeholder="sem.">
+          semanas
+        </label>
+        <button id="lad-su-hist-clear-filter" class="btn btn-ghost btn-sm" style="font-size:11px">Mostrar todo</button>
+      </div>
+      <div id="lad-su-hist-table" style="overflow-x:auto">
         <table class="lad-table" style="font-size:11px">
           <thead><tr>
             <th>Fecha</th>
@@ -1516,9 +1531,9 @@ export class LookaheadDetailedPanel {
             <th>¿Qué haría mejor mañana?</th>
             <th style="text-align:center">Acción</th>
           </tr></thead>
-          <tbody>
+          <tbody id="lad-su-hist-tbody">
             ${Object.entries(allStandup).sort((a,b) => b[0].localeCompare(a[0])).map(([date, entry], i) =>
-              `<tr class="${i%2===0?'':'lad-row-alt'}">
+              `<tr class="${i%2===0?'':'lad-row-alt'}" data-su-date="${date}">
                 <td style="white-space:nowrap;font-weight:600">${_fmtDate(new Date(date+'T12:00:00'))}</td>
                 <td>${_esc(entry.q1 || '-')}</td>
                 <td>${_esc(entry.q2 || '-')}</td>
@@ -1538,8 +1553,39 @@ export class LookaheadDetailedPanel {
     };
     loadEntry(todayStr);
 
+    const _applyHistFilter = () => {
+      const fromInp = /** @type {HTMLInputElement|null} */ (this._body.querySelector('#lad-su-hist-from'));
+      const weeksInp = /** @type {HTMLInputElement|null} */ (this._body.querySelector('#lad-su-hist-weeks'));
+      const tbody = this._body.querySelector('#lad-su-hist-tbody');
+      if (!tbody) return;
+      let fromDate = fromInp?.value || null;
+      const weeks = parseInt(weeksInp?.value ?? '');
+      if (!isNaN(weeks) && weeks >= 1) {
+        const d = new Date(); d.setDate(d.getDate() - weeks * 7);
+        fromDate = d.toISOString().slice(0, 10);
+        if (fromInp && !fromInp.value) fromInp.value = fromDate;
+      }
+      const rows = /** @type {NodeListOf<HTMLTableRowElement>} */ (tbody.querySelectorAll('tr[data-su-date]'));
+      rows.forEach(row => {
+        const rowDate = row.getAttribute('data-su-date') ?? '';
+        row.style.display = (fromDate && rowDate < fromDate) ? 'none' : '';
+      });
+    };
+
     this._body.querySelector('#lad-su-date').addEventListener('change', e => {
       loadEntry(/** @type {HTMLInputElement} */ (e.target).value);
+    });
+    this._body.querySelector('#lad-su-hist-from')?.addEventListener('input', _applyHistFilter);
+    this._body.querySelector('#lad-su-hist-from')?.addEventListener('change', _applyHistFilter);
+    this._body.querySelector('#lad-su-hist-weeks')?.addEventListener('input', _applyHistFilter);
+    this._body.querySelector('#lad-su-hist-weeks')?.addEventListener('change', _applyHistFilter);
+    this._body.querySelector('#lad-su-hist-clear-filter')?.addEventListener('click', () => {
+      const fi = /** @type {HTMLInputElement|null} */ (this._body.querySelector('#lad-su-hist-from'));
+      const wi = /** @type {HTMLInputElement|null} */ (this._body.querySelector('#lad-su-hist-weeks'));
+      if (fi) fi.value = '';
+      if (wi) wi.value = '';
+      const rows = /** @type {NodeListOf<HTMLTableRowElement>} */ (this._body.querySelectorAll('#lad-su-hist-tbody tr[data-su-date]'));
+      rows.forEach(r => r.style.display = '');
     });
 
     this._body.querySelector('#lad-su-save').addEventListener('click', () => {
