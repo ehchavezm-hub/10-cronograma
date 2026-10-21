@@ -140,7 +140,7 @@ export class NotificationsPanel {
 
   _build() {
     this.el.innerHTML = '';
-    this.el.style.cssText = 'display:flex;flex-direction:column;height:100%;font-family:var(--font-ui)';
+    this.el.style.cssText = 'display:flex;flex-direction:column;flex:1;min-height:0;font-family:var(--font-ui)';
 
     const hdr = document.createElement('div');
     hdr.setAttribute('data-drag-handle', '');
