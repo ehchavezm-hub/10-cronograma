@@ -1,9 +1,10 @@
 // @ts-check
 'use strict';
 
-const { app, BrowserWindow, shell, dialog } = require('electron');
+const { app, BrowserWindow, shell, ipcMain } = require('electron');
 const http  = require('http');
 const fs    = require('fs');
+const os    = require('os');
 const path  = require('path');
 const url   = require('url');
 
@@ -70,6 +71,42 @@ function startServer() {
   });
 }
 
+// ── IPC: Generar PDF desde ventana de impresión ───────────────
+// Convierte el título al formato NOMBRE-PROCESO-FECHA.pdf
+function _buildPdfFilename(rawTitle) {
+  // rawTitle: "Edificio Las Palmas - Gantt - 20/10/2026"
+  // Objetivo: "Edificio Las Palmas-Gantt-20102026.pdf"
+  return rawTitle
+    .replace(/\//g, '')               // "20/10/2026" → "20102026"
+    .replace(/\s+-\s+/g, '-')         // " - " → "-"
+    .replace(/[<>:"/\\|?*\x00-\x1f]/g, '_')  // caracteres inválidos
+    .replace(/-+/g, '-')              // dobles guiones
+    .trim() + '.pdf';
+}
+
+ipcMain.handle('ecm-print-pdf', async (event, /** @type {{title:string,landscape:boolean}} */ opts) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  if (!win) return { error: 'no window' };
+  try {
+    const pdfData = await win.webContents.printToPDF({
+      printBackground: true,
+      landscape: opts.landscape !== false,
+      pageSize: 'A4',
+    });
+
+    const fileName = _buildPdfFilename(opts.title || 'ECM Project-Gantt');
+    const docsDir  = path.join(os.homedir(), 'Documents', 'ECM Project');
+    fs.mkdirSync(docsDir, { recursive: true });
+    const pdfPath  = path.join(docsDir, fileName);
+    fs.writeFileSync(pdfPath, pdfData);
+
+    shell.openPath(pdfPath);
+    return { success: true, path: pdfPath };
+  } catch (err) {
+    return { error: String(err) };
+  }
+});
+
 // ── Electron window ───────────────────────────────────────────
 let mainWindow = null;
 
@@ -92,7 +129,9 @@ async function createWindow() {
 
   mainWindow.loadURL(`http://127.0.0.1:${port}/`);
 
-  // Open external links in the system browser; allow blank popups for print preview
+  // Ventanas de impresión: usar preload que reemplaza window.print con printToPDF
+  const preloadPrint = path.join(__dirname, 'preload-print.js');
+
   mainWindow.webContents.setWindowOpenHandler(({ url: u }) => {
     // Ventana en blanco → vista previa de impresión (printGantt usa window.open('','_blank'))
     if (!u || u === 'about:blank') {
@@ -102,7 +141,12 @@ async function createWindow() {
           width: 1200, height: 800,
           title: 'ECM Project — Impresión',
           autoHideMenuBar: true,
-          webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true }
+          webPreferences: {
+            contextIsolation: false,
+            nodeIntegration:  false,
+            sandbox:          false,
+            preload:          preloadPrint,
+          }
         }
       };
     }
