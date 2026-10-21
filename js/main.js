@@ -1201,7 +1201,16 @@ async function _openResourceAssign(preSelectedId = null) {
 
   dlg.querySelector('#dlg-ra-close').addEventListener('click', () => dlg.close());
   dlg.querySelector('#dlg-ra-print')?.addEventListener('click', () => {
-    _printToPdf('Asignación de Recursos', `<h1>Asignación de Recursos</h1>${dlg.innerHTML}`);
+    const resChecked = dlg.querySelector('input[name="ra-res"]:checked');
+    const resName = resChecked ? (resChecked.closest('label')?.textContent?.trim() ?? resChecked.value) : '—';
+    const taskRows = [...dlg.querySelectorAll('.ra-task-cb')].map(cb => {
+      const lbl = cb.closest('label');
+      const name = lbl ? lbl.textContent.trim().replace(/^[\s​]+|[\s​]+$/g,'') : cb.value;
+      return `<tr><td style="text-align:center;color:${cb.checked?'#1976d2':'#aaa'}">${cb.checked?'✓':'○'}</td><td>${_escHtml(name)}</td></tr>`;
+    }).join('');
+    const html = `<h1>Asignación de Recursos</h1><p style="margin:0 0 14px;font-size:13px;color:#555">Recurso seleccionado: <strong>${_escHtml(resName)}</strong></p>
+      <table><thead><tr><th>Asignado</th><th>Actividad</th></tr></thead><tbody>${taskRows || '<tr><td colspan="2" style="text-align:center;color:#999">Sin actividades</td></tr>'}</tbody></table>`;
+    _printToPdf('Asignación de Recursos', html);
   });
 
   _makeDraggable(dlg, '[data-drag-handle]');
@@ -2471,7 +2480,7 @@ async function init() {
 
     // El motor de sync ya fue iniciado dentro de _loadProject.
 
-    console.log('[ECM Project] v87 completo — modo', IS_LOCAL_MODE ? 'local' : 'Supabase');
+    console.log('[ECM Project] v88 completo — modo', IS_LOCAL_MODE ? 'local' : 'Supabase');
   } catch (err) {
     console.error('[init]', err);
     _showToast('Error al iniciar: ' + err.message, 'error');
@@ -2634,7 +2643,9 @@ function _showMonteCarloDlg(result, fmtDay) {
     dlg.querySelector('#mc-dlg-close')?.addEventListener('click', () => dlg.close());
     dlg.querySelector('#mc-dlg-print')?.addEventListener('click', () => {
       const body = dlg.querySelector('#mc-dlg-body');
-      _printToPdf('Simulación Monte Carlo', `<h1>Simulación Monte Carlo</h1>${body?.innerHTML ?? ''}`);
+      const _mcCss = document.getElementById('mc-styles')?.textContent ?? '';
+      const _mcVars = ':root{--mc-accent:#2563eb;--mc-kpi-bg:#f3f4f6;--mc-hist-fill:#60a5fa;--mc-p80-color:#dc2626;--mc-fg:#333;--mc-border:#e5e7eb;--mc-warn:#b45309;--mc-surface:#f5f7ff;--mc-hist-axis-stroke:#aaa;--mc-tick-fill:#666}';
+      _printToPdf('Simulación Monte Carlo', `<style>${_mcCss}\n${_mcVars}</style><h1>Simulación Monte Carlo</h1>${body?.innerHTML ?? ''}`);
     });
     dlg.addEventListener('click', e => { if (e.target === dlg) dlg.close(); });
     _makeDraggable(dlg, '[data-drag-handle]');
@@ -3224,7 +3235,9 @@ function _bindToolbar() {
   });
   document.getElementById('dlg-mc-print')?.addEventListener('click', () => {
     const body = document.getElementById('monte-carlo-container');
-    _printToPdf('Simulación Monte Carlo', `<h1>Simulación Monte Carlo</h1>${body?.innerHTML ?? ''}`);
+    const _mcCss = document.getElementById('mc-styles')?.textContent ?? '';
+    const _mcVars = ':root{--mc-accent:#2563eb;--mc-kpi-bg:#f3f4f6;--mc-hist-fill:#60a5fa;--mc-p80-color:#dc2626;--mc-fg:#333;--mc-border:#e5e7eb;--mc-warn:#b45309;--mc-surface:#f5f7ff;--mc-hist-axis-stroke:#aaa;--mc-tick-fill:#666}';
+    _printToPdf('Simulación Monte Carlo', `<style>${_mcCss}\n${_mcVars}</style><h1>Simulación Monte Carlo</h1>${body?.innerHTML ?? ''}`);
   });
   _makeDraggable(document.getElementById('dlg-monte-carlo'), '[data-drag-handle]');
 
