@@ -1738,10 +1738,10 @@ function _updateUndoRedoBtns() {
 // ============================================================
 
 async function _ensureDemoData() {
-  const projects = await listProjects();
-  // Busca el proyecto DEMO por su UUID específico, no por "cualquier proyecto"
+  // Usar listAllProjects (incluye deleted_at) para que un proyecto demo borrado no se recree
+  const allProjects = await listAllProjects();
   const DEMO_UUID = '00000000-0000-0000-0000-000000000010';
-  const demoExists = projects.some(p => p.id === DEMO_UUID);
+  const demoExists = allProjects.some(p => p.id === DEMO_UUID);
   if (!demoExists) {
     await saveProjectSnapshot(DEMO_DATA);
   }
@@ -1753,7 +1753,10 @@ async function _ensureDemoData() {
       await putMany('task_resources', DEMO_DATA.task_resources);
     }
   }
-  return demoExists ? (projects.find(p => p.id === DEMO_UUID) ?? DEMO_DATA.project) : DEMO_DATA.project;
+  if (!demoExists) return DEMO_DATA.project;
+  // Demo ya existía: devolver solo si está activo (no borrado); null si fue eliminado
+  const activeProjects = allProjects.filter(p => !p.deleted_at);
+  return activeProjects.find(p => p.id === DEMO_UUID) ?? null;
 }
 
 async function _loadProject(projectId) {
@@ -2350,15 +2353,17 @@ async function init() {
         await _loadProject(projectId);
       } catch {
         const proj = await _ensureDemoData();
-        await _loadProject(proj.id);
-        // Informar al usuario que el proyecto anterior no se encontró
-        setTimeout(() => {
-          _showToast('⚠ Proyecto anterior no encontrado. Usa Exportar → Importar JSON para restaurar desde un respaldo.', 'warn');
-        }, 1500);
+        if (proj) {
+          await _loadProject(proj.id);
+          // Informar al usuario que el proyecto anterior no se encontró
+          setTimeout(() => {
+            _showToast('⚠ Proyecto anterior no encontrado. Usa Exportar → Importar JSON para restaurar desde un respaldo.', 'warn');
+          }, 1500);
+        }
       }
     } else {
       const proj = await _ensureDemoData();
-      await _loadProject(proj.id);
+      if (proj) await _loadProject(proj.id);
     }
 
     // ---- Inicializar tabla WBS ----
