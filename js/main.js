@@ -1967,6 +1967,11 @@ async function _deleteProject(projectId) {
   try {
     if (localStorage.getItem('last-project-id') === projectId) localStorage.removeItem('last-project-id');
   } catch (_e) { /* ignore */ }
+  // Limpiar parámetro ?p= de la URL para evitar que init() intente recargar el proyecto borrado
+  try {
+    const _pUrl = new URLSearchParams(location.search).get('p');
+    if (_pUrl === projectId) history.replaceState(null, '', location.pathname);
+  } catch (_e) { /* ignore */ }
 }
 
 async function _showProjectRecovery() {
