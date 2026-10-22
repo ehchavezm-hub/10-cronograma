@@ -54,21 +54,24 @@ export function printWbsTable() {
   const _wProj = appState.state.project;
   const _wD = new Date(), _wDD = String(_wD.getDate()).padStart(2,'0'), _wMM = String(_wD.getMonth()+1).padStart(2,'0'), _wYY = _wD.getFullYear();
   document.title = _wProj ? `${_wProj.name}-Tabla EDT-${_wDD}${_wMM}${_wYY}` : 'Tabla EDT';
+  const _hfD = new Date();
+  const _hfDD = String(_hfD.getDate()).padStart(2,'0'), _hfMM = String(_hfD.getMonth()+1).padStart(2,'0'), _hfYY = _hfD.getFullYear();
+  const _hfHH = String(_hfD.getHours()).padStart(2,'0'), _hfMi = String(_hfD.getMinutes()).padStart(2,'0');
+  const _hfProj = (_wProj?.name ?? 'ECM Project').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const _hfEl = document.createElement('div');
+  _hfEl.id = 'print-ecm-hf';
+  _hfEl.innerHTML = `<div class="phf-hdr"><span>ECM Project V1.00.01</span><span>${_hfProj}</span><span>${_hfDD}-${_hfMM}-${_hfYY}, ${_hfHH}:${_hfMi}</span></div><div class="phf-ftr"><span>By EHCM</span><span>&#8212;</span><span>Tabla EDT</span></div>`;
+  document.body.appendChild(_hfEl);
   const _footerStyle = document.createElement('style');
   _footerStyle.id = 'print-ecm-footer';
   _footerStyle.textContent = `@media print {
-    #app::after {
-      content: "ECM Project v1.0.0 | © 2026 E. Chávez";
-      display: block;
-      font-size: 7pt;
-      color: #9E9E9E;
-      text-align: center;
-      margin-top: 4mm;
-      border-top: 1px solid #E0E0E0;
-      padding-top: 3px;
-    }
+    .phf-hdr{font-family:'Urbanist',system-ui,sans-serif;position:fixed;top:0;left:0;right:0;height:26px;display:flex!important;align-items:center;justify-content:space-between;padding:0 10mm;border-bottom:0.5pt solid #CBD5E0;font-size:9pt;color:#4A5568;background:#fff;z-index:9999;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    .phf-ftr{font-family:'Urbanist',system-ui,sans-serif;position:fixed;bottom:0;left:0;right:0;height:22px;display:flex!important;align-items:center;justify-content:space-between;padding:0 10mm;border-top:0.5pt solid #CBD5E0;font-size:8pt;color:#718096;background:#fff;z-index:9999;-webkit-print-color-adjust:exact;print-color-adjust:exact}
     .wbs-table, .wbs-table th, .wbs-table td { font-family: 'Arial Narrow', Arial, sans-serif !important; }
-  }`;
+    @page { margin: 26px 10mm 22px 10mm; }
+  }
+  #print-ecm-hf { display:none; }
+  @media print { #print-ecm-hf { display:block; } }`;
   document.head.appendChild(_footerStyle);
   document.body.classList.add('printing');
   window.print();
@@ -77,6 +80,7 @@ export function printWbsTable() {
     document.body.classList.remove('printing');
     document.getElementById('print-col-override')?.remove();
     document.getElementById('print-ecm-footer')?.remove();
+    document.getElementById('print-ecm-hf')?.remove();
   }, 1000);
 }
 
@@ -126,6 +130,8 @@ export function printGantt(rows) {
     const _gMM = String(_dG.getMonth()+1).padStart(2,'0');
     const _gYY = _dG.getFullYear();
     const today      = _dG.toLocaleDateString('es-PE');
+    const _gHH = String(_dG.getHours()).padStart(2,'0');
+    const _gMi = String(_dG.getMinutes()).padStart(2,'0');
     const _gTitle    = `${project.name} - Gantt - ${_gDD}/${_gMM}/${_gYY}`;
     const _pdfFile   = `${project.name}-Gantt-${_gDD}${_gMM}${_gYY}.pdf`;
     const _projLabel = _esc(project.name);
@@ -144,6 +150,7 @@ export function printGantt(rows) {
     const html = `<!doctype html>
 <html lang="es"><head>
   <meta charset="UTF-8">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Urbanist:wght@400;500;600&display=swap">
   <title>${_esc(_gTitle)}</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -169,8 +176,13 @@ export function printGantt(rows) {
     .page-tile { background:#fff; box-shadow:0 4px 14px rgba(0,0,0,.4); position:relative; flex-shrink:0; }
     .page-tile svg { display:block; }
     .page-foot { position:absolute; bottom:4mm; left:10mm; right:10mm;
-                 display:flex; justify-content:space-between; font-size:7pt; color:#9e9e9e;
-                 border-top:1px solid #e0e0e0; padding-top:2px; }
+                 display:flex; justify-content:space-between; font-size:7pt; color:#718096;
+                 border-top:0.5pt solid #CBD5E0; padding-top:2px;
+                 font-family:'Urbanist',system-ui,sans-serif; }
+    .page-head { position:absolute; top:4mm; left:10mm; right:10mm;
+                 display:flex; justify-content:space-between; font-size:7pt; color:#4A5568;
+                 border-bottom:0.5pt solid #CBD5E0; padding-bottom:2px;
+                 font-family:'Urbanist',system-ui,sans-serif; }
     @media print {
       body { background:#fff; }
       .controls { display:none !important; }
@@ -205,6 +217,7 @@ export function printGantt(rows) {
     const SVG_H = ${_svgH};
     const SVG_INNER = ${JSON.stringify(_svgInner)};
     const PROJ_NAME = ${JSON.stringify(project.name)};
+    const DATE_STR = "${_gDD}-${_gMM}-${_gYY}, ${_gHH}:${_gMi}";
     const TOTAL_PAGES_REF = { v: 1 };
 
     let _orient = 'landscape';
@@ -263,9 +276,13 @@ export function printGantt(rows) {
           tile.appendChild(svgEl);
 
           // Footer por tile
+          const head = document.createElement('div');
+          head.className = 'page-head';
+          head.innerHTML = '<span>ECM Project V1.00.01</span><span>' + PROJ_NAME + '</span><span>' + DATE_STR + '</span>';
+          tile.appendChild(head);
           const foot = document.createElement('div');
           foot.className = 'page-foot';
-          foot.innerHTML = '<span>' + PROJ_NAME + '</span><span>ECM Project</span><span>' + pageNum + ' / ' + totalPages + '</span>';
+          foot.innerHTML = '<span>By EHCM</span><span>&#8212;</span><span>' + pageNum + ' / ' + totalPages + '</span>';
           tile.appendChild(foot);
 
           preview.appendChild(tile);

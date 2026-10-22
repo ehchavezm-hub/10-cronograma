@@ -41,6 +41,10 @@ export function printToPdf(moduleName, htmlContent) {
   const _dd = String(_d.getDate()).padStart(2,'0');
   const _mm = String(_d.getMonth()+1).padStart(2,'0');
   const _yy = _d.getFullYear();
+  const _hh = String(_d.getHours()).padStart(2,'0');
+  const _mi = String(_d.getMinutes()).padStart(2,'0');
+  const _projEsc = _proj.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const _modEsc = moduleName.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   const title = `${_proj}-${moduleName}-${_dd}${_mm}${_yy}`;
   const _appCssVars = _getCssVarsInline();
 
@@ -51,7 +55,9 @@ export function printToPdf(moduleName, htmlContent) {
   }
 
   w.document.write(`<!DOCTYPE html><html><head>
-<meta charset="utf-8"><title>${title}</title>
+<meta charset="utf-8">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Urbanist:wght@400;500;600&display=swap">
+<title>${title}</title>
 <style>
   ${_appCssVars}
   *{box-sizing:border-box}
@@ -152,12 +158,17 @@ export function printToPdf(moduleName, htmlContent) {
   .tf-neg  { color:#D32F2F !important;font-weight:600; }
   .tf-zero { color:#FB8C00 !important; }
 
+  .print-header,.print-footer{font-family:'Urbanist',system-ui,sans-serif;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .print-header{position:fixed;top:0;left:0;right:0;height:26px;display:none;align-items:center;justify-content:space-between;padding:0 10mm;border-bottom:0.5pt solid #CBD5E0;font-size:9pt;color:#4A5568;background:#fff;z-index:9999}
+  .print-footer{position:fixed;bottom:0;left:0;right:0;height:22px;display:none;align-items:center;justify-content:space-between;padding:0 10mm;border-top:0.5pt solid #CBD5E0;font-size:8pt;color:#718096;background:#fff;z-index:9999}
+  .print-title{font-family:'Urbanist',system-ui,sans-serif;font-size:14pt;font-weight:600;color:#1A365D;text-align:center;margin:0 0 14px}
   @media print{
     body{background:#fff}
     .tb{display:none!important}
     .pv{padding:0;min-height:0}
-    .a4{box-shadow:none;width:100%;min-height:0;padding:8mm 10mm}
-    @page{margin:0}
+    .a4{box-shadow:none;width:100%;min-height:0;padding:8mm 10mm;padding-top:4px!important}
+    .print-header,.print-footer{display:flex!important}
+    @page{margin:26px 10mm 22px 10mm}
   }
 </style>
 </head><body>
@@ -174,9 +185,14 @@ export function printToPdf(moduleName, htmlContent) {
   <button onclick="window.close()">&#x2715; Cerrar</button>
 </div>
 <div class="pv">
-  <div class="a4" id="a4">${htmlContent}</div>
+  <div class="a4" id="a4">
+<div class="print-header"><span>ECM Project V1.00.01</span><span>${_projEsc}</span><span>${_dd}-${_mm}-${_yy}, ${_hh}:${_mi}</span></div>
+<div class="print-footer"><span>By EHCM</span><span>&#8212;</span><span>P&aacute;gina <span id="phf-cur">1</span> de <span id="phf-tot">1</span></span></div>
+<div class="print-title">${_modEsc}</div>
+${htmlContent}</div>
 </div>
 <script>
+  (function(){function _u(){var h=document.getElementById('a4');if(!h)return;var t=Math.max(1,Math.ceil(h.scrollHeight/1120));var el=document.getElementById('phf-tot');if(el)el.textContent=t;}window.addEventListener('beforeprint',_u);_u();})();
   document.title=${JSON.stringify(title)};
   function setOri(o){
     document.getElementById('a4').classList.toggle('land',o==='landscape');

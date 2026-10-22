@@ -414,16 +414,22 @@ export class CurvaSPanel {
       </tbody></table>`;
 
     const _proj = appState.state.project?.name ?? 'ECM Project';
-    const _dt = new Date(), _dd = String(_dt.getDate()).padStart(2,'0'), _dmm = String(_dt.getMonth()+1).padStart(2,'0'), _dyy = _dt.getFullYear();
+    const _dt = new Date(), _dd = String(_dt.getDate()).padStart(2,'0'), _dmm = String(_dt.getMonth()+1).padStart(2,'0'), _dyy = _dt.getFullYear(), _dthh = String(_dt.getHours()).padStart(2,'0'), _dtmi = String(_dt.getMinutes()).padStart(2,'0');
+    const _projEsc = _proj.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
     const _title = `${_proj}-Curva S-${_dd}${_dmm}${_dyy}`;
     const w = window.open('', '_blank', 'width=1100,height=880');
     if (!w) return;
     w.document.write(`<!DOCTYPE html><html><head>
       <meta charset="utf-8">
+      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Urbanist:wght@400;500;600&display=swap">
       <title>${_title}</title>
       <style>
         *{box-sizing:border-box}
         body{font-family:Arial,sans-serif;margin:0;padding:0;background:#f1f5f9}
+        .print-header,.print-footer{font-family:'Urbanist',system-ui,sans-serif;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+        .print-header{position:fixed;top:0;left:0;right:0;height:26px;display:none;align-items:center;justify-content:space-between;padding:0 10mm;border-bottom:0.5pt solid #CBD5E0;font-size:9pt;color:#4A5568;background:#fff;z-index:9999}
+        .print-footer{position:fixed;bottom:0;left:0;right:0;height:22px;display:none;align-items:center;justify-content:space-between;padding:0 10mm;border-top:0.5pt solid #CBD5E0;font-size:8pt;color:#718096;background:#fff;z-index:9999}
+        .print-title{font-family:'Urbanist',system-ui,sans-serif;font-size:14pt;font-weight:600;color:#1A365D;text-align:center;margin:0 0 14px;display:none}
         .tb{background:#fff;padding:8px 14px;display:flex;align-items:center;gap:7px;flex-wrap:wrap;position:sticky;top:0;z-index:100;border-bottom:1px solid #e2e8f0}
         .tb button{padding:5px 11px;border:1px solid #d1d5db;border-radius:5px;cursor:pointer;font-size:12px;background:#fff;color:#374151;white-space:nowrap}
         .tb button.pri{background:#1976d2;color:#fff;border-color:#1976d2;font-weight:600;font-size:13px;padding:6px 16px}
@@ -439,7 +445,7 @@ export class CurvaSPanel {
         h1{font-size:18px;margin:0 0 8px}p{font-size:12px;color:#666;margin:0 0 12px}
         table{border-collapse:collapse;width:100%}th,td{border:1px solid #ccc;padding:5px 8px;font-size:11px}th{background:#f4f5f7;font-weight:600}
         svg{max-width:100%;height:auto}
-        @media print{body{background:#fff}.tb{display:none!important}.pv{padding:0;min-height:0}.a4{box-shadow:none;width:100%;min-height:0;padding:8mm 10mm}@page{margin:0}}
+        @media print{body{background:#fff}.tb{display:none!important}.pv{padding:0;min-height:0}.a4{box-shadow:none;width:100%;min-height:0;padding:8mm 10mm;padding-top:4px!important}.print-header,.print-footer{display:flex!important}.print-title{display:block!important}@page{margin:26px 10mm 22px 10mm}}
       </style>
     </head><body>
     <div class="tb">
@@ -456,6 +462,9 @@ export class CurvaSPanel {
     </div>
     <div class="pv">
       <div class="a4" id="a4">
+<div class="print-header"><span>ECM Project V1.00.01</span><span>${_projEsc}</span><span>${_dd}-${_dmm}-${_dyy}, ${_dthh}:${_dtmi}</span></div>
+<div class="print-footer"><span>By EHCM</span><span>&#8212;</span><span>P&aacute;gina <span id="phf-cur">1</span> de <span id="phf-tot">1</span></span></div>
+<div class="print-title">Curva S de Avance</div>
         <h1>Curva S de Avance</h1>
         <p>Curvas activas: ${cols.map(c => c.label).join(', ')}</p>
         ${svgStr}
@@ -463,6 +472,7 @@ export class CurvaSPanel {
       </div>
     </div>
     <script>
+      (function(){function _u(){var h=document.getElementById('a4');if(!h)return;var t=Math.max(1,Math.ceil(h.scrollHeight/1120));var el=document.getElementById('phf-tot');if(el)el.textContent=t;}window.addEventListener('beforeprint',_u);_u();})();
       document.title=${JSON.stringify(_title)};
       function setOri(o){
         document.getElementById('a4').classList.toggle('land',o==='landscape');

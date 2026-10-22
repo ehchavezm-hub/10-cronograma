@@ -50,17 +50,23 @@ export function generatePdfReport() {
 
   const generatedAt = new Date().toLocaleDateString('es-PE', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' });
   const _rpD = new Date(); const _rpDD = String(_rpD.getDate()).padStart(2,'0'); const _rpMM = String(_rpD.getMonth()+1).padStart(2,'0'); const _rpYY = _rpD.getFullYear();
+  const _rpHH = String(_rpD.getHours()).padStart(2,'0'); const _rpMi = String(_rpD.getMinutes()).padStart(2,'0');
+  const _rpProjEsc = _esc(project.name);
   const _rpTitle = `${project.name}-Informe Ejecutivo-${_rpDD}${_rpMM}${_rpYY}`;
 
   const html = `<!DOCTYPE html>
 <html lang="es">
 <head>
 <meta charset="UTF-8">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Urbanist:wght@400;500;600&display=swap">
 <title>${_esc(_rpTitle)}</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: Arial, sans-serif; font-size: 11pt; color: #212121; background: #fff; }
-  @page { size: A4; margin: 18mm 16mm 18mm 16mm; }
+  @page { size: A4; margin: 26px 16mm 22px 16mm; }
+  .print-header { font-family:'Urbanist',system-ui,sans-serif; position:fixed; top:0; left:0; right:0; height:26px; display:none; align-items:center; justify-content:space-between; padding:0 10mm; border-bottom:0.5pt solid #CBD5E0; font-size:9pt; color:#4A5568; background:#fff; z-index:9999; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+  .print-footer { font-family:'Urbanist',system-ui,sans-serif; position:fixed; bottom:0; left:0; right:0; height:22px; display:none; align-items:center; justify-content:space-between; padding:0 10mm; border-top:0.5pt solid #CBD5E0; font-size:8pt; color:#718096; background:#fff; z-index:9999; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+  .print-title { font-family:'Urbanist',system-ui,sans-serif; font-size:14pt; font-weight:600; color:#1A365D; text-align:center; margin:0 0 14px; }
   @media print { body { font-size: 10pt; } }
 
   .cover { min-height: 90vh; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; padding: 40px; border-bottom: 4px solid #1976D2; }
@@ -90,10 +96,13 @@ export function generatePdfReport() {
   .bar-bg { width: 60px; height: 7px; background: #E0E0E0; border-radius: 3px; overflow: hidden; display: inline-block; }
   .bar-fill { height: 100%; background: #1976D2; border-radius: 3px; }
   .footer { margin-top: 30px; font-size: 8pt; color: #9E9E9E; text-align: center; border-top: 1px solid #E0E0E0; padding-top: 10px; }
+  @media print { .print-header, .print-footer { display:flex !important; } }
   .page-break { page-break-before: always; }
 </style>
 </head>
 <body>
+<div class="print-header"><span>ECM Project V1.00.01</span><span>${_rpProjEsc}</span><span>${_rpDD}-${_rpMM}-${_rpYY}, ${_rpHH}:${_rpMi}</span></div>
+<div class="print-footer"><span>By EHCM</span><span>&#8212;</span><span>P&aacute;gina <span id="phf-cur">1</span> de <span id="phf-tot">1</span></span></div>
 
 <!-- PORTADA -->
 <div class="cover">
@@ -209,6 +218,9 @@ ${criticalTasks.length ? `
   win.document.write(html);
   win.document.close();
   win.focus();
-  setTimeout(() => win.print(), 600);
+  setTimeout(() => {
+    (function(){var h=win.document.body;if(!h)return;var t=Math.max(1,Math.ceil(h.scrollHeight/1120));var el=win.document.getElementById('phf-tot');if(el)el.textContent=t;})();
+    win.print();
+  }, 600);
   return { ok: true };
 }

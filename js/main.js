@@ -1738,11 +1738,11 @@ function _updateUndoRedoBtns() {
 // ============================================================
 
 async function _ensureDemoData() {
-  // Usar listAllProjects (incluye deleted_at) para que un proyecto demo borrado no se recree
   const allProjects = await listAllProjects();
   const DEMO_UUID = '00000000-0000-0000-0000-000000000010';
-  const demoExists = allProjects.some(p => p.id === DEMO_UUID);
-  if (!demoExists) {
+  const demoRecord = allProjects.find(p => p.id === DEMO_UUID);
+  // Si no existe o fue eliminado accidentalmente, siempre lo restauramos
+  if (!demoRecord || demoRecord.deleted_at) {
     await saveProjectSnapshot(DEMO_DATA);
   }
   // Siempre garantizar que los recursos demo existan
@@ -1753,10 +1753,7 @@ async function _ensureDemoData() {
       await putMany('task_resources', DEMO_DATA.task_resources);
     }
   }
-  if (!demoExists) return DEMO_DATA.project;
-  // Demo ya existía: devolver solo si está activo (no borrado); null si fue eliminado
-  const activeProjects = allProjects.filter(p => !p.deleted_at);
-  return activeProjects.find(p => p.id === DEMO_UUID) ?? null;
+  return DEMO_DATA.project;
 }
 
 async function _loadProject(projectId) {
@@ -2631,6 +2628,10 @@ function _printToPdf(moduleName, htmlContent) {
   const _dd = String(_d.getDate()).padStart(2,'0');
   const _mm = String(_d.getMonth()+1).padStart(2,'0');
   const _yy = _d.getFullYear();
+  const _hh = String(_d.getHours()).padStart(2,'0');
+  const _mi = String(_d.getMinutes()).padStart(2,'0');
+  const _projEsc = _proj.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const _modEsc = moduleName.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   const title = `${_proj}-${moduleName}-${_dd}${_mm}${_yy}`;
   const _appCssVars = _getCssVarsInline();
   const w = window.open('', '_blank', 'width=1100,height=880');
@@ -2639,7 +2640,9 @@ function _printToPdf(moduleName, htmlContent) {
     return;
   }
   w.document.write(`<!DOCTYPE html><html><head>
-<meta charset="utf-8"><title>${title}</title>
+<meta charset="utf-8">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Urbanist:wght@400;500;600&display=swap">
+<title>${title}</title>
 <style>
   ${_appCssVars}
   *{box-sizing:border-box}
@@ -2661,7 +2664,11 @@ function _printToPdf(moduleName, htmlContent) {
   table{border-collapse:collapse;width:100%}th,td{border:1px solid #ccc;padding:6px 10px;font-size:12px}th{background:#f4f5f7;font-weight:600}
   svg{max-width:100%;height:auto}img{max-width:100%}
   .badge{display:inline-block;border-radius:10px;padding:1px 7px;font-size:11px;font-weight:600}
-  @media print{body{background:#fff}.tb{display:none!important}.pv{padding:0;min-height:0}.a4{box-shadow:none;width:100%;min-height:0;padding:8mm 10mm}@page{margin:0}}
+  .print-header,.print-footer{font-family:'Urbanist',system-ui,sans-serif;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .print-header{position:fixed;top:0;left:0;right:0;height:26px;display:none;align-items:center;justify-content:space-between;padding:0 10mm;border-bottom:0.5pt solid #CBD5E0;font-size:9pt;color:#4A5568;background:#fff;z-index:9999}
+  .print-footer{position:fixed;bottom:0;left:0;right:0;height:22px;display:none;align-items:center;justify-content:space-between;padding:0 10mm;border-top:0.5pt solid #CBD5E0;font-size:8pt;color:#718096;background:#fff;z-index:9999}
+  .print-title{font-family:'Urbanist',system-ui,sans-serif;font-size:14pt;font-weight:600;color:#1A365D;text-align:center;margin:0 0 14px}
+  @media print{body{background:#fff}.tb{display:none!important}.pv{padding:0;min-height:0}.a4{box-shadow:none;width:100%;min-height:0;padding:8mm 10mm;padding-top:4px!important}.print-header,.print-footer{display:flex!important}@page{margin:26px 10mm 22px 10mm}}
 </style>
 </head><body>
 <div class="tb">
@@ -2677,9 +2684,14 @@ function _printToPdf(moduleName, htmlContent) {
   <button onclick="window.close()">&#x2715; Cerrar</button>
 </div>
 <div class="pv">
-  <div class="a4" id="a4">${htmlContent}</div>
+  <div class="a4" id="a4">
+<div class="print-header"><span>ECM Project V1.00.01</span><span>${_projEsc}</span><span>${_dd}-${_mm}-${_yy}, ${_hh}:${_mi}</span></div>
+<div class="print-footer"><span>By EHCM</span><span>&#8212;</span><span>P&aacute;gina <span id="phf-cur">1</span> de <span id="phf-tot">1</span></span></div>
+<div class="print-title">${_modEsc}</div>
+${htmlContent}</div>
 </div>
 <script>
+  (function(){function _u(){var h=document.getElementById('a4');if(!h)return;var t=Math.max(1,Math.ceil(h.scrollHeight/1120));var el=document.getElementById('phf-tot');if(el)el.textContent=t;}window.addEventListener('beforeprint',_u);_u();})();
   document.title=${JSON.stringify(title)};
   function setOri(o){
     document.getElementById('a4').classList.toggle('land',o==='landscape');
@@ -3980,13 +3992,17 @@ function _printOrgChart() {
   const _ocDD = String(_dOc.getDate()).padStart(2,'0');
   const _ocMM = String(_dOc.getMonth()+1).padStart(2,'0');
   const _ocYY = _dOc.getFullYear();
+  const _ocHH = String(_dOc.getHours()).padStart(2,'0');
+  const _ocMi = String(_dOc.getMinutes()).padStart(2,'0');
+  const _ocProjEsc = projName.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   const _ocFileTitle = `${projName || 'ECM Project'}-Estructura de Proyectos-${_ocDD}${_ocMM}${_ocYY}`;
 
   const html = `<!doctype html>
 <html lang="es"><head>
   <meta charset="UTF-8">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Urbanist:wght@400;500;600&display=swap">
   <title>${_ocFileTitle}</title>
-  <style id="page-style">@page { size: landscape; margin: 10mm 10mm 15mm; }</style>
+  <style id="page-style">@page { size: landscape; margin: 26px 10mm 22px 10mm; }</style>
   <style>
     :root { --clr-primary:#1976D2; --clr-bg:#f8f9fc; --clr-surface:#fff;
             --clr-surface-2:#f5f7fa; --clr-text:#1a1d23; --clr-text-2:#4a5568;
@@ -4020,9 +4036,38 @@ function _printOrgChart() {
       .oc-frame { margin:0; border:none; }
     }
     footer.ecm-footer { display:none; }
+    /* Encabezado/pie estándar */
+    .print-header,.print-footer{
+      font-family:'Urbanist',system-ui,sans-serif;
+      -webkit-print-color-adjust:exact;print-color-adjust:exact;
+    }
+    .print-header{
+      position:fixed;top:0;left:0;right:0;height:26px;
+      display:none;align-items:center;justify-content:space-between;
+      padding:0 10mm;border-bottom:0.5pt solid #CBD5E0;
+      font-size:9pt;color:#4A5568;background:#fff;z-index:9999;
+    }
+    .print-footer{
+      position:fixed;bottom:0;left:0;right:0;height:22px;
+      display:none;align-items:center;justify-content:space-between;
+      padding:0 10mm;border-top:0.5pt solid #CBD5E0;
+      font-size:8pt;color:#718096;background:#fff;z-index:9999;
+    }
+    .print-title{
+      font-family:'Urbanist',system-ui,sans-serif;
+      font-size:14pt;font-weight:600;color:#1A365D;
+      text-align:center;margin:0 0 12px;
+    }
+    @media print{
+      .print-header,.print-footer{display:flex!important;}
+      footer.ecm-footer{display:none!important;}
+      .print-title{display:block!important;}
+    }
+    .print-title{display:none;}
   </style>
-  <style id="page-style">@page { size: landscape; margin: 10mm 10mm 15mm; }</style>
 </head><body>
+<div class="print-header"><span>ECM Project V1.00.01</span><span>${_ocProjEsc}</span><span>${_ocDD}-${_ocMM}-${_ocYY}, ${_ocHH}:${_ocMi}</span></div>
+<div class="print-footer"><span>By EHCM</span><span>&#8212;</span><span>P&aacute;gina <span id="phf-cur">1</span> de <span id="phf-tot">1</span></span></div>
   <div class="controls">
     <label>Zoom:
       <input type="range" id="zoom" min="10" max="200" value="100" step="5">
@@ -4042,6 +4087,7 @@ function _printOrgChart() {
   <div class="header">
     <div class="proj-name">Estructura de Proyectos${projName ? ' — ' + projName : ''}</div>
   </div>
+  <div class="print-title">Estructura de Proyectos</div>
   <div class="oc-frame" id="oc-frame">
     <div id="oc-inner" style="transform-origin:top left;position:relative">
       ${canvasHtml}
@@ -4049,6 +4095,7 @@ function _printOrgChart() {
   </div>
   <footer class="ecm-footer">ECM Project v1.0.0 | &#169; 2026 E. Ch&#225;vez</footer>
   <script>
+    (function(){var el=document.getElementById('phf-tot');if(el)el.textContent=1;window.addEventListener('beforeprint',function(){var e=document.getElementById('phf-tot');if(e)e.textContent=1;});})();
     const inner = document.getElementById('oc-inner');
     const frame = document.getElementById('oc-frame');
     const zoom  = document.getElementById('zoom');
@@ -4066,7 +4113,7 @@ function _printOrgChart() {
       applyZoom(parseInt(zoom.value));
     });
     function setOrient(o) {
-      document.getElementById('page-style').textContent = '@page { size: ' + o + '; margin: 10mm 10mm 15mm; }';
+      document.getElementById('page-style').textContent = '@page { size: ' + o + '; margin: 26px 10mm 22px 10mm; }';
       document.getElementById('btn-land').classList.toggle('active', o === 'landscape');
       document.getElementById('btn-port').classList.toggle('active', o === 'portrait');
     }
@@ -4367,8 +4414,31 @@ async function _renderOrgChart() {
 
   // Proyectos sin asignar
   const unassigned = projects.filter(p => !p.settings?.portfolio_id && !p.settings?.program_id);
+  // Si ya hay posiciones guardadas, los proyectos nuevos (sin pos guardada) se ubican
+  // cerca del clúster existente — no al final del cursor global _col que puede quedar muy lejos.
+  const _savedVals = Object.values(savedPos);
+  const _hasSaved = _savedVals.length > 0;
+  const _clusterCX = _hasSaved
+    ? Math.round(_savedVals.reduce((s, p) => s + p.x, 0) / _savedVals.length)
+    : 60;
+  const _clusterMaxY = _hasSaved
+    ? Math.max(..._savedVals.map(p => p.y))
+    : 60;
+  const _newUnassigned = _hasSaved
+    ? unassigned.filter(p => !savedPos[`proj:${p.id}`])
+    : [];
   unassigned.forEach((proj, i) => {
-    const projPos = defaultPos('proj', proj.id, _col + i, orphanProgs.length > 0 ? 2 : 1);
+    let projPos;
+    if (_hasSaved && !savedPos[`proj:${proj.id}`]) {
+      const ni = _newUnassigned.indexOf(proj);
+      const half = (_newUnassigned.length - 1) / 2;
+      projPos = {
+        x: Math.max(60, Math.round(_clusterCX + (ni - half) * (CARD_W + 20))),
+        y: _clusterMaxY + ROW_GAP,
+      };
+    } else {
+      projPos = defaultPos('proj', proj.id, _col + i, orphanProgs.length > 0 ? 2 : 1);
+    }
     cardList.push({ type: 'project', data: proj, pos: projPos, parentKey: null });
   });
 
