@@ -1654,12 +1654,42 @@ async function _openCalendarManager() {
         <div style="font-size:11px;color:var(--clr-text-3)">Agregar, editar o eliminar calendarios del proyecto</div>
       </div>
       <button id="cal-mgr-new" class="btn btn-primary btn-sm">+ Nuevo</button>
+      <button id="cal-mgr-print" class="btn btn-ghost btn-sm" title="Imprimir calendarios" style="font-size:14px;padding:0 6px">🖨</button>
       <button id="cal-mgr-close" class="btn btn-ghost btn-icon btn-sm" aria-label="Cerrar">✕</button>
     </div>
     <div id="cal-mgr-list" style="padding:12px 18px;min-height:80px;max-height:60vh;overflow-y:auto"></div>`;
 
   _makeDraggable(dlg, '[data-drag-handle]');
   dlg.querySelector('#cal-mgr-close')?.addEventListener('click', () => dlg.close());
+  dlg.querySelector('#cal-mgr-print')?.addEventListener('click', async () => {
+    const allCals = (await _getAllSt('calendars')).filter(c => !c.deleted_at && (c.org_id === proj.org_id || c.project_id === proj.id));
+    const DAYS = ['','Lun','Mar','Mié','Jue','Vie','Sáb','Dom'];
+    const rows = allCals.map(c => {
+      const dias = (c.work_week || [1,2,3,4,5]).map(d => DAYS[d] || d).join(', ');
+      const active = c.id === proj.calendar_id ? '<span style="color:#1976d2;font-weight:700"> ▶ activo</span>' : '';
+      const excs = (c.exceptions || []).length;
+      return `<tr>
+        <td style="font-weight:${c.id===proj.calendar_id?'700':'400'}">${_escHtml(c.name)}${active}</td>
+        <td>${dias}</td>
+        <td style="text-align:center">${c.hours_per_day || 8}h</td>
+        <td style="text-align:center">${(c.work_week||[1,2,3,4,5]).length} días/sem</td>
+        <td style="text-align:center">${excs}</td>
+      </tr>`;
+    }).join('');
+    const html = `<h1 style="color:#1976d2;font-size:16px;margin-bottom:12px">Gestión de Calendarios</h1>
+<p style="font-size:11px;color:#64748b;margin-bottom:14px">Proyecto: <strong>${_escHtml(proj.name)}</strong></p>
+<table style="border-collapse:collapse;width:100%;font-size:12px">
+  <thead><tr>
+    <th style="background:#1976d2;color:#fff;padding:7px 10px;text-align:left">Nombre</th>
+    <th style="background:#1976d2;color:#fff;padding:7px 10px;text-align:left">Días laborables</th>
+    <th style="background:#1976d2;color:#fff;padding:7px 10px;text-align:center">Horas/día</th>
+    <th style="background:#1976d2;color:#fff;padding:7px 10px;text-align:center">Días/sem</th>
+    <th style="background:#1976d2;color:#fff;padding:7px 10px;text-align:center">Excepciones</th>
+  </tr></thead>
+  <tbody>${rows}</tbody>
+</table>`;
+    _printToPdf('Calendarios', html);
+  });
   dlg.querySelector('#cal-mgr-new')?.addEventListener('click', async () => {
     dlg.close();
     // Create a new calendar by clearing calendar_id so editor creates a new one
@@ -2589,16 +2619,16 @@ function _printToPdf(moduleName, htmlContent) {
 <style>
   ${_appCssVars}
   *{box-sizing:border-box}
-  body{font-family:Arial,sans-serif;margin:0;padding:0;background:#cfd8dc;color:var(--clr-text,#1a1a2e)}
-  .tb{background:#263238;padding:8px 14px;display:flex;align-items:center;gap:7px;flex-wrap:wrap;position:sticky;top:0;z-index:100;border-bottom:2px solid #37474f}
-  .tb button{padding:5px 11px;border:1px solid #546e7a;border-radius:4px;cursor:pointer;font-size:12px;background:#37474f;color:#ecf0f1;white-space:nowrap}
+  body{font-family:Arial,sans-serif;margin:0;padding:0;background:#f1f5f9;color:var(--clr-text,#1a1a2e)}
+  .tb{background:#fff;padding:8px 14px;display:flex;align-items:center;gap:7px;flex-wrap:wrap;position:sticky;top:0;z-index:100;border-bottom:1px solid #e2e8f0}
+  .tb button{padding:5px 11px;border:1px solid #d1d5db;border-radius:5px;cursor:pointer;font-size:12px;background:#fff;color:#374151;white-space:nowrap}
   .tb button.pri{background:#1976d2;color:#fff;border-color:#1976d2;font-weight:600;font-size:13px;padding:6px 16px}
   .tb button.pri:hover{background:#1565c0}
-  .tb button.act{background:#0d47a1;color:#fff;border-color:#1565c0}
-  .tb button:hover:not(.pri){background:#455a64}
-  .tb .sep{width:1px;height:20px;background:#546e7a;flex-shrink:0}
-  .tb .lbl{font-size:11px;color:#90a4ae;white-space:nowrap}
-  .tb input[type=text]{font-size:12px;padding:3px 8px;border:1px solid #546e7a;border-radius:3px;background:#37474f;color:#ecf0f1;width:300px}
+  .tb button.act{background:#e3f2fd;color:#1565c0;border-color:#90caf9;font-weight:600}
+  .tb button:hover:not(.pri){background:#f8fafc}
+  .tb .sep{width:1px;height:20px;background:#e2e8f0;flex-shrink:0}
+  .tb .lbl{font-size:11px;color:#64748b;white-space:nowrap}
+  .tb input[type=text]{font-size:12px;padding:3px 8px;border:1px solid #d1d5db;border-radius:4px;background:#f8fafc;color:#374151;width:300px}
   .pv{padding:20px;display:flex;flex-direction:column;align-items:center;gap:16px;min-height:calc(100vh - 52px)}
   .a4{background:#fff;box-shadow:0 4px 14px rgba(0,0,0,.4);padding:14mm 15mm;width:210mm;min-height:297mm;overflow:hidden}
   .a4.land{width:297mm;min-height:210mm}
@@ -4859,24 +4889,24 @@ function _exportCpmNetwork(fmt, dlg) {
   <title>${fileTitle}</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body  { font-family: 'Segoe UI', system-ui, sans-serif; background:#cfd8dc; }
+    body  { font-family: 'Segoe UI', system-ui, sans-serif; background:#f1f5f9; }
     .controls { display: flex; align-items: center; gap: 8px; padding: 8px 12px;
-                font-size: 12px; flex-wrap: wrap; background:#263238;
-                border-bottom: 2px solid #37474f; position: sticky; top:0; z-index:10; }
-    .controls label { display: flex; align-items: center; gap: 5px; color: #90a4ae; }
-    .controls input[type=number] { width: 46px; padding: 2px 4px; border: 1px solid #546e7a;
+                font-size: 12px; flex-wrap: wrap; background:#fff;
+                border-bottom: 1px solid #e2e8f0; position: sticky; top:0; z-index:10; }
+    .controls label { display: flex; align-items: center; gap: 5px; color: #64748b; }
+    .controls input[type=number] { width: 46px; padding: 2px 4px; border: 1px solid #d1d5db;
                                    border-radius: 4px; font-size: 12px; text-align:center;
-                                   background:#37474f; color:#ecf0f1; }
-    .btn-c { border: 1px solid #546e7a; border-radius: 4px; padding: 4px 10px;
-             font-size: 12px; cursor: pointer; background: #37474f; color: #ecf0f1; white-space:nowrap; }
+                                   background:#f8fafc; color:#374151; }
+    .btn-c { border: 1px solid #d1d5db; border-radius: 5px; padding: 4px 10px;
+             font-size: 12px; cursor: pointer; background: #fff; color: #374151; white-space:nowrap; }
     .btn-c:hover, .btn-c.active { background: #1976D2; color: #fff; border-color: #1976D2; }
-    .btn-print { background: #1976D2; color: #fff; border: none; border-radius: 4px;
+    .btn-print { background: #1976D2; color: #fff; border: none; border-radius: 5px;
                  padding: 6px 16px; font-size: 13px; cursor: pointer; font-weight:600; }
     .btn-print:hover { background: #1565C0; }
-    .sep { width: 1px; height: 20px; background: #546e7a; flex-shrink:0; }
-    .lbl-sm { font-size:11px; color:#78909C; white-space:nowrap; }
-    input[type=text].fn-inp { font-size:12px; padding:3px 8px; border:1px solid #546e7a;
-                border-radius:3px; background:#37474f; color:#ecf0f1; width:260px; }
+    .sep { width: 1px; height: 20px; background: #e2e8f0; flex-shrink:0; }
+    .lbl-sm { font-size:11px; color:#64748b; white-space:nowrap; }
+    input[type=text].fn-inp { font-size:12px; padding:3px 8px; border:1px solid #d1d5db;
+                border-radius:4px; background:#f8fafc; color:#374151; width:260px; }
     .preview { padding: 20px; display:flex; flex-direction:column; align-items:center; gap:16px; min-height:calc(100vh - 52px); }
     .page-tile { background:#fff; box-shadow:0 4px 14px rgba(0,0,0,.4); position:relative; flex-shrink:0; }
     .page-tile svg { display:block; }
