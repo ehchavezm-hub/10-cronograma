@@ -147,24 +147,24 @@ export function printGantt(rows) {
   <title>${_esc(_gTitle)}</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body  { font-family: 'Segoe UI', system-ui, sans-serif; background:#cfd8dc; }
+    body  { font-family: 'Segoe UI', system-ui, sans-serif; background:#f1f5f9; }
     .controls { display: flex; align-items: center; gap: 8px; padding: 8px 12px;
-                font-size: 12px; flex-wrap: wrap; background:#263238;
-                border-bottom: 2px solid #37474f; position: sticky; top:0; z-index:10; }
-    .controls label { display: flex; align-items: center; gap: 5px; color: #90a4ae; }
-    .controls input[type=number] { width: 46px; padding: 2px 4px; border: 1px solid #546e7a;
+                font-size: 12px; flex-wrap: wrap; background:#fff;
+                border-bottom: 1px solid #e2e8f0; position: sticky; top:0; z-index:10; }
+    .controls label { display: flex; align-items: center; gap: 5px; color: #64748b; }
+    .controls input[type=number] { width: 46px; padding: 2px 4px; border: 1px solid #d1d5db;
                                    border-radius: 4px; font-size: 12px; text-align:center;
-                                   background:#37474f; color:#ecf0f1; }
-    .btn-c { border: 1px solid #546e7a; border-radius: 4px; padding: 4px 10px;
-             font-size: 12px; cursor: pointer; background: #37474f; color: #ecf0f1; white-space:nowrap; }
+                                   background:#f8fafc; color:#374151; }
+    .btn-c { border: 1px solid #d1d5db; border-radius: 5px; padding: 4px 10px;
+             font-size: 12px; cursor: pointer; background: #fff; color: #374151; white-space:nowrap; }
     .btn-c:hover, .btn-c.active { background: #1976D2; color: #fff; border-color: #1976D2; }
-    .btn-print { background: #1976D2; color: #fff; border: none; border-radius: 4px;
+    .btn-print { background: #1976D2; color: #fff; border: none; border-radius: 5px;
                  padding: 6px 16px; font-size: 13px; cursor: pointer; font-weight:600; }
     .btn-print:hover { background: #1565C0; }
-    .sep { width: 1px; height: 20px; background: #546e7a; flex-shrink:0; }
-    .lbl-sm { font-size:11px; color:#78909C; white-space:nowrap; }
-    input[type=text].fn-inp { font-size:12px; padding:3px 8px; border:1px solid #546e7a;
-                border-radius:3px; background:#37474f; color:#ecf0f1; width:260px; }
+    .sep { width: 1px; height: 20px; background: #e2e8f0; flex-shrink:0; }
+    .lbl-sm { font-size:11px; color:#64748b; white-space:nowrap; }
+    input[type=text].fn-inp { font-size:12px; padding:3px 8px; border:1px solid #d1d5db;
+                border-radius:4px; background:#f8fafc; color:#374151; width:260px; }
     .preview { padding: 20px; display:flex; flex-direction:column; align-items:center; gap:16px; min-height:calc(100vh - 52px); }
     .page-tile { background:#fff; box-shadow:0 4px 14px rgba(0,0,0,.4); position:relative; flex-shrink:0; }
     .page-tile svg { display:block; }

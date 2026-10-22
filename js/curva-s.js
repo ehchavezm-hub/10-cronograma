@@ -423,16 +423,16 @@ export class CurvaSPanel {
       <title>${_title}</title>
       <style>
         *{box-sizing:border-box}
-        body{font-family:Arial,sans-serif;margin:0;padding:0;background:#cfd8dc}
-        .tb{background:#263238;padding:8px 14px;display:flex;align-items:center;gap:7px;flex-wrap:wrap;position:sticky;top:0;z-index:100;border-bottom:2px solid #37474f}
-        .tb button{padding:5px 11px;border:1px solid #546e7a;border-radius:4px;cursor:pointer;font-size:12px;background:#37474f;color:#ecf0f1;white-space:nowrap}
+        body{font-family:Arial,sans-serif;margin:0;padding:0;background:#f1f5f9}
+        .tb{background:#fff;padding:8px 14px;display:flex;align-items:center;gap:7px;flex-wrap:wrap;position:sticky;top:0;z-index:100;border-bottom:1px solid #e2e8f0}
+        .tb button{padding:5px 11px;border:1px solid #d1d5db;border-radius:5px;cursor:pointer;font-size:12px;background:#fff;color:#374151;white-space:nowrap}
         .tb button.pri{background:#1976d2;color:#fff;border-color:#1976d2;font-weight:600;font-size:13px;padding:6px 16px}
         .tb button.pri:hover{background:#1565c0}
-        .tb button.act{background:#0d47a1;color:#fff;border-color:#1565c0}
-        .tb button:hover:not(.pri){background:#455a64}
-        .tb .sep{width:1px;height:20px;background:#546e7a;flex-shrink:0}
-        .tb .lbl{font-size:11px;color:#90a4ae;white-space:nowrap}
-        .tb input[type=text]{font-size:12px;padding:3px 8px;border:1px solid #546e7a;border-radius:3px;background:#37474f;color:#ecf0f1;width:300px}
+        .tb button.act{background:#e3f2fd;color:#1565c0;border-color:#90caf9;font-weight:600}
+        .tb button:hover:not(.pri){background:#f8fafc}
+        .tb .sep{width:1px;height:20px;background:#e2e8f0;flex-shrink:0}
+        .tb .lbl{font-size:11px;color:#64748b;white-space:nowrap}
+        .tb input[type=text]{font-size:12px;padding:3px 8px;border:1px solid #d1d5db;border-radius:4px;background:#f8fafc;color:#374151;width:300px}
         .pv{padding:20px;display:flex;flex-direction:column;align-items:center;gap:16px;min-height:calc(100vh - 52px)}
         .a4{background:#fff;box-shadow:0 4px 14px rgba(0,0,0,.4);padding:14mm 15mm;width:210mm;min-height:297mm;overflow:hidden}
         .a4.land{width:297mm;min-height:210mm}
