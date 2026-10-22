@@ -49,12 +49,14 @@ export function generatePdfReport() {
   }
 
   const generatedAt = new Date().toLocaleDateString('es-PE', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' });
+  const _rpD = new Date(); const _rpDD = String(_rpD.getDate()).padStart(2,'0'); const _rpMM = String(_rpD.getMonth()+1).padStart(2,'0'); const _rpYY = _rpD.getFullYear();
+  const _rpTitle = `${project.name}-Informe Ejecutivo-${_rpDD}${_rpMM}${_rpYY}`;
 
   const html = `<!DOCTYPE html>
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<title>Informe Ejecutivo — ${_esc(project.name)}</title>
+<title>${_esc(_rpTitle)}</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: Arial, sans-serif; font-size: 11pt; color: #212121; background: #fff; }

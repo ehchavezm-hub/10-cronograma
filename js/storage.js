@@ -144,7 +144,7 @@ export async function listAllProjects() {
 
 /** @param {string} projectId */
 export async function loadProject(projectId) {
-  const [project, allTasks, allDeps, calendars, calExceptions] = await Promise.all([
+  const [_rawProject, allTasks, allDeps, calendars, calExceptions] = await Promise.all([
     getById('projects', projectId),
     getByIndex('tasks', 'project_id', projectId),
     getByIndex('task_dependencies', 'project_id', projectId),
@@ -152,6 +152,7 @@ export async function loadProject(projectId) {
     getAll('calendar_exceptions'),
   ]);
   // Excluir registros borrados localmente (deleted_at)
+  const project = (_rawProject && !_rawProject.deleted_at) ? _rawProject : null;
   const tasks = allTasks.filter(t => !t.deleted_at);
   // Deduplicar deps: ante duplicados (pred_id+succ_id+type), conservar el más reciente
   const _depsDedup = new Map();

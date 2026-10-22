@@ -1960,6 +1960,10 @@ async function _deleteProject(projectId) {
   if (appState.state.project?.id === projectId) {
     appState._applyRemote({ project: null, tasks: new Map(), deps: new Map(), cpmResult: null, cpmDirty: false });
   }
+  // Clear last-project-id from localStorage if it matches the deleted project
+  try {
+    if (localStorage.getItem('last-project-id') === projectId) localStorage.removeItem('last-project-id');
+  } catch (_e) { /* ignore */ }
 }
 
 async function _showProjectRecovery() {
@@ -2126,15 +2130,25 @@ async function _showProjectRecovery() {
         tx.oncomplete = () => res(records.length);
         tx.onerror = () => rej(tx.error);
       });
+      const putMissing = async (store, records) => {
+        const existingKeys = await new Promise((res, rej) => {
+          const req = db2.transaction(store, 'readonly').objectStore(store).getAllKeys();
+          req.onsuccess = () => res(new Set(req.result));
+          req.onerror = () => rej(req.error);
+        });
+        const missing = records.filter(r => !existingKeys.has(r.id));
+        if (!missing.length) return 0;
+        return putBatch(store, missing);
+      };
 
       await putBatch('calendars',  [calData]);
       log('✓ Calendario laboral registrado', '#22c55e');
-      await putBatch('portfolios', pfData);
-      log(`✓ ${pfData.length} portafolios (Plantas Ind., Edificaciones, Infraestructura, Personal, BIM, Gerencia Técnica)`, '#22c55e');
-      await putBatch('programs',   pgData);
-      log(`✓ ${pgData.length} programas (incl. Cirugía y Equipamiento, Modelado BIM)`, '#22c55e');
-      await putBatch('projects',   prjData);
-      log(`✓ ${prjData.length} proyectos creados`, '#22c55e');
+      const _pfIns = await putMissing('portfolios', pfData);
+      log(`✓ ${_pfIns} portafolios nuevos insertados (${pfData.length} total)`, '#22c55e');
+      const _pgIns = await putMissing('programs',   pgData);
+      log(`✓ ${_pgIns} programas nuevos insertados (${pgData.length} total)`, '#22c55e');
+      const _prIns = await putMissing('projects',   prjData);
+      log(`✓ ${_prIns} proyectos nuevos insertados (${prjData.length} total)`, '#22c55e');
       log('✅ Restauración completada', '#22c55e');
 
       dlg.close();
@@ -3953,8 +3967,10 @@ function _printOrgChart() {
   const _dOc = new Date();
   const today    = _dOc.toLocaleDateString('es-PE');
   const projName = project?.name ?? '';
-  const _ocFileDateStr = `${String(_dOc.getDate()).padStart(2,'0')}-${String(_dOc.getMonth()+1).padStart(2,'0')}-${_dOc.getFullYear()}`;
-  const _ocFileTitle = `${projName || 'Estructura'} - Estructura de Proyectos - ${_ocFileDateStr}`;
+  const _ocDD = String(_dOc.getDate()).padStart(2,'0');
+  const _ocMM = String(_dOc.getMonth()+1).padStart(2,'0');
+  const _ocYY = _dOc.getFullYear();
+  const _ocFileTitle = `${projName || 'ECM Project'}-Estructura de Proyectos-${_ocDD}${_ocMM}${_ocYY}`;
 
   const html = `<!doctype html>
 <html lang="es"><head>
