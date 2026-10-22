@@ -2347,6 +2347,8 @@ async function init() {
     appState.onRequestCpm = _requestCpm;
 
     // ---- Cargar proyecto ----
+    // Siempre restaurar demo al inicio (garantiza que no desaparezca)
+    await _ensureDemoData();
     let _lastProjId = null;
     try { _lastProjId = localStorage.getItem('last-project-id'); } catch {}
     const projectId = new URLSearchParams(location.search).get('p') || _lastProjId;
@@ -2354,9 +2356,9 @@ async function init() {
       try {
         await _loadProject(projectId);
       } catch {
-        const proj = await _ensureDemoData();
-        if (proj) {
-          await _loadProject(proj.id);
+        const demoProj = await _ensureDemoData();
+        if (demoProj) {
+          await _loadProject(demoProj.id);
           // Informar al usuario que el proyecto anterior no se encontró
           setTimeout(() => {
             _showToast('⚠ Proyecto anterior no encontrado. Usa Exportar → Importar JSON para restaurar desde un respaldo.', 'warn');
@@ -2364,8 +2366,8 @@ async function init() {
         }
       }
     } else {
-      const proj = await _ensureDemoData();
-      if (proj) await _loadProject(proj.id);
+      const demoProj = await _ensureDemoData();
+      if (demoProj) await _loadProject(demoProj.id);
     }
 
     // ---- Inicializar tabla WBS ----
