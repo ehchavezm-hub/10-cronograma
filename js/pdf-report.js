@@ -7,6 +7,7 @@
 
 import { appState } from './state.js';
 import { Calendar, isoToDate } from './calendar.js';
+import { pageHfCss } from './pdf-utils.js';
 
 const _esc = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 
@@ -98,6 +99,7 @@ export function generatePdfReport() {
   .footer { margin-top: 30px; font-size: 5pt; color: #9E9E9E; text-align: center; border-top: 1px solid #E0E0E0; padding-top: 10px; }
   @media print { .print-header, .print-footer { display:flex !important; } }
   .page-break { page-break-before: always; }
+  ${pageHfCss({ proj: project.name, date: `${_rpDD}-${_rpMM}-${_rpYY}, ${_rpHH}:${_rpMi}` })}
 </style>
 </head>
 <body>

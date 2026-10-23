@@ -30,6 +30,44 @@ function _getCssVarsInline() {
   } catch (_e) { return ''; }
 }
 
+/** Chromium ≥ 131 (Chrome/Edge actuales) soporta @page margin boxes; Electron 32 (Chromium 128) no. */
+export function supportsPageMarginBoxes() {
+  const m = /Chrom(?:e|ium)\/(\d+)/.exec(navigator.userAgent);
+  return !!m && Number(m[1]) >= 131;
+}
+
+/** Literal de cadena CSS seguro para content:"..." dentro de <style>. */
+function _cssStr(s) {
+  return '"' + String(s).replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/</g, '\\3c ').replace(/[\r\n]+/g, ' ') + '"';
+}
+
+/**
+ * Encabezado/pie estándar en el área de margen de la página (fuera del contenido)
+ * mediante @page margin boxes. Si el navegador las soporta, oculta en impresión
+ * los encabezados/pies fijos (.print-header/.print-footer/.phf-hdr/.phf-ftr), que
+ * se dibujan dentro del área de contenido. Si no las soporta devuelve '' y se
+ * mantienen los fijos como respaldo.
+ * @param {{ proj:string, date:string, footRight?:string }} o
+ *   footRight: texto del pie derecho; por defecto "Página X de Y".
+ */
+export function pageHfCss({ proj, date, footRight }) {
+  if (!supportsPageMarginBoxes()) return '';
+  const box = "font-family:'Urbanist',system-ui,sans-serif;font-size:5pt;";
+  const top = box + 'color:#4A5568;vertical-align:bottom;padding-bottom:1mm;border-bottom:0.5pt solid #CBD5E0;';
+  const bot = box + 'color:#718096;vertical-align:top;padding-top:1mm;border-top:0.5pt solid #CBD5E0;';
+  const right = footRight != null ? _cssStr(footRight) : '"P\\E1 gina " counter(page) " de " counter(pages)';
+  return `
+  @page{margin-top:10mm;margin-bottom:9mm;
+    @top-left{content:"ECM Project V1.00.01";${top}text-align:left}
+    @top-center{content:${_cssStr(proj)};${top}text-align:center}
+    @top-right{content:${_cssStr(date)};${top}text-align:right}
+    @bottom-left{content:"By EHCM";${bot}text-align:left}
+    @bottom-center{content:"\\2014";${bot}text-align:center}
+    @bottom-right{content:${right};${bot}text-align:right}
+  }
+  @media print{.print-header,.print-footer,.phf-hdr,.phf-ftr{display:none!important}}`;
+}
+
 /**
  * Abre una ventana de vista previa PDF con CSS completo de la aplicación.
  * @param {string} moduleName
@@ -170,6 +208,7 @@ export function printToPdf(moduleName, htmlContent) {
     .print-header,.print-footer{display:flex!important}
     @page{margin:26px 10mm 22px 10mm}
   }
+  ${pageHfCss({ proj: _proj, date: `${_dd}-${_mm}-${_yy}, ${_hh}:${_mi}` })}
 </style>
 </head><body>
 <div class="tb">

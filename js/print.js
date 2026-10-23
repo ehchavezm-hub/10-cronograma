@@ -10,6 +10,7 @@
 import { appState }      from './state.js';
 import { isoToDate, Calendar, fmtDate } from './calendar.js';
 import { exportSvg }     from './io.js';
+import { pageHfCss }     from './pdf-utils.js';
 
 // ============================================================
 // Imprimir tabla EDT
@@ -71,7 +72,8 @@ export function printWbsTable() {
     @page { margin: 26px 10mm 22px 10mm; }
   }
   #print-ecm-hf { display:none; }
-  @media print { #print-ecm-hf { display:block; } }`;
+  @media print { #print-ecm-hf { display:block; } }
+  ${pageHfCss({ proj: _wProj?.name ?? 'ECM Project', date: `${_hfDD}-${_hfMM}-${_hfYY}, ${_hfHH}:${_hfMi}`, footRight: 'Tabla EDT' })}`;
   document.head.appendChild(_footerStyle);
   document.body.classList.add('printing');
   window.print();
@@ -237,7 +239,7 @@ export function printGantt(rows) {
       const A4w = isLand ? 297 : 210;
       const A4h = isLand ? 210 : 297;
       const availW = A4w - 2 * MARG; // mm
-      const availH = A4h - 2 * MARG - 8; // mm (8mm reservado para footer)
+      const availH = A4h - 2 * MARG - 16; // mm (8mm encabezado + 8mm pie, fuera del dibujo)
 
       const cellW = SVG_W / hPages;
       const cellH = SVG_H / vPages;
@@ -263,7 +265,7 @@ export function printGantt(rows) {
           const tile = document.createElement('div');
           tile.className = 'page-tile';
           tile.style.width = availW + 'mm';
-          tile.style.height = (availH + 8) + 'mm';
+          tile.style.height = (availH + 16) + 'mm';
 
           const svgEl = document.createElementNS('http://www.w3.org/2000/svg','svg');
           svgEl.setAttribute('viewBox', vbX + ' ' + vbY + ' ' + cellW + ' ' + cellH);
@@ -272,10 +274,11 @@ export function printGantt(rows) {
           svgEl.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
           svgEl.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
           svgEl.setAttribute('preserveAspectRatio', 'xMinYMin meet');
+          svgEl.style.marginTop = '8mm';
           svgEl.innerHTML = SVG_INNER;
           tile.appendChild(svgEl);
 
-          // Footer por tile
+          // Encabezado y pie por tile
           const head = document.createElement('div');
           head.className = 'page-head';
           head.innerHTML = '<span>ECM Project V1.00.01</span><span>' + PROJ_NAME + '</span><span>' + DATE_STR + '</span>';
