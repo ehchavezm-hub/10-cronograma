@@ -407,6 +407,9 @@ export function renderGanttSvg({ tasks, deps, cpmResult, calendar, projectStart,
 // Helpers
 // ============================================================
 
+/** Códigos EDT (1, 1.1, 1.2…) según jerarquía y orden; mismo cálculo que la tabla EDT. */
+export function calcWbsCodes(tasks) { return _calcWbsCodes(tasks); }
+
 function _calcWbsCodes(tasks) {
   const active = [...tasks.values()].filter(t => !t.deleted_at);
   const ch = new Map(active.map(t => [t.id, []]));

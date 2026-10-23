@@ -7,6 +7,7 @@
 import { appState } from './state.js';
 import { Calendar, isoToDate } from './calendar.js';
 import { printToPdf } from './pdf-utils.js';
+import { calcWbsCodes } from './gantt-svg.js';
 
 /** @param {*} s */
 const _esc = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
@@ -130,10 +131,12 @@ export class LookaheadPanel {
       const LABELS = { todo:'Pendiente', in_progress:'En Curso', done:'Completada', delayed:'Atrasada' };
       const refDate = this._refDate ? new Date(this._refDate) : new Date();
       const fmtRef2 = refDate.toLocaleDateString('es-PE', { day:'2-digit', month:'2-digit', year:'numeric' });
+      const wbsCodes = calcWbsCodes(appState.state.tasks ?? new Map());
       const html = `<h1 style="font-size:16px;margin-bottom:4px">Vista Lookahead — ${this._weeks} semanas desde ${fmtRef2}</h1>
         <p style="font-size:12px;color:#666;margin:0 0 12px">${rows.length} tarea(s)</p>
         <table style="width:100%;border-collapse:collapse;font-size:12px">
           <thead><tr style="background:#f4f5f7">
+            <th style="border:1px solid #ccc;padding:6px 8px;text-align:center">EDT</th>
             <th style="border:1px solid #ccc;padding:6px 10px;text-align:left">Tarea</th>
             <th style="border:1px solid #ccc;padding:6px 10px;text-align:left">Inicio</th>
             <th style="border:1px solid #ccc;padding:6px 10px;text-align:left">Fin</th>
@@ -143,6 +146,7 @@ export class LookaheadPanel {
           </tr></thead>
           <tbody>${rows.map((r, i) => `
             <tr style="background:${i%2===0?'#fff':'#f9f9f9'}">
+              <td style="border:1px solid #ccc;padding:6px 8px;text-align:center;white-space:nowrap">${_esc2(wbsCodes.get(r.task.id) ?? '')}</td>
               <td style="border:1px solid #ccc;padding:6px 10px">${_esc2(r.task.name)}</td>
               <td style="border:1px solid #ccc;padding:6px 10px;white-space:nowrap">${fmtDate(r.startDate)}</td>
               <td style="border:1px solid #ccc;padding:6px 10px;white-space:nowrap">${fmtDate(r.endDate)}</td>
@@ -250,11 +254,13 @@ export class LookaheadPanel {
     this.el.querySelector('#la-btn-3')?.setAttribute('style', `padding:4px 12px;font-size:12px;background:${this._weeks===3?'var(--clr-primary)':'var(--clr-surface-2)'};color:${this._weeks===3?'#fff':'var(--clr-text)'}`);
     this.el.querySelector('#la-btn-6')?.setAttribute('style', `padding:4px 12px;font-size:12px;background:${this._weeks===6?'var(--clr-primary)':'var(--clr-surface-2)'};color:${this._weeks===6?'#fff':'var(--clr-text)'}`);
 
+    const wbsCodes = calcWbsCodes(appState.state.tasks ?? new Map());
     this._tbody.innerHTML = `
       <p style="font-size:12px;color:var(--clr-text-3);margin:0 0 10px">${rows.length} tarea(s) en las próximas <strong>${this._weeks} semanas</strong> desde <strong>${fmtRef}</strong></p>
       <table style="width:100%;border-collapse:collapse;font-size:12px">
         <thead>
           <tr style="background:var(--clr-surface-2,#f4f5f7);color:var(--clr-text-2)">
+            <th style="padding:7px 8px;text-align:center;font-weight:600;border-bottom:1px solid var(--clr-border)">EDT</th>
             <th style="padding:7px 10px;text-align:left;font-weight:600;border-bottom:1px solid var(--clr-border)">Tarea</th>
             <th style="padding:7px 10px;text-align:left;font-weight:600;border-bottom:1px solid var(--clr-border)">Inicio</th>
             <th style="padding:7px 10px;text-align:left;font-weight:600;border-bottom:1px solid var(--clr-border)">Fin</th>
@@ -266,6 +272,7 @@ export class LookaheadPanel {
         <tbody>
           ${rows.map((r, i) => `
             <tr style="background:${i%2===0?'':'var(--clr-surface-2,#f4f5f7)'};border-bottom:1px solid var(--clr-border)">
+              <td style="padding:7px 8px;text-align:center;color:var(--clr-text-3);white-space:nowrap">${_esc(wbsCodes.get(r.task.id) ?? '')}</td>
               <td style="padding:7px 10px;color:var(--clr-text);max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${_esc(r.task.name)}">${_esc(r.task.name)}</td>
               <td style="padding:7px 10px;color:var(--clr-text-2);white-space:nowrap">${fmtDate(r.startDate)}</td>
               <td style="padding:7px 10px;color:var(--clr-text-2);white-space:nowrap">${fmtDate(r.endDate)}</td>
