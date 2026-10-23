@@ -38,8 +38,8 @@ jobs:
         run: |
           echo "Buscando patrones de secretos en el código fuente..."
           FOUND=0
-          # Supabase keys
-          if grep -rn "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9" js/ --include="*.js" 2>/dev/null; then
+          # Supabase keys (js/config.js se excluye: solo contiene la anon key pública — ver DECISIONES.md D9)
+          if grep -rn "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9" js/ --include="*.js" --exclude="config.js" 2>/dev/null; then
             echo "::error::Posible JWT hardcodeado detectado"
             FOUND=1
           fi
