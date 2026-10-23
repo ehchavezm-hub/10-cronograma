@@ -64,7 +64,7 @@ export function generatePdfReport() {
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: Arial, sans-serif; font-size: 11pt; color: #212121; background: #fff; }
-  @page { size: A4; margin: 26px 16mm 22px 16mm; }
+  @page { size: A4; margin: 5mm; }
   .print-header { font-family:'Urbanist',system-ui,sans-serif; position:fixed; top:0; left:0; right:0; height:26px; display:none; align-items:center; justify-content:space-between; padding:0 10mm; border-bottom:0.5pt solid #CBD5E0; font-size:5pt; color:#4A5568; background:#fff; z-index:9999; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
   .print-footer { font-family:'Urbanist',system-ui,sans-serif; position:fixed; bottom:0; left:0; right:0; height:22px; display:none; align-items:center; justify-content:space-between; padding:0 10mm; border-top:0.5pt solid #CBD5E0; font-size:5pt; color:#718096; background:#fff; z-index:9999; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
   .print-title { font-family:'Urbanist',system-ui,sans-serif; font-size:14pt; font-weight:600; color:#1A365D; text-align:center; margin:0 0 14px; }

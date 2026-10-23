@@ -446,7 +446,7 @@ export class CurvaSPanel {
         h1{font-size:18px;margin:0 0 8px}p{font-size:12px;color:#666;margin:0 0 12px}
         table{border-collapse:collapse;width:100%}th,td{border:1px solid #ccc;padding:5px 8px;font-size:11px}th{background:#f4f5f7;font-weight:600}
         svg{max-width:100%;height:auto}
-        @media print{body{background:#fff}.tb{display:none!important}.pv{padding:0;min-height:0}.a4{box-shadow:none;width:100%;min-height:0;padding:8mm 10mm;padding-top:4px!important}.print-header,.print-footer{display:flex!important}.print-title{display:block!important}@page{margin:26px 10mm 22px 10mm}}
+        @media print{body{background:#fff}.tb{display:none!important}.pv{padding:0;min-height:0}.a4{box-shadow:none;width:100%;min-height:0;padding:1.5mm 0 0!important}.print-header,.print-footer{display:flex!important}.print-title{display:block!important}@page{margin:5mm}}
         ${pageHfCss({ proj: _proj, date: `${_dd}-${_dmm}-${_dyy}, ${_dthh}:${_dtmi}` })}
       </style>
     </head><body>
