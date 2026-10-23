@@ -7,7 +7,7 @@
 
 import { appState } from './state.js';
 import { Calendar, isoToDate } from './calendar.js';
-import { pageHfCss } from './pdf-utils.js';
+import { pageHfCss, REPORT_TITLE_CSS } from './pdf-utils.js';
 
 const _esc = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 
@@ -67,7 +67,7 @@ export function generatePdfReport() {
   @page { size: A4; margin: 10mm; }
   .print-header { font-family:'Urbanist',system-ui,sans-serif; position:fixed; top:0; left:0; right:0; height:26px; display:none; align-items:center; justify-content:space-between; padding:0 10mm; border-bottom:0.5pt solid #CBD5E0; font-size:6pt; color:#4A5568; background:#fff; z-index:9999; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
   .print-footer { font-family:'Urbanist',system-ui,sans-serif; position:fixed; bottom:0; left:0; right:0; height:22px; display:none; align-items:center; justify-content:space-between; padding:0 10mm; border-top:0.5pt solid #CBD5E0; font-size:6pt; color:#718096; background:#fff; z-index:9999; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
-  .print-title { font-family:'Urbanist',system-ui,sans-serif; font-size:14pt; font-weight:600; color:#1A365D; text-align:center; margin:0 0 14px; }
+  ${REPORT_TITLE_CSS}
   @media print { body { font-size: 10pt; } }
 
   .cover { min-height: 90vh; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; padding: 40px; border-bottom: 4px solid #1976D2; }
@@ -106,17 +106,8 @@ export function generatePdfReport() {
 <div class="print-header"><span>ECM Project V1.00.01</span><span>${_rpProjEsc}</span><span>${_rpDD}-${_rpMM}-${_rpYY}, ${_rpHH}:${_rpMi}</span></div>
 <div class="print-footer"><span>By EHCM</span><span>&#8212;</span><span>P&aacute;gina <span id="phf-cur">1</span> de <span id="phf-tot">1</span></span></div>
 
-<!-- PORTADA -->
-<div class="cover">
-  <div class="cover-logo">📊</div>
-  <div class="cover-title">ECM Project</div>
-  <div class="cover-project">${_esc(project.name)}</div>
-  <div class="cover-meta">
-    <div>Informe Ejecutivo de Cronograma</div>
-    <div style="margin-top:6px">Generado el ${generatedAt}</div>
-    <div style="margin-top:4px">Inicio: ${_esc(project.start_date ?? '-')}</div>
-  </div>
-</div>
+<div class="print-title">Informe Ejecutivo</div>
+<div class="print-subtitle">Generado el ${generatedAt} · Inicio: ${_esc(project.start_date ?? '-')}</div>
 
 <!-- RESUMEN EJECUTIVO -->
 <h2>Resumen Ejecutivo</h2>

@@ -181,6 +181,8 @@ export function printGantt(rows) {
                  display:flex; justify-content:space-between; font-size:6pt; color:#718096;
                  border-top:0.5pt solid #CBD5E0; padding-top:2px;
                  font-family:'Urbanist',system-ui,sans-serif; }
+    .page-title { position:absolute; top:4.5mm; left:0; right:0; text-align:center;
+                  font-family:'Urbanist',system-ui,sans-serif; font-size:14pt; font-weight:600; color:#1A365D; }
     .page-head { position:absolute; top:1mm; left:0; right:0;
                  display:flex; justify-content:space-between; font-size:6pt; color:#4A5568;
                  border-bottom:0.5pt solid #CBD5E0; padding-bottom:2px;
@@ -239,7 +241,7 @@ export function printGantt(rows) {
       const A4w = isLand ? 297 : 210;
       const A4h = isLand ? 210 : 297;
       const availW = A4w - 2 * MARG; // mm
-      const availH = A4h - 2 * MARG - 10; // mm (5mm encabezado + 5mm pie, fuera del dibujo)
+      const availH = A4h - 2 * MARG - 17; // mm (12mm encabezado + título, 5mm pie; fuera del dibujo)
 
       const cellW = SVG_W / hPages;
       const cellH = SVG_H / vPages;
@@ -265,7 +267,7 @@ export function printGantt(rows) {
           const tile = document.createElement('div');
           tile.className = 'page-tile';
           tile.style.width = availW + 'mm';
-          tile.style.height = (availH + 10) + 'mm';
+          tile.style.height = (availH + 17) + 'mm';
 
           const svgEl = document.createElementNS('http://www.w3.org/2000/svg','svg');
           svgEl.setAttribute('viewBox', vbX + ' ' + vbY + ' ' + cellW + ' ' + cellH);
@@ -274,7 +276,7 @@ export function printGantt(rows) {
           svgEl.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
           svgEl.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
           svgEl.setAttribute('preserveAspectRatio', 'xMinYMin meet');
-          svgEl.style.marginTop = '5mm';
+          svgEl.style.marginTop = '12mm';
           svgEl.innerHTML = SVG_INNER;
           tile.appendChild(svgEl);
 
@@ -283,6 +285,10 @@ export function printGantt(rows) {
           head.className = 'page-head';
           head.innerHTML = '<span>ECM Project V1.00.01</span><span>' + PROJ_NAME + '</span><span>' + DATE_STR + '</span>';
           tile.appendChild(head);
+          const ttl = document.createElement('div');
+          ttl.className = 'page-title';
+          ttl.textContent = 'Diagrama de Gantt';
+          tile.appendChild(ttl);
           const foot = document.createElement('div');
           foot.className = 'page-foot';
           foot.innerHTML = '<span>By EHCM</span><span>&#8212;</span><span>P&aacute;gina ' + pageNum + ' de ' + totalPages + '</span>';

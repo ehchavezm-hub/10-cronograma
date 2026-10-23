@@ -4,7 +4,7 @@
 
 @media print {
   /* ---- Ocultar todo lo que no sea contenido ---- */
-  #topbar, #toolbar, #statusbar, #explorer-panel,
+  #topbar, #toolbar, #statusbar, #explorer-panel, #gantt-filter-bar,
   #bottom-tabs, .resizer, .context-menu, .toast,
   .task-detail-panel, .modal-backdrop, #gantt-panel,
   #dcma-panel, .no-print, .row-more-btn,
@@ -88,28 +88,16 @@
   .expand-btn, .task-notes-icon, .sort-indicator,
   .indent-spacer { display: none !important; }
 
-  /* ---- Encabezado de página (logo + nombre proyecto) ---- */
+  /* ---- Título único del reporte (norma de PDFs) ---- */
   #app::before {
-    content: attr(data-print-title);
+    content: "Tabla EDT";
     display: block;
-    font-size: 6pt;
-    font-weight: 700;
-    color: #1976D2;
-    padding: 0 0 6px;
-    border-bottom: 2px solid #1976D2;
-    margin-bottom: 10px;
-  }
-
-  /* ---- Pie de página con marca ECM ---- */
-  #app::after {
-    content: "ECM Project v1.0.0 | © 2026 E. Chávez";
-    display: block;
-    font-size: 6pt;
-    color: #9E9E9E;
+    font-family: 'Urbanist', system-ui, sans-serif;
+    font-size: 14pt;
+    font-weight: 600;
+    color: #1A365D;
     text-align: center;
-    margin-top: 4mm;
-    border-top: 1px solid #E0E0E0;
-    padding-top: 3px;
+    margin: 0 0 4mm;
   }
 
   /* ---- Pie de página con número de página ---- */
