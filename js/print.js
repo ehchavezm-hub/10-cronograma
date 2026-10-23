@@ -10,7 +10,7 @@
 import { appState }      from './state.js';
 import { isoToDate, Calendar, fmtDate } from './calendar.js';
 import { exportSvg }     from './io.js';
-import { pageHfCss, REPORT_FONT_CSS } from './pdf-utils.js';
+import { pageHfCss, REPORT_FONT_CSS, supportsPageMarginBoxes } from './pdf-utils.js';
 
 // ============================================================
 // Imprimir tabla EDT
@@ -195,6 +195,7 @@ export function printGantt(rows) {
       .page-tile:last-child { break-after:avoid; page-break-after:avoid; }
       .page-foot { display:flex !important; }
     }
+    ${pageHfCss({ proj: project.name, date: `${_gDD}-${_gMM}-${_gYY}, ${_gHH}:${_gMi}` })}
     ${REPORT_FONT_CSS}
   </style>
 </head><body>
@@ -225,24 +226,38 @@ export function printGantt(rows) {
     const DATE_STR = "${_gDD}-${_gMM}-${_gYY}, ${_gHH}:${_gMi}";
     const TOTAL_PAGES_REF = { v: 1 };
 
+    const HF_IN_MARGIN = ${supportsPageMarginBoxes()};  // encabezado/pie en el margen de la hoja (@page)
+    const MIN_PT = 6, BASE_PX = 10;   // las etiquetas del dibujo (10px) se imprimen a 6pt o más
+
     let _orient = 'landscape';
+
+    /** Área útil de cada hoja (mm): márgenes de 10mm, banda del título y, sin margin boxes, encabezado/pie. */
+    function layout() {
+      const isLand = _orient === 'landscape';
+      const MARG = 10, top = HF_IN_MARGIN ? 9 : 12, bottom = HF_IN_MARGIN ? 0 : 5;
+      const A4w = isLand ? 297 : 210, A4h = isLand ? 210 : 297;
+      return { MARG, top, bottom, availW: A4w - 2 * MARG, availH: A4h - 2 * MARG - top - bottom };
+    }
+
+    /** Hojas H/V necesarias para que el texto quede legible (≥ MIN_PT). */
+    function autoPages() {
+      const L = layout(), mmPerPx = MIN_PT / BASE_PX * 25.4 / 72;
+      document.getElementById('h-pages').value = Math.min(10, Math.max(1, Math.ceil(SVG_W * mmPerPx / L.availW)));
+      document.getElementById('v-pages').value = Math.min(10, Math.max(1, Math.ceil(SVG_H * mmPerPx / L.availH)));
+    }
 
     function setOrient(o) {
       _orient = o;
       document.getElementById('btn-land').classList.toggle('active', o === 'landscape');
       document.getElementById('btn-port').classList.toggle('active', o === 'portrait');
+      autoPages();
       renderTiles();
     }
 
     function renderTiles() {
       const hPages = Math.max(1, Math.min(10, parseInt(document.getElementById('h-pages').value) || 1));
       const vPages = Math.max(1, Math.min(10, parseInt(document.getElementById('v-pages').value) || 1));
-      const isLand = _orient === 'landscape';
-      const MARG = 10; // mm
-      const A4w = isLand ? 297 : 210;
-      const A4h = isLand ? 210 : 297;
-      const availW = A4w - 2 * MARG; // mm
-      const availH = A4h - 2 * MARG - 17; // mm (12mm encabezado + título, 5mm pie; fuera del dibujo)
+      const { MARG, top, bottom, availW, availH } = layout();
 
       const cellW = SVG_W / hPages;
       const cellH = SVG_H / vPages;
@@ -268,7 +283,7 @@ export function printGantt(rows) {
           const tile = document.createElement('div');
           tile.className = 'page-tile';
           tile.style.width = availW + 'mm';
-          tile.style.height = (availH + 17) + 'mm';
+          tile.style.height = (availH + top + bottom) + 'mm';
 
           const svgEl = document.createElementNS('http://www.w3.org/2000/svg','svg');
           svgEl.setAttribute('viewBox', vbX + ' ' + vbY + ' ' + cellW + ' ' + cellH);
@@ -277,29 +292,34 @@ export function printGantt(rows) {
           svgEl.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
           svgEl.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
           svgEl.setAttribute('preserveAspectRatio', 'xMinYMin meet');
-          svgEl.style.marginTop = '12mm';
+          svgEl.style.marginTop = top + 'mm';
           svgEl.innerHTML = SVG_INNER;
           tile.appendChild(svgEl);
 
-          // Encabezado y pie por tile
-          const head = document.createElement('div');
-          head.className = 'page-head';
-          head.innerHTML = '<span>ECM Project V1.00.01</span><span>' + PROJ_NAME + '</span><span>' + DATE_STR + '</span>';
-          tile.appendChild(head);
           const ttl = document.createElement('div');
           ttl.className = 'page-title';
+          ttl.style.top = HF_IN_MARGIN ? '0' : '4.5mm';
           ttl.textContent = 'Diagrama de Gantt';
           tile.appendChild(ttl);
-          const foot = document.createElement('div');
-          foot.className = 'page-foot';
-          foot.innerHTML = '<span>By EHCM</span><span>&#8212;</span><span>P&aacute;gina ' + pageNum + ' de ' + totalPages + '</span>';
-          tile.appendChild(foot);
+
+          // Sin soporte de margin boxes: encabezado y pie dentro de la hoja, en bandas propias
+          if (!HF_IN_MARGIN) {
+            const head = document.createElement('div');
+            head.className = 'page-head';
+            head.innerHTML = '<span>ECM Project V1.00.01</span><span>' + PROJ_NAME + '</span><span>' + DATE_STR + '</span>';
+            tile.appendChild(head);
+            const foot = document.createElement('div');
+            foot.className = 'page-foot';
+            foot.innerHTML = '<span>By EHCM</span><span>&#8212;</span><span>P&aacute;gina ' + pageNum + ' de ' + totalPages + '</span>';
+            tile.appendChild(foot);
+          }
 
           preview.appendChild(tile);
         }
       }
     }
 
+    autoPages();
     renderTiles();
   <\/script>
 </body></html>`;

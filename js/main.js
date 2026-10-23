@@ -35,7 +35,7 @@ import { CurvaSPanel } from './curva-s.js';
 import { NotificationsPanel, updateNotificationBadge } from './notifications.js';
 import { WbsDictionaryPanel } from './wbs-dictionary.js';
 import { generatePdfReport } from './pdf-report.js';
-import { pageHfCss, REPORT_TITLE_CSS, REPORT_FONT_CSS, normalizeReportBody } from './pdf-utils.js';
+import { pageHfCss, REPORT_TITLE_CSS, REPORT_FONT_CSS, normalizeReportBody, supportsPageMarginBoxes } from './pdf-utils.js';
 import { debouncedSave, queue } from './async-queue.js';
 
 // Precargar Manrope: los gráficos canvas de los reportes (DCMA, EVM, Histograma) la usan
@@ -5034,6 +5034,7 @@ function _exportCpmNetwork(fmt, dlg) {
       .page-tile:last-child { break-after:avoid; page-break-after:avoid; }
       .page-foot { display:flex !important; }
     }
+    ${pageHfCss({ proj: appState.state.project?.name ?? projName, date: _cpmDateStr })}
     ${REPORT_FONT_CSS}
   </style>
 </head><body>
@@ -5072,24 +5073,38 @@ function _exportCpmNetwork(fmt, dlg) {
       return row;
     }
 
+    const HF_IN_MARGIN = ${supportsPageMarginBoxes()};  // encabezado/pie en el margen de la hoja (@page)
+    const MIN_PT = 6, BASE_PX = 8;    // el texto más chico de la red (8px) se imprime a 6pt o más
+
     let _orient = 'landscape';
+
+    /** Área útil de cada hoja (mm): márgenes de 10mm, banda del título y, sin margin boxes, encabezado/pie. */
+    function layout() {
+      const isLand = _orient === 'landscape';
+      const MARG = 10, top = HF_IN_MARGIN ? 9 : 12, bottom = HF_IN_MARGIN ? 0 : 5;
+      const A4w = isLand ? 297 : 210, A4h = isLand ? 210 : 297;
+      return { MARG, top, bottom, availW: A4w - 2 * MARG, availH: A4h - 2 * MARG - top - bottom };
+    }
+
+    /** Hojas H/V necesarias para que el texto quede legible (≥ MIN_PT). */
+    function autoPages() {
+      const L = layout(), mmPerPx = MIN_PT / BASE_PX * 25.4 / 72;
+      document.getElementById('h-pages').value = Math.min(10, Math.max(1, Math.ceil(SVG_W * mmPerPx / L.availW)));
+      document.getElementById('v-pages').value = Math.min(10, Math.max(1, Math.ceil(SVG_H * mmPerPx / L.availH)));
+    }
 
     function setOrient(o) {
       _orient = o;
       document.getElementById('btn-land').classList.toggle('active', o === 'landscape');
       document.getElementById('btn-port').classList.toggle('active', o === 'portrait');
+      autoPages();
       renderTiles();
     }
 
     function renderTiles() {
       const hPages = Math.max(1, Math.min(10, parseInt(document.getElementById('h-pages').value) || 1));
       const vPages = Math.max(1, Math.min(10, parseInt(document.getElementById('v-pages').value) || 1));
-      const isLand = _orient === 'landscape';
-      const MARG = 10;
-      const A4w = isLand ? 297 : 210;
-      const A4h = isLand ? 210 : 297;
-      const availW = A4w - 2 * MARG;
-      const availH = A4h - 2 * MARG - 17; // mm (12mm encabezado + título, 5mm pie; fuera del dibujo)
+      const { MARG, top, bottom, availW, availH } = layout();
 
       const cellW = SVG_W / hPages;
       const cellH = SVG_H / vPages;
@@ -5114,7 +5129,7 @@ function _exportCpmNetwork(fmt, dlg) {
           const tile = document.createElement('div');
           tile.className = 'page-tile';
           tile.style.width = availW + 'mm';
-          tile.style.height = (availH + 17) + 'mm';
+          tile.style.height = (availH + top + bottom) + 'mm';
 
           const svgEl = document.createElementNS('http://www.w3.org/2000/svg','svg');
           svgEl.setAttribute('viewBox', vbX + ' ' + vbY + ' ' + cellW + ' ' + cellH);
@@ -5123,23 +5138,28 @@ function _exportCpmNetwork(fmt, dlg) {
           svgEl.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
           svgEl.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
           svgEl.setAttribute('preserveAspectRatio', 'xMinYMin meet');
-          svgEl.style.marginTop = '12mm';
+          svgEl.style.marginTop = top + 'mm';
           svgEl.innerHTML = SVG_INNER;
           tile.appendChild(svgEl);
 
-          // Encabezado y pie estándar por tile
-          tile.appendChild(hfRow('page-head', ['ECM Project V1.00.01', PROJ_NAME, DATE_STR]));
           const ttl = document.createElement('div');
           ttl.className = 'page-title';
+          ttl.style.top = HF_IN_MARGIN ? '0' : '4.5mm';
           ttl.textContent = 'Red CPM';
           tile.appendChild(ttl);
-          tile.appendChild(hfRow('page-foot', ['By EHCM', '\u2014', 'Página ' + pageNum + ' de ' + totalPages]));
+
+          // Sin soporte de margin boxes: encabezado y pie dentro de la hoja, en bandas propias
+          if (!HF_IN_MARGIN) {
+            tile.appendChild(hfRow('page-head', ['ECM Project V1.00.01', PROJ_NAME, DATE_STR]));
+            tile.appendChild(hfRow('page-foot', ['By EHCM', '—', 'Página ' + pageNum + ' de ' + totalPages]));
+          }
 
           preview.appendChild(tile);
         }
       }
     }
 
+    autoPages();
     renderTiles();
   <\/script>
 </body></html>`;
