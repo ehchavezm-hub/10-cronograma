@@ -285,7 +285,7 @@ export function printGantt(rows) {
           tile.appendChild(head);
           const foot = document.createElement('div');
           foot.className = 'page-foot';
-          foot.innerHTML = '<span>By EHCM</span><span>&#8212;</span><span>' + pageNum + ' / ' + totalPages + '</span>';
+          foot.innerHTML = '<span>By EHCM</span><span>&#8212;</span><span>P&aacute;gina ' + pageNum + ' de ' + totalPages + '</span>';
           tile.appendChild(foot);
 
           preview.appendChild(tile);
