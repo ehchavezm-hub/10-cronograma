@@ -281,8 +281,6 @@ export function printToPdf(moduleName, htmlContent) {
 </style>
 </head><body>
 <div class="tb">
-  <button class="pri" onclick="window.print()">&#x1F5A8; Guardar PDF</button>
-  <div class="sep"></div>
   <span class="lbl">Orientaci&#243;n:</span>
   <button id="bp" class="act" onclick="setOri('portrait')">&#x1F4C4; Vertical</button>
   <button id="bl" onclick="setOri('landscape')">&#x1F5C2; Horizontal</button>
@@ -291,6 +289,7 @@ export function printToPdf(moduleName, htmlContent) {
   <input type="text" id="fn" value="${title}.pdf" title="Nombre sugerido del archivo PDF">
   <div class="sep"></div>
   <button onclick="window.close()">&#x2715; Cerrar</button>
+  <button class="pri" style="margin-left:auto" onclick="window.print()">&#x1F5A8; Guardar PDF</button>
 </div>
 <div class="pv">
   <div class="a4" id="a4">
