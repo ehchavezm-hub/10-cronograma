@@ -73,7 +73,7 @@
     "url": "https://github.com/ehchavezm-hub/10-cronograma"
   },
   "devDependencies": {
-    "electron": "^32.3.3",
-    "electron-builder": "^25.1.8"
+    "electron": "^41.10.7",
+    "electron-builder": "^26.15.3"
   }
 }
