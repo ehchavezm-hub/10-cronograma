@@ -4972,6 +4972,7 @@ function _exportCpmNetwork(fmt, dlg) {
     const fileDateStr = `${String(_d.getDate()).padStart(2,'0')}-${String(_d.getMonth()+1).padStart(2,'0')}-${_d.getFullYear()}`;
     const projDisplayName = _escHtml(appState.state.project?.name ?? projName);
     const fileTitle = `${appState.state.project?.name ?? projName} - Red CPM - ${fileDateStr}`;
+    const _cpmDateStr = `${String(_d.getDate()).padStart(2,'0')}-${String(_d.getMonth()+1).padStart(2,'0')}-${_d.getFullYear()}, ${String(_d.getHours()).padStart(2,'0')}:${String(_d.getMinutes()).padStart(2,'0')}`;
 
     // Obtener dimensiones del SVG clonado
     const _cpmSvgW = vbW;
@@ -4987,6 +4988,7 @@ function _exportCpmNetwork(fmt, dlg) {
     const html = `<!doctype html>
 <html lang="es"><head>
   <meta charset="UTF-8">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Urbanist:wght@400;500;600&display=swap">
   <title>${fileTitle}</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -5011,9 +5013,14 @@ function _exportCpmNetwork(fmt, dlg) {
     .preview { padding: 20px; display:flex; flex-direction:column; align-items:center; gap:16px; min-height:calc(100vh - 52px); }
     .page-tile { background:#fff; box-shadow:0 4px 14px rgba(0,0,0,.4); position:relative; flex-shrink:0; }
     .page-tile svg { display:block; }
-    .page-foot { position:absolute; bottom:2mm; left:0; right:0;
-                 display:flex; justify-content:space-between; font-size:6pt; color:#9e9e9e;
-                 border-top:1px solid #e0e0e0; padding-top:2px; }
+    .page-foot { position:absolute; bottom:1mm; left:0; right:0;
+                 display:flex; justify-content:space-between; font-size:6pt; color:#718096;
+                 border-top:0.5pt solid #CBD5E0; padding-top:2px;
+                 font-family:'Urbanist',system-ui,sans-serif; }
+    .page-head { position:absolute; top:1mm; left:0; right:0;
+                 display:flex; justify-content:space-between; font-size:6pt; color:#4A5568;
+                 border-bottom:0.5pt solid #CBD5E0; padding-bottom:2px;
+                 font-family:'Urbanist',system-ui,sans-serif; }
     @media print {
       body { background:#fff; }
       .controls { display:none !important; }
@@ -5048,7 +5055,16 @@ function _exportCpmNetwork(fmt, dlg) {
     const SVG_H = ${_cpmSvgH};
     const SVG_INNER = ${JSON.stringify(_svgInnerCpm)};
     const PROJ_NAME = ${JSON.stringify(appState.state.project?.name ?? projName)};
+    const DATE_STR = ${JSON.stringify(_cpmDateStr)};
     const TOTAL_PAGES_REF = { v: 1 };
+
+    /** Fila de encabezado/pie estándar: tres textos (izquierda, centro, derecha). */
+    function hfRow(cls, texts) {
+      const row = document.createElement('div');
+      row.className = cls;
+      for (const t of texts) { const s = document.createElement('span'); s.textContent = t; row.appendChild(s); }
+      return row;
+    }
 
     let _orient = 'landscape';
 
@@ -5067,7 +5083,7 @@ function _exportCpmNetwork(fmt, dlg) {
       const A4w = isLand ? 297 : 210;
       const A4h = isLand ? 210 : 297;
       const availW = A4w - 2 * MARG;
-      const availH = A4h - 2 * MARG - 8;
+      const availH = A4h - 2 * MARG - 10; // mm (5mm encabezado + 5mm pie, fuera del dibujo)
 
       const cellW = SVG_W / hPages;
       const cellH = SVG_H / vPages;
@@ -5092,7 +5108,7 @@ function _exportCpmNetwork(fmt, dlg) {
           const tile = document.createElement('div');
           tile.className = 'page-tile';
           tile.style.width = availW + 'mm';
-          tile.style.height = (availH + 8) + 'mm';
+          tile.style.height = (availH + 10) + 'mm';
 
           const svgEl = document.createElementNS('http://www.w3.org/2000/svg','svg');
           svgEl.setAttribute('viewBox', vbX + ' ' + vbY + ' ' + cellW + ' ' + cellH);
@@ -5101,13 +5117,13 @@ function _exportCpmNetwork(fmt, dlg) {
           svgEl.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
           svgEl.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
           svgEl.setAttribute('preserveAspectRatio', 'xMinYMin meet');
+          svgEl.style.marginTop = '5mm';
           svgEl.innerHTML = SVG_INNER;
           tile.appendChild(svgEl);
 
-          const foot = document.createElement('div');
-          foot.className = 'page-foot';
-          foot.innerHTML = '<span>' + PROJ_NAME + '</span><span>ECM Project</span><span>' + pageNum + ' / ' + totalPages + '</span>';
-          tile.appendChild(foot);
+          // Encabezado y pie estándar por tile
+          tile.appendChild(hfRow('page-head', ['ECM Project V1.00.01', PROJ_NAME, DATE_STR]));
+          tile.appendChild(hfRow('page-foot', ['By EHCM', '\u2014', 'Página ' + pageNum + ' de ' + totalPages]));
 
           preview.appendChild(tile);
         }
