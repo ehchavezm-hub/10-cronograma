@@ -10,6 +10,7 @@
 import { appState }      from './state.js';
 import { isoToDate, Calendar, fmtDate } from './calendar.js';
 import { exportSvg }     from './io.js';
+import { GANTT_ROW_H, GANTT_HDR_H } from './gantt-svg.js';
 import { pageHfCss, REPORT_FONT_CSS, supportsPageMarginBoxes } from './pdf-utils.js';
 
 // ============================================================
@@ -239,11 +240,31 @@ export function printGantt(rows) {
       return { MARG, top, bottom, availW: A4w - 2 * MARG, availH: A4h - 2 * MARG - top - bottom };
     }
 
+    // Filas del Gantt: las hojas se cortan entre filas y cada hoja repite el encabezado (tabla + escala de tiempo)
+    const ROW_H = ${GANTT_ROW_H}, HDR_H = ${GANTT_HDR_H};
+    const ROWS = Math.max(1, Math.round((SVG_H - HDR_H) / ROW_H));
+
     /** Hojas H/V necesarias para que el texto quede legible (≥ MIN_PT). */
     function autoPages() {
       const L = layout(), mmPerPx = MIN_PT / BASE_PX * 25.4 / 72;
+      const rowsFit = Math.max(1, Math.floor((L.availH / mmPerPx - HDR_H) / ROW_H));
       document.getElementById('h-pages').value = Math.min(10, Math.max(1, Math.ceil(SVG_W * mmPerPx / L.availW)));
-      document.getElementById('v-pages').value = Math.min(10, Math.max(1, Math.ceil(SVG_H * mmPerPx / L.availH)));
+      document.getElementById('v-pages').value = Math.min(10, Math.max(1, Math.ceil(ROWS / rowsFit)));
+    }
+
+    /** SVG con una porción (viewBox) del Gantt, del tamaño exacto de esa porción escalada. */
+    function slice(x, y, w, h, scale) {
+      const el = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      el.setAttribute('viewBox', x + ' ' + y + ' ' + w + ' ' + h);
+      el.setAttribute('width', (w * scale) + 'mm');
+      el.setAttribute('height', (h * scale) + 'mm');
+      el.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+      el.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
+      el.setAttribute('preserveAspectRatio', 'xMinYMin meet');
+      el.style.display = 'block';
+      el.style.overflow = 'hidden';
+      el.innerHTML = SVG_INNER;
+      return el;
     }
 
     function setOrient(o) {
@@ -256,11 +277,14 @@ export function printGantt(rows) {
 
     function renderTiles() {
       const hPages = Math.max(1, Math.min(10, parseInt(document.getElementById('h-pages').value) || 1));
-      const vPages = Math.max(1, Math.min(10, parseInt(document.getElementById('v-pages').value) || 1));
+      const vPages = Math.max(1, Math.min(10, ROWS, parseInt(document.getElementById('v-pages').value) || 1));
       const { MARG, top, bottom, availW, availH } = layout();
 
       const cellW = SVG_W / hPages;
-      const cellH = SVG_H / vPages;
+      const rowsPer = Math.ceil(ROWS / vPages);
+      // Misma escala en todas las hojas; cada SVG mide exactamente su porción escalada
+      // (si fuera más grande, mostraría filas/columnas de la hoja siguiente).
+      const scale = Math.min(availW / cellW, availH / (HDR_H + rowsPer * ROW_H));
       const totalPages = hPages * vPages;
       TOTAL_PAGES_REF.v = totalPages;
 
@@ -278,23 +302,18 @@ export function printGantt(rows) {
         for (let i = 0; i < hPages; i++) {
           pageNum++;
           const vbX = i * cellW;
-          const vbY = j * cellH;
+          const r0 = j * rowsPer, r1 = Math.min(ROWS, r0 + rowsPer);
 
           const tile = document.createElement('div');
           tile.className = 'page-tile';
           tile.style.width = availW + 'mm';
           tile.style.height = (availH + top + bottom) + 'mm';
 
-          const svgEl = document.createElementNS('http://www.w3.org/2000/svg','svg');
-          svgEl.setAttribute('viewBox', vbX + ' ' + vbY + ' ' + cellW + ' ' + cellH);
-          svgEl.setAttribute('width', availW + 'mm');
-          svgEl.setAttribute('height', availH + 'mm');
-          svgEl.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
-          svgEl.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
-          svgEl.setAttribute('preserveAspectRatio', 'xMinYMin meet');
-          svgEl.style.marginTop = top + 'mm';
-          svgEl.innerHTML = SVG_INNER;
-          tile.appendChild(svgEl);
+          // Encabezado (columnas de la tabla + meses/días) y filas r0..r1 de esta hoja
+          const hdr = slice(vbX, 0, cellW, HDR_H, scale);
+          hdr.style.marginTop = top + 'mm';
+          tile.appendChild(hdr);
+          if (r1 > r0) tile.appendChild(slice(vbX, HDR_H + r0 * ROW_H, cellW, (r1 - r0) * ROW_H, scale));
 
           const ttl = document.createElement('div');
           ttl.className = 'page-title';

@@ -27,6 +27,8 @@ const CLR = {
 const PPD        = 16;   // px por día calendario
 const ROW_H      = 30;
 const HDR_H      = 52;   // dos filas: mes + semana/día
+/** Alto de fila y de encabezado del SVG (para repartir la impresión en hojas por filas). */
+export const GANTT_ROW_H = ROW_H, GANTT_HDR_H = HDR_H;
 const BASE_NAME_W = 200; // columna de nombres (reducida si hay cols extra)
 const BAR_PAD    = 7;    // espacio vertical dentro de la fila
 const BAR_H      = ROW_H - BAR_PAD * 2;
