@@ -69,7 +69,7 @@ export function printWbsTable() {
     .phf-hdr{font-family:'Urbanist',system-ui,sans-serif;position:fixed;top:0;left:0;right:0;height:26px;display:flex!important;align-items:center;justify-content:space-between;padding:0 10mm;border-bottom:0.5pt solid #CBD5E0;font-size:5pt;color:#4A5568;background:#fff;z-index:9999;-webkit-print-color-adjust:exact;print-color-adjust:exact}
     .phf-ftr{font-family:'Urbanist',system-ui,sans-serif;position:fixed;bottom:0;left:0;right:0;height:22px;display:flex!important;align-items:center;justify-content:space-between;padding:0 10mm;border-top:0.5pt solid #CBD5E0;font-size:5pt;color:#718096;background:#fff;z-index:9999;-webkit-print-color-adjust:exact;print-color-adjust:exact}
     .wbs-table, .wbs-table th, .wbs-table td { font-family: 'Arial Narrow', Arial, sans-serif !important; }
-    @page { margin: 26px 10mm 22px 10mm; }
+    @page { margin: 5mm; }
   }
   #print-ecm-hf { display:none; }
   @media print { #print-ecm-hf { display:block; } }
@@ -177,11 +177,11 @@ export function printGantt(rows) {
     .preview { padding: 20px; display:flex; flex-direction:column; align-items:center; gap:16px; min-height:calc(100vh - 52px); }
     .page-tile { background:#fff; box-shadow:0 4px 14px rgba(0,0,0,.4); position:relative; flex-shrink:0; }
     .page-tile svg { display:block; }
-    .page-foot { position:absolute; bottom:4mm; left:10mm; right:10mm;
+    .page-foot { position:absolute; bottom:1mm; left:0; right:0;
                  display:flex; justify-content:space-between; font-size:5pt; color:#718096;
                  border-top:0.5pt solid #CBD5E0; padding-top:2px;
                  font-family:'Urbanist',system-ui,sans-serif; }
-    .page-head { position:absolute; top:4mm; left:10mm; right:10mm;
+    .page-head { position:absolute; top:1mm; left:0; right:0;
                  display:flex; justify-content:space-between; font-size:5pt; color:#4A5568;
                  border-bottom:0.5pt solid #CBD5E0; padding-bottom:2px;
                  font-family:'Urbanist',system-ui,sans-serif; }
@@ -235,11 +235,11 @@ export function printGantt(rows) {
       const hPages = Math.max(1, Math.min(10, parseInt(document.getElementById('h-pages').value) || 1));
       const vPages = Math.max(1, Math.min(10, parseInt(document.getElementById('v-pages').value) || 1));
       const isLand = _orient === 'landscape';
-      const MARG = 10; // mm
+      const MARG = 5; // mm
       const A4w = isLand ? 297 : 210;
       const A4h = isLand ? 210 : 297;
       const availW = A4w - 2 * MARG; // mm
-      const availH = A4h - 2 * MARG - 16; // mm (8mm encabezado + 8mm pie, fuera del dibujo)
+      const availH = A4h - 2 * MARG - 10; // mm (5mm encabezado + 5mm pie, fuera del dibujo)
 
       const cellW = SVG_W / hPages;
       const cellH = SVG_H / vPages;
@@ -265,7 +265,7 @@ export function printGantt(rows) {
           const tile = document.createElement('div');
           tile.className = 'page-tile';
           tile.style.width = availW + 'mm';
-          tile.style.height = (availH + 16) + 'mm';
+          tile.style.height = (availH + 10) + 'mm';
 
           const svgEl = document.createElementNS('http://www.w3.org/2000/svg','svg');
           svgEl.setAttribute('viewBox', vbX + ' ' + vbY + ' ' + cellW + ' ' + cellH);
@@ -274,7 +274,7 @@ export function printGantt(rows) {
           svgEl.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
           svgEl.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
           svgEl.setAttribute('preserveAspectRatio', 'xMinYMin meet');
-          svgEl.style.marginTop = '8mm';
+          svgEl.style.marginTop = '5mm';
           svgEl.innerHTML = SVG_INNER;
           tile.appendChild(svgEl);
 

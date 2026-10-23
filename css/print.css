@@ -134,12 +134,7 @@
   /* ---- Ajuste de página ---- */
   @page {
     size: A4 landscape;
-    margin: 12mm 10mm 18mm;
-  }
-
-  /* Primera página sin margen superior adicional */
-  @page :first {
-    margin-top: 16mm;
+    margin: 5mm;
   }
 
   /* Evitar salto de página dentro de grupos de fases */
