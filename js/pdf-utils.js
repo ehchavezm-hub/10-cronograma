@@ -30,7 +30,7 @@ function _getCssVarsInline() {
   } catch (_e) { return ''; }
 }
 
-/** Chromium ≥ 131 (Chrome/Edge actuales) soporta @page margin boxes; Electron 32 (Chromium 128) no. */
+/** Chromium ≥ 131 (Chrome/Edge actuales, Electron ≥ 34) soporta @page margin boxes. */
 export function supportsPageMarginBoxes() {
   const m = /Chrom(?:e|ium)\/(\d+)/.exec(navigator.userAgent);
   return !!m && Number(m[1]) >= 131;
