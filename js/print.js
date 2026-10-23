@@ -208,7 +208,7 @@ export function printGantt(rows) {
     <button class="btn-c" id="btn-port" onclick="setOrient('portrait')">&#x1F532; Vertical</button>
     <div class="sep"></div>
     <label>Hojas H: <input type="number" id="h-pages" min="1" max="10" value="1" onchange="renderTiles()"></label>
-    <label>Hojas V: <input type="number" id="v-pages" min="1" max="10" value="1" onchange="renderTiles()"></label>
+    <label title="Se calcula solo: cada hoja se llena con las actividades que caben y las siguientes pasan a la hoja siguiente">Hojas V: <input type="number" id="v-pages" min="1" value="1" disabled></label>
     <div class="sep"></div>
     <span class="lbl-sm">&#x1F4C1; Archivo:</span>
     <input type="text" id="fn-inp" class="fn-inp" value="${_pdfFile}" title="Nombre sugerido del archivo PDF">
@@ -244,12 +244,10 @@ export function printGantt(rows) {
     const ROW_H = ${GANTT_ROW_H}, HDR_H = ${GANTT_HDR_H};
     const ROWS = Math.max(1, Math.round((SVG_H - HDR_H) / ROW_H));
 
-    /** Hojas H/V necesarias para que el texto quede legible (≥ MIN_PT). */
+    /** Hojas H necesarias para que el texto quede legible (≥ MIN_PT). Las hojas V salen de las filas que caben. */
     function autoPages() {
       const L = layout(), mmPerPx = MIN_PT / BASE_PX * 25.4 / 72;
-      const rowsFit = Math.max(1, Math.floor((L.availH / mmPerPx - HDR_H) / ROW_H));
       document.getElementById('h-pages').value = Math.min(10, Math.max(1, Math.ceil(SVG_W * mmPerPx / L.availW)));
-      document.getElementById('v-pages').value = Math.min(10, Math.max(1, Math.ceil(ROWS / rowsFit)));
     }
 
     /** SVG con una porción (viewBox) del Gantt, del tamaño exacto de esa porción escalada. */
@@ -277,14 +275,15 @@ export function printGantt(rows) {
 
     function renderTiles() {
       const hPages = Math.max(1, Math.min(10, parseInt(document.getElementById('h-pages').value) || 1));
-      const vPages = Math.max(1, Math.min(10, ROWS, parseInt(document.getElementById('v-pages').value) || 1));
       const { MARG, top, bottom, availW, availH } = layout();
 
+      // La escala la fija el ancho (Hojas H). Cada hoja se llena con todas las filas que
+      // caben y las siguientes pasan a la hoja siguiente: así salen las Hojas V.
       const cellW = SVG_W / hPages;
-      const rowsPer = Math.ceil(ROWS / vPages);
-      // Misma escala en todas las hojas; cada SVG mide exactamente su porción escalada
-      // (si fuera más grande, mostraría filas/columnas de la hoja siguiente).
-      const scale = Math.min(availW / cellW, availH / (HDR_H + rowsPer * ROW_H));
+      const scale = Math.min(availW / cellW, availH / (HDR_H + ROW_H));
+      const rowsPer = Math.max(1, Math.floor((availH / scale - HDR_H) / ROW_H + 1e-6));
+      const vPages = Math.ceil(ROWS / rowsPer);
+      document.getElementById('v-pages').value = vPages;
       const totalPages = hPages * vPages;
       TOTAL_PAGES_REF.v = totalPages;
 
