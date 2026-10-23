@@ -17,6 +17,7 @@
 import { appState }      from './state.js';
 import { isoToDate, Calendar } from './calendar.js';
 import { printToPdf, SvgCtx } from './pdf-utils.js';
+import { calcWbsCodes } from './gantt-svg.js';
 
 // ============================================================
 // Cálculo de métricas EVM
@@ -375,10 +376,12 @@ export class EvmPanel {
   _renderTable(tasks) {
     const tbody = this._container.querySelector('#evm-detail-tbody');
     if (!tbody) return;
-    if (!tasks.length) { tbody.innerHTML = '<tr class="evm-empty-row"><td colspan="9">Sin tareas con costo</td></tr>'; return; }
+    if (!tasks.length) { tbody.innerHTML = '<tr class="evm-empty-row"><td colspan="10">Sin tareas con costo</td></tr>'; return; }
 
+    const wbsCodes = calcWbsCodes(appState.state.tasks ?? new Map());
     tbody.innerHTML = tasks.map(t => `
       <tr>
+        <td style="text-align:center;white-space:nowrap">${_esc(wbsCodes.get(t.id) ?? '')}</td>
         <td title="${_esc(t.id)}">${_esc(t.name)}</td>
         <td class="num">${_fmtC(t.bac)}</td>
         <td class="num">${_fmtC(t.pv)}</td>
@@ -473,6 +476,7 @@ function _buildPanelHtml() {
       <table class="evm-table">
         <thead>
           <tr>
+            <th style="text-align:center">EDT</th>
             <th>Actividad</th>
             <th class="num">BAC</th>
             <th class="num">PV</th>
