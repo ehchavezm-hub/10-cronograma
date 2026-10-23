@@ -5109,6 +5109,10 @@ function _exportCpmNetwork(fmt, dlg) {
 
       const cellW = SVG_W / hPages;
       const cellH = SVG_H / vPages;
+      // El SVG mide exactamente su porción escalada: si fuera más grande que la porción
+      // (preserveAspectRatio meet), mostraría filas/columnas de la hoja siguiente.
+      const scale = Math.min(availW / cellW, availH / cellH);
+      const drawW = cellW * scale, drawH = cellH * scale;
       const totalPages = hPages * vPages;
       TOTAL_PAGES_REF.v = totalPages;
 
@@ -5134,12 +5138,13 @@ function _exportCpmNetwork(fmt, dlg) {
 
           const svgEl = document.createElementNS('http://www.w3.org/2000/svg','svg');
           svgEl.setAttribute('viewBox', vbX + ' ' + vbY + ' ' + cellW + ' ' + cellH);
-          svgEl.setAttribute('width', availW + 'mm');
-          svgEl.setAttribute('height', availH + 'mm');
+          svgEl.setAttribute('width', drawW + 'mm');
+          svgEl.setAttribute('height', drawH + 'mm');
           svgEl.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
           svgEl.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
           svgEl.setAttribute('preserveAspectRatio', 'xMinYMin meet');
           svgEl.style.marginTop = top + 'mm';
+          svgEl.style.overflow = 'hidden';
           svgEl.innerHTML = SVG_INNER;
           tile.appendChild(svgEl);
 
