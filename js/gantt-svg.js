@@ -254,7 +254,7 @@ export function renderGanttSvg({ tasks, deps, cpmResult, calendar, projectStart,
       if (barLabels.includes('finish') && cpm?.ef != null) mlParts.push(_fmtDate(calendar.finishDate(cpm.ef, projectStart)));
       if (barLabels.includes('duration')) mlParts.push('0 d');
       if (barLabels.includes('pct'))      mlParts.push((task.percent_complete ?? 0) + '%');
-      out.push(`<text x="${cx + s + 9}" y="${midY - 1}" fill="${color}" font-weight="600">${mlParts.join(' · ')}</text>`);
+      out.push(`<text x="${cx + s + 9}" y="${midY - 1}" fill="${color}" font-weight="600" font-size="10">${mlParts.join(' · ')}</text>`);
       return;
     }
 
