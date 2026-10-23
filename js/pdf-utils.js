@@ -68,6 +68,62 @@ export function pageHfCss({ proj, date, footRight }) {
   @media print{.print-header,.print-footer,.phf-hdr,.phf-ftr{display:none!important}}`;
 }
 
+/** Estilo único del título de reporte (14pt centrado) y del subtítulo opcional (10pt). */
+export const REPORT_TITLE_CSS =
+  ".print-title{font-family:'Urbanist',system-ui,sans-serif;font-size:14pt;font-weight:600;color:#1A365D;text-align:center;margin:0 0 4mm}" +
+  ".print-subtitle{font-family:'Urbanist',system-ui,sans-serif;font-size:10pt;font-weight:500;color:#4A5568;text-align:center;margin:-2mm 0 4mm}";
+
+/**
+ * Normaliza el contenido de un reporte para que cumpla la norma de PDFs:
+ *   • un solo título: se eliminan h1–h3 que repiten el título del reporte;
+ *     el primer h1 distinto pasa a subtítulo y los demás h1 a h2;
+ *   • sin controles de la app: se quitan botones y los campos se muestran como texto.
+ * @param {string} title  Título del reporte (el de .print-title)
+ * @param {string} html   Contenido HTML del reporte
+ * @returns {string}
+ */
+export function normalizeReportBody(title, html) {
+  const tpl = document.createElement('template');
+  tpl.innerHTML = html;
+  const root = tpl.content;
+  const key = (/** @type {string} */ s) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  const tk = key(title);
+  const text = (/** @type {string} */ s) => tpl.ownerDocument.createTextNode(s);
+
+  let subtitleDone = false;
+  root.querySelectorAll('h1,h2,h3').forEach(h => {
+    if (key(h.textContent ?? '') === tk) { h.remove(); return; }
+    if (h.tagName !== 'H1') return;
+    if (!subtitleDone) {
+      const d = tpl.ownerDocument.createElement('div');
+      d.className = 'print-subtitle';
+      d.textContent = (h.textContent ?? '').trim();
+      h.replaceWith(d);
+      subtitleDone = true;
+    } else {
+      const h2 = tpl.ownerDocument.createElement('h2');
+      h2.innerHTML = h.innerHTML;
+      h.replaceWith(h2);
+    }
+  });
+
+  root.querySelectorAll('button,[role="button"],input[type="hidden"],input[type="file"]').forEach(el => el.remove());
+  root.querySelectorAll('select').forEach(s => {
+    const opt = s.querySelector('option[selected]') ?? s.querySelector('option');
+    s.replaceWith(text(opt?.textContent?.trim() ?? ''));
+  });
+  root.querySelectorAll('input').forEach(i => {
+    const t = (i.getAttribute('type') ?? 'text').toLowerCase();
+    if (t === 'checkbox' || t === 'radio') i.replaceWith(text(i.hasAttribute('checked') ? '☑ ' : '☐ '));
+    else i.replaceWith(text(i.getAttribute('value') ?? ''));
+  });
+  root.querySelectorAll('textarea').forEach(t => t.replaceWith(text(t.textContent ?? '')));
+
+  const out = tpl.ownerDocument.createElement('div');
+  out.appendChild(root.cloneNode(true));
+  return out.innerHTML;
+}
+
 /**
  * Abre una ventana de vista previa PDF con CSS completo de la aplicación.
  * @param {string} moduleName
@@ -199,7 +255,7 @@ export function printToPdf(moduleName, htmlContent) {
   .print-header,.print-footer{font-family:'Urbanist',system-ui,sans-serif;-webkit-print-color-adjust:exact;print-color-adjust:exact}
   .print-header{position:fixed;top:0;left:0;right:0;height:26px;display:none;align-items:center;justify-content:space-between;padding:0 10mm;border-bottom:0.5pt solid #CBD5E0;font-size:6pt;color:#4A5568;background:#fff;z-index:9999}
   .print-footer{position:fixed;bottom:0;left:0;right:0;height:22px;display:none;align-items:center;justify-content:space-between;padding:0 10mm;border-top:0.5pt solid #CBD5E0;font-size:6pt;color:#718096;background:#fff;z-index:9999}
-  .print-title{font-family:'Urbanist',system-ui,sans-serif;font-size:14pt;font-weight:600;color:#1A365D;text-align:center;margin:0 0 14px}
+  ${REPORT_TITLE_CSS}
   @media print{
     body{background:#fff}
     .tb{display:none!important}
@@ -228,7 +284,7 @@ export function printToPdf(moduleName, htmlContent) {
 <div class="print-header"><span>ECM Project V1.00.01</span><span>${_projEsc}</span><span>${_dd}-${_mm}-${_yy}, ${_hh}:${_mi}</span></div>
 <div class="print-footer"><span>By EHCM</span><span>&#8212;</span><span>P&aacute;gina <span id="phf-cur">1</span> de <span id="phf-tot">1</span></span></div>
 <div class="print-title">${_modEsc}</div>
-${htmlContent}</div>
+${normalizeReportBody(moduleName, htmlContent)}</div>
 </div>
 <script>
   (function(){function _u(){var h=document.getElementById('a4');if(!h)return;var t=Math.max(1,Math.ceil(h.scrollHeight/1120));var el=document.getElementById('phf-tot');if(el)el.textContent=t;}window.addEventListener('beforeprint',_u);_u();})();

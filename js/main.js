@@ -35,7 +35,7 @@ import { CurvaSPanel } from './curva-s.js';
 import { NotificationsPanel, updateNotificationBadge } from './notifications.js';
 import { WbsDictionaryPanel } from './wbs-dictionary.js';
 import { generatePdfReport } from './pdf-report.js';
-import { pageHfCss }      from './pdf-utils.js';
+import { pageHfCss, REPORT_TITLE_CSS, normalizeReportBody } from './pdf-utils.js';
 import { debouncedSave, queue } from './async-queue.js';
 
 // ============================================================
@@ -2670,7 +2670,7 @@ function _printToPdf(moduleName, htmlContent) {
   .print-header,.print-footer{font-family:'Urbanist',system-ui,sans-serif;-webkit-print-color-adjust:exact;print-color-adjust:exact}
   .print-header{position:fixed;top:0;left:0;right:0;height:26px;display:none;align-items:center;justify-content:space-between;padding:0 10mm;border-bottom:0.5pt solid #CBD5E0;font-size:6pt;color:#4A5568;background:#fff;z-index:9999}
   .print-footer{position:fixed;bottom:0;left:0;right:0;height:22px;display:none;align-items:center;justify-content:space-between;padding:0 10mm;border-top:0.5pt solid #CBD5E0;font-size:6pt;color:#718096;background:#fff;z-index:9999}
-  .print-title{font-family:'Urbanist',system-ui,sans-serif;font-size:14pt;font-weight:600;color:#1A365D;text-align:center;margin:0 0 14px}
+  ${REPORT_TITLE_CSS}
   @media print{body{background:#fff}.tb{display:none!important}.pv{padding:0;min-height:0}.a4{box-shadow:none;width:100%;min-height:0;padding:1.5mm 0 0!important}.print-header,.print-footer{display:flex!important}@page{margin:10mm}}
   ${pageHfCss({ proj: _proj, date: `${_dd}-${_mm}-${_yy}, ${_hh}:${_mi}` })}
 </style>
@@ -2692,7 +2692,7 @@ function _printToPdf(moduleName, htmlContent) {
 <div class="print-header"><span>ECM Project V1.00.01</span><span>${_projEsc}</span><span>${_dd}-${_mm}-${_yy}, ${_hh}:${_mi}</span></div>
 <div class="print-footer"><span>By EHCM</span><span>&#8212;</span><span>P&aacute;gina <span id="phf-cur">1</span> de <span id="phf-tot">1</span></span></div>
 <div class="print-title">${_modEsc}</div>
-${htmlContent}</div>
+${normalizeReportBody(moduleName, htmlContent)}</div>
 </div>
 <script>
   (function(){function _u(){var h=document.getElementById('a4');if(!h)return;var t=Math.max(1,Math.ceil(h.scrollHeight/1120));var el=document.getElementById('phf-tot');if(el)el.textContent=t;}window.addEventListener('beforeprint',_u);_u();})();
@@ -4006,7 +4006,7 @@ function _printOrgChart() {
   <meta charset="UTF-8">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Urbanist:wght@400;500;600&display=swap">
   <title>${_ocFileTitle}</title>
-  <style id="page-style">@page { size: landscape; margin: 10mm; }</style>
+  <style id="page-style">@page { size: A4 landscape; margin: 10mm; }</style>
   <style>
     :root { --clr-primary:#1976D2; --clr-bg:#f8f9fc; --clr-surface:#fff;
             --clr-surface-2:#f5f7fa; --clr-text:#1a1d23; --clr-text-2:#4a5568;
@@ -4057,14 +4057,11 @@ function _printOrgChart() {
       padding:0 10mm;border-top:0.5pt solid #CBD5E0;
       font-size:6pt;color:#718096;background:#fff;z-index:9999;
     }
-    .print-title{
-      font-family:'Urbanist',system-ui,sans-serif;
-      font-size:14pt;font-weight:600;color:#1A365D;
-      text-align:center;margin:0 0 12px;
-    }
+    ${REPORT_TITLE_CSS}
     @media print{
       .print-header,.print-footer{display:flex!important;}
       footer.ecm-footer{display:none!important;}
+      .header{display:none!important;}
       .print-title{display:block!important;}
     }
     .print-title{display:none;}
@@ -4118,7 +4115,7 @@ function _printOrgChart() {
       applyZoom(parseInt(zoom.value));
     });
     function setOrient(o) {
-      document.getElementById('page-style').textContent = '@page { size: ' + o + '; margin: 10mm; }';
+      document.getElementById('page-style').textContent = '@page { size: A4 ' + o + '; margin: 10mm; }';
       document.getElementById('btn-land').classList.toggle('active', o === 'landscape');
       document.getElementById('btn-port').classList.toggle('active', o === 'portrait');
     }
@@ -5017,6 +5014,8 @@ function _exportCpmNetwork(fmt, dlg) {
                  display:flex; justify-content:space-between; font-size:6pt; color:#718096;
                  border-top:0.5pt solid #CBD5E0; padding-top:2px;
                  font-family:'Urbanist',system-ui,sans-serif; }
+    .page-title { position:absolute; top:4.5mm; left:0; right:0; text-align:center;
+                  font-family:'Urbanist',system-ui,sans-serif; font-size:14pt; font-weight:600; color:#1A365D; }
     .page-head { position:absolute; top:1mm; left:0; right:0;
                  display:flex; justify-content:space-between; font-size:6pt; color:#4A5568;
                  border-bottom:0.5pt solid #CBD5E0; padding-bottom:2px;
@@ -5083,7 +5082,7 @@ function _exportCpmNetwork(fmt, dlg) {
       const A4w = isLand ? 297 : 210;
       const A4h = isLand ? 210 : 297;
       const availW = A4w - 2 * MARG;
-      const availH = A4h - 2 * MARG - 10; // mm (5mm encabezado + 5mm pie, fuera del dibujo)
+      const availH = A4h - 2 * MARG - 17; // mm (12mm encabezado + título, 5mm pie; fuera del dibujo)
 
       const cellW = SVG_W / hPages;
       const cellH = SVG_H / vPages;
@@ -5108,7 +5107,7 @@ function _exportCpmNetwork(fmt, dlg) {
           const tile = document.createElement('div');
           tile.className = 'page-tile';
           tile.style.width = availW + 'mm';
-          tile.style.height = (availH + 10) + 'mm';
+          tile.style.height = (availH + 17) + 'mm';
 
           const svgEl = document.createElementNS('http://www.w3.org/2000/svg','svg');
           svgEl.setAttribute('viewBox', vbX + ' ' + vbY + ' ' + cellW + ' ' + cellH);
@@ -5117,12 +5116,16 @@ function _exportCpmNetwork(fmt, dlg) {
           svgEl.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
           svgEl.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
           svgEl.setAttribute('preserveAspectRatio', 'xMinYMin meet');
-          svgEl.style.marginTop = '5mm';
+          svgEl.style.marginTop = '12mm';
           svgEl.innerHTML = SVG_INNER;
           tile.appendChild(svgEl);
 
           // Encabezado y pie estándar por tile
           tile.appendChild(hfRow('page-head', ['ECM Project V1.00.01', PROJ_NAME, DATE_STR]));
+          const ttl = document.createElement('div');
+          ttl.className = 'page-title';
+          ttl.textContent = 'Red CPM';
+          tile.appendChild(ttl);
           tile.appendChild(hfRow('page-foot', ['By EHCM', '\u2014', 'Página ' + pageNum + ' de ' + totalPages]));
 
           preview.appendChild(tile);
