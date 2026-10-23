@@ -213,7 +213,7 @@ export function printToPdf(moduleName, htmlContent) {
   .evm-table { width:100%;border-collapse:collapse; }
   .evm-table th { background:#F5F5F5;font-weight:600;padding:6px 10px;border:1px solid #d1d5db;font-size:11px; }
   .evm-table td { padding:5px 10px;border:1px solid #d1d5db;font-size:11px; }
-  .evm-table td.num { text-align:right;font-family:monospace; }
+  .evm-table td.num { text-align:right;font-family:monospace;white-space:nowrap; }
   .evm-empty-row td { text-align:center;color:#9e9e9e;padding:16px; }
 
   /* Aviso fecha de datos (ocultar en print) */
