@@ -2667,8 +2667,8 @@ function _printToPdf(moduleName, htmlContent) {
   svg{max-width:100%;height:auto}img{max-width:100%}
   .badge{display:inline-block;border-radius:10px;padding:1px 7px;font-size:11px;font-weight:600}
   .print-header,.print-footer{font-family:'Urbanist',system-ui,sans-serif;-webkit-print-color-adjust:exact;print-color-adjust:exact}
-  .print-header{position:fixed;top:0;left:0;right:0;height:26px;display:none;align-items:center;justify-content:space-between;padding:0 10mm;border-bottom:0.5pt solid #CBD5E0;font-size:9pt;color:#4A5568;background:#fff;z-index:9999}
-  .print-footer{position:fixed;bottom:0;left:0;right:0;height:22px;display:none;align-items:center;justify-content:space-between;padding:0 10mm;border-top:0.5pt solid #CBD5E0;font-size:8pt;color:#718096;background:#fff;z-index:9999}
+  .print-header{position:fixed;top:0;left:0;right:0;height:26px;display:none;align-items:center;justify-content:space-between;padding:0 10mm;border-bottom:0.5pt solid #CBD5E0;font-size:5pt;color:#4A5568;background:#fff;z-index:9999}
+  .print-footer{position:fixed;bottom:0;left:0;right:0;height:22px;display:none;align-items:center;justify-content:space-between;padding:0 10mm;border-top:0.5pt solid #CBD5E0;font-size:5pt;color:#718096;background:#fff;z-index:9999}
   .print-title{font-family:'Urbanist',system-ui,sans-serif;font-size:14pt;font-weight:600;color:#1A365D;text-align:center;margin:0 0 14px}
   @media print{body{background:#fff}.tb{display:none!important}.pv{padding:0;min-height:0}.a4{box-shadow:none;width:100%;min-height:0;padding:8mm 10mm;padding-top:4px!important}.print-header,.print-footer{display:flex!important}@page{margin:26px 10mm 22px 10mm}}
 </style>
@@ -4032,7 +4032,7 @@ function _printOrgChart() {
     .lbl-sm { font-size:11px; color:#78909C; }
     @media print { .controls { display:none !important; }
       footer.ecm-footer { display:block; position:fixed; bottom:0; left:0; right:0;
-        font-size:7pt; color:#9E9E9E; text-align:center;
+        font-size:5pt; color:#9E9E9E; text-align:center;
         border-top:1px solid #E0E0E0; padding-top:3px; padding-bottom:2px;
         background:white; }
       .oc-frame { margin:0; border:none; }
@@ -4047,13 +4047,13 @@ function _printOrgChart() {
       position:fixed;top:0;left:0;right:0;height:26px;
       display:none;align-items:center;justify-content:space-between;
       padding:0 10mm;border-bottom:0.5pt solid #CBD5E0;
-      font-size:9pt;color:#4A5568;background:#fff;z-index:9999;
+      font-size:5pt;color:#4A5568;background:#fff;z-index:9999;
     }
     .print-footer{
       position:fixed;bottom:0;left:0;right:0;height:22px;
       display:none;align-items:center;justify-content:space-between;
       padding:0 10mm;border-top:0.5pt solid #CBD5E0;
-      font-size:8pt;color:#718096;background:#fff;z-index:9999;
+      font-size:5pt;color:#718096;background:#fff;z-index:9999;
     }
     .print-title{
       font-family:'Urbanist',system-ui,sans-serif;
@@ -5009,7 +5009,7 @@ function _exportCpmNetwork(fmt, dlg) {
     .page-tile { background:#fff; box-shadow:0 4px 14px rgba(0,0,0,.4); position:relative; flex-shrink:0; }
     .page-tile svg { display:block; }
     .page-foot { position:absolute; bottom:4mm; left:10mm; right:10mm;
-                 display:flex; justify-content:space-between; font-size:7pt; color:#9e9e9e;
+                 display:flex; justify-content:space-between; font-size:5pt; color:#9e9e9e;
                  border-top:1px solid #e0e0e0; padding-top:2px; }
     @media print {
       body { background:#fff; }
