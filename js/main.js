@@ -37,6 +37,7 @@ import { WbsDictionaryPanel } from './wbs-dictionary.js';
 import { generatePdfReport } from './pdf-report.js';
 import { pageHfCss, REPORT_TITLE_CSS, REPORT_FONT_CSS, normalizeReportBody, supportsPageMarginBoxes } from './pdf-utils.js';
 import { debouncedSave, queue } from './async-queue.js';
+import { initReports } from './reports.js';
 
 // Precargar Manrope: los gráficos canvas de los reportes (DCMA, EVM, Histograma) la usan
 // y el canvas no dispara la descarga de la fuente por sí solo.
@@ -5712,10 +5713,11 @@ document.addEventListener('DOMContentLoaded', () => {
     if (overlay.style.display === 'flex') { overlay.style.display = 'none'; document.getElementById('btn-risk-register-view')?.classList.remove('active'); return; }
     overlay.style.display = 'flex';
     document.getElementById('btn-risk-register-view')?.classList.add('active');
-    _riskPanel = new RiskRegisterPanel({ projectId: project.id, container, onClose: () => {
+    new RiskRegisterPanel({ projectId: project.id, container, onClose: () => {
       overlay.style.display = 'none';
     }});
   });
 
+  initReports();
   init();
 });
