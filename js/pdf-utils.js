@@ -70,8 +70,20 @@ export function pageHfCss({ proj, date, footRight }) {
 
 /** Estilo único del título de reporte (14pt centrado) y del subtítulo opcional (10pt). */
 export const REPORT_TITLE_CSS =
-  ".print-title{font-family:'Urbanist',system-ui,sans-serif;font-size:14pt;font-weight:600;color:#1A365D;text-align:center;margin:0 0 4mm}" +
-  ".print-subtitle{font-family:'Urbanist',system-ui,sans-serif;font-size:10pt;font-weight:500;color:#4A5568;text-align:center;margin:-2mm 0 4mm}";
+  ".print-title{font-family:'Manrope',system-ui,sans-serif;font-size:14pt;font-weight:600;color:#1A365D;text-align:center;margin:0 0 4mm}" +
+  ".print-subtitle{font-family:'Manrope',system-ui,sans-serif;font-size:10pt;font-weight:500;color:#4A5568;text-align:center;margin:-2mm 0 4mm}";
+
+/**
+ * Tipografía de los reportes: todo el contenido (textos, tablas, gráficos SVG, Gantt…)
+ * en Manrope; encabezados y pies de página en Urbanist.
+ */
+export const REPORT_FONT_CSS =
+  "body,body *{font-family:'Manrope',system-ui,sans-serif!important}" +
+  ".print-header,.print-header *,.print-footer,.print-footer *,.phf-hdr,.phf-hdr *,.phf-ftr,.phf-ftr *," +
+  ".page-head,.page-head *,.page-foot,.page-foot *{font-family:'Urbanist',system-ui,sans-serif!important}" +
+  // Texto invisible en Urbanist: obliga a descargar la fuente que usan los márgenes de página (@page)
+  "body::after{content:'ECM Project By EHCM 0123456789';font-family:'Urbanist',system-ui,sans-serif;font-size:6pt;" +
+  "position:absolute;left:0;top:0;visibility:hidden;pointer-events:none}";
 
 /**
  * Normaliza el contenido de un reporte para que cumpla la norma de PDFs:
@@ -150,7 +162,7 @@ export function printToPdf(moduleName, htmlContent) {
 
   w.document.write(`<!DOCTYPE html><html><head>
 <meta charset="utf-8">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Urbanist:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Urbanist:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap">
 <title>${title}</title>
 <style>
   ${_appCssVars}
@@ -265,6 +277,7 @@ export function printToPdf(moduleName, htmlContent) {
     @page{margin:10mm}
   }
   ${pageHfCss({ proj: _proj, date: `${_dd}-${_mm}-${_yy}, ${_hh}:${_mi}` })}
+  ${REPORT_FONT_CSS}
 </style>
 </head><body>
 <div class="tb">

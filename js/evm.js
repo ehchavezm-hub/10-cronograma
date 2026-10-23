@@ -312,7 +312,7 @@ export class EvmPanel {
       // Label
       const val = maxVal * (1 - g / 4);
       ctx.fillStyle = _cAxis;
-      ctx.font      = '10px system-ui';
+      ctx.font      = '10px "Manrope", system-ui';
       ctx.textAlign = 'right';
       ctx.fillText(_fmtK(val), PAD.l - 4, y + 4);
     }
@@ -320,7 +320,7 @@ export class EvmPanel {
     // Labels eje X (cada ~6 puntos)
     const step = Math.max(1, Math.floor(n / 6));
     ctx.fillStyle = _cAxis;
-    ctx.font      = '10px system-ui';
+    ctx.font      = '10px "Manrope", system-ui';
     ctx.textAlign = 'center';
     for (let i = 0; i < n; i += step) {
       const x = xOf(i);
@@ -354,7 +354,7 @@ export class EvmPanel {
       ctx.fillStyle   = color;
       ctx.fillRect(lx, LY, 16, 3);
       ctx.fillStyle   = _cLeg;
-      ctx.font        = '11px system-ui';
+      ctx.font        = '11px "Manrope", system-ui';
       ctx.textAlign   = 'left';
       ctx.fillText(label, lx + 20, LY + 7);
     });

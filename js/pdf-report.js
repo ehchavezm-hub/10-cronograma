@@ -7,7 +7,7 @@
 
 import { appState } from './state.js';
 import { Calendar, isoToDate } from './calendar.js';
-import { pageHfCss, REPORT_TITLE_CSS } from './pdf-utils.js';
+import { pageHfCss, REPORT_TITLE_CSS, REPORT_FONT_CSS } from './pdf-utils.js';
 
 const _esc = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 
@@ -59,7 +59,7 @@ export function generatePdfReport() {
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Urbanist:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Urbanist:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap">
 <title>${_esc(_rpTitle)}</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -100,6 +100,7 @@ export function generatePdfReport() {
   @media print { .print-header, .print-footer { display:flex !important; } }
   .page-break { page-break-before: always; }
   ${pageHfCss({ proj: project.name, date: `${_rpDD}-${_rpMM}-${_rpYY}, ${_rpHH}:${_rpMi}` })}
+  ${REPORT_FONT_CSS}
 </style>
 </head>
 <body>

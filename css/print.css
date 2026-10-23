@@ -43,7 +43,7 @@
   /* ---- Tabla de actividades ---- */
   .wbs-table {
     font-size: 8pt;
-    font-family: 'Arial Narrow', Arial, sans-serif;
+    font-family: 'Manrope', system-ui, sans-serif;
     width: 100%;
     border-collapse: collapse;
     table-layout: auto;
@@ -92,7 +92,7 @@
   #app::before {
     content: "Tabla EDT";
     display: block;
-    font-family: 'Urbanist', system-ui, sans-serif;
+    font-family: 'Manrope', system-ui, sans-serif;
     font-size: 14pt;
     font-weight: 600;
     color: #1A365D;

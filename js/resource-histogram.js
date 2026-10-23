@@ -338,13 +338,13 @@ export class ResourceHistogramPanel {
       ctx.beginPath(); ctx.moveTo(PL, y); ctx.lineTo(PL + cW, y); ctx.stroke();
       const val = (i / STEPS) * yMax;
       ctx.fillStyle  = CLR_DIM;
-      ctx.font       = '10px Calibri,Arial';
+      ctx.font       = '10px "Manrope", system-ui';
       ctx.textAlign  = 'right';
       ctx.fillText(_fmt(val) + 'h', PL - 4, y);
     }
 
     if (!periods.length) {
-      ctx.fillStyle = CLR_DIM; ctx.font = '13px Calibri,Arial'; ctx.textAlign = 'center';
+      ctx.fillStyle = CLR_DIM; ctx.font = '13px "Manrope", system-ui'; ctx.textAlign = 'center';
       ctx.fillText('Sin datos en el período seleccionado', W / 2, H / 2);
       return;
     }
@@ -413,7 +413,7 @@ export class ResourceHistogramPanel {
       // X label
       if (!vp || (bxR - bxL) >= 16) {
         ctx.fillStyle    = CLR_DIM;
-        ctx.font         = '9px Calibri,Arial';
+        ctx.font         = '9px "Manrope", system-ui';
         ctx.textAlign    = 'center';
         ctx.textBaseline = 'top';
         ctx.fillText(p.label, labelX, PT + cH + 5);
@@ -487,7 +487,7 @@ export class ResourceHistogramPanel {
         // Eje Y derecho: etiquetas de porcentaje
         ctx.textAlign    = 'left';
         ctx.textBaseline = 'middle';
-        ctx.font         = '9px Calibri,Arial';
+        ctx.font         = '9px "Manrope", system-ui';
         ctx.fillStyle    = CLR_SCURVE;
         for (const pct of [0, 0.25, 0.5, 0.75, 1.0]) {
           const y = PT + cH * (1 - pct);
@@ -518,7 +518,7 @@ export class ResourceHistogramPanel {
         ctx.beginPath(); ctx.moveTo(PL, lineY); ctx.lineTo(PL + cW, lineY); ctx.stroke();
         ctx.setLineDash([]);
         ctx.fillStyle    = CLR_OVER;
-        ctx.font         = '10px Calibri,Arial';
+        ctx.font         = '10px "Manrope", system-ui';
         ctx.textAlign    = 'left';
         ctx.textBaseline = 'bottom';
         ctx.fillText('Capacidad máx.', PL + 4, lineY - 2);
@@ -538,7 +538,7 @@ export class ResourceHistogramPanel {
     ctx.translate(12, PT + cH / 2);
     ctx.rotate(-Math.PI / 2);
     ctx.fillStyle  = CLR_DIM;
-    ctx.font       = '10px Calibri,Arial';
+    ctx.font       = '10px "Manrope", system-ui';
     ctx.textAlign  = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText('Horas', 0, 0);

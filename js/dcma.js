@@ -591,14 +591,14 @@ export class DcmaPanel {
 
     // Texto del porcentaje
     ctx.fillStyle = color;
-    ctx.font = 'bold 28px "Urbanist", system-ui';
+    ctx.font = 'bold 28px "Manrope", system-ui';
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.fillText(`${score}%`, cx, cy - 8);
 
     // Etiqueta
     const label = score >= 80 ? 'BUENO' : score >= 60 ? 'REGULAR' : 'CRÍTICO';
     ctx.fillStyle = _cSub;
-    ctx.font = '600 11px "Urbanist", system-ui';
+    ctx.font = '600 11px "Manrope", system-ui';
     ctx.fillText(label, cx, cy + 18);
   }
 
