@@ -52,12 +52,12 @@ function _cssStr(s) {
  */
 export function pageHfCss({ proj, date, footRight }) {
   if (!supportsPageMarginBoxes()) return '';
-  const box = "font-family:'Urbanist',system-ui,sans-serif;font-size:5pt;";
+  const box = "font-family:'Urbanist',system-ui,sans-serif;font-size:6pt;";
   const top = box + 'color:#4A5568;vertical-align:bottom;padding-bottom:0.8mm;border-bottom:0.5pt solid #CBD5E0;';
   const bot = box + 'color:#718096;vertical-align:top;padding-top:0.8mm;border-top:0.5pt solid #CBD5E0;';
   const right = footRight != null ? _cssStr(footRight) : '"P\\E1 gina " counter(page) " de " counter(pages)';
   return `
-  @page{margin:5mm;
+  @page{margin:10mm;
     @top-left{content:"ECM Project V1.00.01";${top}text-align:left}
     @top-center{content:${_cssStr(proj)};${top}text-align:center}
     @top-right{content:${_cssStr(date)};${top}text-align:right}
@@ -197,8 +197,8 @@ export function printToPdf(moduleName, htmlContent) {
   .tf-zero { color:#FB8C00 !important; }
 
   .print-header,.print-footer{font-family:'Urbanist',system-ui,sans-serif;-webkit-print-color-adjust:exact;print-color-adjust:exact}
-  .print-header{position:fixed;top:0;left:0;right:0;height:26px;display:none;align-items:center;justify-content:space-between;padding:0 10mm;border-bottom:0.5pt solid #CBD5E0;font-size:5pt;color:#4A5568;background:#fff;z-index:9999}
-  .print-footer{position:fixed;bottom:0;left:0;right:0;height:22px;display:none;align-items:center;justify-content:space-between;padding:0 10mm;border-top:0.5pt solid #CBD5E0;font-size:5pt;color:#718096;background:#fff;z-index:9999}
+  .print-header{position:fixed;top:0;left:0;right:0;height:26px;display:none;align-items:center;justify-content:space-between;padding:0 10mm;border-bottom:0.5pt solid #CBD5E0;font-size:6pt;color:#4A5568;background:#fff;z-index:9999}
+  .print-footer{position:fixed;bottom:0;left:0;right:0;height:22px;display:none;align-items:center;justify-content:space-between;padding:0 10mm;border-top:0.5pt solid #CBD5E0;font-size:6pt;color:#718096;background:#fff;z-index:9999}
   .print-title{font-family:'Urbanist',system-ui,sans-serif;font-size:14pt;font-weight:600;color:#1A365D;text-align:center;margin:0 0 14px}
   @media print{
     body{background:#fff}
@@ -206,7 +206,7 @@ export function printToPdf(moduleName, htmlContent) {
     .pv{padding:0;min-height:0}
     .a4{box-shadow:none;width:100%;min-height:0;padding:1.5mm 0 0!important}
     .print-header,.print-footer{display:flex!important}
-    @page{margin:5mm}
+    @page{margin:10mm}
   }
   ${pageHfCss({ proj: _proj, date: `${_dd}-${_mm}-${_yy}, ${_hh}:${_mi}` })}
 </style>

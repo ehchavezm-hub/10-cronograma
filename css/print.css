@@ -92,7 +92,7 @@
   #app::before {
     content: attr(data-print-title);
     display: block;
-    font-size: 5pt;
+    font-size: 6pt;
     font-weight: 700;
     color: #1976D2;
     padding: 0 0 6px;
@@ -104,7 +104,7 @@
   #app::after {
     content: "ECM Project v1.0.0 | © 2026 E. Chávez";
     display: block;
-    font-size: 5pt;
+    font-size: 6pt;
     color: #9E9E9E;
     text-align: center;
     margin-top: 4mm;
@@ -118,7 +118,7 @@
     bottom: 8mm;
     left: 10mm;
     right: 10mm;
-    font-size: 5pt;
+    font-size: 6pt;
     color: #9E9E9E;
     border-top: 1px solid #E0E0E0;
     padding-top: 3px;
@@ -134,7 +134,7 @@
   /* ---- Ajuste de página ---- */
   @page {
     size: A4 landscape;
-    margin: 5mm;
+    margin: 10mm;
   }
 
   /* Evitar salto de página dentro de grupos de fases */

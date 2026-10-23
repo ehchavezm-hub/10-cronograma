@@ -2668,10 +2668,10 @@ function _printToPdf(moduleName, htmlContent) {
   svg{max-width:100%;height:auto}img{max-width:100%}
   .badge{display:inline-block;border-radius:10px;padding:1px 7px;font-size:11px;font-weight:600}
   .print-header,.print-footer{font-family:'Urbanist',system-ui,sans-serif;-webkit-print-color-adjust:exact;print-color-adjust:exact}
-  .print-header{position:fixed;top:0;left:0;right:0;height:26px;display:none;align-items:center;justify-content:space-between;padding:0 10mm;border-bottom:0.5pt solid #CBD5E0;font-size:5pt;color:#4A5568;background:#fff;z-index:9999}
-  .print-footer{position:fixed;bottom:0;left:0;right:0;height:22px;display:none;align-items:center;justify-content:space-between;padding:0 10mm;border-top:0.5pt solid #CBD5E0;font-size:5pt;color:#718096;background:#fff;z-index:9999}
+  .print-header{position:fixed;top:0;left:0;right:0;height:26px;display:none;align-items:center;justify-content:space-between;padding:0 10mm;border-bottom:0.5pt solid #CBD5E0;font-size:6pt;color:#4A5568;background:#fff;z-index:9999}
+  .print-footer{position:fixed;bottom:0;left:0;right:0;height:22px;display:none;align-items:center;justify-content:space-between;padding:0 10mm;border-top:0.5pt solid #CBD5E0;font-size:6pt;color:#718096;background:#fff;z-index:9999}
   .print-title{font-family:'Urbanist',system-ui,sans-serif;font-size:14pt;font-weight:600;color:#1A365D;text-align:center;margin:0 0 14px}
-  @media print{body{background:#fff}.tb{display:none!important}.pv{padding:0;min-height:0}.a4{box-shadow:none;width:100%;min-height:0;padding:1.5mm 0 0!important}.print-header,.print-footer{display:flex!important}@page{margin:5mm}}
+  @media print{body{background:#fff}.tb{display:none!important}.pv{padding:0;min-height:0}.a4{box-shadow:none;width:100%;min-height:0;padding:1.5mm 0 0!important}.print-header,.print-footer{display:flex!important}@page{margin:10mm}}
   ${pageHfCss({ proj: _proj, date: `${_dd}-${_mm}-${_yy}, ${_hh}:${_mi}` })}
 </style>
 </head><body>
@@ -4006,7 +4006,7 @@ function _printOrgChart() {
   <meta charset="UTF-8">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Urbanist:wght@400;500;600&display=swap">
   <title>${_ocFileTitle}</title>
-  <style id="page-style">@page { size: landscape; margin: 5mm; }</style>
+  <style id="page-style">@page { size: landscape; margin: 10mm; }</style>
   <style>
     :root { --clr-primary:#1976D2; --clr-bg:#f8f9fc; --clr-surface:#fff;
             --clr-surface-2:#f5f7fa; --clr-text:#1a1d23; --clr-text-2:#4a5568;
@@ -4034,7 +4034,7 @@ function _printOrgChart() {
     .lbl-sm { font-size:11px; color:#78909C; }
     @media print { .controls { display:none !important; }
       footer.ecm-footer { display:block; position:fixed; bottom:0; left:0; right:0;
-        font-size:5pt; color:#9E9E9E; text-align:center;
+        font-size:6pt; color:#9E9E9E; text-align:center;
         border-top:1px solid #E0E0E0; padding-top:3px; padding-bottom:2px;
         background:white; }
       .oc-frame { margin:0; border:none; }
@@ -4049,13 +4049,13 @@ function _printOrgChart() {
       position:fixed;top:0;left:0;right:0;height:26px;
       display:none;align-items:center;justify-content:space-between;
       padding:0 10mm;border-bottom:0.5pt solid #CBD5E0;
-      font-size:5pt;color:#4A5568;background:#fff;z-index:9999;
+      font-size:6pt;color:#4A5568;background:#fff;z-index:9999;
     }
     .print-footer{
       position:fixed;bottom:0;left:0;right:0;height:22px;
       display:none;align-items:center;justify-content:space-between;
       padding:0 10mm;border-top:0.5pt solid #CBD5E0;
-      font-size:5pt;color:#718096;background:#fff;z-index:9999;
+      font-size:6pt;color:#718096;background:#fff;z-index:9999;
     }
     .print-title{
       font-family:'Urbanist',system-ui,sans-serif;
@@ -4118,7 +4118,7 @@ function _printOrgChart() {
       applyZoom(parseInt(zoom.value));
     });
     function setOrient(o) {
-      document.getElementById('page-style').textContent = '@page { size: ' + o + '; margin: 5mm; }';
+      document.getElementById('page-style').textContent = '@page { size: ' + o + '; margin: 10mm; }';
       document.getElementById('btn-land').classList.toggle('active', o === 'landscape');
       document.getElementById('btn-port').classList.toggle('active', o === 'portrait');
     }
@@ -5012,7 +5012,7 @@ function _exportCpmNetwork(fmt, dlg) {
     .page-tile { background:#fff; box-shadow:0 4px 14px rgba(0,0,0,.4); position:relative; flex-shrink:0; }
     .page-tile svg { display:block; }
     .page-foot { position:absolute; bottom:2mm; left:0; right:0;
-                 display:flex; justify-content:space-between; font-size:5pt; color:#9e9e9e;
+                 display:flex; justify-content:space-between; font-size:6pt; color:#9e9e9e;
                  border-top:1px solid #e0e0e0; padding-top:2px; }
     @media print {
       body { background:#fff; }
@@ -5063,7 +5063,7 @@ function _exportCpmNetwork(fmt, dlg) {
       const hPages = Math.max(1, Math.min(10, parseInt(document.getElementById('h-pages').value) || 1));
       const vPages = Math.max(1, Math.min(10, parseInt(document.getElementById('v-pages').value) || 1));
       const isLand = _orient === 'landscape';
-      const MARG = 5;
+      const MARG = 10;
       const A4w = isLand ? 297 : 210;
       const A4h = isLand ? 210 : 297;
       const availW = A4w - 2 * MARG;
