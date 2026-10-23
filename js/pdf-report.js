@@ -81,7 +81,7 @@ export function generatePdfReport() {
 
   .kpi-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; margin-bottom: 16px; }
   .kpi-card { background: #F5F5F5; border-radius: 6px; padding: 8px 6px; text-align: center; }
-  .kpi-value { font-size: 15pt; font-weight: 700; color: #1976D2; }
+  .kpi-value { font-size: 10pt; font-weight: 700; color: #1976D2; }  /* mismo tamaño que el contenido */
   .kpi-label { font-size: 8pt; color: #757575; margin-top: 2px; }
 
   table { width: 100%; border-collapse: collapse; font-size: 9.5pt; margin-bottom: 16px; }

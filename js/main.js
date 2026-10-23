@@ -5652,8 +5652,7 @@ document.addEventListener('DOMContentLoaded', () => {
           const esc = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
           container.innerHTML = `<p style="font-size:13px;color:var(--clr-text)">Se detectaron <strong>${conflicts.overloaded.length}</strong> conflicto(s) de recursos.</p>
             <ul style="font-size:12px;color:var(--clr-text-2);margin:8px 0 0;padding-left:18px">
-              ${conflicts.overloaded.slice(0, 15).map(c => `<li>Recurso <strong>${esc(c.resource.name)}</strong> — día ${c.day}: carga ${c.load.toFixed(1)} / capacidad ${c.capacity}</li>`).join('')}
-              ${conflicts.overloaded.length > 15 ? `<li style="color:var(--clr-text-3)">… y ${conflicts.overloaded.length - 15} más</li>` : ''}
+              ${conflicts.overloaded.map(c => `<li>Recurso <strong>${esc(c.resource.name)}</strong> — día ${c.day}: carga ${c.load.toFixed(1)} / capacidad ${c.capacity}</li>`).join('')}
             </ul>`;
         }
         levelPanel.style.display = 'flex';
