@@ -194,7 +194,7 @@ export function printToPdf(moduleName, htmlContent) {
   .panel-header-btn,.close-btn,.print-btn { display:none !important; }
 
   /* ---- KPI cards (EVM y otros paneles) ---- */
-  .evm-kpi-grid { display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:10px;padding:12px 0 8px; }
+  .evm-kpi-grid { display:grid;grid-template-columns:repeat(6,1fr);gap:6px;padding:8px 0 6px; }  /* 12 indicadores EVM en 2 filas de 6 */
   .kpi-card { background:#F5F5F5;border:1px solid #d1d5db;border-radius:6px;padding:6px;text-align:center; }
   .kpi-value { font-size:12px;font-weight:700;color:#1976D2; }  /* mismo tamaño que el contenido (tablas 12px) */
   .kpi-label { font-size:10px;color:#5b6270;margin-top:2px; }
