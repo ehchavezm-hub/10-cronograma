@@ -68,7 +68,10 @@ export function generatePdfReport() {
   .print-header { font-family:'Urbanist',system-ui,sans-serif; position:fixed; top:0; left:0; right:0; height:26px; display:none; align-items:center; justify-content:space-between; padding:0 10mm; border-bottom:0.5pt solid #CBD5E0; font-size:6pt; color:#4A5568; background:#fff; z-index:9999; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
   .print-footer { font-family:'Urbanist',system-ui,sans-serif; position:fixed; bottom:0; left:0; right:0; height:22px; display:none; align-items:center; justify-content:space-between; padding:0 10mm; border-top:0.5pt solid #CBD5E0; font-size:6pt; color:#718096; background:#fff; z-index:9999; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
   ${REPORT_TITLE_CSS}
-  @media print { body { font-size: 10pt; } }
+  @media print { body { font-size: 10pt; } .tb { display:none !important; } }
+  .tb { display:flex; align-items:center; gap:7px; padding:8px 14px; margin:0 0 12px; background:#fff; border-bottom:1px solid #e2e8f0; position:sticky; top:0; z-index:100; }
+  .tb button { padding:5px 11px; border:1px solid #d1d5db; border-radius:5px; cursor:pointer; font-size:12px; background:#fff; color:#374151; }
+  .tb button.pri { background:#1976d2; color:#fff; border-color:#1976d2; font-weight:600; font-size:13px; padding:6px 16px; }
 
   .cover { min-height: 90vh; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; padding: 40px; border-bottom: 4px solid #1976D2; }
   .cover-logo { font-size: 48pt; margin-bottom: 16px; }
@@ -104,6 +107,10 @@ export function generatePdfReport() {
 </style>
 </head>
 <body>
+<div class="tb">
+  <button onclick="window.close()">&#x2715; Cerrar</button>
+  <button class="pri" style="margin-left:auto" onclick="window.print()">&#x1F5A8; Guardar PDF</button>
+</div>
 <div class="print-header"><span>ECM Project V1.00.01</span><span>${_rpProjEsc}</span><span>${_rpDD}-${_rpMM}-${_rpYY}, ${_rpHH}:${_rpMi}</span></div>
 <div class="print-footer"><span>By EHCM</span><span>&#8212;</span><span>P&aacute;gina <span id="phf-cur">1</span> de <span id="phf-tot">1</span></span></div>
 
@@ -214,7 +221,6 @@ ${criticalTasks.length ? `
   win.focus();
   setTimeout(() => {
     (function(){var h=win.document.body;if(!h)return;var t=Math.max(1,Math.ceil(h.scrollHeight/1120));var el=win.document.getElementById('phf-tot');if(el)el.textContent=t;})();
-    win.print();
   }, 600);
   return { ok: true };
 }

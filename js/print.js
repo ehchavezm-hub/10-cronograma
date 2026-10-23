@@ -201,8 +201,6 @@ export function printGantt(rows) {
   </style>
 </head><body>
   <div class="controls">
-    <button class="btn-print" id="btn-pdf" onclick="window.print()">&#x1F5A8; Guardar PDF</button>
-    <div class="sep"></div>
     <span class="lbl-sm">Orientaci&#243;n:</span>
     <button class="btn-c active" id="btn-land" onclick="setOrient('landscape')">&#x2B1B; Horizontal</button>
     <button class="btn-c" id="btn-port" onclick="setOrient('portrait')">&#x1F532; Vertical</button>
@@ -216,6 +214,7 @@ export function printGantt(rows) {
     <span class="lbl-sm">${today}</span>
     <div class="sep"></div>
     <button class="btn-c" onclick="window.close()">&#x2715; Cerrar</button>
+    <button class="btn-print" id="btn-pdf" style="margin-left:auto" onclick="window.print()">&#x1F5A8; Guardar PDF</button>
   </div>
   <div class="preview" id="preview"></div>
 
