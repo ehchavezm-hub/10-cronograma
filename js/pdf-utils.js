@@ -70,8 +70,20 @@ export function pageHfCss({ proj, date, footRight }) {
 
 /** Estilo único del título de reporte (14pt centrado) y del subtítulo opcional (10pt). */
 export const REPORT_TITLE_CSS =
-  ".print-title{font-family:'Urbanist',system-ui,sans-serif;font-size:14pt;font-weight:600;color:#1A365D;text-align:center;margin:0 0 4mm}" +
-  ".print-subtitle{font-family:'Urbanist',system-ui,sans-serif;font-size:10pt;font-weight:500;color:#4A5568;text-align:center;margin:-2mm 0 4mm}";
+  ".print-title{font-family:'Manrope',system-ui,sans-serif;font-size:14pt;font-weight:600;color:#1A365D;text-align:center;margin:0 0 4mm}" +
+  ".print-subtitle{font-family:'Manrope',system-ui,sans-serif;font-size:10pt;font-weight:500;color:#4A5568;text-align:center;margin:-2mm 0 4mm}";
+
+/**
+ * Tipografía de los reportes: todo el contenido (textos, tablas, gráficos SVG, Gantt…)
+ * en Manrope; encabezados y pies de página en Urbanist.
+ */
+export const REPORT_FONT_CSS =
+  "body,body *{font-family:'Manrope',system-ui,sans-serif!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}" +
+  ".print-header,.print-header *,.print-footer,.print-footer *,.phf-hdr,.phf-hdr *,.phf-ftr,.phf-ftr *," +
+  ".page-head,.page-head *,.page-foot,.page-foot *{font-family:'Urbanist',system-ui,sans-serif!important}" +
+  // Texto invisible en Urbanist: obliga a descargar la fuente que usan los márgenes de página (@page)
+  "body::after{content:'ECM Project By EHCM 0123456789';font-family:'Urbanist',system-ui,sans-serif;font-size:6pt;" +
+  "position:absolute;left:0;top:0;visibility:hidden;pointer-events:none}";
 
 /**
  * Normaliza el contenido de un reporte para que cumpla la norma de PDFs:
@@ -150,7 +162,7 @@ export function printToPdf(moduleName, htmlContent) {
 
   w.document.write(`<!DOCTYPE html><html><head>
 <meta charset="utf-8">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Urbanist:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Urbanist:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap">
 <title>${title}</title>
 <style>
   ${_appCssVars}
@@ -183,9 +195,9 @@ export function printToPdf(moduleName, htmlContent) {
 
   /* ---- KPI cards (EVM y otros paneles) ---- */
   .evm-kpi-grid { display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:10px;padding:12px 0 8px; }
-  .kpi-card { background:#F5F5F5;border:1px solid #d1d5db;border-radius:8px;padding:10px;text-align:center; }
-  .kpi-value { font-size:18pt;font-weight:700;color:#1976D2; }
-  .kpi-label { font-size:8pt;color:#5b6270;margin-top:2px; }
+  .kpi-card { background:#F5F5F5;border:1px solid #d1d5db;border-radius:6px;padding:6px;text-align:center; }
+  .kpi-value { font-size:12px;font-weight:700;color:#1976D2; }  /* mismo tamaño que el contenido (tablas 12px) */
+  .kpi-label { font-size:10px;color:#5b6270;margin-top:2px; }
 
   /* Colores semafóricos KPI (EVM: good/warn/bad) */
   .kpi-value.good { color:#388E3C !important; }
@@ -265,6 +277,7 @@ export function printToPdf(moduleName, htmlContent) {
     @page{margin:10mm}
   }
   ${pageHfCss({ proj: _proj, date: `${_dd}-${_mm}-${_yy}, ${_hh}:${_mi}` })}
+  ${REPORT_FONT_CSS}
 </style>
 </head><body>
 <div class="tb">
@@ -301,3 +314,70 @@ ${normalizeReportBody(moduleName, htmlContent)}</div>
 </body></html>`);
   w.document.close();
 }
+
+/**
+ * Contexto 2D mínimo que registra el dibujo como SVG vectorial (para el PDF).
+ * Implementa las operaciones que usan los gráficos de los reportes (Histograma, EVM, DCMA).
+ */
+export class SvgCtx {
+  /** @param {number} w @param {number} h */
+  constructor(w, h) {
+    this.w = w; this.h = h;
+    this.fillStyle = '#000'; this.strokeStyle = '#000'; this.lineWidth = 1; this.lineJoin = 'miter'; this.lineCap = 'butt';
+    this.font = '10px sans-serif'; this.textAlign = 'start'; this.textBaseline = 'alphabetic';
+    this._dash = []; this._tf = ''; this._clip = ''; this._path = ''; this._stack = [];
+    this._defs = []; this._out = []; this._clipN = 0;
+  }
+  setLineDash(d) { this._dash = d.slice(); }
+  scale() {}
+  clearRect() {}
+  save() { this._stack.push({ fillStyle: this.fillStyle, strokeStyle: this.strokeStyle, lineWidth: this.lineWidth,
+    lineJoin: this.lineJoin, font: this.font, textAlign: this.textAlign, textBaseline: this.textBaseline,
+    dash: this._dash, tf: this._tf, clip: this._clip }); }
+  restore() { const st = this._stack.pop(); if (!st) return;
+    Object.assign(this, { fillStyle: st.fillStyle, strokeStyle: st.strokeStyle, lineWidth: st.lineWidth, lineJoin: st.lineJoin,
+      font: st.font, textAlign: st.textAlign, textBaseline: st.textBaseline });
+    this._dash = st.dash; this._tf = st.tf; this._clip = st.clip; }
+  translate(x, y) { this._tf += ` translate(${_n(x)} ${_n(y)})`; }
+  rotate(a) { this._tf += ` rotate(${_n(a * 180 / Math.PI)})`; }
+  beginPath() { this._path = ''; }
+  moveTo(x, y) { this._path += `M${_n(x)} ${_n(y)}`; }
+  lineTo(x, y) { this._path += `L${_n(x)} ${_n(y)}`; }
+  rect(x, y, w, h) { this._path += `M${_n(x)} ${_n(y)}h${_n(w)}v${_n(h)}h${_n(-w)}Z`; }
+  arc(x, y, r, a0, a1) {
+    if (Math.abs(a1 - a0) >= Math.PI * 2 - 1e-6) {
+      this._path += `M${_n(x - r)} ${_n(y)}a${_n(r)} ${_n(r)} 0 1 0 ${_n(2 * r)} 0a${_n(r)} ${_n(r)} 0 1 0 ${_n(-2 * r)} 0Z`;
+    } else {
+      const sx = x + r * Math.cos(a0), sy = y + r * Math.sin(a0), ex = x + r * Math.cos(a1), ey = y + r * Math.sin(a1);
+      this._path += `M${_n(sx)} ${_n(sy)}A${_n(r)} ${_n(r)} 0 ${(a1 - a0) > Math.PI ? 1 : 0} 1 ${_n(ex)} ${_n(ey)}`;
+    }
+  }
+  clip() {
+    const id = `svgclip${++this._clipN}`;
+    this._defs.push(`<clipPath id="${id}"><path d="${this._path}"${this._tf ? ` transform="${this._tf.trim()}"` : ''}/></clipPath>`);
+    this._clip = id;
+  }
+  _attrs() {
+    return (this._tf ? ` transform="${this._tf.trim()}"` : '') + (this._clip ? ` clip-path="url(#${this._clip})"` : '');
+  }
+  fill() { if (this._path) this._out.push(`<path d="${this._path}" fill="${this.fillStyle}"${this._attrs()}/>`); }
+  stroke() {
+    if (!this._path) return;
+    const dash = this._dash.length ? ` stroke-dasharray="${this._dash.join(' ')}"` : '';
+    this._out.push(`<path d="${this._path}" fill="none" stroke="${this.strokeStyle}" stroke-width="${this.lineWidth}" stroke-linejoin="${this.lineJoin}" stroke-linecap="${this.lineCap}"${dash}${this._attrs()}/>`);
+  }
+  fillRect(x, y, w, h) { this._out.push(`<rect x="${_n(x)}" y="${_n(y)}" width="${_n(w)}" height="${_n(h)}" fill="${this.fillStyle}"${this._attrs()}/>`); }
+  fillText(t, x, y) {
+    const m = /^(?:(\w+)\s+)?(\d+(?:\.\d+)?)px\s+(.+)$/.exec(this.font) || [];
+    const weight = m[1] || 'normal', size = m[2] || '10', family = (m[3] || 'sans-serif').replace(/"/g, "'");
+    const anchor = { center: 'middle', right: 'end', end: 'end' }[this.textAlign] || 'start';
+    const base = { middle: 'middle', top: 'hanging', bottom: 'text-after-edge' }[this.textBaseline] || 'alphabetic';
+    this._out.push(`<text x="${_n(x)}" y="${_n(y)}" font-size="${size}" font-weight="${weight}" font-family="${family}" fill="${this.fillStyle}" text-anchor="${anchor}" dominant-baseline="${base}"${this._attrs()}>${String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;')}</text>`);
+  }
+  toSvg() {
+    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${this.w} ${this.h}" width="100%" style="display:block;max-width:100%;height:auto">` +
+      `<defs>${this._defs.join('')}</defs>${this._out.join('')}</svg>`;
+  }
+}
+
+function _n(/** @type {number} */ v) { return Math.round(v * 100) / 100; }

@@ -10,7 +10,7 @@
 import { appState }      from './state.js';
 import { isoToDate, Calendar, fmtDate } from './calendar.js';
 import { exportSvg }     from './io.js';
-import { pageHfCss }     from './pdf-utils.js';
+import { pageHfCss, REPORT_FONT_CSS } from './pdf-utils.js';
 
 // ============================================================
 // Imprimir tabla EDT
@@ -68,7 +68,7 @@ export function printWbsTable() {
   _footerStyle.textContent = `@media print {
     .phf-hdr{font-family:'Urbanist',system-ui,sans-serif;position:fixed;top:0;left:0;right:0;height:26px;display:flex!important;align-items:center;justify-content:space-between;padding:0 10mm;border-bottom:0.5pt solid #CBD5E0;font-size:6pt;color:#4A5568;background:#fff;z-index:9999;-webkit-print-color-adjust:exact;print-color-adjust:exact}
     .phf-ftr{font-family:'Urbanist',system-ui,sans-serif;position:fixed;bottom:0;left:0;right:0;height:22px;display:flex!important;align-items:center;justify-content:space-between;padding:0 10mm;border-top:0.5pt solid #CBD5E0;font-size:6pt;color:#718096;background:#fff;z-index:9999;-webkit-print-color-adjust:exact;print-color-adjust:exact}
-    .wbs-table, .wbs-table th, .wbs-table td { font-family: 'Arial Narrow', Arial, sans-serif !important; }
+    #app, #app * { font-family: 'Manrope', system-ui, sans-serif !important; }
     @page { margin: 10mm; }
   }
   #print-ecm-hf { display:none; }
@@ -152,7 +152,7 @@ export function printGantt(rows) {
     const html = `<!doctype html>
 <html lang="es"><head>
   <meta charset="UTF-8">
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Urbanist:wght@400;500;600&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Urbanist:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap">
   <title>${_esc(_gTitle)}</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -195,6 +195,7 @@ export function printGantt(rows) {
       .page-tile:last-child { break-after:avoid; page-break-after:avoid; }
       .page-foot { display:flex !important; }
     }
+    ${REPORT_FONT_CSS}
   </style>
 </head><body>
   <div class="controls">

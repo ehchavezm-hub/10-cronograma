@@ -16,7 +16,7 @@
 
 import { appState }      from './state.js';
 import { isoToDate, Calendar } from './calendar.js';
-import { printToPdf }   from './pdf-utils.js';
+import { printToPdf, SvgCtx } from './pdf-utils.js';
 
 // ============================================================
 // Cálculo de métricas EVM
@@ -208,15 +208,14 @@ export class EvmPanel {
       const clone = content.cloneNode(true);
       const origCanvas = content.querySelector('#evm-curve-canvas');
       const cloneCanvas = clone.querySelector('#evm-curve-canvas');
-      if (origCanvas && cloneCanvas) {
-        try {
-          const dataUrl = origCanvas.toDataURL('image/png');
-          const img = document.createElement('img');
-          img.src = dataUrl;
-          img.style.cssText = origCanvas.style.cssText;
-          img.style.maxWidth = '100%';
-          cloneCanvas.replaceWith(img);
-        } catch { /* ignore */ }
+      if (origCanvas && cloneCanvas && this._lastCurve) {
+        // Curva vectorial (SVG) con colores de impresión, en lugar de una foto del canvas
+        const W = 700, H = 220, svg = new SvgCtx(W, H);
+        this._paintCurve(svg, W, H, this._lastCurve.curve, this._lastCurve.bac,
+          { grid: '#E0E0E0', axis: '#5b6270', leg: '#424242', pv: '#1976D2' });
+        const wrap = document.createElement('div');
+        wrap.innerHTML = svg.toSvg();
+        cloneCanvas.replaceWith(wrap);
       }
       printToPdf('Valor Ganado (EVM)', `<h1>Valor Ganado (EVM)</h1>${clone.innerHTML}`);
     });
@@ -272,6 +271,7 @@ export class EvmPanel {
   }
 
   _drawCurve(curve, bac) {
+    this._lastCurve = { curve, bac };
     const canvas = this._canvas;
     const dpr    = window.devicePixelRatio || 1;
     const W      = canvas.parentElement.clientWidth || 600;
@@ -285,6 +285,23 @@ export class EvmPanel {
     ctx.scale(dpr, dpr);
     ctx.clearRect(0, 0, W, H);
 
+    const _cs = getComputedStyle(document.documentElement);
+    this._paintCurve(ctx, W, H, curve, bac, {
+      grid: _cs.getPropertyValue('--clr-border').trim()  || '#E0E0E0',
+      axis: _cs.getPropertyValue('--clr-text-3').trim()  || '#9E9E9E',
+      leg:  _cs.getPropertyValue('--clr-text-2').trim()  || '#616161',
+      pv:   _cs.getPropertyValue('--clr-primary').trim() || '#1976D2',
+    });
+  }
+
+  /**
+   * Dibuja la curva S en un contexto 2D (canvas en pantalla o SvgCtx para el PDF).
+   * @param {any} ctx @param {number} W @param {number} H
+   * @param {any[]} curve @param {number} bac
+   * @param {{grid:string,axis:string,leg:string,pv:string}} C
+   */
+  _paintCurve(ctx, W, H, curve, bac, C) {
+
     const PAD = { t: 16, r: 24, b: 40, l: 56 };
     const cW  = W - PAD.l - PAD.r;
     const cH  = H - PAD.t - PAD.b;
@@ -296,12 +313,7 @@ export class EvmPanel {
     const xOf  = (i) => PAD.l + i * xStep;
     const yOf  = (v) => PAD.t + cH - (v / maxVal) * cH;
 
-    // Read theme-aware colors from CSS variables
-    const _cs    = getComputedStyle(document.documentElement);
-    const _cGrid = _cs.getPropertyValue('--clr-border').trim()   || '#E0E0E0';
-    const _cAxis = _cs.getPropertyValue('--clr-text-3').trim()   || '#9E9E9E';
-    const _cLeg  = _cs.getPropertyValue('--clr-text-2').trim()   || '#616161';
-    const _cPv   = _cs.getPropertyValue('--clr-primary').trim()  || '#1976D2';
+    const _cGrid = C.grid, _cAxis = C.axis, _cLeg = C.leg, _cPv = C.pv;
 
     // Grid horizontal
     ctx.strokeStyle = _cGrid;
@@ -312,7 +324,7 @@ export class EvmPanel {
       // Label
       const val = maxVal * (1 - g / 4);
       ctx.fillStyle = _cAxis;
-      ctx.font      = '10px system-ui';
+      ctx.font      = '10px "Manrope", system-ui';
       ctx.textAlign = 'right';
       ctx.fillText(_fmtK(val), PAD.l - 4, y + 4);
     }
@@ -320,7 +332,7 @@ export class EvmPanel {
     // Labels eje X (cada ~6 puntos)
     const step = Math.max(1, Math.floor(n / 6));
     ctx.fillStyle = _cAxis;
-    ctx.font      = '10px system-ui';
+    ctx.font      = '10px "Manrope", system-ui';
     ctx.textAlign = 'center';
     for (let i = 0; i < n; i += step) {
       const x = xOf(i);
@@ -354,7 +366,7 @@ export class EvmPanel {
       ctx.fillStyle   = color;
       ctx.fillRect(lx, LY, 16, 3);
       ctx.fillStyle   = _cLeg;
-      ctx.font        = '11px system-ui';
+      ctx.font        = '11px "Manrope", system-ui';
       ctx.textAlign   = 'left';
       ctx.fillText(label, lx + 20, LY + 7);
     });

@@ -5,7 +5,7 @@
  */
 
 import { appState } from './state.js';
-import { pageHfCss, REPORT_TITLE_CSS } from './pdf-utils.js';
+import { pageHfCss, REPORT_TITLE_CSS, REPORT_FONT_CSS } from './pdf-utils.js';
 import { Calendar, isoToDate } from './calendar.js';
 import { listBaselines, loadBaselineData } from './baseline.js';
 
@@ -422,7 +422,7 @@ export class CurvaSPanel {
     if (!w) return;
     w.document.write(`<!DOCTYPE html><html><head>
       <meta charset="utf-8">
-      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Urbanist:wght@400;500;600&display=swap">
+      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Urbanist:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap">
       <title>${_title}</title>
       <style>
         *{box-sizing:border-box}
@@ -448,6 +448,7 @@ export class CurvaSPanel {
         svg{max-width:100%;height:auto}
         @media print{body{background:#fff}.tb{display:none!important}.pv{padding:0;min-height:0}.a4{box-shadow:none;width:100%;min-height:0;padding:1.5mm 0 0!important}.print-header,.print-footer{display:flex!important}@page{margin:10mm}}
         ${pageHfCss({ proj: _proj, date: `${_dd}-${_dmm}-${_dyy}, ${_dthh}:${_dtmi}` })}
+  ${REPORT_FONT_CSS}
       </style>
     </head><body>
     <div class="tb">

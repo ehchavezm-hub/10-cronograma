@@ -7,7 +7,7 @@
 
 import { appState } from './state.js';
 import { Calendar, isoToDate } from './calendar.js';
-import { pageHfCss, REPORT_TITLE_CSS } from './pdf-utils.js';
+import { pageHfCss, REPORT_TITLE_CSS, REPORT_FONT_CSS } from './pdf-utils.js';
 
 const _esc = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 
@@ -59,7 +59,7 @@ export function generatePdfReport() {
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Urbanist:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Urbanist:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap">
 <title>${_esc(_rpTitle)}</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -81,7 +81,7 @@ export function generatePdfReport() {
 
   .kpi-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; margin-bottom: 16px; }
   .kpi-card { background: #F5F5F5; border-radius: 6px; padding: 8px 6px; text-align: center; }
-  .kpi-value { font-size: 15pt; font-weight: 700; color: #1976D2; }
+  .kpi-value { font-size: 10pt; font-weight: 700; color: #1976D2; }  /* mismo tamaño que el contenido */
   .kpi-label { font-size: 8pt; color: #757575; margin-top: 2px; }
 
   table { width: 100%; border-collapse: collapse; font-size: 9.5pt; margin-bottom: 16px; }
@@ -100,6 +100,7 @@ export function generatePdfReport() {
   @media print { .print-header, .print-footer { display:flex !important; } }
   .page-break { page-break-before: always; }
   ${pageHfCss({ proj: project.name, date: `${_rpDD}-${_rpMM}-${_rpYY}, ${_rpHH}:${_rpMi}` })}
+  ${REPORT_FONT_CSS}
 </style>
 </head>
 <body>

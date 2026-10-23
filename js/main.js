@@ -35,8 +35,12 @@ import { CurvaSPanel } from './curva-s.js';
 import { NotificationsPanel, updateNotificationBadge } from './notifications.js';
 import { WbsDictionaryPanel } from './wbs-dictionary.js';
 import { generatePdfReport } from './pdf-report.js';
-import { pageHfCss, REPORT_TITLE_CSS, normalizeReportBody } from './pdf-utils.js';
+import { pageHfCss, REPORT_TITLE_CSS, REPORT_FONT_CSS, normalizeReportBody } from './pdf-utils.js';
 import { debouncedSave, queue } from './async-queue.js';
+
+// Precargar Manrope: los gráficos canvas de los reportes (DCMA, EVM, Histograma) la usan
+// y el canvas no dispara la descarga de la fuente por sí solo.
+['400 10px "Manrope"', '600 11px "Manrope"', '700 28px "Manrope"'].forEach(f => document.fonts?.load(f).catch(() => {}));
 
 // ============================================================
 // Detectar file://
@@ -2644,7 +2648,7 @@ function _printToPdf(moduleName, htmlContent) {
   }
   w.document.write(`<!DOCTYPE html><html><head>
 <meta charset="utf-8">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Urbanist:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Urbanist:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap">
 <title>${title}</title>
 <style>
   ${_appCssVars}
@@ -2673,6 +2677,7 @@ function _printToPdf(moduleName, htmlContent) {
   ${REPORT_TITLE_CSS}
   @media print{body{background:#fff}.tb{display:none!important}.pv{padding:0;min-height:0}.a4{box-shadow:none;width:100%;min-height:0;padding:1.5mm 0 0!important}.print-header,.print-footer{display:flex!important}@page{margin:10mm}}
   ${pageHfCss({ proj: _proj, date: `${_dd}-${_mm}-${_yy}, ${_hh}:${_mi}` })}
+  ${REPORT_FONT_CSS}
 </style>
 </head><body>
 <div class="tb">
@@ -4004,7 +4009,7 @@ function _printOrgChart() {
   const html = `<!doctype html>
 <html lang="es"><head>
   <meta charset="UTF-8">
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Urbanist:wght@400;500;600&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Urbanist:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap">
   <title>${_ocFileTitle}</title>
   <style id="page-style">@page { size: A4 landscape; margin: 10mm; }</style>
   <style>
@@ -4066,6 +4071,7 @@ function _printOrgChart() {
     }
     .print-title{display:none;}
     ${pageHfCss({ proj: projName, date: `${_ocDD}-${_ocMM}-${_ocYY}, ${_ocHH}:${_ocMi}` })}
+  ${REPORT_FONT_CSS}
   </style>
 </head><body>
 <div class="print-header"><span>ECM Project V1.00.01</span><span>${_ocProjEsc}</span><span>${_ocDD}-${_ocMM}-${_ocYY}, ${_ocHH}:${_ocMi}</span></div>
@@ -4985,7 +4991,7 @@ function _exportCpmNetwork(fmt, dlg) {
     const html = `<!doctype html>
 <html lang="es"><head>
   <meta charset="UTF-8">
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Urbanist:wght@400;500;600&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Urbanist:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap">
   <title>${fileTitle}</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -5028,6 +5034,7 @@ function _exportCpmNetwork(fmt, dlg) {
       .page-tile:last-child { break-after:avoid; page-break-after:avoid; }
       .page-foot { display:flex !important; }
     }
+    ${REPORT_FONT_CSS}
   </style>
 </head><body>
   <div class="controls">
@@ -5645,8 +5652,7 @@ document.addEventListener('DOMContentLoaded', () => {
           const esc = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
           container.innerHTML = `<p style="font-size:13px;color:var(--clr-text)">Se detectaron <strong>${conflicts.overloaded.length}</strong> conflicto(s) de recursos.</p>
             <ul style="font-size:12px;color:var(--clr-text-2);margin:8px 0 0;padding-left:18px">
-              ${conflicts.overloaded.slice(0, 15).map(c => `<li>Recurso <strong>${esc(c.resource.name)}</strong> — día ${c.day}: carga ${c.load.toFixed(1)} / capacidad ${c.capacity}</li>`).join('')}
-              ${conflicts.overloaded.length > 15 ? `<li style="color:var(--clr-text-3)">… y ${conflicts.overloaded.length - 15} más</li>` : ''}
+              ${conflicts.overloaded.map(c => `<li>Recurso <strong>${esc(c.resource.name)}</strong> — día ${c.day}: carga ${c.load.toFixed(1)} / capacidad ${c.capacity}</li>`).join('')}
             </ul>`;
         }
         levelPanel.style.display = 'flex';
