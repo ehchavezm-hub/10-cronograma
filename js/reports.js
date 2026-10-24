@@ -204,6 +204,7 @@ async function _select(rep, btn) {
       st.textContent = 'button[onclick="window.close()"]{display:none!important}';
       frame.contentDocument.head.appendChild(st);
     }
+    _useReportFileName(frame);
     _frameWrap.querySelectorAll('iframe').forEach(f => { if (f !== frame) f.remove(); });
     _frameWrap.querySelector('.reports-msg')?.remove();
     printBtn.disabled = false;
@@ -217,12 +218,27 @@ function _printCurrent() {
   const frame = /** @type {HTMLIFrameElement|null} */ (_frameWrap?.querySelector('iframe') ?? null);
   const win = frame?.contentWindow;
   if (!win) return;
-  // El nombre sugerido del PDF sale del título de la ventana principal
-  const prevTitle = document.title;
-  document.title = win.document.title || prevTitle;
   win.focus();
   win.print();
-  setTimeout(() => { document.title = prevTitle; }, 1000);
+}
+
+/**
+ * Al imprimir un iframe, el navegador propone como nombre del PDF el título de la ventana
+ * principal ("ECM Project"). Mientras dura la impresión se usa el título del reporte, que
+ * sigue la regla PROYECTO-Proceso-Fecha (o lo escrito en el campo "Archivo").
+ * Aplica al botón de la sección y al "Guardar PDF" de la barra del reporte.
+ * @param {HTMLIFrameElement} frame
+ */
+function _useReportFileName(frame) {
+  const win = /** @type {any} */ (frame.contentWindow);
+  if (!win) return;
+  const print = win.print.bind(win);
+  win.print = () => {
+    const prev = document.title;
+    const field = /** @type {HTMLInputElement|null} */ (win.document.querySelector('#fn, #fn-inp'));
+    document.title = (field?.value || win.document.title || prev).replace(/\.pdf$/i, '').trim() || prev;
+    try { print(); } finally { setTimeout(() => { document.title = prev; }, 0); }
+  };
 }
 
 /** @param {string} text */

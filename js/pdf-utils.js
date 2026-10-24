@@ -286,7 +286,7 @@ export function printToPdf(moduleName, htmlContent) {
   <button id="bl" onclick="setOri('landscape')">&#x1F5C2; Horizontal</button>
   <div class="sep"></div>
   <span class="lbl">&#x1F4C1; Archivo:</span>
-  <input type="text" id="fn" value="${title}.pdf" title="Nombre sugerido del archivo PDF">
+  <input type="text" id="fn" value="${title}.pdf" title="Nombre sugerido del archivo PDF" oninput="document.title=this.value.replace(/\\.pdf$/i,'')">
   <div class="sep"></div>
   <button onclick="window.close()">&#x2715; Cerrar</button>
   <button class="pri" style="margin-left:auto" onclick="window.print()">&#x1F5A8; Guardar PDF</button>

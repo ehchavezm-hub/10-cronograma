@@ -135,7 +135,7 @@ export function printGantt(rows) {
     const today      = _dG.toLocaleDateString('es-PE');
     const _gHH = String(_dG.getHours()).padStart(2,'0');
     const _gMi = String(_dG.getMinutes()).padStart(2,'0');
-    const _gTitle    = `${project.name} - Gantt - ${_gDD}/${_gMM}/${_gYY}`;
+    const _gTitle    = `${project.name}-Gantt-${_gDD}${_gMM}${_gYY}`;   // = nombre del PDF (PROYECTO-Proceso-Fecha)
     const _pdfFile   = `${project.name}-Gantt-${_gDD}${_gMM}${_gYY}.pdf`;
     const _projLabel = _esc(project.name);
 
@@ -201,15 +201,22 @@ export function printGantt(rows) {
   </style>
 </head><body>
   <div class="controls">
+    <label>Papel: <select id="paper" onchange="autoPages();renderTiles()" title="Tamaño del papel del PDF">
+      <option value="A4" selected>A4</option><option value="A3">A3</option><option value="A2">A2</option><option value="A1">A1</option>
+      <option value="Carta">Carta</option><option value="Oficio">Oficio</option><option value="Legal">Legal</option><option value="Tabloide">Tabloide</option>
+    </select></label>
+    <div class="sep"></div>
     <span class="lbl-sm">Orientaci&#243;n:</span>
     <button class="btn-c active" id="btn-land" onclick="setOrient('landscape')">&#x2B1B; Horizontal</button>
     <button class="btn-c" id="btn-port" onclick="setOrient('portrait')">&#x1F532; Vertical</button>
     <div class="sep"></div>
-    <label>Hojas H: <input type="number" id="h-pages" min="1" max="10" value="1" onchange="renderTiles()"></label>
-    <label title="Se calcula solo: cada hoja se llena con las actividades que caben y las siguientes pasan a la hoja siguiente">Hojas V: <input type="number" id="v-pages" min="1" value="1" disabled></label>
+    <label title="Todo el diagrama en una sola hoja"><input type="checkbox" id="fit1" onchange="renderTiles()"> Todo en 1 hoja</label>
+    <div class="sep"></div>
+    <label title="Franjas horizontales en que se corta el diagrama (hojas una debajo de otra). Se calcula solo: cada hoja se llena con las actividades que caben">Hojas H: <input type="number" id="pg-rows" min="1" value="1" disabled></label>
+    <label title="Columnas en que se corta el ancho del diagrama (define el tamaño del texto)">Hojas V: <input type="number" id="pg-cols" min="1" max="10" value="1" onchange="renderTiles()"></label>
     <div class="sep"></div>
     <span class="lbl-sm">&#x1F4C1; Archivo:</span>
-    <input type="text" id="fn-inp" class="fn-inp" value="${_pdfFile}" title="Nombre sugerido del archivo PDF">
+    <input type="text" id="fn-inp" class="fn-inp" value="${_pdfFile}" title="Nombre sugerido del archivo PDF" oninput="document.title=this.value.replace(/\.pdf$/i,'')">
     <div class="sep"></div>
     <span class="lbl-sm">${today}</span>
     <div class="sep"></div>
@@ -231,22 +238,27 @@ export function printGantt(rows) {
 
     let _orient = 'landscape';
 
-    /** Área útil de cada hoja (mm): márgenes de 10mm, banda del título y, sin margin boxes, encabezado/pie. */
+    /** Tamaños de papel (mm, vertical). */
+    const PAPERS = { A4: [210, 297], A3: [297, 420], A2: [420, 594], A1: [594, 841],
+                     Carta: [216, 279], Oficio: [216, 330], Legal: [216, 356], Tabloide: [279, 432] };
+
+    /** Hoja (mm) y área útil: márgenes de 10mm, banda del título y, sin margin boxes, encabezado/pie. */
     function layout() {
       const isLand = _orient === 'landscape';
+      const [pw, ph] = PAPERS[document.getElementById('paper').value] || PAPERS.A4;
+      const W = isLand ? Math.max(pw, ph) : Math.min(pw, ph), H = isLand ? Math.min(pw, ph) : Math.max(pw, ph);
       const MARG = 10, top = HF_IN_MARGIN ? 9 : 12, bottom = HF_IN_MARGIN ? 0 : 5;
-      const A4w = isLand ? 297 : 210, A4h = isLand ? 210 : 297;
-      return { MARG, top, bottom, availW: A4w - 2 * MARG, availH: A4h - 2 * MARG - top - bottom };
+      return { W, H, MARG, top, bottom, availW: W - 2 * MARG, availH: H - 2 * MARG - top - bottom };
     }
 
     // Filas del Gantt: las hojas se cortan entre filas y cada hoja repite el encabezado (tabla + escala de tiempo)
     const ROW_H = ${GANTT_ROW_H}, HDR_H = ${GANTT_HDR_H};
     const ROWS = Math.max(1, Math.round((SVG_H - HDR_H) / ROW_H));
 
-    /** Hojas H necesarias para que el texto quede legible (≥ MIN_PT). Las hojas V salen de las filas que caben. */
+    /** Hojas V (columnas) necesarias para que el texto quede legible (≥ MIN_PT). Las Hojas H salen de las filas que caben. */
     function autoPages() {
       const L = layout(), mmPerPx = MIN_PT / BASE_PX * 25.4 / 72;
-      document.getElementById('h-pages').value = Math.min(10, Math.max(1, Math.ceil(SVG_W * mmPerPx / L.availW)));
+      document.getElementById('pg-cols').value = Math.min(10, Math.max(1, Math.ceil(SVG_W * mmPerPx / L.availW)));
     }
 
     /** SVG con una porción (viewBox) del Gantt, del tamaño exacto de esa porción escalada. */
@@ -273,23 +285,29 @@ export function printGantt(rows) {
     }
 
     function renderTiles() {
-      const hPages = Math.max(1, Math.min(10, parseInt(document.getElementById('h-pages').value) || 1));
-      const { MARG, top, bottom, availW, availH } = layout();
+      const fit1 = document.getElementById('fit1').checked;
+      const colsIn = document.getElementById('pg-cols');
+      colsIn.disabled = fit1;
+      const hPages = fit1 ? 1 : Math.max(1, Math.min(10, parseInt(colsIn.value) || 1));   // columnas (Hojas V)
+      const { W, H, MARG, top, bottom, availW, availH } = layout();
 
-      // La escala la fija el ancho (Hojas H). Cada hoja se llena con todas las filas que
-      // caben y las siguientes pasan a la hoja siguiente: así salen las Hojas V.
+      // La escala la fija el ancho (Hojas V). Cada hoja se llena con todas las filas que
+      // caben y las siguientes pasan a la hoja de abajo: así salen las Hojas H.
+      // "Todo en 1 hoja": el diagrama completo se reduce hasta caber en una sola hoja.
       const cellW = SVG_W / hPages;
-      const scale = Math.min(availW / cellW, availH / (HDR_H + ROW_H));
-      const rowsPer = Math.max(1, Math.floor((availH / scale - HDR_H) / ROW_H + 1e-6));
-      const vPages = Math.ceil(ROWS / rowsPer);
-      document.getElementById('v-pages').value = vPages;
+      const scale = fit1 ? Math.min(availW / SVG_W, availH / SVG_H)
+                         : Math.min(availW / cellW, availH / (HDR_H + ROW_H));
+      const rowsPer = fit1 ? ROWS : Math.max(1, Math.floor((availH / scale - HDR_H) / ROW_H + 1e-6));
+      const vPages = Math.ceil(ROWS / rowsPer);                                             // franjas (Hojas H)
+      document.getElementById('pg-rows').value = vPages;
+      if (fit1) colsIn.value = 1;
       const totalPages = hPages * vPages;
       TOTAL_PAGES_REF.v = totalPages;
 
       // @page CSS
       let ps = document.getElementById('_ps') || document.createElement('style');
       ps.id = '_ps';
-      ps.textContent = '@page{size:A4 ' + _orient + ';margin:' + MARG + 'mm}';
+      ps.textContent = '@page{size:' + W + 'mm ' + H + 'mm;margin:' + MARG + 'mm}';
       document.head.appendChild(ps);
 
       const preview = document.getElementById('preview');
