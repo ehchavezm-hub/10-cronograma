@@ -6,10 +6,8 @@
   <meta name="description" content="Sistema profesional de gestión de cronogramas de construcción">
   <title>ECM Project</title>
 
-  <!-- Fuentes: Urbanist (UI) + IBM Plex Sans (datos) con respaldo system-ui -->
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Urbanist:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
+  <!-- Fuentes locales: Urbanist (encabezados) + Manrope (contenido) + IBM Plex Sans (datos), sin conexión -->
+  <link rel="stylesheet" href="fonts/fonts.css">
 
   <script>try{var _t=localStorage.getItem('app-theme');if(_t)document.documentElement.setAttribute('data-theme',_t);}catch(e){}</script>
   <link rel="stylesheet" href="css/tokens.css?v=99">
@@ -662,7 +660,7 @@ appState.subscribe((state) => {
 </script>
 
 <script>
-if ('serviceWorker' in navigator && location.protocol !== 'file:') {
+if ('serviceWorker' in navigator && location.protocol !== 'file:' && !/Electron\//.test(navigator.userAgent)) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('./sw.js').catch(() => {/* ignorar si no soportado */});
   });

@@ -1,7 +1,7 @@
 {
   "name": "ecm-project",
   "productName": "ECM Project",
-  "version": "1.0.135",
+  "version": "1.0.164",
   "description": "Gestión de cronogramas y proyectos ECM",
   "main": "main.js",
   "author": "E. Chávez",
@@ -18,6 +18,7 @@
     "asar": false,
     "files": [
       "main.js",
+      "preload-main.js",
       "preload-print.js"
     ],
     "extraResources": [
@@ -30,6 +31,7 @@
           "sw.js",
           "icon.png",
           "css/**/*",
+          "fonts/**/*",
           "js/**/*",
           "!js/**/*.test.*",
           "!js/test*",
@@ -45,13 +47,23 @@
     "win": {
       "target": [
         {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
           "target": "zip",
           "arch": [
             "x64"
           ]
         }
       ],
-      "icon": "../icon.ico"
+      "icon": "../icon.ico",
+      "artifactName": "ECM-Project-${version}-win-x64.${ext}"
+    },
+    "portable": {
+      "artifactName": "ECM-Project-${version}-portable.exe"
     },
     "nsis": {
       "oneClick": false,

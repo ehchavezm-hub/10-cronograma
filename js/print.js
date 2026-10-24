@@ -11,7 +11,7 @@ import { appState }      from './state.js';
 import { isoToDate, Calendar, fmtDate } from './calendar.js';
 import { exportSvg }     from './io.js';
 import { GANTT_ROW_H, GANTT_HDR_H } from './gantt-svg.js';
-import { pageHfCss, REPORT_FONT_CSS, supportsPageMarginBoxes } from './pdf-utils.js';
+import { pageHfCss, REPORT_FONT_CSS, supportsPageMarginBoxes, FONTS_LINK } from './pdf-utils.js';
 
 // ============================================================
 // Imprimir tabla EDT
@@ -153,7 +153,7 @@ export function printGantt(rows) {
     const html = `<!doctype html>
 <html lang="es"><head>
   <meta charset="UTF-8">
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Urbanist:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap">
+  ${FONTS_LINK}
   <title>${_esc(_gTitle)}</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }

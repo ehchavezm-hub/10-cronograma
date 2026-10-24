@@ -35,7 +35,7 @@ import { CurvaSPanel } from './curva-s.js';
 import { NotificationsPanel, updateNotificationBadge } from './notifications.js';
 import { WbsDictionaryPanel } from './wbs-dictionary.js';
 import { generatePdfReport } from './pdf-report.js';
-import { pageHfCss, REPORT_TITLE_CSS, REPORT_FONT_CSS, normalizeReportBody, supportsPageMarginBoxes, PAPER_SELECT_HTML, PAPER_JS } from './pdf-utils.js';
+import { pageHfCss, REPORT_TITLE_CSS, REPORT_FONT_CSS, normalizeReportBody, supportsPageMarginBoxes, PAPER_SELECT_HTML, PAPER_JS, FONTS_LINK, installDesktopPrint } from './pdf-utils.js';
 import { debouncedSave, queue } from './async-queue.js';
 import { initReports } from './reports.js';
 
@@ -2649,7 +2649,7 @@ function _printToPdf(moduleName, htmlContent) {
   }
   w.document.write(`<!DOCTYPE html><html><head>
 <meta charset="utf-8">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Urbanist:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap">
+${FONTS_LINK}
 <title>${title}</title>
 <style>
   ${_appCssVars}
@@ -4015,7 +4015,7 @@ function _printOrgChart() {
   const html = `<!doctype html>
 <html lang="es"><head>
   <meta charset="UTF-8">
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Urbanist:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap">
+  ${FONTS_LINK}
   <title>${_ocFileTitle}</title>
   <style id="page-style">@page { size: A4 landscape; margin: 10mm; }</style>
   <style>
@@ -5006,7 +5006,7 @@ function _exportCpmNetwork(fmt, dlg) {
     const html = `<!doctype html>
 <html lang="es"><head>
   <meta charset="UTF-8">
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Urbanist:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap">
+  ${FONTS_LINK}
   <title>${fileTitle}</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -5752,6 +5752,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }});
   });
 
+  installDesktopPrint();
   initReports();
   init();
 });

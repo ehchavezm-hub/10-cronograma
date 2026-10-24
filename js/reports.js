@@ -10,7 +10,7 @@
  * pantalla queda como estaba.
  */
 
-import { printToPdf } from './pdf-utils.js';
+import { printToPdf, desktopSavePdf } from './pdf-utils.js';
 
 /**
  * Pasos para generar un reporte: selectores CSS a los que se hace clic, en orden.
@@ -236,7 +236,10 @@ function _useReportFileName(frame) {
   win.print = () => {
     const prev = document.title;
     const field = /** @type {HTMLInputElement|null} */ (win.document.querySelector('#fn, #fn-inp'));
-    document.title = (field?.value || win.document.title || prev).replace(/\.pdf$/i, '').trim() || prev;
+    const name = (field?.value || win.document.title || prev).replace(/\.pdf$/i, '').trim() || prev;
+    // Ejecutable Windows: el PDF lo genera la app de escritorio
+    if (desktopSavePdf(win.document, name)) return;
+    document.title = name;
     try { print(); } finally { setTimeout(() => { document.title = prev; }, 0); }
   };
 }
