@@ -627,12 +627,12 @@ export class LookaheadDetailedPanel {
     });
   }
 
-  /** Carga SheetJS dinámicamente si no está disponible. */
+  /** Carga SheetJS (copia local en js/vendor) si no está disponible. */
   _loadXlsx() {
     if (/** @type {any} */ (window).XLSX) return Promise.resolve(/** @type {any} */ (window).XLSX);
     return new Promise((resolve, reject) => {
       const s = document.createElement('script');
-      s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+      s.src = new URL('vendor/xlsx.full.min.js', import.meta.url).href; // local: funciona sin conexión
       s.onload = () => resolve(/** @type {any} */ (window).XLSX);
       s.onerror = () => reject(new Error('No se pudo cargar la librería de Excel.'));
       document.head.appendChild(s);

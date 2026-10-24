@@ -5,7 +5,7 @@
  */
 
 import { appState } from './state.js';
-import { pageHfCss, REPORT_TITLE_CSS, REPORT_FONT_CSS, PAPER_SELECT_HTML, PAPER_JS } from './pdf-utils.js';
+import { pageHfCss, REPORT_TITLE_CSS, REPORT_FONT_CSS, PAPER_SELECT_HTML, PAPER_JS, FONTS_LINK } from './pdf-utils.js';
 import { Calendar, isoToDate } from './calendar.js';
 import { listBaselines, loadBaselineData } from './baseline.js';
 
@@ -298,7 +298,11 @@ export class CurvaSPanel {
     for (let d = minDay; d <= maxDay; d += step) days.push(d);
     if (days[days.length-1] !== maxDay) days.push(maxDay);
 
-    const totalWeight = taskArr.reduce((s, t) => s + (cpmResult.tasks?.get(t.id)?.dur || 1), 0);
+    // Mismo peso que las series (ef - es): con otro peso la curva superaba el 100%
+    const totalWeight = taskArr.reduce((s, t) => {
+      const cpm = cpmResult.tasks?.get(t.id);
+      return cpm ? s + ((cpm.ef - cpm.es) || 1) : s;
+    }, 0) || 1;
 
     // Planificado
     const planned = days.map(day => {
@@ -345,7 +349,7 @@ export class CurvaSPanel {
     /** @type {number[]|null} */
     let baselineSeries = null;
     if (blData && this._vis.baseline) {
-      const blWeight = [...blData.values()].reduce((s, b) => s + (b.dur || 1), 0) || totalWeight;
+      const blWeight = [...blData.values()].reduce((s, b) => s + ((b.ef - b.es) || 1), 0) || totalWeight;
       baselineSeries = days.map(day => {
         let sum = 0;
         for (const [, b] of blData) {
@@ -422,7 +426,7 @@ export class CurvaSPanel {
     if (!w) return;
     w.document.write(`<!DOCTYPE html><html><head>
       <meta charset="utf-8">
-      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Urbanist:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap">
+      ${FONTS_LINK}
       <title>${_title}</title>
       <style>
         *{box-sizing:border-box}

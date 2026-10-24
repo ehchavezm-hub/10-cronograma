@@ -82,6 +82,65 @@ export const PAPER_JS =
   "var a=Math.min(p[0],p[1]),b=Math.max(p[0],p[1]);return o==='landscape'?[b,a]:[a,b];}";
 
 /** Estilo único del título de reporte (14pt centrado) y del subtítulo opcional (10pt). */
+/**
+ * Fuentes de los reportes servidas desde la propia app (fonts/fonts.css): funcionan sin
+ * conexión (ejecutable Windows) y también en las ventanas about:blank de impresión.
+ */
+export const FONTS_LINK =
+  `<link rel="stylesheet" href="${new URL('../fonts/fonts.css', import.meta.url).href}">`;
+
+/**
+ * Copia del documento del reporte tal como se ve (papel y orientación ya aplicados),
+ * sin scripts y con los canvas convertidos en imagen.
+ * @param {Document} doc
+ */
+function _staticHtml(doc) {
+  const root = /** @type {HTMLElement} */ (doc.documentElement.cloneNode(true));
+  const live = doc.querySelectorAll('canvas');
+  root.querySelectorAll('canvas').forEach((c, i) => {
+    const img = doc.createElement('img');
+    try { img.src = /** @type {HTMLCanvasElement} */ (live[i]).toDataURL('image/png'); } catch { /* vacío */ }
+    img.style.cssText = c.style.cssText;
+    img.width = c.width; img.height = c.height;
+    c.replaceWith(img);
+  });
+  root.querySelectorAll('script').forEach(s => s.remove());
+  return '<!DOCTYPE html>\n' + root.outerHTML;
+}
+
+/**
+ * Ejecutable Windows: genera el PDF del reporte con la app de escritorio (diálogo
+ * "Guardar como" con el nombre PROYECTO-Proceso-Fecha). Devuelve false en el navegador.
+ * @param {Document} doc @param {string} name
+ */
+export function desktopSavePdf(doc, name) {
+  const desk = /** @type {any} */ (window).ecmDesktop;
+  if (!desk?.savePdfHtml) return false;
+  desk.savePdfHtml(_staticHtml(doc), name).then((/** @type {any} */ r) => {
+    if (r?.error) alert('No se pudo guardar el PDF:\n' + r.error);
+  });
+  return true;
+}
+
+/**
+ * Ejecutable Windows: el "Guardar PDF" de cada ventana de reporte (window.print)
+ * usa desktopSavePdf. Sin efecto en el navegador.
+ */
+export function installDesktopPrint() {
+  if (!(/** @type {any} */ (window).ecmDesktop?.savePdfHtml)) return;
+  const open = window.open;
+  window.open = /** @type {any} */ (function (/** @type {any[]} */ ...args) {
+    const w = open.apply(window, /** @type {any} */ (args));
+    if (w) {
+      w.print = () => {
+        const field = /** @type {HTMLInputElement|null} */ (w.document.querySelector('#fn, #fn-inp'));
+        desktopSavePdf(w.document, (field?.value || w.document.title || 'ECM-Project').trim());
+      };
+    }
+    return w;
+  });
+}
+
 export const REPORT_TITLE_CSS =
   ".print-title{font-family:'Manrope',system-ui,sans-serif;font-size:14pt;font-weight:600;color:#1A365D;text-align:center;margin:0 0 4mm}" +
   ".print-subtitle{font-family:'Manrope',system-ui,sans-serif;font-size:10pt;font-weight:500;color:#4A5568;text-align:center;margin:-2mm 0 4mm}";
@@ -175,7 +234,7 @@ export function printToPdf(moduleName, htmlContent) {
 
   w.document.write(`<!DOCTYPE html><html><head>
 <meta charset="utf-8">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Urbanist:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap">
+${FONTS_LINK}
 <title>${title}</title>
 <style>
   ${_appCssVars}
