@@ -2687,7 +2687,7 @@ function _printToPdf(moduleName, htmlContent) {
   <button id="bl" onclick="setOri('landscape')">&#x1F5C2; Horizontal</button>
   <div class="sep"></div>
   <span class="lbl">&#x1F4C1; Archivo:</span>
-  <input type="text" id="fn" value="${title}.pdf" title="Nombre sugerido del archivo PDF">
+  <input type="text" id="fn" value="${title}.pdf" title="Nombre sugerido del archivo PDF" oninput="document.title=this.value.replace(/\\.pdf$/i,'')">
   <div class="sep"></div>
   <button onclick="window.close()">&#x2715; Cerrar</button>
   <button class="pri" style="margin-left:auto" onclick="window.print()">&#x1F5A8; Guardar PDF</button>
@@ -4974,7 +4974,7 @@ function _exportCpmNetwork(fmt, dlg) {
     const today = _d.toLocaleDateString('es-PE');
     const fileDateStr = `${String(_d.getDate()).padStart(2,'0')}-${String(_d.getMonth()+1).padStart(2,'0')}-${_d.getFullYear()}`;
     const projDisplayName = _escHtml(appState.state.project?.name ?? projName);
-    const fileTitle = `${appState.state.project?.name ?? projName} - Red CPM - ${fileDateStr}`;
+    const fileTitle = `${appState.state.project?.name ?? projName}-Red CPM-${fileDateStr.replace(/-/g, '')}`;   // = nombre del PDF (PROYECTO-Proceso-Fecha)
     const _cpmDateStr = `${String(_d.getDate()).padStart(2,'0')}-${String(_d.getMonth()+1).padStart(2,'0')}-${_d.getFullYear()}, ${String(_d.getHours()).padStart(2,'0')}:${String(_d.getMinutes()).padStart(2,'0')}`;
 
     // Obtener dimensiones del SVG clonado
@@ -5039,15 +5039,22 @@ function _exportCpmNetwork(fmt, dlg) {
   </style>
 </head><body>
   <div class="controls">
+    <label>Papel: <select id="paper" onchange="autoPages();renderTiles()" title="Tamaño del papel del PDF">
+      <option value="A4" selected>A4</option><option value="A3">A3</option><option value="A2">A2</option><option value="A1">A1</option>
+      <option value="Carta">Carta</option><option value="Oficio">Oficio</option><option value="Legal">Legal</option><option value="Tabloide">Tabloide</option>
+    </select></label>
+    <div class="sep"></div>
     <span class="lbl-sm">Orientaci&#243;n:</span>
     <button class="btn-c active" id="btn-land" onclick="setOrient('landscape')">&#x2B1B; Horizontal</button>
     <button class="btn-c" id="btn-port" onclick="setOrient('portrait')">&#x1F532; Vertical</button>
     <div class="sep"></div>
-    <label>Hojas H: <input type="number" id="h-pages" min="1" max="10" value="1" onchange="renderTiles()"></label>
-    <label>Hojas V: <input type="number" id="v-pages" min="1" max="10" value="1" onchange="renderTiles()"></label>
+    <label title="Toda la red en una sola hoja"><input type="checkbox" id="fit1" onchange="renderTiles()"> Todo en 1 hoja</label>
+    <div class="sep"></div>
+    <label title="Franjas horizontales en que se corta la red (hojas una debajo de otra)">Hojas H: <input type="number" id="pg-rows" min="1" max="10" value="1" onchange="renderTiles()"></label>
+    <label title="Columnas en que se corta el ancho de la red">Hojas V: <input type="number" id="pg-cols" min="1" max="10" value="1" onchange="renderTiles()"></label>
     <div class="sep"></div>
     <span class="lbl-sm">&#x1F4C1; Archivo:</span>
-    <input type="text" id="fn-inp" class="fn-inp" value="${_cpmPdfFile}" title="Nombre sugerido del archivo PDF">
+    <input type="text" id="fn-inp" class="fn-inp" value="${_cpmPdfFile}" title="Nombre sugerido del archivo PDF" oninput="document.title=this.value.replace(/\.pdf$/i,'')">
     <div class="sep"></div>
     <span class="lbl-sm">${today}</span>
     <div class="sep"></div>
@@ -5077,19 +5084,24 @@ function _exportCpmNetwork(fmt, dlg) {
 
     let _orient = 'landscape';
 
-    /** Área útil de cada hoja (mm): márgenes de 10mm, banda del título y, sin margin boxes, encabezado/pie. */
+    /** Tamaños de papel (mm, vertical). */
+    const PAPERS = { A4: [210, 297], A3: [297, 420], A2: [420, 594], A1: [594, 841],
+                     Carta: [216, 279], Oficio: [216, 330], Legal: [216, 356], Tabloide: [279, 432] };
+
+    /** Hoja (mm) y área útil: márgenes de 10mm, banda del título y, sin margin boxes, encabezado/pie. */
     function layout() {
       const isLand = _orient === 'landscape';
+      const [pw, ph] = PAPERS[document.getElementById('paper').value] || PAPERS.A4;
+      const W = isLand ? Math.max(pw, ph) : Math.min(pw, ph), H = isLand ? Math.min(pw, ph) : Math.max(pw, ph);
       const MARG = 10, top = HF_IN_MARGIN ? 9 : 12, bottom = HF_IN_MARGIN ? 0 : 5;
-      const A4w = isLand ? 297 : 210, A4h = isLand ? 210 : 297;
-      return { MARG, top, bottom, availW: A4w - 2 * MARG, availH: A4h - 2 * MARG - top - bottom };
+      return { W, H, MARG, top, bottom, availW: W - 2 * MARG, availH: H - 2 * MARG - top - bottom };
     }
 
-    /** Hojas H/V necesarias para que el texto quede legible (≥ MIN_PT). */
+    /** Hojas V (columnas) y H (franjas) necesarias para que el texto quede legible (≥ MIN_PT). */
     function autoPages() {
       const L = layout(), mmPerPx = MIN_PT / BASE_PX * 25.4 / 72;
-      document.getElementById('h-pages').value = Math.min(10, Math.max(1, Math.ceil(SVG_W * mmPerPx / L.availW)));
-      document.getElementById('v-pages').value = Math.min(10, Math.max(1, Math.ceil(SVG_H * mmPerPx / L.availH)));
+      document.getElementById('pg-cols').value = Math.min(10, Math.max(1, Math.ceil(SVG_W * mmPerPx / L.availW)));
+      document.getElementById('pg-rows').value = Math.min(10, Math.max(1, Math.ceil(SVG_H * mmPerPx / L.availH)));
     }
 
     function setOrient(o) {
@@ -5101,9 +5113,13 @@ function _exportCpmNetwork(fmt, dlg) {
     }
 
     function renderTiles() {
-      const hPages = Math.max(1, Math.min(10, parseInt(document.getElementById('h-pages').value) || 1));
-      const vPages = Math.max(1, Math.min(10, parseInt(document.getElementById('v-pages').value) || 1));
-      const { MARG, top, bottom, availW, availH } = layout();
+      const fit1 = document.getElementById('fit1').checked;   // "Todo en 1 hoja"
+      const colsIn = document.getElementById('pg-cols'), rowsIn = document.getElementById('pg-rows');
+      colsIn.disabled = rowsIn.disabled = fit1;
+      if (fit1) colsIn.value = rowsIn.value = 1;
+      const hPages = Math.max(1, Math.min(10, parseInt(colsIn.value) || 1));   // columnas (Hojas V)
+      const vPages = Math.max(1, Math.min(10, parseInt(rowsIn.value) || 1));   // franjas (Hojas H)
+      const { W, H, MARG, top, bottom, availW, availH } = layout();
 
       const cellW = SVG_W / hPages;
       const cellH = SVG_H / vPages;
@@ -5116,7 +5132,7 @@ function _exportCpmNetwork(fmt, dlg) {
 
       let ps = document.getElementById('_ps') || document.createElement('style');
       ps.id = '_ps';
-      ps.textContent = '@page{size:A4 ' + _orient + ';margin:' + MARG + 'mm}';
+      ps.textContent = '@page{size:' + W + 'mm ' + H + 'mm;margin:' + MARG + 'mm}';
       document.head.appendChild(ps);
 
       const preview = document.getElementById('preview');

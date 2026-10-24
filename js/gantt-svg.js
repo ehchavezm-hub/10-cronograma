@@ -96,8 +96,8 @@ export function renderGanttSvg({ tasks, deps, cpmResult, calendar, projectStart,
   }
   if (!isFinite(minBarCalDay)) minBarCalDay = 0;
 
-  const LEFT_PAD  = 5;  // días de margen antes de la primera barra
-  const cropDays  = Math.max(0, minBarCalDay - LEFT_PAD);
+  const LEFT_PAD  = 2;  // días de espacio antes de la primera barra (también si empieza el día 0)
+  const cropDays  = minBarCalDay - LEFT_PAD;   // puede ser negativo: la escala empieza antes del inicio
   const cropOffset = cropDays * PPD;           // px a recortar por la izquierda
 
   const totalDays  = maxCalDay + 20;           // 20-day padding right
@@ -211,7 +211,7 @@ export function renderGanttSvg({ tasks, deps, cpmResult, calendar, projectStart,
   out.push(`<rect x="${NAME_W}" y="0" width="${totalW - NAME_W}" height="${HDR_H}" fill="#F0F2F5"/>`);
   out.push(`<line x1="${NAME_W}" y1="${HDR_H}" x2="${totalW}" y2="${HDR_H}" stroke="#B0BEC5" stroke-width="1"/>`);
   out.push(`<g clip-path="url(#gc-hdr)"><g transform="translate(${-cropOffset}, 0)">`);
-  _drawHeader(out, NAME_W, HDR_H, PPD, projectStart, totalDays);
+  _drawHeader(out, NAME_W, HDR_H, PPD, projectStart, totalDays, cropDays);
   out.push('</g></g>');
 
   // Grupo clippeado para todo el cuerpo — translate recorta el espacio vacío izquierdo
@@ -454,7 +454,8 @@ function _color(task, cpm, near) {
 }
 
 /** Dibuja encabezado de dos niveles: mes arriba, semanas abajo */
-function _drawHeader(out, offsetX, hdrH, ppd, start, totalDays) {
+function _drawHeader(out, offsetX, hdrH, ppd, start, totalDays, cropDays = 0) {
+  const visX = offsetX + cropDays * ppd;   // borde izquierdo visible de la escala
   const midH   = Math.round(hdrH / 2);
   const endDate = new Date(start.getTime() + totalDays * 86400000);
 
@@ -463,7 +464,8 @@ function _drawHeader(out, offsetX, hdrH, ppd, start, totalDays) {
   while (d <= endDate) {
     const x = offsetX + _daysFrom(d, start) * ppd;
     out.push(`<line x1="${x}" y1="0" x2="${x}" y2="${midH}" stroke="#CFD8DC"/>`);
-    out.push(`<text x="${x + 5}" y="${midH / 2 + 5}" fill="#455A64" font-weight="700" font-size="11">
+    // Si el mes empezó antes del borde visible, su nombre se ubica en el borde (no se corta)
+    out.push(`<text x="${Math.max(x, visX) + 5}" y="${midH / 2 + 5}" fill="#455A64" font-weight="700" font-size="11">
       ${MESES[d.getMonth()]} ${d.getFullYear()}
     </text>`);
     d = new Date(d.getFullYear(), d.getMonth() + 1, 1);
@@ -489,7 +491,7 @@ function _drawHeader(out, offsetX, hdrH, ppd, start, totalDays) {
 
 function _drawWeekends(out, offsetX, hdrH, totalH, ppd, start, totalDays) {
   const end = new Date(start.getTime() + totalDays * 86400000);
-  let d = new Date(start); d.setHours(0, 0, 0, 0);
+  let d = new Date(start.getTime() - 7 * 86400000); d.setHours(0, 0, 0, 0);   // incluye el espacio previo al inicio
   while (d <= end) {
     const dow = d.getDay();
     if (dow === 0 || dow === 6) {
