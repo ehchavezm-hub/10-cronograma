@@ -68,6 +68,19 @@ export function pageHfCss({ proj, date, footRight }) {
   @media print{.print-header,.print-footer,.phf-hdr,.phf-ftr{display:none!important}}`;
 }
 
+/** Selector de tamaño de papel para la barra de las ventanas de impresión (llama a setOri()). */
+export const PAPER_SELECT_HTML =
+  '<span class="lbl">Papel:</span><select id="paper" onchange="setOri()" title="Tamaño del papel del PDF">' +
+  '<option value="A4" selected>A4</option><option value="A3">A3</option><option value="A2">A2</option><option value="A1">A1</option>' +
+  '<option value="Carta">Carta</option><option value="Oficio">Oficio</option><option value="Legal">Legal</option><option value="Tabloide">Tabloide</option>' +
+  '</select><div class="sep"></div>';
+
+/** Script de las ventanas de impresión: tamaños de papel (mm) y medida de la hoja según orientación. */
+export const PAPER_JS =
+  "var PAPERS={A4:[210,297],A3:[297,420],A2:[420,594],A1:[594,841],Carta:[216,279],Oficio:[216,330],Legal:[216,356],Tabloide:[279,432]};" +
+  "function paperSize(o){var p=PAPERS[(document.getElementById('paper')||{}).value]||PAPERS.A4;" +
+  "var a=Math.min(p[0],p[1]),b=Math.max(p[0],p[1]);return o==='landscape'?[b,a]:[a,b];}";
+
 /** Estilo único del título de reporte (14pt centrado) y del subtítulo opcional (10pt). */
 export const REPORT_TITLE_CSS =
   ".print-title{font-family:'Manrope',system-ui,sans-serif;font-size:14pt;font-weight:600;color:#1A365D;text-align:center;margin:0 0 4mm}" +
@@ -178,8 +191,8 @@ export function printToPdf(moduleName, htmlContent) {
   .tb .lbl{font-size:11px;color:#64748b;white-space:nowrap}
   .tb input[type=text]{font-size:12px;padding:3px 8px;border:1px solid #d1d5db;border-radius:4px;background:#f8fafc;color:#374151;width:300px}
   .pv{padding:20px;display:flex;flex-direction:column;align-items:center;gap:16px;min-height:calc(100vh - 52px)}
-  .a4{background:#fff;box-shadow:0 4px 14px rgba(0,0,0,.4);padding:14mm 15mm;width:210mm;min-height:297mm;overflow:hidden}
-  .a4.land{width:297mm;min-height:210mm}
+  .a4{background:#fff;box-shadow:0 4px 14px rgba(0,0,0,.4);padding:14mm 15mm;width:var(--pw,210mm);min-height:var(--ph,297mm);overflow:hidden}
+  .tb select{font-size:12px;padding:3px 6px;border:1px solid #d1d5db;border-radius:4px;background:#fff;color:#374151}
   h1{font-size:18px;margin-bottom:16px;color:#1f2937}
   h2{font-size:14px;margin:14px 0 6px;color:#1f2937}
   table{border-collapse:collapse;width:100%}
@@ -281,6 +294,7 @@ export function printToPdf(moduleName, htmlContent) {
 </style>
 </head><body>
 <div class="tb">
+  ${PAPER_SELECT_HTML}
   <span class="lbl">Orientaci&#243;n:</span>
   <button id="bp" class="act" onclick="setOri('portrait')">&#x1F4C4; Vertical</button>
   <button id="bl" onclick="setOri('landscape')">&#x1F5C2; Horizontal</button>
@@ -301,12 +315,17 @@ ${normalizeReportBody(moduleName, htmlContent)}</div>
 <script>
   (function(){function _u(){var h=document.getElementById('a4');if(!h)return;var t=Math.max(1,Math.ceil(h.scrollHeight/1120));var el=document.getElementById('phf-tot');if(el)el.textContent=t;}window.addEventListener('beforeprint',_u);_u();})();
   document.title=${JSON.stringify(title)};
+  ${PAPER_JS}
+  var _ori='portrait';
   function setOri(o){
-    document.getElementById('a4').classList.toggle('land',o==='landscape');
+    if(o)_ori=o; o=_ori;
+    var sz=paperSize(o), a=document.getElementById('a4');
+    a.style.setProperty('--pw',sz[0]+'mm'); a.style.setProperty('--ph',sz[1]+'mm');
+    a.classList.toggle('land',o==='landscape');
     document.getElementById('bp').classList.toggle('act',o==='portrait');
     document.getElementById('bl').classList.toggle('act',o==='landscape');
     var s=document.getElementById('_ps')||document.createElement('style');
-    s.id='_ps';s.textContent='@page{size:A4 '+o+'}';document.head.appendChild(s);
+    s.id='_ps';s.textContent='@page{size:'+sz[0]+'mm '+sz[1]+'mm}';document.head.appendChild(s);
   }
   setOri('portrait');
 <\/script>

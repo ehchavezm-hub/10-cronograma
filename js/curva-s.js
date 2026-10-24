@@ -5,7 +5,7 @@
  */
 
 import { appState } from './state.js';
-import { pageHfCss, REPORT_TITLE_CSS, REPORT_FONT_CSS } from './pdf-utils.js';
+import { pageHfCss, REPORT_TITLE_CSS, REPORT_FONT_CSS, PAPER_SELECT_HTML, PAPER_JS } from './pdf-utils.js';
 import { Calendar, isoToDate } from './calendar.js';
 import { listBaselines, loadBaselineData } from './baseline.js';
 
@@ -441,8 +441,8 @@ export class CurvaSPanel {
         .tb .lbl{font-size:11px;color:#64748b;white-space:nowrap}
         .tb input[type=text]{font-size:12px;padding:3px 8px;border:1px solid #d1d5db;border-radius:4px;background:#f8fafc;color:#374151;width:300px}
         .pv{padding:20px;display:flex;flex-direction:column;align-items:center;gap:16px;min-height:calc(100vh - 52px)}
-        .a4{background:#fff;box-shadow:0 4px 14px rgba(0,0,0,.4);padding:14mm 15mm;width:210mm;min-height:297mm;overflow:hidden}
-        .a4.land{width:297mm;min-height:210mm}
+        .a4{background:#fff;box-shadow:0 4px 14px rgba(0,0,0,.4);padding:14mm 15mm;width:var(--pw,210mm);min-height:var(--ph,297mm);overflow:hidden}
+        .tb select{font-size:12px;padding:3px 6px;border:1px solid #d1d5db;border-radius:4px;background:#fff;color:#374151}
         h1{font-size:18px;margin:0 0 8px}p{font-size:12px;color:#666;margin:0 0 12px}
         table{border-collapse:collapse;width:100%}th,td{border:1px solid #ccc;padding:5px 8px;font-size:11px}th{background:#f4f5f7;font-weight:600}
         svg{max-width:100%;height:auto}
@@ -452,6 +452,7 @@ export class CurvaSPanel {
       </style>
     </head><body>
     <div class="tb">
+      ${PAPER_SELECT_HTML}
       <span class="lbl">Orientaci&#243;n:</span>
       <button id="bp" class="act" onclick="setOri('portrait')">&#x1F4C4; Vertical</button>
       <button id="bl" onclick="setOri('landscape')">&#x1F5C2; Horizontal</button>
@@ -475,12 +476,17 @@ export class CurvaSPanel {
     <script>
       (function(){function _u(){var h=document.getElementById('a4');if(!h)return;var t=Math.max(1,Math.ceil(h.scrollHeight/1120));var el=document.getElementById('phf-tot');if(el)el.textContent=t;}window.addEventListener('beforeprint',_u);_u();})();
       document.title=${JSON.stringify(_title)};
+      ${PAPER_JS}
+      var _ori='portrait';
       function setOri(o){
-        document.getElementById('a4').classList.toggle('land',o==='landscape');
+        if(o)_ori=o; o=_ori;
+        var sz=paperSize(o), a=document.getElementById('a4');
+        a.style.setProperty('--pw',sz[0]+'mm'); a.style.setProperty('--ph',sz[1]+'mm');
+        a.classList.toggle('land',o==='landscape');
         document.getElementById('bp').classList.toggle('act',o==='portrait');
         document.getElementById('bl').classList.toggle('act',o==='landscape');
         var s=document.getElementById('_ps')||document.createElement('style');
-        s.id='_ps';s.textContent='@page{size:A4 '+o+'}';document.head.appendChild(s);
+        s.id='_ps';s.textContent='@page{size:'+sz[0]+'mm '+sz[1]+'mm}';document.head.appendChild(s);
       }
       setOri('portrait');
     <\/script>
