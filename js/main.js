@@ -35,7 +35,7 @@ import { CurvaSPanel } from './curva-s.js';
 import { NotificationsPanel, updateNotificationBadge } from './notifications.js';
 import { WbsDictionaryPanel } from './wbs-dictionary.js';
 import { generatePdfReport } from './pdf-report.js';
-import { pageHfCss, REPORT_TITLE_CSS, REPORT_FONT_CSS, normalizeReportBody, supportsPageMarginBoxes } from './pdf-utils.js';
+import { pageHfCss, REPORT_TITLE_CSS, REPORT_FONT_CSS, normalizeReportBody, supportsPageMarginBoxes, PAPER_SELECT_HTML, PAPER_JS } from './pdf-utils.js';
 import { debouncedSave, queue } from './async-queue.js';
 import { initReports } from './reports.js';
 
@@ -2665,8 +2665,8 @@ function _printToPdf(moduleName, htmlContent) {
   .tb .lbl{font-size:11px;color:#64748b;white-space:nowrap}
   .tb input[type=text]{font-size:12px;padding:3px 8px;border:1px solid #d1d5db;border-radius:4px;background:#f8fafc;color:#374151;width:300px}
   .pv{padding:20px;display:flex;flex-direction:column;align-items:center;gap:16px;min-height:calc(100vh - 52px)}
-  .a4{background:#fff;box-shadow:0 4px 14px rgba(0,0,0,.4);padding:14mm 15mm;width:210mm;min-height:297mm;overflow:hidden}
-  .a4.land{width:297mm;min-height:210mm}
+  .a4{background:#fff;box-shadow:0 4px 14px rgba(0,0,0,.4);padding:14mm 15mm;width:var(--pw,210mm);min-height:var(--ph,297mm);overflow:hidden}
+  .tb select{font-size:12px;padding:3px 6px;border:1px solid #d1d5db;border-radius:4px;background:#fff;color:#374151}
   h1{font-size:18px;margin-bottom:16px}
   h2{font-size:14px;margin:14px 0 6px}
   table{border-collapse:collapse;width:100%}th,td{border:1px solid #ccc;padding:6px 10px;font-size:12px}th{background:#f4f5f7;font-weight:600}
@@ -2682,6 +2682,7 @@ function _printToPdf(moduleName, htmlContent) {
 </style>
 </head><body>
 <div class="tb">
+  ${PAPER_SELECT_HTML}
   <span class="lbl">Orientaci&#243;n:</span>
   <button id="bp" class="act" onclick="setOri('portrait')">&#x1F4C4; Vertical</button>
   <button id="bl" onclick="setOri('landscape')">&#x1F5C2; Horizontal</button>
@@ -2702,12 +2703,17 @@ ${normalizeReportBody(moduleName, htmlContent)}</div>
 <script>
   (function(){function _u(){var h=document.getElementById('a4');if(!h)return;var t=Math.max(1,Math.ceil(h.scrollHeight/1120));var el=document.getElementById('phf-tot');if(el)el.textContent=t;}window.addEventListener('beforeprint',_u);_u();})();
   document.title=${JSON.stringify(title)};
+  ${PAPER_JS}
+  var _ori='portrait';
   function setOri(o){
-    document.getElementById('a4').classList.toggle('land',o==='landscape');
+    if(o)_ori=o; o=_ori;
+    var sz=paperSize(o), a=document.getElementById('a4');
+    a.style.setProperty('--pw',sz[0]+'mm'); a.style.setProperty('--ph',sz[1]+'mm');
+    a.classList.toggle('land',o==='landscape');
     document.getElementById('bp').classList.toggle('act',o==='portrait');
     document.getElementById('bl').classList.toggle('act',o==='landscape');
     var s=document.getElementById('_ps')||document.createElement('style');
-    s.id='_ps';s.textContent='@page{size:A4 '+o+'}';document.head.appendChild(s);
+    s.id='_ps';s.textContent='@page{size:'+sz[0]+'mm '+sz[1]+'mm}';document.head.appendChild(s);
   }
   setOri('portrait');
 <\/script>
@@ -4082,6 +4088,11 @@ function _printOrgChart() {
       <span id="zoom-val" style="min-width:38px">100%</span>
     </label>
     <div class="sep"></div>
+    <label>Papel: <select id="paper" onchange="setOrient()" title="Tamaño del papel del PDF">
+      <option value="A4" selected>A4</option><option value="A3">A3</option><option value="A2">A2</option><option value="A1">A1</option>
+      <option value="Carta">Carta</option><option value="Oficio">Oficio</option><option value="Legal">Legal</option><option value="Tabloide">Tabloide</option>
+    </select></label>
+    <div class="sep"></div>
     <span class="lbl-sm">Orientaci&#243;n:</span>
     <button class="btn-c active" id="btn-land" onclick="setOrient('landscape')">&#x2B1B; Horizontal</button>
     <button class="btn-c" id="btn-port" onclick="setOrient('portrait')">&#x1F532; Vertical</button>
@@ -4120,8 +4131,12 @@ function _printOrgChart() {
       zoomVal.textContent = zoom.value + '%';
       applyZoom(parseInt(zoom.value));
     });
+    ${PAPER_JS}
+    let _ocOri = 'landscape';
     function setOrient(o) {
-      document.getElementById('page-style').textContent = '@page { size: A4 ' + o + '; margin: 10mm; }';
+      if (o) _ocOri = o; o = _ocOri;
+      const sz = paperSize(o);
+      document.getElementById('page-style').textContent = '@page { size: ' + sz[0] + 'mm ' + sz[1] + 'mm; margin: 10mm; }';
       document.getElementById('btn-land').classList.toggle('active', o === 'landscape');
       document.getElementById('btn-port').classList.toggle('active', o === 'portrait');
     }
