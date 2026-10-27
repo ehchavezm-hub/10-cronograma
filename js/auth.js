@@ -177,6 +177,18 @@ export async function login(email, password) {
 }
 
 // ============================================================
+// Registro de nuevo usuario
+// ============================================================
+export async function register(email, password) {
+  const data = await _authFetch('/signup', { email, password });
+  // Supabase puede requerir confirmación de email; si devuelve sesión, la aplicamos
+  if (data.access_token) {
+    await _applySession(data);
+  }
+  return data;
+}
+
+// ============================================================
 // Cambiar contraseña (clave temporal → permanente)
 // ============================================================
 export async function cambiarPassword(newPassword) {
@@ -279,12 +291,22 @@ function _loginHTML() {
     <label style="display:block;font-size:.82rem;font-weight:600;color:var(--clr-text-2,#444);margin-bottom:4px">Contraseña</label>
     <input id="auth-password" type="password" autocomplete="current-password" placeholder="••••••••"
       style="width:100%;box-sizing:border-box;padding:9px 12px;border:1.5px solid var(--clr-border,#d1d5db);border-radius:8px;font-size:.9rem;margin-bottom:20px;background:var(--clr-input-bg,#f9fafb);color:var(--clr-text,#111)">
+    <div id="auth-confirm-pwd-wrap" style="display:none">
+      <label style="display:block;font-size:.82rem;font-weight:600;color:var(--clr-text-2,#444);margin-bottom:4px">Confirmar contraseña</label>
+      <input id="auth-confirm-password" type="password" autocomplete="new-password" placeholder="Repetir contraseña"
+        style="width:100%;box-sizing:border-box;padding:9px 12px;border:1.5px solid var(--clr-border,#d1d5db);border-radius:8px;font-size:.9rem;margin-bottom:20px;background:var(--clr-input-bg,#f9fafb);color:var(--clr-text,#111)">
+    </div>
     <button id="auth-submit" style="
       width:100%;padding:10px;border:none;border-radius:8px;
       background:var(--clr-accent,#4f46e5);color:#fff;
       font-size:.95rem;font-weight:600;cursor:pointer;
     ">Ingresar</button>
     <p id="auth-loading" style="display:none;text-align:center;margin-top:12px;font-size:.85rem;color:var(--clr-text-3,#666)">Verificando…</p>
+    <p style="text-align:center;margin-top:16px;font-size:.82rem;color:var(--clr-text-3,#666)">
+      <a id="auth-mode-toggle" href="#" style="color:var(--clr-accent,#4f46e5);text-decoration:none;font-weight:600">
+        ¿No tienes cuenta? Crear cuenta
+      </a>
+    </p>
   </div>
 
   <!-- PASO 2: seleccionar empresa -->
@@ -331,13 +353,36 @@ function _err(elId, msg) {
 }
 
 function _bindLoginEvents(dlg) {
-  const emailEl  = dlg.querySelector('#auth-email');
-  const pwdEl    = dlg.querySelector('#auth-password');
-  const submitEl = dlg.querySelector('#auth-submit');
-  const loadEl   = dlg.querySelector('#auth-loading');
+  const emailEl      = dlg.querySelector('#auth-email');
+  const pwdEl        = dlg.querySelector('#auth-password');
+  const submitEl     = dlg.querySelector('#auth-submit');
+  const loadEl       = dlg.querySelector('#auth-loading');
+  const toggleEl     = dlg.querySelector('#auth-mode-toggle');
+  const confirmWrap  = dlg.querySelector('#auth-confirm-pwd-wrap');
+  const confirmEl    = dlg.querySelector('#auth-confirm-password');
+  const titleEl      = dlg.querySelector('#dlg-auth-title');
+
+  let _mode = 'login'; // 'login' | 'register'
+
+  toggleEl?.addEventListener('click', e => {
+    e.preventDefault();
+    _mode = _mode === 'login' ? 'register' : 'login';
+    _err('auth-error', '');
+    if (_mode === 'register') {
+      if (titleEl) titleEl.textContent = 'Crear cuenta';
+      submitEl.textContent = 'Registrarme';
+      toggleEl.textContent = '¿Ya tienes cuenta? Iniciar sesión';
+      if (confirmWrap) confirmWrap.style.display = '';
+    } else {
+      if (titleEl) titleEl.textContent = 'Iniciar sesión';
+      submitEl.textContent = 'Ingresar';
+      toggleEl.textContent = '¿No tienes cuenta? Crear cuenta';
+      if (confirmWrap) confirmWrap.style.display = 'none';
+    }
+  });
 
   // Enter en campos → submit
-  [emailEl, pwdEl].forEach(el => el?.addEventListener('keydown', e => {
+  [emailEl, pwdEl, confirmEl].forEach(el => el?.addEventListener('keydown', e => {
     if (e.key === 'Enter') submitEl?.click();
   }));
 
@@ -346,6 +391,39 @@ function _bindLoginEvents(dlg) {
     const email = emailEl?.value.trim();
     const pwd   = pwdEl?.value;
     if (!email || !pwd) { _err('auth-error', 'Ingresa tu correo y contraseña'); return; }
+
+    if (_mode === 'register') {
+      const confirm = confirmEl?.value;
+      if (pwd.length < 6) { _err('auth-error', 'La contraseña debe tener al menos 6 caracteres'); return; }
+      if (pwd !== confirm) { _err('auth-error', 'Las contraseñas no coinciden'); return; }
+
+      submitEl.disabled = true;
+      if (loadEl) loadEl.style.display = '';
+      try {
+        const data = await register(email, pwd);
+        if (data.access_token) {
+          _afterLogin();
+        } else {
+          // Supabase requiere confirmación de email
+          _err('auth-error', '');
+          const errEl = document.getElementById('auth-error');
+          if (errEl) {
+            errEl.style.background = '#f0fdf4';
+            errEl.style.borderColor = '#86efac';
+            errEl.style.color = '#15803d';
+            errEl.textContent = 'Cuenta creada. Revisa tu correo para confirmar tu cuenta.';
+            errEl.style.display = '';
+          }
+          submitEl.disabled = true;
+        }
+      } catch (e) {
+        _err('auth-error', e.message || 'Error al crear cuenta');
+      } finally {
+        submitEl.disabled = false;
+        if (loadEl) loadEl.style.display = 'none';
+      }
+      return;
+    }
 
     submitEl.disabled = true;
     if (loadEl) loadEl.style.display = '';
