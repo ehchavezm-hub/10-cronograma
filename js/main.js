@@ -40,6 +40,7 @@ import { initReports } from './reports.js';
 import { authInit, authState, showLoginModal, logout, seleccionarEmpresa } from './auth.js?v=180';
 import { showUsuariosPanel } from './usuarios.js';
 import { showEmpresaAdminPanel } from './empresa-admin.js';
+import { showPlataformaAdminPanel } from './plataforma-admin.js';
 
 // Precargar Manrope: los gráficos canvas de los reportes (DCMA, EVM, Histograma) la usan
 // y el canvas no dispara la descarga de la fuente por sí solo.
@@ -5964,6 +5965,9 @@ function _toggleAuthMenu() {
   const esAdmin = ['super_admin','relevo'].includes(rol)
     || ['propietario','co_propietario'].includes(platformRol)
     || authState.empresas.length === 0;
+  if (['propietario','co_propietario'].includes(platformRol)) {
+    addItem('Administración de Plataforma', () => showPlataformaAdminPanel());
+  }
   if (esAdmin) {
     addItem('Gestionar usuarios', () => showUsuariosPanel());
     addItem('Configurar empresa',  () => showEmpresaAdminPanel());
