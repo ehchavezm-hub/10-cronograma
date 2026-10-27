@@ -93,7 +93,7 @@ export class GanttCanvas {
 
   _initResizeObserver() {
     this._ro = new ResizeObserver(() => this._resize());
-    this._ro.observe(this._canvas.parentElement);
+    if (this._canvas.parentElement) this._ro.observe(this._canvas.parentElement);
   }
 
   _resize() {
@@ -120,12 +120,18 @@ export class GanttCanvas {
 
   _bindEvents() {
     const c = this._canvas;
-    c.addEventListener('mousedown',  e => this._onDown(e));
-    c.addEventListener('mousemove',  e => this._onMove(e));
-    c.addEventListener('mouseup',    e => this._onUp(e));
-    c.addEventListener('mouseleave', e => this._onLeave(e));
-    c.addEventListener('wheel',      e => this._onWheel(e), { passive: false });
-    c.addEventListener('click',      e => this._onClick(e));
+    this._cbDown    = e => this._onDown(e);
+    this._cbMove    = e => this._onMove(e);
+    this._cbUp      = e => this._onUp(e);
+    this._cbLeave   = e => this._onLeave(e);
+    this._cbWheel   = e => this._onWheel(e);
+    this._cbClick   = e => this._onClick(e);
+    c.addEventListener('mousedown',  this._cbDown);
+    c.addEventListener('mousemove',  this._cbMove);
+    c.addEventListener('mouseup',    this._cbUp);
+    c.addEventListener('mouseleave', this._cbLeave);
+    c.addEventListener('wheel',      this._cbWheel, { passive: false });
+    c.addEventListener('click',      this._cbClick);
 
     // Cancelar modo enlace con Escape
     this._onKeyDown = (e) => {
@@ -145,9 +151,17 @@ export class GanttCanvas {
   }
 
   destroy() {
+    const c = this._canvas;
+    c.removeEventListener('mousedown',  this._cbDown);
+    c.removeEventListener('mousemove',  this._cbMove);
+    c.removeEventListener('mouseup',    this._cbUp);
+    c.removeEventListener('mouseleave', this._cbLeave);
+    c.removeEventListener('wheel',      this._cbWheel);
+    c.removeEventListener('click',      this._cbClick);
     document.removeEventListener('keydown', this._onKeyDown);
     document.removeEventListener('wbs-scroll-y', this._onWbsScrollY);
     this._ro?.disconnect();
+    this._tooltip?.remove();
   }
 
   _onDown(e) {

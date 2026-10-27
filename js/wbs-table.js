@@ -240,9 +240,10 @@ export class WbsTable {
     });
 
     // Cerrar ctx-menu al hacer clic fuera
-    document.addEventListener('click', e => {
+    this._cbDocClick = e => {
       if (this._ctxMenu && !this._ctxMenu.contains(e.target)) this._closeCtxMenu();
-    });
+    };
+    document.addEventListener('click', this._cbDocClick);
 
     // Aria-live
     this._ariaLive = document.getElementById('aria-live');
@@ -256,6 +257,10 @@ export class WbsTable {
   }
 
   // ---- Filtros ----
+
+  destroy() {
+    document.removeEventListener('click', this._cbDocClick);
+  }
 
   /**
    * Cambia el filtro activo y re-renderiza.
