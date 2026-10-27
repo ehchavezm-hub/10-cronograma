@@ -1241,7 +1241,9 @@ function _renderOrgChartAdmin(container, filas, adminsDe) {
     else if (f.tipo === 'pf') acts = `<button class="oct-act-btn" data-act="ednodo" data-id="${id}">✏</button><button class="oct-act-btn" data-act="nprog" data-id="${id}">+Prog</button><button class="oct-act-btn" data-act="nproj" data-id="${id}">+Proy</button><button class="oct-act-btn oct-act-btn-d" data-act="delnodo" data-id="${id}">🗑</button>`;
     else if (f.tipo === 'prog') acts = `<button class="oct-act-btn" data-act="ednodo" data-id="${id}">✏</button><button class="oct-act-btn" data-act="nproj" data-id="${id}">+Proy</button><button class="oct-act-btn oct-act-btn-d" data-act="delnodo" data-id="${id}">🗑</button>`;
     else acts = `<button class="oct-act-btn" data-act="edproj" data-id="${id}">✏</button><button class="oct-act-btn oct-act-btn-d" data-act="delproj" data-id="${id}">🗑</button>`;
-    cards += `<div class="oct-node" style="left:${p.x}px;top:${p.y}px;width:${CW}px;height:${CH}px;background:${bg};border-color:${bd};color:${fg};overflow:visible">
+    const editAct = f.tipo === 'proj' ? 'edproj' : f.tipo !== 'org' ? 'ednodo' : '';
+    const nodeEdit = editAct ? `data-act="${editAct}" data-id="${id}" tabindex="0" role="button" aria-label="Editar ${_esc(f.d.name)}"` : '';
+    cards += `<div class="oct-node${editAct ? ' oct-node-edit' : ''}" style="left:${p.x}px;top:${p.y}px;width:${CW}px;height:${CH}px;background:${bg};border-color:${bd};color:${fg};overflow:visible" ${nodeEdit}>
       <div class="oct-node-ico">${t.ico}</div>
       <div class="oct-node-nm" title="${_esc(f.d.name)}">${_esc(f.d.name)}</div>
       <div class="oct-node-tp">${t.label}${f.d.code ? ` · ${_esc(f.d.code)}` : ''}</div>
@@ -1987,6 +1989,9 @@ function _injectCss() {
 .oct-act-btn{background:transparent;border:1px solid rgba(0,0,0,.15);border-radius:4px;cursor:pointer;font-size:10px;padding:2px 5px;font-weight:600;line-height:1.4;color:var(--clr-text,#111827)}
 .oct-act-btn:hover{background:var(--clr-hover,rgba(0,0,0,.06))}
 .oct-act-btn-d{color:#b91c1c;border-color:rgba(185,28,28,.25)}
+.oct-node-edit{cursor:pointer}
+.oct-node-edit:hover{box-shadow:0 3px 12px rgba(0,0,0,.18)}
+.oct-node-edit:focus{outline:2px solid var(--clr-primary,#4f46e5);outline-offset:2px}
 @media (max-width:760px){
   .adm-top{flex-wrap:wrap;padding:8px 16px}
   .adm-scope{order:3;flex-basis:100%}
