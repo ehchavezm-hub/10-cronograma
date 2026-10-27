@@ -3657,6 +3657,7 @@ function _bindLinkMode() {
     const dep = {
       id:          crypto.randomUUID(),
       project_id:  appState.state.project?.id ?? '',
+      org_id:      authState.empresaActual?.org_id ?? null,
       pred_id:     predId,
       succ_id:     succId,
       type:        type ?? 'FS',
