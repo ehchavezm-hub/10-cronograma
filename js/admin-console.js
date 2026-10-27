@@ -15,6 +15,7 @@
 
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
 import { authState, recargarEmpresas } from './auth.js?v=194';
+import { getAll, put } from './storage.js';
 
 const REST = `${SUPABASE_URL}/rest/v1`;
 const AUTH = `${SUPABASE_URL}/auth/v1`;
@@ -1403,7 +1404,77 @@ async function _empResumen(main) {
     </div>`;
 }
 
+async function _empUsuariosLocal(main) {
+  const allMems = await getAll('memberships').catch(() => []);
+  const mems = allMems.filter(m => m.org_id === S.orgId && !m.deleted_at);
+  const opcRol = [['miembro', 'Miembro'], ['super_admin', 'Super admin'], ['relevo', 'Relevo'], ['invitado_externo', 'Invitado externo']];
+  const body = _pagina(main, {
+    title: 'Usuarios',
+    desc: 'Personas con acceso a la empresa y su rol. Los datos se guardan en este dispositivo.',
+    actions: [{ label: '+ Agregar usuario', act: 'invitar', primary: true }],
+  });
+  _tabla(body, {
+    rows: mems, empty: 'Aún no hay usuarios. Agrega al primero.',
+    search: r => `${r.name || ''} ${r.email || ''} ${r.role || ''}`,
+    filters: [
+      { label: 'Rol', options: opcRol, get: r => r.role },
+      { label: 'Estado', options: [['activo', 'Activo'], ['revocado', 'Revocado']], get: r => r.active ? 'activo' : 'revocado' },
+    ],
+    columns: [
+      { label: 'Usuario', html: r => `<span class="adm-strong">${_esc(r.name || r.email || '—')}</span>${r.email ? `<div class="adm-sub">${_esc(r.email)}</div>` : ''}` },
+      { label: 'Rol', html: r => _select('rol', r.id, opcRol, r.role, { aria: 'Rol' }) },
+      { label: 'Estado', html: r => r.active ? _badge('Activo', 'ok') : _badge('Revocado', 'err') },
+      { label: 'Desde', html: r => _esc(_fecha(r.created_at)), cls: 'adm-nowrap' },
+      { label: '', cls: 'adm-actions', html: r => [
+        r.active ? _btn('Revocar', 'revocar', r.id, { tono: 'danger' }) : _btn('Reactivar', 'reactivar', r.id),
+        _btn('Eliminar', 'eliminar', r.id, { tono: 'danger' }),
+      ].join('') },
+    ],
+  });
+  const byId = (id) => mems.find(r => r.id === id);
+  const _uid = () => (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2);
+  S.acts.invitar = async () => {
+    const ok = await _modal({
+      title: 'Agregar usuario',
+      desc: 'Los datos se guardan en este dispositivo.',
+      fields: [
+        { key: 'name', label: 'Nombre completo', required: true, placeholder: 'Juan Pérez' },
+        { key: 'email', label: 'Correo', type: 'email', placeholder: 'juan@empresa.com' },
+        { key: 'role', label: 'Rol en la empresa', type: 'select', value: 'miembro', options: opcRol },
+      ],
+      submit: 'Agregar',
+      onSubmit: async ({ name, email, role }) => {
+        await put('memberships', { id: _uid(), org_id: S.orgId, name: name.trim(), email: (email || '').trim(), role, active: true, created_at: new Date().toISOString() });
+      },
+    });
+    if (ok !== null) { _toast('Usuario agregado'); await _renderPage(); }
+  };
+  S.acts.rol = async (id, sel) => {
+    const r = byId(id);
+    if (r) { await put('memberships', { ...r, role: sel.value }); _toast('Rol actualizado'); await _renderPage(); }
+  };
+  S.acts.revocar = async (id) => {
+    const r = byId(id);
+    if (r) { await put('memberships', { ...r, active: false }); _toast('Acceso revocado'); await _renderPage(); }
+  };
+  S.acts.reactivar = async (id) => {
+    const r = byId(id);
+    if (r) { await put('memberships', { ...r, active: true }); _toast('Acceso reactivado'); await _renderPage(); }
+  };
+  S.acts.eliminar = async (id) => {
+    const r = byId(id);
+    const ok = await _modal({
+      title: 'Eliminar usuario', desc: `Eliminar a ${_esc(r?.name || '—')} de esta empresa. No se puede deshacer.`,
+      submit: 'Eliminar', danger: true,
+      onSubmit: async () => { if (r) await put('memberships', { ...r, deleted_at: new Date().toISOString() }); },
+    });
+    if (ok !== null) { _toast('Usuario eliminado'); await _renderPage(); }
+  };
+}
+
 async function _empUsuarios(main) {
+  // Si la empresa es local (no está en Supabase), usar gestión local
+  if (!S.orgs.some(o => o.id === S.orgId)) { return _empUsuariosLocal(main); }
   const mems = await _get('org_memberships', { org_id: `eq.${S.orgId}`, select: 'id,user_id,empresa_role,empresa_ext,active,temp_password,expires_at,created_at', order: 'created_at.asc' });
   const pm = await _perfiles(mems.map(m => m.user_id));
   const rows = mems.map(m => ({ ...m, perfil: pm.get(m.user_id) }));
