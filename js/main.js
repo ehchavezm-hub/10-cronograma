@@ -1820,8 +1820,16 @@ async function _loadProject(projectId) {
 async function _renderProjectList() {
   const list = document.getElementById('explorer-list');
   if (!list) return;
-  const { portfolios, programs, projects } = await loadHierarchy();
+  let { portfolios, programs, projects } = await loadHierarchy();
   const currentId = appState.state.project?.id;
+
+  // Filtrar por empresa activa (modo Supabase)
+  const orgId = authState.empresaActual?.org_id;
+  if (!IS_LOCAL_MODE && orgId) {
+    projects   = projects.filter(p => !p.org_id || p.org_id === orgId);
+    portfolios = portfolios.filter(pf => !pf.org_id || pf.org_id === orgId);
+    programs   = programs.filter(pg => !pg.org_id || pg.org_id === orgId);
+  }
 
   // Estado de colapso persistido en localStorage
   let collapsed = new Set();
@@ -1894,6 +1902,21 @@ async function _renderProjectList() {
   rootProjects.forEach(p => rows.push(_projItem(p, 0)));
 
   list.innerHTML = rows.join('');
+
+  // Empresa badge en el explorador
+  let empresaBadge = document.getElementById('explorer-empresa-badge');
+  if (!empresaBadge) {
+    empresaBadge = document.createElement('div');
+    empresaBadge.id = 'explorer-empresa-badge';
+    empresaBadge.style.cssText = 'padding:4px 8px 0;font-size:10px;color:var(--clr-text-3,#888);overflow:hidden;text-overflow:ellipsis;white-space:nowrap';
+    list.parentElement?.insertBefore(empresaBadge, list);
+  }
+  if (!IS_LOCAL_MODE && authState.empresaActual) {
+    empresaBadge.textContent = '🏢 ' + (authState.empresaActual.org_name || '');
+    empresaBadge.style.display = '';
+  } else {
+    empresaBadge.style.display = 'none';
+  }
 
   // Recovery button when no projects visible
   if (projects.length === 0) {
@@ -2289,7 +2312,8 @@ function _bindNewProject() {
         _showToast('Programa creado: ' + name, 'success');
       } else {
         const newProject = {
-          id, org_id: null, code: code || null, name, start_date: start,
+          id, org_id: authState.empresaActual?.org_id || null,
+          code: code || null, name, start_date: start,
           data_date: null, status: 'active', is_template: false,
           settings: { portfolio_id, program_id },
           created_at: now, updated_at: now, deleted_at: null,
