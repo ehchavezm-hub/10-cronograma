@@ -5810,35 +5810,39 @@ async function _initAuthUI() {
   }
 }
 
+function _getInitials(nombre) {
+  const parts = (nombre || '').trim().split(/\s+/);
+  if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+  return (parts[0]?.[0] || 'U').toUpperCase();
+}
+
 function _renderAuthBtn(state) {
   document.body.classList.toggle('app--noauth', !state.user);
   let btn = document.getElementById('btn-auth-user');
   if (!btn) {
-    // Crear botón junto al toggle de tema
     const themeBtn = document.getElementById('btn-theme');
     if (!themeBtn) return;
     btn = document.createElement('button');
     btn.id = 'btn-auth-user';
-    btn.style.cssText = 'font-size:11px;padding:3px 10px;border-radius:6px;border:1.5px solid var(--clr-border,#d1d5db);background:none;cursor:pointer;color:var(--clr-text,#111);font-family:var(--font-ui,system-ui);white-space:nowrap;max-width:160px;overflow:hidden;text-overflow:ellipsis';
+    btn.style.cssText = 'display:flex;align-items:center;gap:7px;padding:3px 10px 3px 4px;border-radius:20px;border:1.5px solid var(--clr-border,#d1d5db);background:none;cursor:pointer;color:var(--clr-text,#111);font-family:var(--font-ui,system-ui);font-size:11px;white-space:nowrap;transition:background .15s';
     themeBtn.insertAdjacentElement('beforebegin', btn);
-
-    // Menú desplegable al hacer clic
-    btn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      _toggleAuthMenu();
-    });
-    document.addEventListener('click', () => {
-      document.getElementById('auth-menu')?.remove();
-    });
+    btn.addEventListener('mouseenter', () => { btn.style.background = 'var(--clr-surface-2,#f0f0ff)'; });
+    btn.addEventListener('mouseleave', () => { btn.style.background = 'none'; });
+    btn.addEventListener('click', (e) => { e.stopPropagation(); _toggleAuthMenu(); });
+    document.addEventListener('click', () => { document.getElementById('auth-menu')?.remove(); });
   }
 
   if (state.user) {
-    const nombre = state.perfil?.full_name || state.user.email?.split('@')[0] || 'Usuario';
-    const empresa = state.empresaActual?.org_name || '';
-    btn.title = `${nombre}\n${empresa}`;
-    btn.textContent = `👤 ${nombre}`;
+    const nombre  = state.perfil?.full_name || state.user.email?.split('@')[0] || 'Usuario';
+    const initials = _getInitials(nombre);
+    btn.title = nombre;
+    btn.innerHTML = `
+      <span style="width:24px;height:24px;border-radius:50%;background:var(--clr-accent,#4f46e5);color:#fff;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;flex-shrink:0">${_escHtml(initials)}</span>
+      <span style="max-width:120px;overflow:hidden;text-overflow:ellipsis">${_escHtml(nombre)}</span>
+    `;
   } else {
-    btn.textContent = 'Ingresar';
+    btn.innerHTML = 'Ingresar';
+    btn.style.borderRadius = '6px';
     btn.onclick = () => showLoginModal();
   }
 }
@@ -5855,50 +5859,66 @@ function _toggleAuthMenu() {
   const menu = document.createElement('div');
   menu.id = 'auth-menu';
   menu.style.cssText = `
-    position:fixed;top:${rect.bottom + 4}px;right:${window.innerWidth - rect.right}px;
-    background:var(--clr-surface,#fff);border:1.5px solid var(--clr-border,#e2e8f0);
-    border-radius:10px;box-shadow:0 6px 24px rgba(0,0,0,.14);
-    padding:6px;z-index:1000;min-width:190px;
-    font-family:var(--font-ui,system-ui);font-size:.85rem;
+    position:fixed;top:${rect.bottom + 6}px;right:${window.innerWidth - rect.right}px;
+    background:var(--clr-surface,#fff);border:1px solid var(--clr-border,#e2e8f0);
+    border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,.16);
+    z-index:1000;min-width:230px;overflow:hidden;
+    font-family:var(--font-ui,system-ui);font-size:.875rem;
   `;
 
-  const nombre  = authState.perfil?.full_name || authState.user?.email || 'Usuario';
-  const empresa = authState.empresaActual?.org_name || '—';
-  const rol     = authState.empresaActual?.empresa_role || '';
-  const rolLabel = { super_admin:'Super Admin', relevo:'Relevo', miembro:'Miembro', invitado_externo:'Invitado' };
+  const nombre   = authState.perfil?.full_name || authState.user?.email?.split('@')[0] || 'Usuario';
+  const email    = authState.user?.email || '';
+  const empresa  = authState.empresaActual?.org_name || '';
+  const rol      = authState.empresaActual?.empresa_role || authState.perfil?.platform_role || '';
+  const rolLabel = { super_admin:'Super Admin', relevo:'Relevo', miembro:'Miembro', invitado_externo:'Invitado', propietario:'Propietario', co_propietario:'Co-propietario', ninguno:'' };
+  const initials = _getInitials(nombre);
+  const now      = new Date();
+  const fechaStr = now.toLocaleDateString('es-PE',{day:'2-digit',month:'2-digit',year:'numeric'}) + ' ' + now.toLocaleTimeString('es-PE',{hour:'2-digit',minute:'2-digit'});
 
-  const items = [
-    { html: `<div style="padding:8px 10px;border-bottom:1px solid var(--clr-border,#e2e8f0);margin-bottom:4px">
-      <div style="font-weight:600;color:var(--clr-text,#111)">${_escHtml(nombre)}</div>
-      <div style="font-size:.78rem;color:var(--clr-text-3,#666)">${_escHtml(empresa)} · ${rolLabel[rol]||rol}</div>
-    </div>`, action: null },
-  ];
+  // Cabecera con avatar + nombre + email + rol
+  const header = document.createElement('div');
+  header.style.cssText = 'padding:16px 16px 12px;display:flex;align-items:center;gap:12px;border-bottom:1px solid var(--clr-border,#e2e8f0)';
+  header.innerHTML = `
+    <div style="width:40px;height:40px;border-radius:50%;background:var(--clr-accent,#4f46e5);color:#fff;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:700;flex-shrink:0">${_escHtml(initials)}</div>
+    <div style="min-width:0">
+      <div style="font-weight:700;font-size:.95rem;color:var(--clr-text,#111);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${_escHtml(nombre)}</div>
+      <div style="font-size:.78rem;color:var(--clr-text-3,#888);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${_escHtml(email)}</div>
+      ${rolLabel[rol] ? `<div style="font-size:.75rem;color:var(--clr-accent,#4f46e5);font-weight:500;margin-top:1px">${_escHtml(rolLabel[rol])}</div>` : ''}
+    </div>
+  `;
+  menu.appendChild(header);
+
+  const body = document.createElement('div');
+  body.style.cssText = 'padding:6px';
+  menu.appendChild(body);
+
+  const addItem = (label, action) => {
+    const el = document.createElement('button');
+    el.style.cssText = 'display:block;width:100%;padding:9px 12px;text-align:left;border:none;background:none;border-radius:8px;cursor:pointer;color:var(--clr-text,#111);font-size:.875rem;font-family:inherit';
+    el.textContent = label;
+    el.addEventListener('mouseenter', () => { el.style.background = 'var(--clr-surface-2,#f0f0ff)'; });
+    el.addEventListener('mouseleave', () => { el.style.background = 'none'; });
+    el.addEventListener('click', (e) => { e.stopPropagation(); menu.remove(); action?.(); });
+    body.appendChild(el);
+  };
 
   if (['super_admin','relevo'].includes(rol)) {
-    items.push({ label: '👥 Gestionar usuarios', action: () => showUsuariosPanel() });
-    items.push({ label: '⚙ Configurar empresa', action: () => showEmpresaAdminPanel() });
+    addItem('Gestionar usuarios', () => showUsuariosPanel());
+    addItem('Configurar empresa',  () => showEmpresaAdminPanel());
   }
-
-  // Cambiar empresa si hay más de una
   if (authState.empresas.length > 1) {
-    items.push({ label: '🏢 Cambiar empresa', action: () => {
-      menu.remove();
-      showLoginModal();
-    }});
+    addItem('Cambiar empresa', () => showLoginModal());
   }
-
-  items.push({ label: '🚪 Cerrar sesión', action: () => logout() });
-
-  items.forEach(item => {
-    if (item.html) { menu.insertAdjacentHTML('beforeend', item.html); return; }
-    const el = document.createElement('button');
-    el.style.cssText = 'display:block;width:100%;padding:7px 10px;text-align:left;border:none;background:none;border-radius:6px;cursor:pointer;color:var(--clr-text,#111)';
-    el.textContent = item.label;
-    el.addEventListener('mouseenter', () => { el.style.background = 'var(--clr-surface-2,#f5f5f5)'; });
-    el.addEventListener('mouseleave', () => { el.style.background = 'none'; });
-    el.addEventListener('click', (e) => { e.stopPropagation(); menu.remove(); item.action?.(); });
-    menu.appendChild(el);
+  addItem('Cambiar contraseña', () => {
+    import('./auth.js').then(m => m.showLoginModal?.());
   });
+  addItem('Cerrar sesión', () => logout());
+
+  // Pie con versión y fecha
+  const footer = document.createElement('div');
+  footer.style.cssText = 'padding:8px 14px;border-top:1px solid var(--clr-border,#e2e8f0);font-size:.72rem;color:var(--clr-text-3,#aaa);margin-top:4px';
+  footer.textContent = `ECM Project v1.0.0 · ${fechaStr}`;
+  menu.appendChild(footer);
 
   document.body.appendChild(menu);
 }
