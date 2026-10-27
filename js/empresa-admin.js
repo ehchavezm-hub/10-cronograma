@@ -76,14 +76,71 @@ const NIVEL_LABEL = { editar: 'Editar', solo_avance: 'Solo avance', solo_ver: 'S
 const NIVEL_COLOR = { editar: '#16a34a', solo_avance: '#2563eb', solo_ver: '#9333ea', sin_acceso: '#9ca3af' };
 
 // ============================================================
+// Formulario crear empresa (onboarding)
+// ============================================================
+function _mostrarFormCrearEmpresa() {
+  document.getElementById('dlg-crear-empresa')?.remove();
+  const dlg = document.createElement('dialog');
+  dlg.id = 'dlg-crear-empresa';
+  dlg.innerHTML = `
+<div style="background:var(--clr-surface,#fff);border-radius:16px;padding:32px;width:min(420px,90vw);font-family:var(--font-ui,system-ui)">
+  <h2 style="margin:0 0 8px;font-size:1.2rem;font-weight:700;color:var(--clr-text,#111)">Crear empresa</h2>
+  <p style="margin:0 0 20px;font-size:.85rem;color:var(--clr-text-3,#666)">Configura el nombre de tu organización para comenzar.</p>
+  <div id="cre-error" role="alert" style="display:none;background:#fef2f2;border:1px solid #fca5a5;border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:.85rem;color:#b91c1c"></div>
+  <label style="display:block;font-size:.82rem;font-weight:600;color:var(--clr-text-2,#444);margin-bottom:4px">Nombre de la empresa</label>
+  <input id="cre-nombre" type="text" placeholder="Ej: Constructora Pérez SAC"
+    style="width:100%;box-sizing:border-box;padding:9px 12px;border:1.5px solid var(--clr-border,#d1d5db);border-radius:8px;font-size:.9rem;margin-bottom:20px;background:var(--clr-input-bg,#f9fafb);color:var(--clr-text,#111)">
+  <div style="display:flex;gap:10px">
+    <button id="cre-cancel" style="flex:1;padding:10px;border:1.5px solid var(--clr-border,#d1d5db);border-radius:8px;background:none;font-size:.9rem;cursor:pointer;color:var(--clr-text,#111)">Cancelar</button>
+    <button id="cre-submit" style="flex:2;padding:10px;border:none;border-radius:8px;background:var(--clr-accent,#4f46e5);color:#fff;font-size:.9rem;font-weight:600;cursor:pointer">Crear empresa</button>
+  </div>
+  <p id="cre-loading" style="display:none;text-align:center;margin-top:10px;font-size:.85rem;color:var(--clr-text-3,#666)">Creando empresa…</p>
+</div>`;
+  document.body.appendChild(dlg);
+
+  dlg.querySelector('#cre-cancel')?.addEventListener('click', () => dlg.close());
+  dlg.querySelector('#cre-submit')?.addEventListener('click', async () => {
+    const nombre = dlg.querySelector('#cre-nombre')?.value?.trim();
+    const errEl  = dlg.querySelector('#cre-error');
+    const loadEl = dlg.querySelector('#cre-loading');
+    const submitEl = dlg.querySelector('#cre-submit');
+    if (!nombre) { if (errEl) { errEl.textContent = 'Ingresa el nombre de la empresa'; errEl.style.display = ''; } return; }
+    if (errEl) errEl.style.display = 'none';
+    if (loadEl) loadEl.style.display = '';
+    if (submitEl) submitEl.disabled = true;
+    try {
+      const token = authState.session?.access_token;
+      const res = await fetch(`${REST}/rpc/crear_empresa`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ nombre_empresa: nombre }),
+      });
+      if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.message || e.error || `HTTP ${res.status}`); }
+      window.location.reload();
+    } catch (e) {
+      if (errEl) { errEl.textContent = e.message || 'Error al crear empresa. Intenta de nuevo.'; errEl.style.display = ''; }
+      if (loadEl) loadEl.style.display = 'none';
+      if (submitEl) submitEl.disabled = false;
+    }
+  });
+
+  dlg.showModal();
+}
+
+// ============================================================
 // Panel principal
 // ============================================================
 let _panelEl = null;
 
 export async function showEmpresaAdminPanel() {
   const rol = authState.empresaActual?.empresa_role;
-  if (!['super_admin', 'relevo'].includes(rol)) {
+  const sinEmpresa = authState.empresas.length === 0;
+  if (!sinEmpresa && !['super_admin', 'relevo'].includes(rol)) {
     alert('Solo el Super Admin o Relevo pueden acceder a la configuración de empresa.');
+    return;
+  }
+  if (sinEmpresa) {
+    _mostrarFormCrearEmpresa();
     return;
   }
 
