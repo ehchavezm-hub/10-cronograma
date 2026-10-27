@@ -522,6 +522,11 @@ function _afterLogin() {
   }
 
   if (empresas.length === 0) {
+    // Propietario sin empresa aún: puede crear la primera desde el app
+    if (authState.perfil?.platform_role === 'propietario') {
+      _modalEl?.close();
+      return;
+    }
     // Sin empresas asignadas — mostrar mensaje
     const el = document.getElementById('auth-step-login');
     if (el) el.innerHTML += `<p style="margin-top:16px;color:#92400e;background:#fef3c7;border-radius:8px;padding:10px 14px;font-size:.85rem">
