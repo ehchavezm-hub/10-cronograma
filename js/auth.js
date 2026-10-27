@@ -108,17 +108,28 @@ async function _loadPerfil(token, userId) {
 }
 
 async function _loadEmpresas(token, userId) {
-  const rows = await _restGet('org_memberships', {
+  // Dos queries separadas para evitar depender del JOIN embebido de PostgREST
+  const mems = await _restGet('org_memberships', {
     'user_id': `eq.${userId}`,
     'active':  'eq.true',
-    'select':  'id,org_id,empresa_role,temp_password,expires_at,organizations(id,name,slug,status)',
+    'select':  'id,org_id,empresa_role,temp_password,expires_at',
   }, token);
-  return rows.map(r => ({
+  if (!mems.length) return [];
+
+  const orgIds = mems.map(m => m.org_id).join(',');
+  const orgs = await _restGet('organizations', {
+    'id':        `in.(${orgIds})`,
+    'deleted_at':'is.null',
+    'select':    'id,name,slug,status',
+  }, token);
+  const orgMap = new Map(orgs.map(o => [o.id, o]));
+
+  return mems.map(r => ({
     mem_id:       r.id,
     org_id:       r.org_id,
-    org_name:     r.organizations?.name ?? r.org_id,
-    org_slug:     r.organizations?.slug ?? '',
-    org_status:   r.organizations?.status ?? 'active',
+    org_name:     orgMap.get(r.org_id)?.name ?? r.org_id,
+    org_slug:     orgMap.get(r.org_id)?.slug ?? '',
+    org_status:   orgMap.get(r.org_id)?.status ?? 'active',
     empresa_role: r.empresa_role,
     has_temp_pwd: !!r.temp_password,
     expires_at:   r.expires_at,

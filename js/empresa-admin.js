@@ -11,7 +11,7 @@
  * Solo accesible a super_admin y relevo.
  */
 
-import { authState } from './auth.js?v=180';
+import { authState } from './auth.js?v=181';
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
 
 const REST = `${SUPABASE_URL}/rest/v1`;
