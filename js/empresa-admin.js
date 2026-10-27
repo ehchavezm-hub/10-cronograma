@@ -108,6 +108,7 @@ async function _renderPanel(tab = 'areas') {
   const tabs = [
     { key: 'areas',     label: 'Áreas' },
     { key: 'permisos',  label: 'Permisos por área' },
+    { key: 'proyectos', label: 'Proyectos' },
     { key: 'auditoria', label: 'Auditoría' },
   ];
 
@@ -156,6 +157,7 @@ async function _renderPanel(tab = 'areas') {
 
   if (tab === 'areas')     await _renderAreas(body);
   if (tab === 'permisos')  await _renderPermisos(body);
+  if (tab === 'proyectos') await _renderProyectos(body);
   if (tab === 'auditoria') await _renderAuditoria(body);
 }
 
@@ -348,6 +350,59 @@ async function _renderPermisos(container) {
       sel.style.color = NIVEL_COLOR[sel.value] || '';
     });
   });
+}
+
+// ============================================================
+// Tab: Proyectos (vista y gestión de miembros por proyecto)
+// ============================================================
+async function _renderProyectos(container) {
+  const orgId = authState.empresaActual?.org_id;
+  let proyectos = [];
+  try {
+    proyectos = await _get('projects', {
+      'org_id': `eq.${orgId}`,
+      'deleted_at': 'is.null',
+      'order': 'name.asc',
+      'select': 'id,name,code,status,start_date',
+    });
+  } catch {}
+
+  container.innerHTML = `
+<h3 style="margin:0 0 14px;font-size:.95rem;font-weight:700;color:var(--clr-text,#111)">Proyectos de la empresa</h3>
+<p style="margin:0 0 12px;font-size:.81rem;color:var(--clr-text-3,#666)">
+  Lista de proyectos registrados en esta empresa. Los proyectos se crean desde el panel principal con la empresa activa seleccionada.
+</p>
+<div style="overflow-x:auto">
+<table style="width:100%;border-collapse:collapse;font-size:.83rem;min-width:400px">
+  <thead>
+    <tr style="border-bottom:2px solid var(--clr-border,#e2e8f0)">
+      <th style="text-align:left;padding:7px 10px;font-weight:600;color:var(--clr-text-2,#444)">Proyecto</th>
+      <th style="text-align:left;padding:7px 10px;font-weight:600;color:var(--clr-text-2,#444)">Código</th>
+      <th style="text-align:left;padding:7px 10px;font-weight:600;color:var(--clr-text-2,#444)">Estado</th>
+      <th style="text-align:left;padding:7px 10px;font-weight:600;color:var(--clr-text-2,#444)">Inicio</th>
+    </tr>
+  </thead>
+  <tbody>
+    ${proyectos.length === 0
+      ? `<tr><td colspan="4" style="padding:14px 10px;color:var(--clr-text-3,#666)">No hay proyectos registrados en esta empresa aún. Crea uno desde el panel principal con esta empresa seleccionada.</td></tr>`
+      : proyectos.map(p => `
+        <tr style="border-bottom:1px solid var(--clr-border,#f0f0f0)">
+          <td style="padding:7px 10px;font-weight:600;color:var(--clr-text,#111)">${_esc(p.name)}</td>
+          <td style="padding:7px 10px;color:var(--clr-text-3,#666)">${_esc(p.code || '—')}</td>
+          <td style="padding:7px 10px">
+            <span style="
+              font-size:.73rem;padding:2px 7px;border-radius:4px;
+              background:${p.status === 'active' ? '#dcfce7' : '#f3f4f6'};
+              color:${p.status === 'active' ? '#15803d' : '#6b7280'};
+              font-weight:600;
+            ">${p.status === 'active' ? 'Activo' : 'Inactivo'}</span>
+          </td>
+          <td style="padding:7px 10px;color:var(--clr-text-3,#666)">${p.start_date || '—'}</td>
+        </tr>
+      `).join('')}
+  </tbody>
+</table>
+</div>`;
 }
 
 // ============================================================
