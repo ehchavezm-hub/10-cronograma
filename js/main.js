@@ -40,7 +40,7 @@ import { initReports } from './reports.js';
 import { authInit, authState, showLoginModal, logout, seleccionarEmpresa } from './auth.js?v=181';
 import { showUsuariosPanel } from './usuarios.js';
 import { showEmpresaAdminPanel } from './empresa-admin.js';
-import { showPlataformaAdminPanel } from './plataforma-admin.js';
+import { showPlataformaAdminPanel, updateAdminSectionVisibility } from './plataforma-admin.js';
 
 // Precargar Manrope: los gráficos canvas de los reportes (DCMA, EVM, Histograma) la usan
 // y el canvas no dispara la descarga de la fuente por sí solo.
@@ -5732,6 +5732,14 @@ document.addEventListener('DOMContentLoaded', () => {
       if (wbs && rt) rt.style.width = wbs.offsetWidth + 'px';
     }
   });
+  // Administración sidebar buttons
+  document.getElementById('btn-plataforma-admin-view')?.addEventListener('click', () => { _closeExplorer(); showPlataformaAdminPanel(); });
+  document.getElementById('btn-config-empresa-view')?.addEventListener('click', () => { _closeExplorer(); showEmpresaAdminPanel(); });
+  document.getElementById('btn-mis-empresas-view')?.addEventListener('click', () => { _closeExplorer(); showEmpresasSwitcher(); });
+  ['btn-plataforma-admin-view','btn-config-empresa-view','btn-mis-empresas-view'].forEach(id => {
+    document.getElementById(id)?.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); document.getElementById(id)?.click(); } });
+  });
+
   document.getElementById('btn-resource-leveling-view')?.addEventListener('click', async () => {
     _closeExplorer();
     const { project, tasks, cpmResult } = appState.state;
@@ -5817,8 +5825,9 @@ async function _initAuthUI() {
   document.body.classList.toggle('app--noauth', !authState.user);
 
   // Suscribir a cambios de estado
-  authState.subscribe(_renderAuthBtn);
+  authState.subscribe(s => { _renderAuthBtn(s); updateAdminSectionVisibility(); });
   _renderAuthBtn(authState);
+  updateAdminSectionVisibility();
 
   // Mostrar login automáticamente si no hay sesión
   if (!authState.user) {
