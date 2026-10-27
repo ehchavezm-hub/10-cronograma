@@ -174,12 +174,12 @@ let _cambios = false;
 const NAV = {
   plataforma: [
     ['resumen', 'Resumen', '📊'], ['empresas', 'Empresas', '🏢'], ['proyectos', 'Estructura de todas las empresas', '🌳'],
-    ['propietarios', 'Propietarios', '👑'], ['auditoria', 'Auditoría', '🧾'],
+    ['propietarios', 'Propietarios', '👑'], ['auditoria', 'Auditoría', '🧾'], ['reportes', 'Reportes', '📑'],
   ],
   empresa: [
     ['resumen', 'Resumen', '📊'], ['usuarios', 'Usuarios', '👥'], ['proyectos', 'Estructura y proyectos', '🌳'],
     ['areas', 'Áreas', '🧩'], ['plantilla', 'Plantilla de permisos', '🔐'],
-    ['auditoria', 'Auditoría', '🧾'], ['datos', 'Datos de la empresa', '📝'],
+    ['auditoria', 'Auditoría', '🧾'], ['datos', 'Datos de la empresa', '📝'], ['reportes', 'Reportes', '📑'],
   ],
   proyecto: [
     ['miembros', 'Miembros', '👥'], ['permisos', 'Permisos del proyecto', '🔐'], ['externos', 'Invitados externos', '🤝'],
@@ -1908,15 +1908,268 @@ async function _proyExternos(main) {
   };
 }
 
+// ============================================================
+// Reportes de administración
+// ============================================================
+
+/**
+ * Abre una ventana de impresión/PDF para un reporte de administración.
+ * @param {string} title  Título del reporte
+ * @param {string} html   Contenido HTML del reporte
+ * @param {string} ctxName  Nombre de contexto (empresa o "Plataforma")
+ */
+function _printAdmPdf(title, html, ctxName) {
+  const _d = new Date();
+  const _dd = String(_d.getDate()).padStart(2, '0');
+  const _mm = String(_d.getMonth() + 1).padStart(2, '0');
+  const _yy = _d.getFullYear();
+  const _hh = String(_d.getHours()).padStart(2, '0');
+  const _mi = String(_d.getMinutes()).padStart(2, '0');
+  const titleFile = `ECM-Admin-${title.replace(/\s+/g, '-')}-${_dd}${_mm}${_yy}`;
+  const ctxEsc = _esc(ctxName);
+  const titleEsc = _esc(title);
+  const PAPER_SEL = '<span class="lbl">Papel:</span><select id="paper" onchange="setOri()" title="Tamaño de papel">' +
+    '<option value="A4" selected>A4</option><option value="A3">A3</option><option value="Carta">Carta</option>' +
+    '<option value="Oficio">Oficio</option><option value="Tabloide">Tabloide</option></select><div class="sep"></div>';
+  const PAPER_JS = "var PAPERS={A4:[210,297],A3:[297,420],Carta:[216,279],Oficio:[216,330],Tabloide:[279,432]};" +
+    "function paperSize(o){var p=PAPERS[(document.getElementById('paper')||{}).value]||PAPERS.A4;" +
+    "var a=Math.min(p[0],p[1]),b=Math.max(p[0],p[1]);return o==='landscape'?[b,a]:[a,b];}";
+  const w = window.open('', '_blank', 'width=1100,height=880');
+  if (!w) { _toast('El navegador bloqueó la ventana emergente. Permítala e intente de nuevo.'); return; }
+  w.document.write(`<!DOCTYPE html><html><head>
+<meta charset="utf-8">
+<title>${titleFile}</title>
+<style>
+  *{box-sizing:border-box}
+  body{font-family:Arial,sans-serif;margin:0;padding:0;background:#f1f5f9;color:#1f2937}
+  .tb{background:#fff;padding:8px 14px;display:flex;align-items:center;gap:7px;flex-wrap:wrap;position:sticky;top:0;z-index:100;border-bottom:1px solid #e2e8f0}
+  .tb button{padding:5px 11px;border:1px solid #d1d5db;border-radius:5px;cursor:pointer;font-size:12px;background:#fff;color:#374151;white-space:nowrap}
+  .tb button.pri{background:#4f46e5;color:#fff;border-color:#4f46e5;font-weight:600;font-size:13px;padding:6px 16px}
+  .tb button.pri:hover{background:#4338ca}
+  .tb button.act{background:#ede9fe;color:#4f46e5;border-color:#c4b5fd;font-weight:600}
+  .tb button:hover:not(.pri){background:#f8fafc}
+  .tb .sep{width:1px;height:20px;background:#e2e8f0;flex-shrink:0}
+  .tb .lbl{font-size:11px;color:#64748b;white-space:nowrap}
+  .tb select{font-size:12px;padding:3px 6px;border:1px solid #d1d5db;border-radius:4px;background:#fff;color:#374151}
+  .tb input[type=text]{font-size:12px;padding:3px 8px;border:1px solid #d1d5db;border-radius:4px;background:#f8fafc;color:#374151;width:300px}
+  .pv{padding:20px;display:flex;flex-direction:column;align-items:center;gap:16px;min-height:calc(100vh - 52px)}
+  .a4{background:#fff;box-shadow:0 4px 14px rgba(0,0,0,.4);padding:14mm 15mm;width:var(--pw,210mm);min-height:var(--ph,297mm);overflow:hidden}
+  h1{font-size:15px;margin:0 0 4mm;text-align:center;color:#1a365d;font-weight:700}
+  h2{font-size:13px;margin:10px 0 5px;color:#1f2937}
+  .subtitle{font-size:10px;text-align:center;color:#4a5568;margin:-1mm 0 7mm}
+  table{border-collapse:collapse;width:100%;margin-bottom:8mm}
+  th,td{border:1px solid #ccc;padding:4px 8px;font-size:11px}
+  th{background:#f4f5f7;font-weight:600;text-align:left}
+  .stat-row{display:flex;gap:6mm;margin-bottom:8mm;flex-wrap:wrap}
+  .stat{border:1px solid #d1d5db;border-radius:6px;padding:6px 10px;min-width:100px;text-align:center;background:#f8fafc}
+  .stat-val{font-size:18px;font-weight:700;color:#4f46e5}
+  .stat-lbl{font-size:9px;color:#64748b;margin-top:2px}
+  .print-header{position:fixed;top:0;left:0;right:0;height:26px;display:none;align-items:center;justify-content:space-between;padding:0 10mm;border-bottom:0.5pt solid #CBD5E0;font-size:6pt;color:#4A5568;background:#fff;z-index:9999}
+  .print-footer{position:fixed;bottom:0;left:0;right:0;height:22px;display:none;align-items:center;justify-content:space-between;padding:0 10mm;border-top:0.5pt solid #CBD5E0;font-size:6pt;color:#718096;background:#fff;z-index:9999}
+  @media print{
+    body{background:#fff}
+    .tb{display:none!important}
+    .pv{padding:0;min-height:0}
+    .a4{box-shadow:none;width:100%;min-height:0;padding:1.5mm 0 0!important}
+    .print-header,.print-footer{display:flex!important}
+    @page{margin:10mm}
+  }
+</style></head><body>
+<div class="tb">
+  ${PAPER_SEL}
+  <span class="lbl">Orientaci&#243;n:</span>
+  <button id="bp" class="act" onclick="setOri('portrait')">&#x1F4C4; Vertical</button>
+  <button id="bl" onclick="setOri('landscape')">&#x1F5C2; Horizontal</button>
+  <div class="sep"></div>
+  <span class="lbl">&#x1F4C1; Archivo:</span>
+  <input type="text" id="fn" value="${titleFile}.pdf" oninput="document.title=this.value.replace(/\\.pdf$/i,'')">
+  <div class="sep"></div>
+  <button onclick="window.close()">&#x2715; Cerrar</button>
+  <button class="pri" style="margin-left:auto" onclick="window.print()">&#x1F5A8; Guardar PDF</button>
+</div>
+<div class="pv"><div class="a4" id="a4">
+<div class="print-header"><span>ECM Project</span><span>${ctxEsc}</span><span>${_dd}-${_mm}-${_yy}, ${_hh}:${_mi}</span></div>
+<div class="print-footer"><span>Administraci&#243;n</span><span>&#8212;</span><span>P&#225;gina <span id="phf-tot">1</span></span></div>
+<h1>${titleEsc}</h1>
+<p class="subtitle">${ctxEsc} &middot; ${_dd}-${_mm}-${_yy}, ${_hh}:${_mi}</p>
+${html}</div></div>
+<script>
+  (function(){function _u(){var h=document.getElementById('a4');if(!h)return;var t=Math.max(1,Math.ceil(h.scrollHeight/1120));var el=document.getElementById('phf-tot');if(el)el.textContent='P\\u00E1gina 1 de '+t;}window.addEventListener('beforeprint',_u);_u();})();
+  document.title=${JSON.stringify(titleFile)};
+  ${PAPER_JS}
+  var _ori='portrait';
+  function setOri(o){
+    if(o)_ori=o; o=_ori;
+    var sz=paperSize(o),a=document.getElementById('a4');
+    a.style.setProperty('--pw',sz[0]+'mm'); a.style.setProperty('--ph',sz[1]+'mm');
+    document.getElementById('bp').classList.toggle('act',o==='portrait');
+    document.getElementById('bl').classList.toggle('act',o==='landscape');
+    var s=document.getElementById('_ps')||document.createElement('style');
+    s.id='_ps';s.textContent='@page{size:'+sz[0]+'mm '+sz[1]+'mm}';document.head.appendChild(s);
+  }
+  setOri('portrait');
+<\/script></body></html>`);
+  w.document.close();
+}
+
+/**
+ * Página de reportes de administración (plataforma o empresa).
+ * @param {HTMLElement} main
+ * @param {'plataforma'|'empresa'} scope
+ */
+async function _admReportes(main, scope) {
+  const orgName = scope === 'empresa'
+    ? (S.orgs.find(o => o.id === S.orgId)?.name || 'Empresa')
+    : 'Plataforma';
+
+  const body = _pagina(main, {
+    title: 'Reportes',
+    desc: scope === 'empresa'
+      ? 'Genera e imprime reportes de esta empresa en PDF.'
+      : 'Genera e imprime reportes de la plataforma en PDF.',
+  });
+
+  const cards = scope === 'plataforma' ? [
+    { ico: '📊', title: 'Resumen de plataforma', desc: 'Estadísticas generales: empresas, usuarios, proyectos y actividad reciente.', act: 'rptPlatResumen' },
+    { ico: '🏢', title: 'Lista de empresas', desc: 'Todas las empresas, su estado, cantidad de miembros y proyectos.', act: 'rptEmpresas' },
+    { ico: '🧾', title: 'Actividad reciente', desc: 'Log de auditoría de las últimas 100 acciones en la plataforma.', act: 'rptActividad' },
+  ] : [
+    { ico: '📊', title: 'Resumen de empresa', desc: 'Estadísticas de la empresa: miembros activos, proyectos y áreas.', act: 'rptEmpResumen' },
+    { ico: '👥', title: 'Miembros y roles', desc: 'Listado de todos los miembros con su rol y estado de acceso.', act: 'rptMiembros' },
+    { ico: '🌳', title: 'Estructura de proyectos', desc: 'Portafolios, programas y proyectos de la empresa.', act: 'rptProyectos' },
+    { ico: '🧾', title: 'Auditoría de empresa', desc: 'Log de auditoría de las últimas 100 acciones de esta empresa.', act: 'rptAuditoria' },
+  ];
+
+  body.innerHTML = `<div class="adm-rpt-grid">${cards.map(c => `
+    <div class="adm-rpt-card">
+      <div class="adm-rpt-ico">${c.ico}</div>
+      <div class="adm-rpt-info">
+        <div class="adm-rpt-title">${_esc(c.title)}</div>
+        <div class="adm-rpt-desc">${_esc(c.desc)}</div>
+      </div>
+      <button type="button" class="adm-btn adm-btn-primary adm-rpt-btn" data-act="${c.act}">🖨 Generar e imprimir</button>
+    </div>`).join('')}
+  </div>`;
+
+  /** @param {string} act @param {HTMLButtonElement} btn */
+  const _generar = async (act, btn) => {
+    const prev = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = 'Generando…';
+    try {
+      let html = '', titleRpt = '';
+      if (act === 'rptPlatResumen') {
+        const [orgs, perfiles, proys, aud] = await Promise.all([
+          _get('organizations', { deleted_at: 'is.null', select: 'id,name,status' }),
+          _get('profiles', { select: 'id' }),
+          _get('projects', { deleted_at: 'is.null', select: 'id' }),
+          _get('auditoria', { select: 'id,org_id,user_id,accion,created_at', order: 'created_at.desc', limit: '50' }).catch(() => []),
+        ]);
+        const pm = await _perfiles(aud.map(/** @type {any} */ (a) => a.user_id));
+        const om = new Map(orgs.map(o => [o.id, o.name]));
+        titleRpt = 'Resumen de plataforma';
+        html = `<div class="stat-row">
+          <div class="stat"><div class="stat-val">${orgs.filter(o => o.status !== 'suspended').length}</div><div class="stat-lbl">Empresas activas</div></div>
+          <div class="stat"><div class="stat-val">${orgs.filter(o => o.status === 'suspended').length}</div><div class="stat-lbl">Suspendidas</div></div>
+          <div class="stat"><div class="stat-val">${perfiles.length}</div><div class="stat-lbl">Usuarios registrados</div></div>
+          <div class="stat"><div class="stat-val">${proys.length}</div><div class="stat-lbl">Proyectos</div></div>
+        </div>
+        <h2>Actividad reciente</h2>
+        <table><thead><tr><th>Fecha</th><th>Usuario</th><th>Empresa</th><th>Acción</th></tr></thead><tbody>
+          ${aud.map(/** @type {any} */ (a) => `<tr><td>${_esc(_fecha(a.created_at, true))}</td><td>${_esc(_nombre(pm.get(a.user_id)))}</td><td>${_esc(om.get(a.org_id) || '—')}</td><td>${_esc(a.accion || '—')}</td></tr>`).join('')}
+        </tbody></table>`;
+      } else if (act === 'rptEmpresas') {
+        const [orgs, mems, proys] = await Promise.all([
+          _get('organizations', { deleted_at: 'is.null', select: 'id,name,status,created_at' }),
+          _get('org_memberships', { active: 'eq.true', select: 'org_id,user_id,empresa_role' }),
+          _get('projects', { deleted_at: 'is.null', select: 'id,org_id' }),
+        ]);
+        titleRpt = 'Lista de empresas';
+        html = `<table><thead><tr><th>Empresa</th><th>Estado</th><th>Miembros</th><th>Proyectos</th><th>Creada</th></tr></thead><tbody>
+          ${orgs.map(o => {
+            const memCount = mems.filter(/** @type {any} */ (m) => m.org_id === o.id).length;
+            const pryCount = proys.filter(/** @type {any} */ (p) => p.org_id === o.id).length;
+            const st = o.status === 'suspended' ? 'Suspendida' : o.status === 'deleted' ? 'Eliminada' : 'Activa';
+            return `<tr><td>${_esc(o.name)}</td><td>${_esc(st)}</td><td style="text-align:right">${memCount}</td><td style="text-align:right">${pryCount}</td><td>${_esc(_fecha(o.created_at))}</td></tr>`;
+          }).join('')}
+        </tbody></table>`;
+      } else if (act === 'rptActividad') {
+        const aud = await _get('auditoria', { select: 'id,org_id,user_id,accion,created_at', order: 'created_at.desc', limit: '100' }).catch(() => []);
+        const orgs = await _get('organizations', { deleted_at: 'is.null', select: 'id,name' });
+        const pm = await _perfiles(aud.map(/** @type {any} */ (a) => a.user_id));
+        const om = new Map(orgs.map(o => [o.id, o.name]));
+        titleRpt = 'Actividad reciente';
+        html = `<table><thead><tr><th>Fecha</th><th>Usuario</th><th>Empresa</th><th>Acción</th></tr></thead><tbody>
+          ${aud.map(/** @type {any} */ (a) => `<tr><td>${_esc(_fecha(a.created_at, true))}</td><td>${_esc(_nombre(pm.get(a.user_id)))}</td><td>${_esc(om.get(a.org_id) || '—')}</td><td>${_esc(a.accion || '—')}</td></tr>`).join('')}
+        </tbody></table>`;
+      } else if (act === 'rptEmpResumen') {
+        const [mems, proys, areas] = await Promise.all([
+          _get('org_memberships', { org_id: `eq.${S.orgId}`, active: 'eq.true', select: 'id,empresa_role' }),
+          _get('projects', { org_id: `eq.${S.orgId}`, deleted_at: 'is.null', select: 'id,name' }),
+          _get('areas', { org_id: `eq.${S.orgId}`, select: 'id' }).catch(() => []),
+        ]);
+        titleRpt = 'Resumen de empresa';
+        html = `<div class="stat-row">
+          <div class="stat"><div class="stat-val">${mems.length}</div><div class="stat-lbl">Miembros activos</div></div>
+          <div class="stat"><div class="stat-val">${proys.length}</div><div class="stat-lbl">Proyectos</div></div>
+          <div class="stat"><div class="stat-val">${areas.length}</div><div class="stat-lbl">Áreas</div></div>
+        </div>
+        <h2>Proyectos</h2>
+        <table><thead><tr><th>#</th><th>Proyecto</th></tr></thead><tbody>
+          ${proys.map((p, i) => `<tr><td style="text-align:right;width:40px">${i + 1}</td><td>${_esc(p.name)}</td></tr>`).join('') || '<tr><td colspan="2" style="color:#9ca3af">Sin proyectos</td></tr>'}
+        </tbody></table>`;
+      } else if (act === 'rptMiembros') {
+        const mems = await _get('org_memberships', { org_id: `eq.${S.orgId}`, select: 'id,user_id,empresa_role,active,created_at', order: 'created_at.asc' });
+        const pm = await _perfiles(mems.map(m => m.user_id));
+        titleRpt = 'Miembros y roles';
+        html = `<table><thead><tr><th>Miembro</th><th>Correo</th><th>Rol</th><th>Estado</th><th>Desde</th></tr></thead><tbody>
+          ${mems.map(m => {
+            const p = pm.get(m.user_id);
+            const rol = ROL_EMP[m.empresa_role] || m.empresa_role;
+            const est = m.active ? 'Activo' : 'Revocado';
+            return `<tr><td>${_esc(_nombre(p))}</td><td>${_esc(p?.email || '—')}</td><td>${_esc(rol)}</td><td>${_esc(est)}</td><td>${_esc(_fecha(m.created_at))}</td></tr>`;
+          }).join('') || '<tr><td colspan="5" style="color:#9ca3af">Sin miembros</td></tr>'}
+        </tbody></table>`;
+      } else if (act === 'rptProyectos') {
+        const proys = await _get('projects', { org_id: `eq.${S.orgId}`, deleted_at: 'is.null', select: 'id,name,tipo,parent_id,created_at', order: 'created_at.asc' });
+        titleRpt = 'Estructura de proyectos';
+        const tipoLabel = /** @type {Record<string,string>} */ ({ org: 'Empresa', portafolio: 'Portafolio', programa: 'Programa', proyecto: 'Proyecto' });
+        html = `<table><thead><tr><th>Nombre</th><th>Tipo</th><th>Creado</th></tr></thead><tbody>
+          ${proys.map(p => `<tr><td>${_esc(p.name)}</td><td>${_esc(tipoLabel[p.tipo] || p.tipo)}</td><td>${_esc(_fecha(p.created_at))}</td></tr>`).join('') || '<tr><td colspan="3" style="color:#9ca3af">Sin proyectos</td></tr>'}
+        </tbody></table>`;
+      } else if (act === 'rptAuditoria') {
+        const aud = await _get('auditoria', { org_id: `eq.${S.orgId}`, select: 'id,user_id,accion,created_at', order: 'created_at.desc', limit: '100' }).catch(() => []);
+        const pm = await _perfiles(aud.map(/** @type {any} */ (a) => a.user_id));
+        titleRpt = 'Auditoría de empresa';
+        html = `<table><thead><tr><th>Fecha</th><th>Usuario</th><th>Acción</th></tr></thead><tbody>
+          ${aud.map(/** @type {any} */ (a) => `<tr><td>${_esc(_fecha(a.created_at, true))}</td><td>${_esc(_nombre(pm.get(a.user_id)))}</td><td>${_esc(a.accion || '—')}</td></tr>`).join('') || '<tr><td colspan="3" style="color:#9ca3af">Sin registros</td></tr>'}
+        </tbody></table>`;
+      }
+      _printAdmPdf(titleRpt, html, orgName);
+    } catch (e) {
+      _toast('Error al generar el reporte: ' + (e?.message || e));
+    } finally {
+      btn.disabled = false;
+      btn.textContent = prev;
+    }
+  };
+
+  body.querySelectorAll('[data-act]').forEach(el => {
+    const btn = /** @type {HTMLButtonElement} */ (el);
+    btn.addEventListener('click', () => _generar(btn.dataset.act || '', btn));
+  });
+}
+
 /** @type {Record<string, Record<string, (main:HTMLElement)=>Promise<void>>>} */
 const PAGES = {
   plataforma: {
     resumen: _platResumen, empresas: _platEmpresas, proyectos: _platProyectos, propietarios: _platPropietarios,
-    auditoria: (m) => _auditoria(m, ''),
+    auditoria: (m) => _auditoria(m, ''), reportes: (m) => _admReportes(m, 'plataforma'),
   },
   empresa: {
     resumen: _empResumen, usuarios: _empUsuarios, proyectos: _empProyectos, areas: _empAreas,
     plantilla: (m) => _matrizPermisos(m, false), auditoria: (m) => _auditoria(m, S.orgId), datos: _empDatos,
+    reportes: (m) => _admReportes(m, 'empresa'),
   },
   proyecto: {
     miembros: _proyMiembros, permisos: (m) => _matrizPermisos(m, true), externos: _proyExternos,
@@ -2075,6 +2328,13 @@ function _injectCss() {
 .oct-node-edit{cursor:pointer}
 .oct-node-edit:hover{box-shadow:0 3px 12px rgba(0,0,0,.18)}
 .oct-node-edit:focus{outline:2px solid var(--clr-primary,#4f46e5);outline-offset:2px}
+.adm-rpt-grid{display:flex;flex-direction:column;gap:12px;max-width:760px}
+.adm-rpt-card{display:flex;align-items:center;gap:14px;padding:14px 16px;border:1px solid var(--clr-border,#d1d5db);border-radius:10px;background:var(--clr-surface,#fff)}
+.adm-rpt-ico{font-size:26px;flex-shrink:0;width:38px;text-align:center}
+.adm-rpt-info{flex:1;min-width:0}
+.adm-rpt-title{font-weight:700;font-size:14px;color:var(--clr-text,#111827);margin-bottom:2px}
+.adm-rpt-desc{font-size:12px;color:var(--clr-text-3,#5b6270);line-height:1.4}
+.adm-rpt-btn{flex-shrink:0;white-space:nowrap}
 @media (max-width:760px){
   .adm-top{flex-wrap:wrap;padding:8px 16px}
   .adm-scope{order:3;flex-basis:100%}
@@ -2086,6 +2346,8 @@ function _injectCss() {
   .adm-search{width:100%}
   .adm-table{min-width:680px}
   .adm-matrix{min-width:900px}
+  .adm-rpt-card{flex-wrap:wrap}
+  .adm-rpt-btn{width:100%}
 }`;
   document.head.appendChild(st);
 }
