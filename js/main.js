@@ -40,6 +40,7 @@ import { debouncedSave, queue } from './async-queue.js';
 import { initReports } from './reports.js';
 import { authInit, authState, showLoginModal, logout } from './auth.js';
 import { showUsuariosPanel } from './usuarios.js';
+import { showEmpresaAdminPanel } from './empresa-admin.js';
 
 // Precargar Manrope: los gráficos canvas de los reportes (DCMA, EVM, Histograma) la usan
 // y el canvas no dispara la descarga de la fuente por sí solo.
@@ -5842,6 +5843,7 @@ function _toggleAuthMenu() {
 
   if (['super_admin','relevo'].includes(rol)) {
     items.push({ label: '👥 Gestionar usuarios', action: () => showUsuariosPanel() });
+    items.push({ label: '⚙ Configurar empresa', action: () => showEmpresaAdminPanel() });
   }
 
   // Cambiar empresa si hay más de una
