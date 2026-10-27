@@ -247,7 +247,8 @@ export function computeCPM(allTasks, allDeps, calendar, projectStart, dataDateId
     if (!task) continue;
     const dur = task.type === 'milestone' ? 0 : Math.max(0, task.duration_days ?? 1);
     const isComplete = task.percent_complete >= 100;
-    const remaining  = isComplete ? 0 : dur * (1 - (task.percent_complete ?? 0) / 100);
+    // Días restantes en días laborables enteros (convención D1): 0.6 días pendientes = 1 día
+    const remaining  = isComplete ? 0 : Math.ceil(dur * (1 - (task.percent_complete ?? 0) / 100) - 1e-9);
 
     // ES inicial
     let es = 0;
@@ -370,7 +371,8 @@ export function computeCPM(allTasks, allDeps, calendar, projectStart, dataDateId
     if (isComplete && task.actual_finish) {
       const startIdx  = task.actual_start
         ? calendar.dateToIdx(new Date(task.actual_start + 'T00:00:00'), projectStart) : es;
-      const finishIdx = calendar.dateToIdx(new Date(task.actual_finish + 'T00:00:00'), projectStart) + 1;
+      // Fin exclusivo: +1 día para tareas; un hito (duración 0) termina el mismo día que empieza
+      const finishIdx = calendar.dateToIdx(new Date(task.actual_finish + 'T00:00:00'), projectStart) + (dur > 0 ? 1 : 0);
       es = startIdx;
       ef = finishIdx;
     }

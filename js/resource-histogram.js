@@ -7,7 +7,7 @@
 import { appState }  from './state.js';
 import { Calendar }  from './calendar.js';
 import { getAll }    from './storage.js';
-import { printToPdf } from './pdf-utils.js';
+import { printToPdf, SvgCtx } from './pdf-utils.js';
 
 const PALETTE = [
   '#FFA028', '#4FC3F7', '#81C784', '#CE93D8',
@@ -81,25 +81,7 @@ export class ResourceHistogramPanel {
       this._filterRes = /** @type {HTMLSelectElement} */ (e.target).value || null;
       this._render();
     });
-    this._el.querySelector('#btn-rh-print')?.addEventListener('click', () => {
-      const wrap = this._el.querySelector('.rh-wrap');
-      if (!wrap) return;
-      // Capturar canvas como imagen antes de serializar el HTML
-      const clone = wrap.cloneNode(true);
-      const origCanvas = this._el.querySelector('#rh-canvas');
-      const cloneCanvas = clone.querySelector('#rh-canvas');
-      if (origCanvas && cloneCanvas) {
-        try {
-          const dataUrl = origCanvas.toDataURL('image/png');
-          const img = document.createElement('img');
-          img.src = dataUrl;
-          img.style.cssText = origCanvas.style.cssText;
-          img.style.maxWidth = '100%';
-          cloneCanvas.replaceWith(img);
-        } catch { /* ignore */ }
-      }
-      printToPdf('Histograma de Recursos', `<h1>Histograma de Recursos</h1>${clone.innerHTML}`);
-    });
+    this._el.querySelector('#btn-rh-print')?.addEventListener('click', () => this._print());
     this._el.querySelector('#btn-rh-close')?.addEventListener('click', () => {
       this._el.classList.remove('open');
       document.getElementById('right-content')?.classList.remove('has-histogram');
@@ -291,6 +273,8 @@ export class ResourceHistogramPanel {
     const CLR_GRID    = _v('--clr-border-2')   || '#e5e7eb';
     const CLR_BORDER  = _v('--clr-border')     || '#d1d5db';
     const CLR_OVER    = _v('--clr-error')      || '#c62828';
+    const colors = { BG: CLR_BG, SURFACE: CLR_SURFACE, DIM: CLR_DIM, GRID: CLR_GRID, BORDER: CLR_BORDER,
+                     OVER: CLR_OVER, SCURVE: _v('--clr-primary') || '#3b82f6' };
 
     let activeRes = resources;
     if (this._filterRes) activeRes = resources.filter(r => r.id === this._filterRes);
@@ -313,6 +297,23 @@ export class ResourceHistogramPanel {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
     ctx.scale(dpr, dpr);
+
+    this._draw(ctx, W, H, activeRes, this._ganttVp, colors);
+  }
+
+  /**
+   * Dibuja el histograma en un contexto 2D (canvas en pantalla o SvgCtx para el PDF).
+   * @param {any} ctx
+   * @param {number} W
+   * @param {number} H
+   * @param {any[]} activeRes
+   * @param {any} vp  Viewport del Gantt para alinear fechas; null = barras de igual ancho
+   * @param {{BG:string,SURFACE:string,DIM:string,GRID:string,BORDER:string,OVER:string,SCURVE:string}} C
+   */
+  _draw(ctx, W, H, activeRes, vp, C) {
+    if (!this._data) return;
+    const { resources, periods, hoursPerDay } = this._data;
+    const CLR_DIM = C.DIM, CLR_GRID = C.GRID, CLR_BORDER = C.BORDER, CLR_OVER = C.OVER;
 
     // Layout
     const PL = 56, PR = 36, PT = 28, PB = 52;
@@ -338,19 +339,18 @@ export class ResourceHistogramPanel {
       ctx.beginPath(); ctx.moveTo(PL, y); ctx.lineTo(PL + cW, y); ctx.stroke();
       const val = (i / STEPS) * yMax;
       ctx.fillStyle  = CLR_DIM;
-      ctx.font       = '10px Calibri,Arial';
+      ctx.font       = '10px "Manrope", system-ui';
       ctx.textAlign  = 'right';
       ctx.fillText(_fmt(val) + 'h', PL - 4, y);
     }
 
     if (!periods.length) {
-      ctx.fillStyle = CLR_DIM; ctx.font = '13px Calibri,Arial'; ctx.textAlign = 'center';
+      ctx.fillStyle = CLR_DIM; ctx.font = '13px "Manrope", system-ui'; ctx.textAlign = 'center';
       ctx.fillText('Sin datos en el período seleccionado', W / 2, H / 2);
       return;
     }
 
     const msPerDay = 86400000;
-    const vp = this._ganttVp;
 
     // Líneas verticales de semanas alineadas con el Gantt
     if (vp && vp.projectStart && vp.pixPerDay > 0) {
@@ -397,6 +397,7 @@ export class ResourceHistogramPanel {
         bxL    = PL + pi * bGrpW + pad;
         bxR    = PL + (pi + 1) * bGrpW - pad;
         labelX = PL + pi * bGrpW + bGrpW / 2;
+        if (pi % Math.max(1, Math.ceil(30 / bGrpW))) labelX = null;   // sin espacio: etiqueta cada n períodos
       }
 
       const bW = Math.max(1, bxR - bxL);
@@ -411,9 +412,9 @@ export class ResourceHistogramPanel {
       }
 
       // X label
-      if (!vp || (bxR - bxL) >= 16) {
+      if (labelX !== null && (!vp || (bxR - bxL) >= 16)) {
         ctx.fillStyle    = CLR_DIM;
-        ctx.font         = '9px Calibri,Arial';
+        ctx.font         = '9px "Manrope", system-ui';
         ctx.textAlign    = 'center';
         ctx.textBaseline = 'top';
         ctx.fillText(p.label, labelX, PT + cH + 5);
@@ -422,7 +423,7 @@ export class ResourceHistogramPanel {
 
     // Curva S — horas acumuladas (escala porcentual en eje derecho)
     {
-      const CLR_SCURVE = _v('--clr-primary') || '#3b82f6';
+      const CLR_SCURVE = C.SCURVE;
       const periodTotals = periods.map(p => {
         let t = 0;
         for (const r of activeRes) t += p.byResource.get(r.id) ?? 0;
@@ -487,7 +488,7 @@ export class ResourceHistogramPanel {
         // Eje Y derecho: etiquetas de porcentaje
         ctx.textAlign    = 'left';
         ctx.textBaseline = 'middle';
-        ctx.font         = '9px Calibri,Arial';
+        ctx.font         = '9px "Manrope", system-ui';
         ctx.fillStyle    = CLR_SCURVE;
         for (const pct of [0, 0.25, 0.5, 0.75, 1.0]) {
           const y = PT + cH * (1 - pct);
@@ -518,7 +519,7 @@ export class ResourceHistogramPanel {
         ctx.beginPath(); ctx.moveTo(PL, lineY); ctx.lineTo(PL + cW, lineY); ctx.stroke();
         ctx.setLineDash([]);
         ctx.fillStyle    = CLR_OVER;
-        ctx.font         = '10px Calibri,Arial';
+        ctx.font         = '10px "Manrope", system-ui';
         ctx.textAlign    = 'left';
         ctx.textBaseline = 'bottom';
         ctx.fillText('Capacidad máx.', PL + 4, lineY - 2);
@@ -538,7 +539,7 @@ export class ResourceHistogramPanel {
     ctx.translate(12, PT + cH / 2);
     ctx.rotate(-Math.PI / 2);
     ctx.fillStyle  = CLR_DIM;
-    ctx.font       = '10px Calibri,Arial';
+    ctx.font       = '10px "Manrope", system-ui';
     ctx.textAlign  = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText('Horas', 0, 0);
@@ -583,6 +584,43 @@ export class ResourceHistogramPanel {
         <span class="rh-leg-cap">máx. ${over}%</span>
       </div>`;
     }).join('');
+  }
+
+  /** PDF con el mismo contenido que la app: tabla de recursos, gráfico vectorial (SVG) y leyenda. */
+  _print() {
+    if (!this._data) return;
+    const { resources } = this._data;
+    const activeRes = this._filterRes ? resources.filter(r => r.id === this._filterRes) : resources;
+    const color = (r) => PALETTE[resources.indexOf(r) % PALETTE.length];
+
+    // Colores fijos de impresión (fondo blanco), independientes del tema de la app
+    const C = { BG: '#ffffff', SURFACE: '#f5f7fa', DIM: '#5b6270', GRID: '#e5e7eb', BORDER: '#cbd5e0',
+                OVER: '#c62828', SCURVE: '#4f46e5' };
+    const W = 560, H = 360;
+    const svg = new SvgCtx(W, H);
+    this._draw(svg, W, H, activeRes, null, C);
+
+    const dot = (c, round) => `<span style="display:inline-block;width:9px;height:9px;border-radius:${round ? '50%' : '2px'};background:${c};margin-right:6px;vertical-align:middle"></span>`;
+    const resRows = resources.map(r => `<tr><td>${dot(color(r), true)}${_esc(r.name)}</td><td style="text-align:right">${r.max_units ?? 100}%</td></tr>`).join('');
+    const legend = activeRes.map(r => `<span style="display:inline-flex;align-items:center;margin:0 14px 4px 0;font-size:9pt">${dot(color(r), false)}<strong style="font-weight:600">${_esc(r.name)}</strong>&nbsp;<span style="color:#5b6270">máx. ${r.max_units ?? 100}%</span></span>`).join('');
+    const periodo = this._groupBy === 'month' ? 'Mes' : 'Semana';
+    const recurso = this._filterRes ? (resources.find(r => r.id === this._filterRes)?.name ?? '') : 'Todos';
+
+    const html = `
+<div class="print-subtitle">Carga de trabajo por período · Estilo MS Project / P6 · Período: ${periodo} · Recurso: ${_esc(recurso)}</div>
+<div style="display:flex;gap:6mm;align-items:flex-start">
+  <div style="flex:0 0 30%">
+    <table style="width:100%;border-collapse:collapse">
+      <thead><tr><th style="text-align:left">Recurso</th><th style="text-align:right">Cap.</th></tr></thead>
+      <tbody>${resRows}</tbody>
+    </table>
+  </div>
+  <div style="flex:1;min-width:0">
+    ${svg.toSvg()}
+    <div style="border-top:1px solid #e2e8f0;padding-top:3mm;margin-top:2mm">${legend}</div>
+  </div>
+</div>`;
+    printToPdf('Histograma de Recursos', html);
   }
 
   destroy() {
@@ -645,4 +683,5 @@ function _esc(s) {
     .replace(/&/g, '&amp;').replace(/</g, '&lt;')
     .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
+
 

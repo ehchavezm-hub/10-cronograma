@@ -10,6 +10,8 @@
 import { appState }      from './state.js';
 import { isoToDate, Calendar, fmtDate } from './calendar.js';
 import { exportSvg }     from './io.js';
+import { GANTT_ROW_H, GANTT_HDR_H } from './gantt-svg.js';
+import { pageHfCss, REPORT_FONT_CSS, supportsPageMarginBoxes, FONTS_LINK } from './pdf-utils.js';
 
 // ============================================================
 // Imprimir tabla EDT
@@ -65,13 +67,14 @@ export function printWbsTable() {
   const _footerStyle = document.createElement('style');
   _footerStyle.id = 'print-ecm-footer';
   _footerStyle.textContent = `@media print {
-    .phf-hdr{font-family:'Urbanist',system-ui,sans-serif;position:fixed;top:0;left:0;right:0;height:26px;display:flex!important;align-items:center;justify-content:space-between;padding:0 10mm;border-bottom:0.5pt solid #CBD5E0;font-size:9pt;color:#4A5568;background:#fff;z-index:9999;-webkit-print-color-adjust:exact;print-color-adjust:exact}
-    .phf-ftr{font-family:'Urbanist',system-ui,sans-serif;position:fixed;bottom:0;left:0;right:0;height:22px;display:flex!important;align-items:center;justify-content:space-between;padding:0 10mm;border-top:0.5pt solid #CBD5E0;font-size:8pt;color:#718096;background:#fff;z-index:9999;-webkit-print-color-adjust:exact;print-color-adjust:exact}
-    .wbs-table, .wbs-table th, .wbs-table td { font-family: 'Arial Narrow', Arial, sans-serif !important; }
-    @page { margin: 26px 10mm 22px 10mm; }
+    .phf-hdr{font-family:'Urbanist',system-ui,sans-serif;position:fixed;top:0;left:0;right:0;height:26px;display:flex!important;align-items:center;justify-content:space-between;padding:0 10mm;border-bottom:0.5pt solid #CBD5E0;font-size:6pt;color:#4A5568;background:#fff;z-index:9999;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    .phf-ftr{font-family:'Urbanist',system-ui,sans-serif;position:fixed;bottom:0;left:0;right:0;height:22px;display:flex!important;align-items:center;justify-content:space-between;padding:0 10mm;border-top:0.5pt solid #CBD5E0;font-size:6pt;color:#718096;background:#fff;z-index:9999;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    #app, #app * { font-family: 'Manrope', system-ui, sans-serif !important; }
+    @page { margin: 10mm; }
   }
   #print-ecm-hf { display:none; }
-  @media print { #print-ecm-hf { display:block; } }`;
+  @media print { #print-ecm-hf { display:block; } }
+  ${pageHfCss({ proj: _wProj?.name ?? 'ECM Project', date: `${_hfDD}-${_hfMM}-${_hfYY}, ${_hfHH}:${_hfMi}`, footRight: 'Tabla EDT' })}`;
   document.head.appendChild(_footerStyle);
   document.body.classList.add('printing');
   window.print();
@@ -132,7 +135,7 @@ export function printGantt(rows) {
     const today      = _dG.toLocaleDateString('es-PE');
     const _gHH = String(_dG.getHours()).padStart(2,'0');
     const _gMi = String(_dG.getMinutes()).padStart(2,'0');
-    const _gTitle    = `${project.name} - Gantt - ${_gDD}/${_gMM}/${_gYY}`;
+    const _gTitle    = `${project.name}-Gantt-${_gDD}${_gMM}${_gYY}`;   // = nombre del PDF (PROYECTO-Proceso-Fecha)
     const _pdfFile   = `${project.name}-Gantt-${_gDD}${_gMM}${_gYY}.pdf`;
     const _projLabel = _esc(project.name);
 
@@ -150,7 +153,7 @@ export function printGantt(rows) {
     const html = `<!doctype html>
 <html lang="es"><head>
   <meta charset="UTF-8">
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Urbanist:wght@400;500;600&display=swap">
+  ${FONTS_LINK}
   <title>${_esc(_gTitle)}</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -175,12 +178,14 @@ export function printGantt(rows) {
     .preview { padding: 20px; display:flex; flex-direction:column; align-items:center; gap:16px; min-height:calc(100vh - 52px); }
     .page-tile { background:#fff; box-shadow:0 4px 14px rgba(0,0,0,.4); position:relative; flex-shrink:0; }
     .page-tile svg { display:block; }
-    .page-foot { position:absolute; bottom:4mm; left:10mm; right:10mm;
-                 display:flex; justify-content:space-between; font-size:7pt; color:#718096;
+    .page-foot { position:absolute; bottom:1mm; left:0; right:0;
+                 display:flex; justify-content:space-between; font-size:6pt; color:#718096;
                  border-top:0.5pt solid #CBD5E0; padding-top:2px;
                  font-family:'Urbanist',system-ui,sans-serif; }
-    .page-head { position:absolute; top:4mm; left:10mm; right:10mm;
-                 display:flex; justify-content:space-between; font-size:7pt; color:#4A5568;
+    .page-title { position:absolute; top:4.5mm; left:0; right:0; text-align:center;
+                  font-family:'Urbanist',system-ui,sans-serif; font-size:14pt; font-weight:600; color:#1A365D; }
+    .page-head { position:absolute; top:1mm; left:0; right:0;
+                 display:flex; justify-content:space-between; font-size:6pt; color:#4A5568;
                  border-bottom:0.5pt solid #CBD5E0; padding-bottom:2px;
                  font-family:'Urbanist',system-ui,sans-serif; }
     @media print {
@@ -191,24 +196,32 @@ export function printGantt(rows) {
       .page-tile:last-child { break-after:avoid; page-break-after:avoid; }
       .page-foot { display:flex !important; }
     }
+    ${pageHfCss({ proj: project.name, date: `${_gDD}-${_gMM}-${_gYY}, ${_gHH}:${_gMi}` })}
+    ${REPORT_FONT_CSS}
   </style>
 </head><body>
   <div class="controls">
-    <button class="btn-print" id="btn-pdf" onclick="window.print()">&#x1F5A8; Guardar PDF</button>
+    <label>Papel: <select id="paper" onchange="autoPages();renderTiles()" title="Tamaño del papel del PDF">
+      <option value="A4" selected>A4</option><option value="A3">A3</option><option value="A2">A2</option><option value="A1">A1</option>
+      <option value="Carta">Carta</option><option value="Oficio">Oficio</option><option value="Legal">Legal</option><option value="Tabloide">Tabloide</option>
+    </select></label>
     <div class="sep"></div>
     <span class="lbl-sm">Orientaci&#243;n:</span>
     <button class="btn-c active" id="btn-land" onclick="setOrient('landscape')">&#x2B1B; Horizontal</button>
     <button class="btn-c" id="btn-port" onclick="setOrient('portrait')">&#x1F532; Vertical</button>
     <div class="sep"></div>
-    <label>Hojas H: <input type="number" id="h-pages" min="1" max="10" value="1" onchange="renderTiles()"></label>
-    <label>Hojas V: <input type="number" id="v-pages" min="1" max="10" value="1" onchange="renderTiles()"></label>
+    <label title="Todo el diagrama en una sola hoja"><input type="checkbox" id="fit1" onchange="renderTiles()"> Todo en 1 hoja</label>
+    <div class="sep"></div>
+    <label title="Franjas horizontales en que se corta el diagrama (hojas una debajo de otra). Se calcula solo: cada hoja se llena con las actividades que caben">Hojas H: <input type="number" id="pg-rows" min="1" value="1" disabled></label>
+    <label title="Columnas en que se corta el ancho del diagrama (define el tamaño del texto)">Hojas V: <input type="number" id="pg-cols" min="1" max="10" value="1" onchange="renderTiles()"></label>
     <div class="sep"></div>
     <span class="lbl-sm">&#x1F4C1; Archivo:</span>
-    <input type="text" id="fn-inp" class="fn-inp" value="${_pdfFile}" title="Nombre sugerido del archivo PDF">
+    <input type="text" id="fn-inp" class="fn-inp" value="${_pdfFile}" title="Nombre sugerido del archivo PDF" oninput="document.title=this.value.replace(/\.pdf$/i,'')">
     <div class="sep"></div>
     <span class="lbl-sm">${today}</span>
     <div class="sep"></div>
     <button class="btn-c" onclick="window.close()">&#x2715; Cerrar</button>
+    <button class="btn-print" id="btn-pdf" style="margin-left:auto" onclick="window.print()">&#x1F5A8; Guardar PDF</button>
   </div>
   <div class="preview" id="preview"></div>
 
@@ -220,34 +233,81 @@ export function printGantt(rows) {
     const DATE_STR = "${_gDD}-${_gMM}-${_gYY}, ${_gHH}:${_gMi}";
     const TOTAL_PAGES_REF = { v: 1 };
 
+    const HF_IN_MARGIN = ${supportsPageMarginBoxes()};  // encabezado/pie en el margen de la hoja (@page)
+    const MIN_PT = 6, BASE_PX = 10;   // las etiquetas del dibujo (10px) se imprimen a 6pt o más
+
     let _orient = 'landscape';
+
+    /** Tamaños de papel (mm, vertical). */
+    const PAPERS = { A4: [210, 297], A3: [297, 420], A2: [420, 594], A1: [594, 841],
+                     Carta: [216, 279], Oficio: [216, 330], Legal: [216, 356], Tabloide: [279, 432] };
+
+    /** Hoja (mm) y área útil: márgenes de 10mm, banda del título y, sin margin boxes, encabezado/pie. */
+    function layout() {
+      const isLand = _orient === 'landscape';
+      const [pw, ph] = PAPERS[document.getElementById('paper').value] || PAPERS.A4;
+      const W = isLand ? Math.max(pw, ph) : Math.min(pw, ph), H = isLand ? Math.min(pw, ph) : Math.max(pw, ph);
+      const MARG = 10, top = HF_IN_MARGIN ? 9 : 12, bottom = HF_IN_MARGIN ? 0 : 5;
+      return { W, H, MARG, top, bottom, availW: W - 2 * MARG, availH: H - 2 * MARG - top - bottom };
+    }
+
+    // Filas del Gantt: las hojas se cortan entre filas y cada hoja repite el encabezado (tabla + escala de tiempo)
+    const ROW_H = ${GANTT_ROW_H}, HDR_H = ${GANTT_HDR_H};
+    const ROWS = Math.max(1, Math.round((SVG_H - HDR_H) / ROW_H));
+
+    /** Hojas V (columnas) necesarias para que el texto quede legible (≥ MIN_PT). Las Hojas H salen de las filas que caben. */
+    function autoPages() {
+      const L = layout(), mmPerPx = MIN_PT / BASE_PX * 25.4 / 72;
+      document.getElementById('pg-cols').value = Math.min(10, Math.max(1, Math.ceil(SVG_W * mmPerPx / L.availW)));
+    }
+
+    /** SVG con una porción (viewBox) del Gantt, del tamaño exacto de esa porción escalada. */
+    function slice(x, y, w, h, scale) {
+      const el = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      el.setAttribute('viewBox', x + ' ' + y + ' ' + w + ' ' + h);
+      el.setAttribute('width', (w * scale) + 'mm');
+      el.setAttribute('height', (h * scale) + 'mm');
+      el.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+      el.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
+      el.setAttribute('preserveAspectRatio', 'xMinYMin meet');
+      el.style.display = 'block';
+      el.style.overflow = 'hidden';
+      el.innerHTML = SVG_INNER;
+      return el;
+    }
 
     function setOrient(o) {
       _orient = o;
       document.getElementById('btn-land').classList.toggle('active', o === 'landscape');
       document.getElementById('btn-port').classList.toggle('active', o === 'portrait');
+      autoPages();
       renderTiles();
     }
 
     function renderTiles() {
-      const hPages = Math.max(1, Math.min(10, parseInt(document.getElementById('h-pages').value) || 1));
-      const vPages = Math.max(1, Math.min(10, parseInt(document.getElementById('v-pages').value) || 1));
-      const isLand = _orient === 'landscape';
-      const MARG = 10; // mm
-      const A4w = isLand ? 297 : 210;
-      const A4h = isLand ? 210 : 297;
-      const availW = A4w - 2 * MARG; // mm
-      const availH = A4h - 2 * MARG - 8; // mm (8mm reservado para footer)
+      const fit1 = document.getElementById('fit1').checked;
+      const colsIn = document.getElementById('pg-cols');
+      colsIn.disabled = fit1;
+      const hPages = fit1 ? 1 : Math.max(1, Math.min(10, parseInt(colsIn.value) || 1));   // columnas (Hojas V)
+      const { W, H, MARG, top, bottom, availW, availH } = layout();
 
+      // La escala la fija el ancho (Hojas V). Cada hoja se llena con todas las filas que
+      // caben y las siguientes pasan a la hoja de abajo: así salen las Hojas H.
+      // "Todo en 1 hoja": el diagrama completo se reduce hasta caber en una sola hoja.
       const cellW = SVG_W / hPages;
-      const cellH = SVG_H / vPages;
+      const scale = fit1 ? Math.min(availW / SVG_W, availH / SVG_H)
+                         : Math.min(availW / cellW, availH / (HDR_H + ROW_H));
+      const rowsPer = fit1 ? ROWS : Math.max(1, Math.floor((availH / scale - HDR_H) / ROW_H + 1e-6));
+      const vPages = Math.ceil(ROWS / rowsPer);                                             // franjas (Hojas H)
+      document.getElementById('pg-rows').value = vPages;
+      if (fit1) colsIn.value = 1;
       const totalPages = hPages * vPages;
       TOTAL_PAGES_REF.v = totalPages;
 
       // @page CSS
       let ps = document.getElementById('_ps') || document.createElement('style');
       ps.id = '_ps';
-      ps.textContent = '@page{size:A4 ' + _orient + ';margin:' + MARG + 'mm}';
+      ps.textContent = '@page{size:' + W + 'mm ' + H + 'mm;margin:' + MARG + 'mm}';
       document.head.appendChild(ps);
 
       const preview = document.getElementById('preview');
@@ -258,38 +318,43 @@ export function printGantt(rows) {
         for (let i = 0; i < hPages; i++) {
           pageNum++;
           const vbX = i * cellW;
-          const vbY = j * cellH;
+          const r0 = j * rowsPer, r1 = Math.min(ROWS, r0 + rowsPer);
 
           const tile = document.createElement('div');
           tile.className = 'page-tile';
           tile.style.width = availW + 'mm';
-          tile.style.height = (availH + 8) + 'mm';
+          tile.style.height = (availH + top + bottom) + 'mm';
 
-          const svgEl = document.createElementNS('http://www.w3.org/2000/svg','svg');
-          svgEl.setAttribute('viewBox', vbX + ' ' + vbY + ' ' + cellW + ' ' + cellH);
-          svgEl.setAttribute('width', availW + 'mm');
-          svgEl.setAttribute('height', availH + 'mm');
-          svgEl.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
-          svgEl.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
-          svgEl.setAttribute('preserveAspectRatio', 'xMinYMin meet');
-          svgEl.innerHTML = SVG_INNER;
-          tile.appendChild(svgEl);
+          // Encabezado (columnas de la tabla + meses/días) y filas r0..r1 de esta hoja
+          const hdr = slice(vbX, 0, cellW, HDR_H, scale);
+          hdr.style.marginTop = top + 'mm';
+          tile.appendChild(hdr);
+          if (r1 > r0) tile.appendChild(slice(vbX, HDR_H + r0 * ROW_H, cellW, (r1 - r0) * ROW_H, scale));
 
-          // Footer por tile
-          const head = document.createElement('div');
-          head.className = 'page-head';
-          head.innerHTML = '<span>ECM Project V1.00.01</span><span>' + PROJ_NAME + '</span><span>' + DATE_STR + '</span>';
-          tile.appendChild(head);
-          const foot = document.createElement('div');
-          foot.className = 'page-foot';
-          foot.innerHTML = '<span>By EHCM</span><span>&#8212;</span><span>' + pageNum + ' / ' + totalPages + '</span>';
-          tile.appendChild(foot);
+          const ttl = document.createElement('div');
+          ttl.className = 'page-title';
+          ttl.style.top = HF_IN_MARGIN ? '0' : '4.5mm';
+          ttl.textContent = 'Diagrama de Gantt';
+          tile.appendChild(ttl);
+
+          // Sin soporte de margin boxes: encabezado y pie dentro de la hoja, en bandas propias
+          if (!HF_IN_MARGIN) {
+            const head = document.createElement('div');
+            head.className = 'page-head';
+            head.innerHTML = '<span>ECM Project V1.00.01</span><span>' + PROJ_NAME + '</span><span>' + DATE_STR + '</span>';
+            tile.appendChild(head);
+            const foot = document.createElement('div');
+            foot.className = 'page-foot';
+            foot.innerHTML = '<span>By EHCM</span><span>&#8212;</span><span>P&aacute;gina ' + pageNum + ' de ' + totalPages + '</span>';
+            tile.appendChild(foot);
+          }
 
           preview.appendChild(tile);
         }
       }
     }
 
+    autoPages();
     renderTiles();
   <\/script>
 </body></html>`;

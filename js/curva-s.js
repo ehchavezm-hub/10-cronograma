@@ -5,6 +5,7 @@
  */
 
 import { appState } from './state.js';
+import { pageHfCss, REPORT_TITLE_CSS, REPORT_FONT_CSS, PAPER_SELECT_HTML, PAPER_JS, FONTS_LINK } from './pdf-utils.js';
 import { Calendar, isoToDate } from './calendar.js';
 import { listBaselines, loadBaselineData } from './baseline.js';
 
@@ -297,7 +298,11 @@ export class CurvaSPanel {
     for (let d = minDay; d <= maxDay; d += step) days.push(d);
     if (days[days.length-1] !== maxDay) days.push(maxDay);
 
-    const totalWeight = taskArr.reduce((s, t) => s + (cpmResult.tasks?.get(t.id)?.dur || 1), 0);
+    // Mismo peso que las series (ef - es): con otro peso la curva superaba el 100%
+    const totalWeight = taskArr.reduce((s, t) => {
+      const cpm = cpmResult.tasks?.get(t.id);
+      return cpm ? s + ((cpm.ef - cpm.es) || 1) : s;
+    }, 0) || 1;
 
     // Planificado
     const planned = days.map(day => {
@@ -344,7 +349,7 @@ export class CurvaSPanel {
     /** @type {number[]|null} */
     let baselineSeries = null;
     if (blData && this._vis.baseline) {
-      const blWeight = [...blData.values()].reduce((s, b) => s + (b.dur || 1), 0) || totalWeight;
+      const blWeight = [...blData.values()].reduce((s, b) => s + ((b.ef - b.es) || 1), 0) || totalWeight;
       baselineSeries = days.map(day => {
         let sum = 0;
         for (const [, b] of blData) {
@@ -421,15 +426,15 @@ export class CurvaSPanel {
     if (!w) return;
     w.document.write(`<!DOCTYPE html><html><head>
       <meta charset="utf-8">
-      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Urbanist:wght@400;500;600&display=swap">
+      ${FONTS_LINK}
       <title>${_title}</title>
       <style>
         *{box-sizing:border-box}
         body{font-family:Arial,sans-serif;margin:0;padding:0;background:#f1f5f9}
         .print-header,.print-footer{font-family:'Urbanist',system-ui,sans-serif;-webkit-print-color-adjust:exact;print-color-adjust:exact}
-        .print-header{position:fixed;top:0;left:0;right:0;height:26px;display:none;align-items:center;justify-content:space-between;padding:0 10mm;border-bottom:0.5pt solid #CBD5E0;font-size:9pt;color:#4A5568;background:#fff;z-index:9999}
-        .print-footer{position:fixed;bottom:0;left:0;right:0;height:22px;display:none;align-items:center;justify-content:space-between;padding:0 10mm;border-top:0.5pt solid #CBD5E0;font-size:8pt;color:#718096;background:#fff;z-index:9999}
-        .print-title{font-family:'Urbanist',system-ui,sans-serif;font-size:14pt;font-weight:600;color:#1A365D;text-align:center;margin:0 0 14px;display:none}
+        .print-header{position:fixed;top:0;left:0;right:0;height:26px;display:none;align-items:center;justify-content:space-between;padding:0 10mm;border-bottom:0.5pt solid #CBD5E0;font-size:6pt;color:#4A5568;background:#fff;z-index:9999}
+        .print-footer{position:fixed;bottom:0;left:0;right:0;height:22px;display:none;align-items:center;justify-content:space-between;padding:0 10mm;border-top:0.5pt solid #CBD5E0;font-size:6pt;color:#718096;background:#fff;z-index:9999}
+        ${REPORT_TITLE_CSS}
         .tb{background:#fff;padding:8px 14px;display:flex;align-items:center;gap:7px;flex-wrap:wrap;position:sticky;top:0;z-index:100;border-bottom:1px solid #e2e8f0}
         .tb button{padding:5px 11px;border:1px solid #d1d5db;border-radius:5px;cursor:pointer;font-size:12px;background:#fff;color:#374151;white-space:nowrap}
         .tb button.pri{background:#1976d2;color:#fff;border-color:#1976d2;font-weight:600;font-size:13px;padding:6px 16px}
@@ -440,33 +445,34 @@ export class CurvaSPanel {
         .tb .lbl{font-size:11px;color:#64748b;white-space:nowrap}
         .tb input[type=text]{font-size:12px;padding:3px 8px;border:1px solid #d1d5db;border-radius:4px;background:#f8fafc;color:#374151;width:300px}
         .pv{padding:20px;display:flex;flex-direction:column;align-items:center;gap:16px;min-height:calc(100vh - 52px)}
-        .a4{background:#fff;box-shadow:0 4px 14px rgba(0,0,0,.4);padding:14mm 15mm;width:210mm;min-height:297mm;overflow:hidden}
-        .a4.land{width:297mm;min-height:210mm}
+        .a4{background:#fff;box-shadow:0 4px 14px rgba(0,0,0,.4);padding:14mm 15mm;width:var(--pw,210mm);min-height:var(--ph,297mm);overflow:hidden}
+        .tb select{font-size:12px;padding:3px 6px;border:1px solid #d1d5db;border-radius:4px;background:#fff;color:#374151}
         h1{font-size:18px;margin:0 0 8px}p{font-size:12px;color:#666;margin:0 0 12px}
         table{border-collapse:collapse;width:100%}th,td{border:1px solid #ccc;padding:5px 8px;font-size:11px}th{background:#f4f5f7;font-weight:600}
         svg{max-width:100%;height:auto}
-        @media print{body{background:#fff}.tb{display:none!important}.pv{padding:0;min-height:0}.a4{box-shadow:none;width:100%;min-height:0;padding:8mm 10mm;padding-top:4px!important}.print-header,.print-footer{display:flex!important}.print-title{display:block!important}@page{margin:26px 10mm 22px 10mm}}
+        @media print{body{background:#fff}.tb{display:none!important}.pv{padding:0;min-height:0}.a4{box-shadow:none;width:100%;min-height:0;padding:1.5mm 0 0!important}.print-header,.print-footer{display:flex!important}@page{margin:10mm}}
+        ${pageHfCss({ proj: _proj, date: `${_dd}-${_dmm}-${_dyy}, ${_dthh}:${_dtmi}` })}
+  ${REPORT_FONT_CSS}
       </style>
     </head><body>
     <div class="tb">
-      <button class="pri" onclick="window.print()">&#x1F5A8; Guardar PDF</button>
-      <div class="sep"></div>
+      ${PAPER_SELECT_HTML}
       <span class="lbl">Orientaci&#243;n:</span>
       <button id="bp" class="act" onclick="setOri('portrait')">&#x1F4C4; Vertical</button>
       <button id="bl" onclick="setOri('landscape')">&#x1F5C2; Horizontal</button>
       <div class="sep"></div>
       <span class="lbl">&#x1F4C1; Archivo:</span>
-      <input type="text" id="fn" value="${_title}.pdf" title="Nombre sugerido del archivo PDF">
+      <input type="text" id="fn" value="${_title}.pdf" title="Nombre sugerido del archivo PDF" oninput="document.title=this.value.replace(/\\.pdf$/i,'')">
       <div class="sep"></div>
       <button onclick="window.close()">&#x2715; Cerrar</button>
+      <button class="pri" style="margin-left:auto" onclick="window.print()">&#x1F5A8; Guardar PDF</button>
     </div>
     <div class="pv">
       <div class="a4" id="a4">
 <div class="print-header"><span>ECM Project V1.00.01</span><span>${_projEsc}</span><span>${_dd}-${_dmm}-${_dyy}, ${_dthh}:${_dtmi}</span></div>
 <div class="print-footer"><span>By EHCM</span><span>&#8212;</span><span>P&aacute;gina <span id="phf-cur">1</span> de <span id="phf-tot">1</span></span></div>
 <div class="print-title">Curva S de Avance</div>
-        <h1>Curva S de Avance</h1>
-        <p>Curvas activas: ${cols.map(c => c.label).join(', ')}</p>
+<div class="print-subtitle">Curvas activas: ${cols.map(c => c.label).join(', ')}</div>
         ${svgStr}
         ${tableHtml}
       </div>
@@ -474,12 +480,17 @@ export class CurvaSPanel {
     <script>
       (function(){function _u(){var h=document.getElementById('a4');if(!h)return;var t=Math.max(1,Math.ceil(h.scrollHeight/1120));var el=document.getElementById('phf-tot');if(el)el.textContent=t;}window.addEventListener('beforeprint',_u);_u();})();
       document.title=${JSON.stringify(_title)};
+      ${PAPER_JS}
+      var _ori='portrait';
       function setOri(o){
-        document.getElementById('a4').classList.toggle('land',o==='landscape');
+        if(o)_ori=o; o=_ori;
+        var sz=paperSize(o), a=document.getElementById('a4');
+        a.style.setProperty('--pw',sz[0]+'mm'); a.style.setProperty('--ph',sz[1]+'mm');
+        a.classList.toggle('land',o==='landscape');
         document.getElementById('bp').classList.toggle('act',o==='portrait');
         document.getElementById('bl').classList.toggle('act',o==='landscape');
         var s=document.getElementById('_ps')||document.createElement('style');
-        s.id='_ps';s.textContent='@page{size:A4 '+o+'}';document.head.appendChild(s);
+        s.id='_ps';s.textContent='@page{size:'+sz[0]+'mm '+sz[1]+'mm}';document.head.appendChild(s);
       }
       setOri('portrait');
     <\/script>

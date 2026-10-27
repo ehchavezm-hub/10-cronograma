@@ -4,7 +4,7 @@
 
 @media print {
   /* ---- Ocultar todo lo que no sea contenido ---- */
-  #topbar, #toolbar, #statusbar, #explorer-panel,
+  #topbar, #toolbar, #statusbar, #explorer-panel, #gantt-filter-bar,
   #bottom-tabs, .resizer, .context-menu, .toast,
   .task-detail-panel, .modal-backdrop, #gantt-panel,
   #dcma-panel, .no-print, .row-more-btn,
@@ -43,7 +43,7 @@
   /* ---- Tabla de actividades ---- */
   .wbs-table {
     font-size: 8pt;
-    font-family: 'Arial Narrow', Arial, sans-serif;
+    font-family: 'Manrope', system-ui, sans-serif;
     width: 100%;
     border-collapse: collapse;
     table-layout: auto;
@@ -88,28 +88,16 @@
   .expand-btn, .task-notes-icon, .sort-indicator,
   .indent-spacer { display: none !important; }
 
-  /* ---- Encabezado de página (logo + nombre proyecto) ---- */
+  /* ---- Título único del reporte (norma de PDFs) ---- */
   #app::before {
-    content: attr(data-print-title);
+    content: "Tabla EDT";
     display: block;
-    font-size: 12pt;
-    font-weight: 700;
-    color: #1976D2;
-    padding: 0 0 6px;
-    border-bottom: 2px solid #1976D2;
-    margin-bottom: 10px;
-  }
-
-  /* ---- Pie de página con marca ECM ---- */
-  #app::after {
-    content: "ECM Project v1.0.0 | © 2026 E. Chávez";
-    display: block;
-    font-size: 7pt;
-    color: #9E9E9E;
+    font-family: 'Manrope', system-ui, sans-serif;
+    font-size: 14pt;
+    font-weight: 600;
+    color: #1A365D;
     text-align: center;
-    margin-top: 4mm;
-    border-top: 1px solid #E0E0E0;
-    padding-top: 3px;
+    margin: 0 0 4mm;
   }
 
   /* ---- Pie de página con número de página ---- */
@@ -118,7 +106,7 @@
     bottom: 8mm;
     left: 10mm;
     right: 10mm;
-    font-size: 7pt;
+    font-size: 6pt;
     color: #9E9E9E;
     border-top: 1px solid #E0E0E0;
     padding-top: 3px;
@@ -134,12 +122,7 @@
   /* ---- Ajuste de página ---- */
   @page {
     size: A4 landscape;
-    margin: 12mm 10mm 18mm;
-  }
-
-  /* Primera página sin margen superior adicional */
-  @page :first {
-    margin-top: 16mm;
+    margin: 10mm;
   }
 
   /* Evitar salto de página dentro de grupos de fases */

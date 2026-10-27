@@ -15,7 +15,7 @@ import { computeCPM }    from './cpm.js';
 import { openDB, listProjects, listAllProjects, loadProject, saveProjectSnapshot, putMany, put as dbPut, getByIndex, getAll, remove as dbRemove,
          listPortfolios, savePortfolio, deletePortfolio, listPrograms, saveProgram, deleteProgram, loadHierarchy } from './storage.js';
 import { t }             from './i18n.js';
-import { DEMO_DATA }     from './demo-data.js';
+import { ensureDemoData } from './demo-seed.js';
 import { exportJson, importJson, exportCsv, exportMspXml, exportSvg } from './io.js';
 import { printWbsTable, printGantt, getPrintCols, setPrintCols } from './print.js';
 import { SyncEngine }     from './sync.js';
@@ -35,7 +35,16 @@ import { CurvaSPanel } from './curva-s.js';
 import { NotificationsPanel, updateNotificationBadge } from './notifications.js';
 import { WbsDictionaryPanel } from './wbs-dictionary.js';
 import { generatePdfReport } from './pdf-report.js';
+import { pageHfCss, REPORT_TITLE_CSS, REPORT_FONT_CSS, normalizeReportBody, supportsPageMarginBoxes, PAPER_SELECT_HTML, PAPER_JS, FONTS_LINK, installDesktopPrint } from './pdf-utils.js';
 import { debouncedSave, queue } from './async-queue.js';
+import { initReports } from './reports.js';
+import { authInit, authState, showLoginModal, logout } from './auth.js';
+import { showUsuariosPanel } from './usuarios.js';
+import { showEmpresaAdminPanel } from './empresa-admin.js';
+
+// Precargar Manrope: los gráficos canvas de los reportes (DCMA, EVM, Histograma) la usan
+// y el canvas no dispara la descarga de la fuente por sí solo.
+['400 10px "Manrope"', '600 11px "Manrope"', '700 28px "Manrope"'].forEach(f => document.fonts?.load(f).catch(() => {}));
 
 // ============================================================
 // Detectar file://
@@ -1738,22 +1747,8 @@ function _updateUndoRedoBtns() {
 // ============================================================
 
 async function _ensureDemoData() {
-  const allProjects = await listAllProjects();
-  const DEMO_UUID = '00000000-0000-0000-0000-000000000010';
-  const demoRecord = allProjects.find(p => p.id === DEMO_UUID);
-  // Si no existe o fue eliminado accidentalmente, siempre lo restauramos
-  if (!demoRecord || demoRecord.deleted_at) {
-    await saveProjectSnapshot(DEMO_DATA);
-  }
-  // Siempre garantizar que los recursos demo existan
-  if (DEMO_DATA.resources?.length) {
-    const existingRes = await getAll('resources').then(r => r.filter(x => !x.deleted_at));
-    if (!existingRes.length) {
-      await putMany('resources',      DEMO_DATA.resources);
-      await putMany('task_resources', DEMO_DATA.task_resources);
-    }
-  }
-  return DEMO_DATA.project;
+  // Proyecto DEMO completo con fechas al día (ver demo-seed.js)
+  return ensureDemoData();
 }
 
 async function _loadProject(projectId) {
@@ -1825,8 +1820,16 @@ async function _loadProject(projectId) {
 async function _renderProjectList() {
   const list = document.getElementById('explorer-list');
   if (!list) return;
-  const { portfolios, programs, projects } = await loadHierarchy();
+  let { portfolios, programs, projects } = await loadHierarchy();
   const currentId = appState.state.project?.id;
+
+  // Filtrar por empresa activa (modo Supabase)
+  const orgId = authState.empresaActual?.org_id;
+  if (!IS_LOCAL_MODE && orgId) {
+    projects   = projects.filter(p => !p.org_id || p.org_id === orgId);
+    portfolios = portfolios.filter(pf => !pf.org_id || pf.org_id === orgId);
+    programs   = programs.filter(pg => !pg.org_id || pg.org_id === orgId);
+  }
 
   // Estado de colapso persistido en localStorage
   let collapsed = new Set();
@@ -1899,6 +1902,21 @@ async function _renderProjectList() {
   rootProjects.forEach(p => rows.push(_projItem(p, 0)));
 
   list.innerHTML = rows.join('');
+
+  // Empresa badge en el explorador
+  let empresaBadge = document.getElementById('explorer-empresa-badge');
+  if (!empresaBadge) {
+    empresaBadge = document.createElement('div');
+    empresaBadge.id = 'explorer-empresa-badge';
+    empresaBadge.style.cssText = 'padding:4px 8px 0;font-size:10px;color:var(--clr-text-3,#888);overflow:hidden;text-overflow:ellipsis;white-space:nowrap';
+    list.parentElement?.insertBefore(empresaBadge, list);
+  }
+  if (!IS_LOCAL_MODE && authState.empresaActual) {
+    empresaBadge.textContent = '🏢 ' + (authState.empresaActual.org_name || '');
+    empresaBadge.style.display = '';
+  } else {
+    empresaBadge.style.display = 'none';
+  }
 
   // Recovery button when no projects visible
   if (projects.length === 0) {
@@ -2294,7 +2312,8 @@ function _bindNewProject() {
         _showToast('Programa creado: ' + name, 'success');
       } else {
         const newProject = {
-          id, org_id: null, code: code || null, name, start_date: start,
+          id, org_id: authState.empresaActual?.org_id || null,
+          code: code || null, name, start_date: start,
           data_date: null, status: 'active', is_template: false,
           settings: { portfolio_id, program_id },
           created_at: now, updated_at: now, deleted_at: null,
@@ -2643,7 +2662,7 @@ function _printToPdf(moduleName, htmlContent) {
   }
   w.document.write(`<!DOCTYPE html><html><head>
 <meta charset="utf-8">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Urbanist:wght@400;500;600&display=swap">
+${FONTS_LINK}
 <title>${title}</title>
 <style>
   ${_appCssVars}
@@ -2659,48 +2678,55 @@ function _printToPdf(moduleName, htmlContent) {
   .tb .lbl{font-size:11px;color:#64748b;white-space:nowrap}
   .tb input[type=text]{font-size:12px;padding:3px 8px;border:1px solid #d1d5db;border-radius:4px;background:#f8fafc;color:#374151;width:300px}
   .pv{padding:20px;display:flex;flex-direction:column;align-items:center;gap:16px;min-height:calc(100vh - 52px)}
-  .a4{background:#fff;box-shadow:0 4px 14px rgba(0,0,0,.4);padding:14mm 15mm;width:210mm;min-height:297mm;overflow:hidden}
-  .a4.land{width:297mm;min-height:210mm}
+  .a4{background:#fff;box-shadow:0 4px 14px rgba(0,0,0,.4);padding:14mm 15mm;width:var(--pw,210mm);min-height:var(--ph,297mm);overflow:hidden}
+  .tb select{font-size:12px;padding:3px 6px;border:1px solid #d1d5db;border-radius:4px;background:#fff;color:#374151}
   h1{font-size:18px;margin-bottom:16px}
   h2{font-size:14px;margin:14px 0 6px}
   table{border-collapse:collapse;width:100%}th,td{border:1px solid #ccc;padding:6px 10px;font-size:12px}th{background:#f4f5f7;font-weight:600}
   svg{max-width:100%;height:auto}img{max-width:100%}
   .badge{display:inline-block;border-radius:10px;padding:1px 7px;font-size:11px;font-weight:600}
   .print-header,.print-footer{font-family:'Urbanist',system-ui,sans-serif;-webkit-print-color-adjust:exact;print-color-adjust:exact}
-  .print-header{position:fixed;top:0;left:0;right:0;height:26px;display:none;align-items:center;justify-content:space-between;padding:0 10mm;border-bottom:0.5pt solid #CBD5E0;font-size:9pt;color:#4A5568;background:#fff;z-index:9999}
-  .print-footer{position:fixed;bottom:0;left:0;right:0;height:22px;display:none;align-items:center;justify-content:space-between;padding:0 10mm;border-top:0.5pt solid #CBD5E0;font-size:8pt;color:#718096;background:#fff;z-index:9999}
-  .print-title{font-family:'Urbanist',system-ui,sans-serif;font-size:14pt;font-weight:600;color:#1A365D;text-align:center;margin:0 0 14px}
-  @media print{body{background:#fff}.tb{display:none!important}.pv{padding:0;min-height:0}.a4{box-shadow:none;width:100%;min-height:0;padding:8mm 10mm;padding-top:4px!important}.print-header,.print-footer{display:flex!important}@page{margin:26px 10mm 22px 10mm}}
+  .print-header{position:fixed;top:0;left:0;right:0;height:26px;display:none;align-items:center;justify-content:space-between;padding:0 10mm;border-bottom:0.5pt solid #CBD5E0;font-size:6pt;color:#4A5568;background:#fff;z-index:9999}
+  .print-footer{position:fixed;bottom:0;left:0;right:0;height:22px;display:none;align-items:center;justify-content:space-between;padding:0 10mm;border-top:0.5pt solid #CBD5E0;font-size:6pt;color:#718096;background:#fff;z-index:9999}
+  ${REPORT_TITLE_CSS}
+  @media print{body{background:#fff}.tb{display:none!important}.pv{padding:0;min-height:0}.a4{box-shadow:none;width:100%;min-height:0;padding:1.5mm 0 0!important}.print-header,.print-footer{display:flex!important}@page{margin:10mm}}
+  ${pageHfCss({ proj: _proj, date: `${_dd}-${_mm}-${_yy}, ${_hh}:${_mi}` })}
+  ${REPORT_FONT_CSS}
 </style>
 </head><body>
 <div class="tb">
-  <button class="pri" onclick="window.print()">&#x1F5A8; Guardar PDF</button>
-  <div class="sep"></div>
+  ${PAPER_SELECT_HTML}
   <span class="lbl">Orientaci&#243;n:</span>
   <button id="bp" class="act" onclick="setOri('portrait')">&#x1F4C4; Vertical</button>
   <button id="bl" onclick="setOri('landscape')">&#x1F5C2; Horizontal</button>
   <div class="sep"></div>
   <span class="lbl">&#x1F4C1; Archivo:</span>
-  <input type="text" id="fn" value="${title}.pdf" title="Nombre sugerido del archivo PDF">
+  <input type="text" id="fn" value="${title}.pdf" title="Nombre sugerido del archivo PDF" oninput="document.title=this.value.replace(/\\.pdf$/i,'')">
   <div class="sep"></div>
   <button onclick="window.close()">&#x2715; Cerrar</button>
+  <button class="pri" style="margin-left:auto" onclick="window.print()">&#x1F5A8; Guardar PDF</button>
 </div>
 <div class="pv">
   <div class="a4" id="a4">
 <div class="print-header"><span>ECM Project V1.00.01</span><span>${_projEsc}</span><span>${_dd}-${_mm}-${_yy}, ${_hh}:${_mi}</span></div>
 <div class="print-footer"><span>By EHCM</span><span>&#8212;</span><span>P&aacute;gina <span id="phf-cur">1</span> de <span id="phf-tot">1</span></span></div>
 <div class="print-title">${_modEsc}</div>
-${htmlContent}</div>
+${normalizeReportBody(moduleName, htmlContent)}</div>
 </div>
 <script>
   (function(){function _u(){var h=document.getElementById('a4');if(!h)return;var t=Math.max(1,Math.ceil(h.scrollHeight/1120));var el=document.getElementById('phf-tot');if(el)el.textContent=t;}window.addEventListener('beforeprint',_u);_u();})();
   document.title=${JSON.stringify(title)};
+  ${PAPER_JS}
+  var _ori='portrait';
   function setOri(o){
-    document.getElementById('a4').classList.toggle('land',o==='landscape');
+    if(o)_ori=o; o=_ori;
+    var sz=paperSize(o), a=document.getElementById('a4');
+    a.style.setProperty('--pw',sz[0]+'mm'); a.style.setProperty('--ph',sz[1]+'mm');
+    a.classList.toggle('land',o==='landscape');
     document.getElementById('bp').classList.toggle('act',o==='portrait');
     document.getElementById('bl').classList.toggle('act',o==='landscape');
     var s=document.getElementById('_ps')||document.createElement('style');
-    s.id='_ps';s.textContent='@page{size:A4 '+o+'}';document.head.appendChild(s);
+    s.id='_ps';s.textContent='@page{size:'+sz[0]+'mm '+sz[1]+'mm}';document.head.appendChild(s);
   }
   setOri('portrait');
 <\/script>
@@ -3047,11 +3073,19 @@ function _bindToolbar() {
     await _openBaselineCompareModal();
   });
 
+  let _blcAutoProject = null;
   async function _openBaselineCompareModal() {
     const { project, tasks, cpmResult } = appState.state;
     if (!project || !cpmResult) return;
 
     const baselines = await listBaselines(project.id);
+    // Primera vez en el proyecto: comparar con la línea base principal (o la más reciente)
+    if (_blcAutoProject !== project.id && baselines.length && !isBaselineCompareEnabled()) {
+      _blcAutoProject = project.id;
+      const def = baselines.find(b => b.is_primary) ?? baselines[0];
+      try { await enableBaselineCompare(def.id); } catch { /* sin datos de línea base */ }
+    }
+    _blcAutoProject = project.id;
 
     let dlg = /** @type {HTMLDialogElement|null} */ (document.getElementById('dlg-baseline-compare'));
     if (!dlg) {
@@ -3133,6 +3167,13 @@ function _bindToolbar() {
       })();
       const tbody = dlg.querySelector('#dlg-blc-tbody');
       if (!tbody || !cpmResult?.tasks) return;
+      // Índices laborables → fechas del calendario del proyecto
+      const { calendar: _bc, calExceptions: _bx } = appState.state;
+      const _bCal = new Calendar({ work_week: _bc?.work_week ?? [1,2,3,4,5], exceptions: (_bx ?? []).filter(e => !e.deleted_at) });
+      const _bStart = isoToDate(project.start_date || new Date().toISOString().slice(0, 10));
+      const _fd = (d) => `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`;
+      const _ds = (i) => _fd(_bCal.idxToDate(i, _bStart));
+      const _df = (ef, es) => ef <= es ? _ds(es) : _fd(_bCal.finishDate(ef, _bStart)); // hito: mismo día
       const rows = [];
       for (const [tid, cpm] of cpmResult.tasks) {
         const task = tasks.get(tid);
@@ -3147,11 +3188,11 @@ function _bindToolbar() {
         const clrD = dd === 0 ? '' : dd > 0 ? 'color:#D32F2F' : 'color:#388E3C';
         rows.push(`<tr style="border-bottom:1px solid var(--clr-border-2)">
           <td style="padding:6px 10px;font-size:12px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${_escHtml(task.name)}</td>
-          <td style="padding:6px 10px;text-align:center">${bl.es}</td>
-          <td style="padding:6px 10px;text-align:center">${cpm.es}</td>
+          <td style="padding:6px 10px;text-align:center">${_ds(bl.es)}</td>
+          <td style="padding:6px 10px;text-align:center">${_ds(cpm.es)}</td>
           <td style="padding:6px 10px;text-align:center;font-weight:600;${clrI}">${di >= 0 ? '+' : ''}${di}</td>
-          <td style="padding:6px 10px;text-align:center">${bl.ef}</td>
-          <td style="padding:6px 10px;text-align:center">${cpm.ef}</td>
+          <td style="padding:6px 10px;text-align:center">${_df(bl.ef, bl.es)}</td>
+          <td style="padding:6px 10px;text-align:center">${_df(cpm.ef, cpm.es)}</td>
           <td style="padding:6px 10px;text-align:center;font-weight:600;${clrF}">${df >= 0 ? '+' : ''}${df}</td>
           <td style="padding:6px 10px;text-align:center;font-weight:600;${clrD}">${dd >= 0 ? '+' : ''}${dd}</td>
         </tr>`);
@@ -3326,7 +3367,9 @@ function _bindToolbar() {
     const dlg = /** @type {HTMLDialogElement} */ (document.getElementById('dlg-monte-carlo'));
     dlg?.close?.() ?? (dlg && (dlg.style.display = 'none'));
   });
-  document.getElementById('dlg-mc-print')?.addEventListener('click', () => {
+  document.getElementById('dlg-mc-print')?.addEventListener('click', async () => {
+    // Sin simulación previa: ejecutarla con los valores por defecto antes de imprimir
+    if (_mcPanel && !_mcPanel._lastResult) await _mcPanel._runSimulation();
     const body = document.getElementById('monte-carlo-container');
     const _mcCss = document.getElementById('mc-styles')?.textContent ?? '';
     const _mcVars = ':root{--mc-accent:#2563eb;--mc-kpi-bg:#f3f4f6;--mc-hist-fill:#60a5fa;--mc-p80-color:#dc2626;--mc-fg:#333;--mc-border:#e5e7eb;--mc-warn:#b45309;--mc-surface:#f5f7ff;--mc-hist-axis-stroke:#aaa;--mc-tick-fill:#666}';
@@ -4002,9 +4045,9 @@ function _printOrgChart() {
   const html = `<!doctype html>
 <html lang="es"><head>
   <meta charset="UTF-8">
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Urbanist:wght@400;500;600&display=swap">
+  ${FONTS_LINK}
   <title>${_ocFileTitle}</title>
-  <style id="page-style">@page { size: landscape; margin: 26px 10mm 22px 10mm; }</style>
+  <style id="page-style">@page { size: A4 landscape; margin: 10mm; }</style>
   <style>
     :root { --clr-primary:#1976D2; --clr-bg:#f8f9fc; --clr-surface:#fff;
             --clr-surface-2:#f5f7fa; --clr-text:#1a1d23; --clr-text-2:#4a5568;
@@ -4032,7 +4075,7 @@ function _printOrgChart() {
     .lbl-sm { font-size:11px; color:#78909C; }
     @media print { .controls { display:none !important; }
       footer.ecm-footer { display:block; position:fixed; bottom:0; left:0; right:0;
-        font-size:7pt; color:#9E9E9E; text-align:center;
+        font-size:6pt; color:#9E9E9E; text-align:center;
         border-top:1px solid #E0E0E0; padding-top:3px; padding-bottom:2px;
         background:white; }
       .oc-frame { margin:0; border:none; }
@@ -4047,25 +4090,24 @@ function _printOrgChart() {
       position:fixed;top:0;left:0;right:0;height:26px;
       display:none;align-items:center;justify-content:space-between;
       padding:0 10mm;border-bottom:0.5pt solid #CBD5E0;
-      font-size:9pt;color:#4A5568;background:#fff;z-index:9999;
+      font-size:6pt;color:#4A5568;background:#fff;z-index:9999;
     }
     .print-footer{
       position:fixed;bottom:0;left:0;right:0;height:22px;
       display:none;align-items:center;justify-content:space-between;
       padding:0 10mm;border-top:0.5pt solid #CBD5E0;
-      font-size:8pt;color:#718096;background:#fff;z-index:9999;
+      font-size:6pt;color:#718096;background:#fff;z-index:9999;
     }
-    .print-title{
-      font-family:'Urbanist',system-ui,sans-serif;
-      font-size:14pt;font-weight:600;color:#1A365D;
-      text-align:center;margin:0 0 12px;
-    }
+    ${REPORT_TITLE_CSS}
     @media print{
       .print-header,.print-footer{display:flex!important;}
       footer.ecm-footer{display:none!important;}
+      .header{display:none!important;}
       .print-title{display:block!important;}
     }
     .print-title{display:none;}
+    ${pageHfCss({ proj: projName, date: `${_ocDD}-${_ocMM}-${_ocYY}, ${_ocHH}:${_ocMi}` })}
+  ${REPORT_FONT_CSS}
   </style>
 </head><body>
 <div class="print-header"><span>ECM Project V1.00.01</span><span>${_ocProjEsc}</span><span>${_ocDD}-${_ocMM}-${_ocYY}, ${_ocHH}:${_ocMi}</span></div>
@@ -4076,6 +4118,11 @@ function _printOrgChart() {
       <span id="zoom-val" style="min-width:38px">100%</span>
     </label>
     <div class="sep"></div>
+    <label>Papel: <select id="paper" onchange="setOrient()" title="Tamaño del papel del PDF">
+      <option value="A4" selected>A4</option><option value="A3">A3</option><option value="A2">A2</option><option value="A1">A1</option>
+      <option value="Carta">Carta</option><option value="Oficio">Oficio</option><option value="Legal">Legal</option><option value="Tabloide">Tabloide</option>
+    </select></label>
+    <div class="sep"></div>
     <span class="lbl-sm">Orientaci&#243;n:</span>
     <button class="btn-c active" id="btn-land" onclick="setOrient('landscape')">&#x2B1B; Horizontal</button>
     <button class="btn-c" id="btn-port" onclick="setOrient('portrait')">&#x1F532; Vertical</button>
@@ -4083,8 +4130,8 @@ function _printOrgChart() {
     <label>Hojas H: <input type="number" id="h-pages" min="1" max="10" value="1"></label>
     <label>Hojas V: <input type="number" id="v-pages" min="1" max="10" value="1"></label>
     <div class="sep"></div>
-    <button class="btn-print" onclick="window.print()">&#x1F5A8; Imprimir</button>
     <span class="lbl-sm">${today}</span>
+    <button class="btn-print" style="margin-left:auto" onclick="window.print()">&#x1F5A8; Guardar PDF</button>
   </div>
   <div class="header">
     <div class="proj-name">Estructura de Proyectos${projName ? ' — ' + projName : ''}</div>
@@ -4114,8 +4161,12 @@ function _printOrgChart() {
       zoomVal.textContent = zoom.value + '%';
       applyZoom(parseInt(zoom.value));
     });
+    ${PAPER_JS}
+    let _ocOri = 'landscape';
     function setOrient(o) {
-      document.getElementById('page-style').textContent = '@page { size: ' + o + '; margin: 26px 10mm 22px 10mm; }';
+      if (o) _ocOri = o; o = _ocOri;
+      const sz = paperSize(o);
+      document.getElementById('page-style').textContent = '@page { size: ' + sz[0] + 'mm ' + sz[1] + 'mm; margin: 10mm; }';
       document.getElementById('btn-land').classList.toggle('active', o === 'landscape');
       document.getElementById('btn-port').classList.toggle('active', o === 'portrait');
     }
@@ -4968,7 +5019,8 @@ function _exportCpmNetwork(fmt, dlg) {
     const today = _d.toLocaleDateString('es-PE');
     const fileDateStr = `${String(_d.getDate()).padStart(2,'0')}-${String(_d.getMonth()+1).padStart(2,'0')}-${_d.getFullYear()}`;
     const projDisplayName = _escHtml(appState.state.project?.name ?? projName);
-    const fileTitle = `${appState.state.project?.name ?? projName} - Red CPM - ${fileDateStr}`;
+    const fileTitle = `${appState.state.project?.name ?? projName}-Red CPM-${fileDateStr.replace(/-/g, '')}`;   // = nombre del PDF (PROYECTO-Proceso-Fecha)
+    const _cpmDateStr = `${String(_d.getDate()).padStart(2,'0')}-${String(_d.getMonth()+1).padStart(2,'0')}-${_d.getFullYear()}, ${String(_d.getHours()).padStart(2,'0')}:${String(_d.getMinutes()).padStart(2,'0')}`;
 
     // Obtener dimensiones del SVG clonado
     const _cpmSvgW = vbW;
@@ -4984,6 +5036,7 @@ function _exportCpmNetwork(fmt, dlg) {
     const html = `<!doctype html>
 <html lang="es"><head>
   <meta charset="UTF-8">
+  ${FONTS_LINK}
   <title>${fileTitle}</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -5008,9 +5061,16 @@ function _exportCpmNetwork(fmt, dlg) {
     .preview { padding: 20px; display:flex; flex-direction:column; align-items:center; gap:16px; min-height:calc(100vh - 52px); }
     .page-tile { background:#fff; box-shadow:0 4px 14px rgba(0,0,0,.4); position:relative; flex-shrink:0; }
     .page-tile svg { display:block; }
-    .page-foot { position:absolute; bottom:4mm; left:10mm; right:10mm;
-                 display:flex; justify-content:space-between; font-size:7pt; color:#9e9e9e;
-                 border-top:1px solid #e0e0e0; padding-top:2px; }
+    .page-foot { position:absolute; bottom:1mm; left:0; right:0;
+                 display:flex; justify-content:space-between; font-size:6pt; color:#718096;
+                 border-top:0.5pt solid #CBD5E0; padding-top:2px;
+                 font-family:'Urbanist',system-ui,sans-serif; }
+    .page-title { position:absolute; top:4.5mm; left:0; right:0; text-align:center;
+                  font-family:'Urbanist',system-ui,sans-serif; font-size:14pt; font-weight:600; color:#1A365D; }
+    .page-head { position:absolute; top:1mm; left:0; right:0;
+                 display:flex; justify-content:space-between; font-size:6pt; color:#4A5568;
+                 border-bottom:0.5pt solid #CBD5E0; padding-bottom:2px;
+                 font-family:'Urbanist',system-ui,sans-serif; }
     @media print {
       body { background:#fff; }
       .controls { display:none !important; }
@@ -5019,24 +5079,32 @@ function _exportCpmNetwork(fmt, dlg) {
       .page-tile:last-child { break-after:avoid; page-break-after:avoid; }
       .page-foot { display:flex !important; }
     }
+    ${pageHfCss({ proj: appState.state.project?.name ?? projName, date: _cpmDateStr })}
+    ${REPORT_FONT_CSS}
   </style>
 </head><body>
   <div class="controls">
-    <button class="btn-print" onclick="window.print()">&#x1F5A8; Guardar PDF</button>
+    <label>Papel: <select id="paper" onchange="autoPages();renderTiles()" title="Tamaño del papel del PDF">
+      <option value="A4" selected>A4</option><option value="A3">A3</option><option value="A2">A2</option><option value="A1">A1</option>
+      <option value="Carta">Carta</option><option value="Oficio">Oficio</option><option value="Legal">Legal</option><option value="Tabloide">Tabloide</option>
+    </select></label>
     <div class="sep"></div>
     <span class="lbl-sm">Orientaci&#243;n:</span>
     <button class="btn-c active" id="btn-land" onclick="setOrient('landscape')">&#x2B1B; Horizontal</button>
     <button class="btn-c" id="btn-port" onclick="setOrient('portrait')">&#x1F532; Vertical</button>
     <div class="sep"></div>
-    <label>Hojas H: <input type="number" id="h-pages" min="1" max="10" value="1" onchange="renderTiles()"></label>
-    <label>Hojas V: <input type="number" id="v-pages" min="1" max="10" value="1" onchange="renderTiles()"></label>
+    <label title="Toda la red en una sola hoja"><input type="checkbox" id="fit1" onchange="renderTiles()"> Todo en 1 hoja</label>
+    <div class="sep"></div>
+    <label title="Franjas horizontales en que se corta la red (hojas una debajo de otra)">Hojas H: <input type="number" id="pg-rows" min="1" max="10" value="1" onchange="renderTiles()"></label>
+    <label title="Columnas en que se corta el ancho de la red">Hojas V: <input type="number" id="pg-cols" min="1" max="10" value="1" onchange="renderTiles()"></label>
     <div class="sep"></div>
     <span class="lbl-sm">&#x1F4C1; Archivo:</span>
-    <input type="text" id="fn-inp" class="fn-inp" value="${_cpmPdfFile}" title="Nombre sugerido del archivo PDF">
+    <input type="text" id="fn-inp" class="fn-inp" value="${_cpmPdfFile}" title="Nombre sugerido del archivo PDF" oninput="document.title=this.value.replace(/\.pdf$/i,'')">
     <div class="sep"></div>
     <span class="lbl-sm">${today}</span>
     <div class="sep"></div>
     <button class="btn-c" onclick="window.close()">&#x2715; Cerrar</button>
+    <button class="btn-print" style="margin-left:auto" onclick="window.print()">&#x1F5A8; Guardar PDF</button>
   </div>
   <div class="preview" id="preview"></div>
 
@@ -5045,35 +5113,71 @@ function _exportCpmNetwork(fmt, dlg) {
     const SVG_H = ${_cpmSvgH};
     const SVG_INNER = ${JSON.stringify(_svgInnerCpm)};
     const PROJ_NAME = ${JSON.stringify(appState.state.project?.name ?? projName)};
+    const DATE_STR = ${JSON.stringify(_cpmDateStr)};
     const TOTAL_PAGES_REF = { v: 1 };
 
+    /** Fila de encabezado/pie estándar: tres textos (izquierda, centro, derecha). */
+    function hfRow(cls, texts) {
+      const row = document.createElement('div');
+      row.className = cls;
+      for (const t of texts) { const s = document.createElement('span'); s.textContent = t; row.appendChild(s); }
+      return row;
+    }
+
+    const HF_IN_MARGIN = ${supportsPageMarginBoxes()};  // encabezado/pie en el margen de la hoja (@page)
+    const MIN_PT = 6, BASE_PX = 8;    // el texto más chico de la red (8px) se imprime a 6pt o más
+
     let _orient = 'landscape';
+
+    /** Tamaños de papel (mm, vertical). */
+    const PAPERS = { A4: [210, 297], A3: [297, 420], A2: [420, 594], A1: [594, 841],
+                     Carta: [216, 279], Oficio: [216, 330], Legal: [216, 356], Tabloide: [279, 432] };
+
+    /** Hoja (mm) y área útil: márgenes de 10mm, banda del título y, sin margin boxes, encabezado/pie. */
+    function layout() {
+      const isLand = _orient === 'landscape';
+      const [pw, ph] = PAPERS[document.getElementById('paper').value] || PAPERS.A4;
+      const W = isLand ? Math.max(pw, ph) : Math.min(pw, ph), H = isLand ? Math.min(pw, ph) : Math.max(pw, ph);
+      const MARG = 10, top = HF_IN_MARGIN ? 9 : 12, bottom = HF_IN_MARGIN ? 0 : 5;
+      return { W, H, MARG, top, bottom, availW: W - 2 * MARG, availH: H - 2 * MARG - top - bottom };
+    }
+
+    /** Hojas V (columnas) y H (franjas) necesarias para que el texto quede legible (≥ MIN_PT). */
+    function autoPages() {
+      const L = layout(), mmPerPx = MIN_PT / BASE_PX * 25.4 / 72;
+      document.getElementById('pg-cols').value = Math.min(10, Math.max(1, Math.ceil(SVG_W * mmPerPx / L.availW)));
+      document.getElementById('pg-rows').value = Math.min(10, Math.max(1, Math.ceil(SVG_H * mmPerPx / L.availH)));
+    }
 
     function setOrient(o) {
       _orient = o;
       document.getElementById('btn-land').classList.toggle('active', o === 'landscape');
       document.getElementById('btn-port').classList.toggle('active', o === 'portrait');
+      autoPages();
       renderTiles();
     }
 
     function renderTiles() {
-      const hPages = Math.max(1, Math.min(10, parseInt(document.getElementById('h-pages').value) || 1));
-      const vPages = Math.max(1, Math.min(10, parseInt(document.getElementById('v-pages').value) || 1));
-      const isLand = _orient === 'landscape';
-      const MARG = 10;
-      const A4w = isLand ? 297 : 210;
-      const A4h = isLand ? 210 : 297;
-      const availW = A4w - 2 * MARG;
-      const availH = A4h - 2 * MARG - 8;
+      const fit1 = document.getElementById('fit1').checked;   // "Todo en 1 hoja"
+      const colsIn = document.getElementById('pg-cols'), rowsIn = document.getElementById('pg-rows');
+      colsIn.disabled = rowsIn.disabled = fit1;
+      if (fit1) colsIn.value = rowsIn.value = 1;
+      const hPages = Math.max(1, Math.min(10, parseInt(colsIn.value) || 1));   // columnas (Hojas V)
+      const vPages = Math.max(1, Math.min(10, parseInt(rowsIn.value) || 1));   // franjas (Hojas H)
+      const { W, H, MARG, top, bottom, availW, availH } = layout();
 
       const cellW = SVG_W / hPages;
       const cellH = SVG_H / vPages;
+      // El SVG mide exactamente su porción escalada: si fuera más grande que la porción
+      // (preserveAspectRatio meet), mostraría filas/columnas de la hoja siguiente.
+      const scale = Math.min(availW / cellW, availH / cellH);
+      const drawW = cellW * scale, drawH = cellH * scale;
       const totalPages = hPages * vPages;
       TOTAL_PAGES_REF.v = totalPages;
 
       let ps = document.getElementById('_ps') || document.createElement('style');
       ps.id = '_ps';
-      ps.textContent = '@page{size:A4 ' + _orient + ';margin:' + MARG + 'mm}';
+      ps.textContent = '@page{size:' + W + 'mm ' + H + 'mm;margin:' + MARG + 'mm}';
       document.head.appendChild(ps);
 
       const preview = document.getElementById('preview');
@@ -5089,28 +5193,38 @@ function _exportCpmNetwork(fmt, dlg) {
           const tile = document.createElement('div');
           tile.className = 'page-tile';
           tile.style.width = availW + 'mm';
-          tile.style.height = (availH + 8) + 'mm';
+          tile.style.height = (availH + top + bottom) + 'mm';
 
           const svgEl = document.createElementNS('http://www.w3.org/2000/svg','svg');
           svgEl.setAttribute('viewBox', vbX + ' ' + vbY + ' ' + cellW + ' ' + cellH);
-          svgEl.setAttribute('width', availW + 'mm');
-          svgEl.setAttribute('height', availH + 'mm');
+          svgEl.setAttribute('width', drawW + 'mm');
+          svgEl.setAttribute('height', drawH + 'mm');
           svgEl.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
           svgEl.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
           svgEl.setAttribute('preserveAspectRatio', 'xMinYMin meet');
+          svgEl.style.marginTop = top + 'mm';
+          svgEl.style.overflow = 'hidden';
           svgEl.innerHTML = SVG_INNER;
           tile.appendChild(svgEl);
 
-          const foot = document.createElement('div');
-          foot.className = 'page-foot';
-          foot.innerHTML = '<span>' + PROJ_NAME + '</span><span>ECM Project</span><span>' + pageNum + ' / ' + totalPages + '</span>';
-          tile.appendChild(foot);
+          const ttl = document.createElement('div');
+          ttl.className = 'page-title';
+          ttl.style.top = HF_IN_MARGIN ? '0' : '4.5mm';
+          ttl.textContent = 'Red CPM';
+          tile.appendChild(ttl);
+
+          // Sin soporte de margin boxes: encabezado y pie dentro de la hoja, en bandas propias
+          if (!HF_IN_MARGIN) {
+            tile.appendChild(hfRow('page-head', ['ECM Project V1.00.01', PROJ_NAME, DATE_STR]));
+            tile.appendChild(hfRow('page-foot', ['By EHCM', '—', 'Página ' + pageNum + ' de ' + totalPages]));
+          }
 
           preview.appendChild(tile);
         }
       }
     }
 
+    autoPages();
     renderTiles();
   <\/script>
 </body></html>`;
@@ -5623,8 +5737,7 @@ document.addEventListener('DOMContentLoaded', () => {
           const esc = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
           container.innerHTML = `<p style="font-size:13px;color:var(--clr-text)">Se detectaron <strong>${conflicts.overloaded.length}</strong> conflicto(s) de recursos.</p>
             <ul style="font-size:12px;color:var(--clr-text-2);margin:8px 0 0;padding-left:18px">
-              ${conflicts.overloaded.slice(0, 15).map(c => `<li>Recurso <strong>${esc(c.resource.name)}</strong> — día ${c.day}: carga ${c.load.toFixed(1)} / capacidad ${c.capacity}</li>`).join('')}
-              ${conflicts.overloaded.length > 15 ? `<li style="color:var(--clr-text-3)">… y ${conflicts.overloaded.length - 15} más</li>` : ''}
+              ${conflicts.overloaded.map(c => `<li>Recurso <strong>${esc(c.resource.name)}</strong> — día ${c.day}: carga ${c.load.toFixed(1)} / capacidad ${c.capacity}</li>`).join('')}
             </ul>`;
         }
         levelPanel.style.display = 'flex';
@@ -5664,10 +5777,123 @@ document.addEventListener('DOMContentLoaded', () => {
     if (overlay.style.display === 'flex') { overlay.style.display = 'none'; document.getElementById('btn-risk-register-view')?.classList.remove('active'); return; }
     overlay.style.display = 'flex';
     document.getElementById('btn-risk-register-view')?.classList.add('active');
-    _riskPanel = new RiskRegisterPanel({ projectId: project.id, container, onClose: () => {
+    new RiskRegisterPanel({ projectId: project.id, container, onClose: () => {
       overlay.style.display = 'none';
     }});
   });
 
+  installDesktopPrint();
+  initReports();
+  _initAuthUI();
   init();
 });
+
+// ============================================================
+// Auth UI: botón usuario en toolbar + reactividad
+// ============================================================
+async function _initAuthUI() {
+  if (IS_LOCAL_MODE) return;
+
+  // Inicializar sesión guardada
+  await authInit();
+
+  // Suscribir a cambios de estado
+  authState.subscribe(_renderAuthBtn);
+  _renderAuthBtn(authState);
+}
+
+function _renderAuthBtn(state) {
+  let btn = document.getElementById('btn-auth-user');
+  if (!btn) {
+    // Crear botón junto al toggle de tema
+    const themeBtn = document.getElementById('btn-theme');
+    if (!themeBtn) return;
+    btn = document.createElement('button');
+    btn.id = 'btn-auth-user';
+    btn.style.cssText = 'font-size:11px;padding:3px 10px;border-radius:6px;border:1.5px solid var(--clr-border,#d1d5db);background:none;cursor:pointer;color:var(--clr-text,#111);font-family:var(--font-ui,system-ui);white-space:nowrap;max-width:160px;overflow:hidden;text-overflow:ellipsis';
+    themeBtn.insertAdjacentElement('beforebegin', btn);
+
+    // Menú desplegable al hacer clic
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      _toggleAuthMenu();
+    });
+    document.addEventListener('click', () => {
+      document.getElementById('auth-menu')?.remove();
+    });
+  }
+
+  if (state.user) {
+    const nombre = state.perfil?.full_name || state.user.email?.split('@')[0] || 'Usuario';
+    const empresa = state.empresaActual?.org_name || '';
+    btn.title = `${nombre}\n${empresa}`;
+    btn.textContent = `👤 ${nombre}`;
+  } else {
+    btn.textContent = 'Ingresar';
+    btn.onclick = () => showLoginModal();
+  }
+}
+
+function _toggleAuthMenu() {
+  const existing = document.getElementById('auth-menu');
+  if (existing) { existing.remove(); return; }
+  if (!authState.user) { showLoginModal(); return; }
+
+  const btn = document.getElementById('btn-auth-user');
+  if (!btn) return;
+  const rect = btn.getBoundingClientRect();
+
+  const menu = document.createElement('div');
+  menu.id = 'auth-menu';
+  menu.style.cssText = `
+    position:fixed;top:${rect.bottom + 4}px;right:${window.innerWidth - rect.right}px;
+    background:var(--clr-surface,#fff);border:1.5px solid var(--clr-border,#e2e8f0);
+    border-radius:10px;box-shadow:0 6px 24px rgba(0,0,0,.14);
+    padding:6px;z-index:1000;min-width:190px;
+    font-family:var(--font-ui,system-ui);font-size:.85rem;
+  `;
+
+  const nombre  = authState.perfil?.full_name || authState.user?.email || 'Usuario';
+  const empresa = authState.empresaActual?.org_name || '—';
+  const rol     = authState.empresaActual?.empresa_role || '';
+  const rolLabel = { super_admin:'Super Admin', relevo:'Relevo', miembro:'Miembro', invitado_externo:'Invitado' };
+
+  const items = [
+    { html: `<div style="padding:8px 10px;border-bottom:1px solid var(--clr-border,#e2e8f0);margin-bottom:4px">
+      <div style="font-weight:600;color:var(--clr-text,#111)">${_escHtml(nombre)}</div>
+      <div style="font-size:.78rem;color:var(--clr-text-3,#666)">${_escHtml(empresa)} · ${rolLabel[rol]||rol}</div>
+    </div>`, action: null },
+  ];
+
+  if (['super_admin','relevo'].includes(rol)) {
+    items.push({ label: '👥 Gestionar usuarios', action: () => showUsuariosPanel() });
+    items.push({ label: '⚙ Configurar empresa', action: () => showEmpresaAdminPanel() });
+  }
+
+  // Cambiar empresa si hay más de una
+  if (authState.empresas.length > 1) {
+    items.push({ label: '🏢 Cambiar empresa', action: () => {
+      menu.remove();
+      showLoginModal();
+    }});
+  }
+
+  items.push({ label: '🚪 Cerrar sesión', action: () => logout() });
+
+  items.forEach(item => {
+    if (item.html) { menu.insertAdjacentHTML('beforeend', item.html); return; }
+    const el = document.createElement('button');
+    el.style.cssText = 'display:block;width:100%;padding:7px 10px;text-align:left;border:none;background:none;border-radius:6px;cursor:pointer;color:var(--clr-text,#111)';
+    el.textContent = item.label;
+    el.addEventListener('mouseenter', () => { el.style.background = 'var(--clr-surface-2,#f5f5f5)'; });
+    el.addEventListener('mouseleave', () => { el.style.background = 'none'; });
+    el.addEventListener('click', (e) => { e.stopPropagation(); menu.remove(); item.action?.(); });
+    menu.appendChild(el);
+  });
+
+  document.body.appendChild(menu);
+}
+
+function _escHtml(s) {
+  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}

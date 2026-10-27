@@ -79,10 +79,15 @@ export class GanttScene {
     return this.rows.length * this.rowHeight;
   }
 
+  /** scrollX mínimo: deja 2 días de espacio antes del inicio para ver bien las primeras barras e hitos */
+  get minScrollX() {
+    return -2 * this.pixPerDay;
+  }
+
   /** Limitar scrollX al rango válido dado el ancho del viewport */
   clampScrollX(viewportWidth) {
     const max = Math.max(0, this.totalWidth - viewportWidth);
-    this.scrollX = Math.max(0, Math.min(this.scrollX, max));
+    this.scrollX = Math.max(this.minScrollX, Math.min(this.scrollX, max));
   }
 
   /** Limitar scrollY al rango válido dado el alto del viewport */

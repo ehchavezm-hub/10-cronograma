@@ -496,7 +496,7 @@ export class GanttCanvas {
       const days = this._scene.totalCalendarDays;
       if (days <= 0) return;
       this._scene.pixPerDay = Math.max(2, Math.min(80, W / days));
-      this._scene.scrollX   = 0;
+      this._scene.scrollX   = this._scene.minScrollX;
       this.requestRender();
       return;
     }
@@ -518,18 +518,19 @@ export class GanttCanvas {
       const days = this._scene.totalCalendarDays;
       if (days <= 0) return;
       this._scene.pixPerDay = Math.max(2, Math.min(80, W / days));
-      this._scene.scrollX   = 0;
+      this._scene.scrollX   = this._scene.minScrollX;
       this.requestRender();
       return;
     }
 
-    const barSpan   = maxCalDay - minCalDay;
+    const LEAD_DAYS = 2;              // espacio fijo antes de la primera barra
+    const barSpan   = maxCalDay - minCalDay + LEAD_DAYS;
     const MARGIN    = 0.025;          // 2.5% margen a cada lado → 95% para barras
     const pixPerDay = Math.max(2, Math.min(80, (W * (1 - 2 * MARGIN)) / barSpan));
-    const scrollX   = minCalDay * pixPerDay - W * MARGIN;
+    const scrollX   = (minCalDay - LEAD_DAYS) * pixPerDay - W * MARGIN;
 
     this._scene.pixPerDay = pixPerDay;
-    this._scene.scrollX   = Math.max(0, scrollX);
+    this._scene.scrollX   = Math.max(this._scene.minScrollX, scrollX);
     this.requestRender();
   }
 
@@ -552,7 +553,7 @@ export class GanttCanvas {
     const newPpd = Math.max(2, this._scene.pixPerDay / 1.2);
     const scale  = newPpd / this._scene.pixPerDay;
     this._scene.pixPerDay = newPpd;
-    this._scene.scrollX   = Math.max(0, cx * scale - W / 2);
+    this._scene.scrollX   = Math.max(this._scene.minScrollX, cx * scale - W / 2);
     this._scene.clampScrollX(W);
     this.requestRender();
   }

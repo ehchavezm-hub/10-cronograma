@@ -32,7 +32,7 @@ jobs:
         working-directory: electron
         run: npm ci
 
-      - name: Build Windows installer
+      - name: Build Windows executable (portable .exe + .zip)
         working-directory: electron
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -61,12 +61,17 @@ jobs:
           body: |
             ## ECM Project — Ejecutable Windows
 
-            ### Instalación
-            1. Descarga el archivo `.zip`
-            2. Descomprime en cualquier carpeta (ej: `C:\Programas\ECM-Project\`)
-            3. Abre `ECM Cronograma.exe`
-            4. Si Windows muestra advertencia: clic en **Más información** → **Ejecutar de todas formas**
-            5. La aplicación no requiere conexión a internet
+            ### Uso (sin instalación)
+            1. Descarga `ECM-Project-<versión>-portable.exe`
+            2. Ábrelo con doble clic (no requiere instalación ni permisos de administrador)
+            3. Si Windows muestra advertencia: clic en **Más información** → **Ejecutar de todas formas**
+
+            Alternativa: el `.zip` contiene la misma aplicación descomprimida (`ECM Project.exe`).
+
+            ### Características
+            - Autónomo: funciona sin conexión a internet (fuentes y librerías incluidas)
+            - Base de datos local con el proyecto DEMO precargado; los cambios se conservan entre sesiones
+            - "Guardar PDF" guarda en Documentos\ECM Project con el nombre PROYECTO-Proceso-Fecha
 
             ### Requisitos
             - Windows 10 / 11 (64-bit)

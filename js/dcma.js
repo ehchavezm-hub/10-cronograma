@@ -15,7 +15,7 @@ import { appState }  from './state.js';
 import { t }         from './i18n.js';
 import { calcEvm }   from './evm.js';
 import { Calendar, isoToDate } from './calendar.js';
-import { printToPdf } from './pdf-utils.js';
+import { printToPdf, SvgCtx } from './pdf-utils.js';
 
 // ============================================================
 // Umbrales DCMA (configurables vía proyecto en Fase 5)
@@ -448,12 +448,14 @@ export class DcmaPanel {
         const origCanvases = Array.from(wrap.querySelectorAll('canvas'));
         const cloneCanvases = Array.from(clone.querySelectorAll('canvas'));
         origCanvases.forEach((origC, i) => {
-          try {
-            const img = document.createElement('img');
-            img.src = origC.toDataURL('image/png');
-            img.style.cssText = `width:${origC.style.width || origC.width + 'px'};height:${origC.style.height || origC.height + 'px'};max-width:100%`;
-            cloneCanvases[i]?.replaceWith(img);
-          } catch (e) {}
+          // Indicador vectorial (SVG) con colores de impresión, en lugar de una foto del canvas
+          if (origC.id !== 'dcma-gauge' || this._lastScore == null) return;
+          const svg = new SvgCtx(origC.width, origC.height);
+          this._paintGauge(svg, origC.width, origC.height, this._lastScore, { track: '#E0E0E0', sub: '#5b6270' });
+          const wrap = document.createElement('div');
+          wrap.style.width = origC.width + 'px';
+          wrap.innerHTML = svg.toSvg();
+          cloneCanvases[i]?.replaceWith(wrap);
         });
         printToPdf('Evaluación DCMA 14 Puntos', `<h1>Evaluación DCMA 14 Puntos</h1>${clone.innerHTML}`);
       });
@@ -560,23 +562,34 @@ export class DcmaPanel {
   }
 
   _drawGauge(score) {
+    this._lastScore = score;
     const canvas = this._gauge;
     if (!canvas.width || !canvas.height) return;
     const ctx    = canvas.getContext('2d');
     if (!ctx) return;
-    const cx     = canvas.width / 2;
-    const cy     = canvas.height / 2 + 10;
+    const _cs = getComputedStyle(document.documentElement);
+    this._paintGauge(ctx, canvas.width, canvas.height, score, {
+      track: _cs.getPropertyValue('--clr-border').trim() || '#E0E0E0',
+      sub:   _cs.getPropertyValue('--clr-text-3').trim() || '#78909C',
+    });
+  }
+
+  /**
+   * Dibuja el indicador circular en un contexto 2D (canvas en pantalla o SvgCtx para el PDF).
+   * @param {any} ctx @param {number} W @param {number} H @param {number} score
+   * @param {{track:string,sub:string}} C
+   */
+  _paintGauge(ctx, W, H, score, C) {
+    const cx     = W / 2;
+    const cy     = H / 2 + 10;
     const r      = 54;
     const start  = Math.PI * 0.75;
     const end    = Math.PI * 2.25;
     const angle  = start + (end - start) * (score / 100);
 
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.clearRect(0, 0, W, H);
 
-    // Read theme-aware colors
-    const _cs     = getComputedStyle(document.documentElement);
-    const _cTrack = _cs.getPropertyValue('--clr-border').trim()   || '#E0E0E0';
-    const _cSub   = _cs.getPropertyValue('--clr-text-3').trim()   || '#78909C';
+    const _cTrack = C.track, _cSub = C.sub;
 
     // Fondo del arco
     ctx.beginPath(); ctx.arc(cx, cy, r, start, end);
@@ -591,14 +604,14 @@ export class DcmaPanel {
 
     // Texto del porcentaje
     ctx.fillStyle = color;
-    ctx.font = 'bold 28px "Urbanist", system-ui';
+    ctx.font = 'bold 28px "Manrope", system-ui';
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.fillText(`${score}%`, cx, cy - 8);
 
     // Etiqueta
     const label = score >= 80 ? 'BUENO' : score >= 60 ? 'REGULAR' : 'CRÍTICO';
     ctx.fillStyle = _cSub;
-    ctx.font = '600 11px "Urbanist", system-ui';
+    ctx.font = '600 11px "Manrope", system-ui';
     ctx.fillText(label, cx, cy + 18);
   }
 
