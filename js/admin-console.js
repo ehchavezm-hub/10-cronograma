@@ -1084,7 +1084,7 @@ async function _estructura(main, orgId) {
     [sinAdmin, 'Proyectos sin administrador', sinAdmin ? 'warn' : ''],
   ]) + `<div class="adm-tabs">
       <button class="adm-tab-btn is-active" data-tab="tabla">${orgId ? 'Tabla' : 'Estructura de todas las empresas'}</button>
-      <button class="adm-tab-btn" data-tab="org">Organigrama</button>
+      <button class="adm-tab-btn" data-tab="org">Estructura Jerárquica</button>
     </div>
     <div data-tabpanel="tabla">
       <div class="adm-toolbar">
