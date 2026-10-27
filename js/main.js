@@ -37,7 +37,7 @@ import { generatePdfReport } from './pdf-report.js';
 import { pageHfCss, REPORT_TITLE_CSS, REPORT_FONT_CSS, normalizeReportBody, supportsPageMarginBoxes, PAPER_SELECT_HTML, PAPER_JS, FONTS_LINK, installDesktopPrint } from './pdf-utils.js';
 import { debouncedSave, queue } from './async-queue.js';
 import { initReports } from './reports.js';
-import { authInit, authState, showLoginModal, logout } from './auth.js';
+import { authInit, authState, showLoginModal, logout } from './auth.js?v=180';
 import { showUsuariosPanel } from './usuarios.js';
 import { showEmpresaAdminPanel } from './empresa-admin.js';
 
@@ -5912,7 +5912,7 @@ function _toggleAuthMenu() {
     addItem('Cambiar empresa', () => showLoginModal());
   }
   addItem('Cambiar contraseña', () => {
-    import('./auth.js').then(m => m.showLoginModal?.());
+    import('./auth.js?v=180').then(m => m.showLoginModal?.());
   });
   addItem('Cerrar sesión', () => logout());
 

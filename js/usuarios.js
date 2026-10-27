@@ -10,7 +10,7 @@
  *   asignarRelevo(mem_id)   — designa al relevo del super_admin
  */
 
-import { authState } from './auth.js';
+import { authState } from './auth.js?v=180';
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
 
 const REST = `${SUPABASE_URL}/rest/v1`;
