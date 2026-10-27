@@ -18,7 +18,7 @@ import { Calendar } from './calendar.js';
 import { computeCPM } from './cpm.js';
 
 /** Cambiar al modificar el contenido del DEMO: fuerza su regeneración. */
-export const DEMO_VERSION = 3;
+export const DEMO_VERSION = 4;
 
 export const ORG_ID   = '00000000-0000-0000-0000-000000000001';
 export const PROJ_ID  = '00000000-0000-0000-0000-000000000010';
@@ -130,21 +130,56 @@ const PACE = { 31: 0.75, 41: 0.6, 42: 1.0, 27: 0.85, 28: 0.7, 29: 0.8, 33: 0.7 }
 
 // [n, pred, succ, tipo, desfase]
 const DEPS = [
-  [1, 2, 3, 'FS', 0], [2, 3, 4, 'FS', 0], [3, 3, 5, 'FS', 0],
-  [10, 5, 11, 'FS', 0], [11, 5, 12, 'FS', 2],
-  [12, 11, 13, 'SS', 3], [13, 12, 14, 'FS', 0], [14, 13, 14, 'FS', 0], [15, 14, 15, 'FS', 0],
-  [16, 15, 16, 'FS', 0], [17, 16, 17, 'FS', 0], [18, 11, 17, 'FF', 0],
-  [20, 17, 21, 'FS', 0], [21, 17, 22, 'FS', 0],
-  [22, 22, 21, 'SS', 0], [23, 21, 23, 'FS', 0], [24, 22, 23, 'FS', 0], [25, 23, 24, 'FS', 2],
-  [26, 24, 25, 'FS', 0], [27, 25, 26, 'FS', 0], [28, 26, 27, 'FS', 0], [29, 27, 28, 'FS', 0], [30, 28, 29, 'FS', 2],
-  [31, 25, 31, 'SS', 5], [32, 25, 41, 'SS', 3], [33, 25, 42, 'SS', 3],
-  [34, 29, 33, 'SS', 5], [35, 29, 43, 'SS', 3], [36, 29, 44, 'SS', 3],
-  [37, 31, 32, 'FS', 0], [38, 33, 34, 'FS', 0],
-  [40, 32, 51, 'FS', 0], [41, 34, 51, 'FS', 0], [42, 41, 51, 'FS', 0], [43, 42, 51, 'FS', 0], [44, 43, 51, 'FS', 0], [45, 44, 51, 'FS', 0],
-  [46, 51, 52, 'SS', 3], [47, 51, 53, 'SS', 5], [48, 52, 54, 'FS', 0], [49, 53, 54, 'FS', 0], [50, 54, 55, 'FS', 0],
-  [51, 60, 2, 'FS', 0],
-  [52, 4, 5, 'FS', 0],
-  [53, 55, 56, 'FS', 0],
+  // Inicio → Fase 1
+  [1,  60,  2, 'FS', 0],  // Inicio de Proyecto → Movilización
+  // Fase 1 — Trabajos Preliminares
+  [2,   2,  3, 'FS', 0],  // Movilización → Replanteo topográfico
+  [3,   3,  4, 'FS', 0],  // Replanteo → Permisos y licencias
+  [4,   4,  5, 'FS', 0],  // Permisos → Servicios provisionales
+  // Fase 1 → Fase 2
+  [5,   5, 11, 'FS', 0],  // Servicios provisionales → Excavación masiva
+  // Fase 2 — Cimentación
+  [6,  11, 12, 'FS', 0],  // Exc masiva → Exc zanjas
+  [7,  12, 13, 'FS', 0],  // Zanjas → Habilitación acero
+  [8,  13, 14, 'FS', 0],  // Acero → Encofrado cimientos
+  [9,  14, 15, 'FS', 0],  // Encofrado → Vaciado concreto
+  [10, 15, 16, 'FS', 0],  // Vaciado → Curado
+  [11, 16, 17, 'FS', 0],  // Curado → Cimentación completada
+  // Fase 2 → Fase 3
+  [12, 17, 21, 'FS', 0],  // Cimentación completada → Encofrado columnas P1
+  // Fase 3 — Estructura P1
+  [13, 21, 22, 'FS', 0],  // Encofrado columnas P1 → Habilitación acero columnas
+  [14, 22, 23, 'FS', 0],  // Acero columnas → Vaciado columnas P1
+  [15, 23, 24, 'FS', 2],  // Columnas P1 → Encofrado vigas/losa P1 (2d fragüe)
+  [16, 24, 25, 'FS', 0],  // Encofrado vigas → Vaciado losa P1
+  [17, 25, 26, 'FS', 0],  // Vaciado losa P1 → Estructura P1 completada
+  // Estructura P2
+  [18, 26, 27, 'FS', 0],  // Estructura P1 → Encofrado columnas P2
+  [19, 27, 28, 'FS', 0],  // Encofrado P2 → Vaciado columnas P2
+  [20, 28, 29, 'FS', 2],  // Columnas P2 → Vaciado losa P2 (2d fragüe)
+  // Fase 3 → Fase 4 (Albañilería)
+  [21, 25, 31, 'FS', 5],  // Losa P1 → Ladrillo P1 (5d lag curado losa)
+  [22, 29, 33, 'FS', 5],  // Losa P2 → Ladrillo P2 (5d lag curado losa)
+  // Fase 4 — Albañilería
+  [23, 31, 32, 'FS', 0],  // Ladrillo P1 → Tarrajeo interior P1
+  [24, 33, 34, 'FS', 0],  // Ladrillo P2 → Tarrajeo interior P2
+  // Fase 3 → Fase 5 (Instalaciones)
+  [25, 25, 41, 'FS', 3],  // Losa P1 → Instalaciones sanitarias P1 (3d lag)
+  [26, 41, 42, 'FS', 0],  // Sanitarias P1 → Eléctricas P1
+  [27, 29, 43, 'FS', 3],  // Losa P2 → Instalaciones sanitarias P2 (3d lag)
+  [28, 43, 44, 'FS', 0],  // Sanitarias P2 → Eléctricas P2
+  // Fase 4+5 → Fase 6 (Acabados y Cierre)
+  [29, 32, 51, 'FS', 0],  // Tarrajeo P1 → Pisos y pavimentos
+  [30, 34, 51, 'FS', 0],  // Tarrajeo P2 → Pisos y pavimentos
+  [31, 42, 51, 'FS', 0],  // Eléctricas P1 → Pisos y pavimentos
+  [32, 44, 51, 'FS', 0],  // Eléctricas P2 → Pisos y pavimentos
+  // Fase 6 — Acabados
+  [33, 51, 52, 'FS', 3],  // Pisos → Pintado general (3d lag)
+  [34, 51, 53, 'FS', 5],  // Pisos → Carpintería y aluminio (5d lag)
+  [35, 52, 54, 'FS', 0],  // Pintado → Limpieza final
+  [36, 53, 54, 'FS', 0],  // Carpintería → Limpieza final
+  [37, 54, 55, 'FS', 0],  // Limpieza → Entrega de obra
+  [38, 55, 56, 'FS', 0],  // Entrega de obra → Acta de Entrega Final
 ];
 
 // [n, nombre, tipo, máx. unidades, tarifa (S/ por hora o por unidad), unidad, rol]
