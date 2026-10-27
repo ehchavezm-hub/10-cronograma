@@ -59,8 +59,10 @@ export function calcEvm() {
   const cpmTasks  = cpmResult.tasks;
   const allTasks  = [...tasks.values()].filter(t => !t.deleted_at && t.type !== 'milestone');
 
-  // Detectar tareas hoja (no resumen)
-  const parentSet = new Set(allTasks.filter(t => t.parent_id).map(t => t.parent_id));
+  // Detectar tareas hoja (no resumen): usar TODAS las tareas para parentSet, no solo allTasks,
+  // ya que un padre podría ser un hito (excluido de allTasks) y sus hijos no milestones
+  // se clasificarían erróneamente como hojas si no incluimos los hitos en el conjunto de padres.
+  const parentSet = new Set([...tasks.values()].filter(t => !t.deleted_at && t.parent_id).map(t => t.parent_id));
   const leafTasks = allTasks.filter(t => !parentSet.has(t.id));
 
   let bac = 0, pv = 0, ev = 0, ac = 0;
