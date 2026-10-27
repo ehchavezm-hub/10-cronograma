@@ -633,7 +633,7 @@ async function _platEmpresas(main) {
       { label: 'Empresa', html: o => `<div class="adm-strong">${_esc(o.name)} ${o.dup ? _badge('Repetida', 'warn') : ''} ${o.actual ? _badge('En uso ahora', 'info') : ''}</div><div class="adm-sub">Código ${_esc(_short(o.id))}</div>` },
       { label: 'Super admin', html: o => `<div class="adm-cellact">${o.admins.length ? `<span>${_esc(o.admins.join(', '))}</span>` : _badge('Sin asignar', 'warn')}
           ${_btn(o.admins.length ? 'Cambiar' : 'Asignar', 'superadmin', o.id, { tono: o.admins.length ? '' : 'primary-soft' })}</div>` },
-      { label: 'Usuarios', html: o => String(o.usuarios), cls: 'adm-num' },
+      { label: 'Usuarios', html: o => `<div class="adm-cellact"><span>${o.usuarios}</span>${_btn('Gestionar', 'usuarios', o.id)}</div>` },
       { label: 'Proyectos', html: o => String(o.proyectos), cls: 'adm-num' },
       { label: 'Estado', html: o => _badge(...(ESTADO_ORG[o.status] || ESTADO_ORG.active)) },
       { label: 'Creada', html: o => _esc(_fecha(o.created_at, true)), cls: 'adm-nowrap' },
@@ -648,6 +648,7 @@ async function _platEmpresas(main) {
   const byId = (id) => rows.find(o => o.id === id);
   S.acts.nueva = () => _crearEmpresa();
   S.acts.superadmin = async (id) => { if (await _asignarSuperAdmin(byId(id))) await _renderPage(); };
+  S.acts.usuarios = async (id) => { await _gestionarUsuariosEmpresa(byId(id)); await _renderPage(); };
   S.acts.abrir = async (id) => { S.orgId = id; S.projId = ''; await _cargarProyectos(); await _ir('empresa', 'resumen'); };
   S.acts.suspender = async (id) => {
     const o = byId(id);
@@ -707,6 +708,89 @@ async function _eliminarEmpresas(lista) {
   if (!S.orgs.some(o => o.id === S.orgId)) { S.orgId = S.orgs[0]?.id || ''; await _cargarProyectos(); _renderScope(); }
   _toast(una ? 'Empresa eliminada' : `${lista.length} empresas eliminadas`);
   await _renderPage();
+}
+
+/**
+ * Panel de gestión de usuarios asignados a una empresa (desde la vista Plataforma > Empresas).
+ * @param {{id:string, name:string}} org
+ * @returns {Promise<void>}
+ */
+async function _gestionarUsuariosEmpresa(org) {
+  return new Promise(resolve => {
+    const dlg = document.createElement('dialog');
+    dlg.className = 'adm-dlg';
+    dlg.style.cssText = 'width:min(720px,95vw)';
+    dlg.innerHTML = `<div class="adm-dlg-body" style="display:flex;flex-direction:column;gap:12px">
+      <h2 class="adm-h2">Usuarios de «${_esc(org.name)}»</h2>
+      <p class="adm-desc">Miembros activos de esta empresa. Puedes agregar nuevos usuarios o revocar accesos.</p>
+      <div id="gue-list" style="max-height:340px;overflow-y:auto"></div>
+      <div style="display:flex;gap:8px;margin-top:4px">
+        <button type="button" class="adm-btn adm-btn-primary" id="gue-add">+ Agregar usuario</button>
+        <button type="button" class="adm-btn" id="gue-close" style="margin-left:auto">Cerrar</button>
+      </div>
+    </div>`;
+    document.body.appendChild(dlg);
+    dlg.showModal();
+
+    const listEl = /** @type {HTMLElement} */ (dlg.querySelector('#gue-list'));
+
+    const renderLista = async () => {
+      listEl.innerHTML = '<p style="color:#9ca3af;font-size:13px;padding:8px 0">Cargando…</p>';
+      const mems = await _get('org_memberships', { org_id: `eq.${org.id}`, active: 'eq.true', select: 'id,user_id,empresa_role,created_at', order: 'created_at.asc' }).catch(() => []);
+      const pm = await _perfiles(mems.map(m => m.user_id));
+      const rows = mems.map(m => ({ ...m, perfil: pm.get(m.user_id) }));
+      if (!rows.length) {
+        listEl.innerHTML = '<p style="color:#6b7280;font-size:13px;padding:8px 0">Sin miembros activos.</p>';
+        return;
+      }
+      listEl.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:12px">
+        <thead><tr>
+          <th style="text-align:left;padding:5px 8px;border-bottom:1px solid #e5e7eb;color:#6b7280;font-weight:600">Nombre</th>
+          <th style="text-align:left;padding:5px 8px;border-bottom:1px solid #e5e7eb;color:#6b7280;font-weight:600">Correo</th>
+          <th style="text-align:left;padding:5px 8px;border-bottom:1px solid #e5e7eb;color:#6b7280;font-weight:600">Rol</th>
+          <th style="text-align:left;padding:5px 8px;border-bottom:1px solid #e5e7eb;color:#6b7280;font-weight:600">Desde</th>
+          <th style="padding:5px 8px;border-bottom:1px solid #e5e7eb"></th>
+        </tr></thead>
+        <tbody>${rows.map(m => `<tr class="gue-row" data-id="${_esc(m.id)}" data-name="${_esc(_nombre(m.perfil))}">
+          <td style="padding:6px 8px;border-bottom:1px solid #f3f4f6;font-weight:500">${_esc(_nombre(m.perfil))}</td>
+          <td style="padding:6px 8px;border-bottom:1px solid #f3f4f6;color:#6b7280">${_esc(m.perfil?.email || '—')}</td>
+          <td style="padding:6px 8px;border-bottom:1px solid #f3f4f6">${_esc(ROL_EMP[m.empresa_role] || m.empresa_role || '—')}</td>
+          <td style="padding:6px 8px;border-bottom:1px solid #f3f4f6;color:#9ca3af">${_esc(_fecha(m.created_at))}</td>
+          <td style="padding:6px 8px;border-bottom:1px solid #f3f4f6"><button type="button" class="adm-btn adm-btn-danger-soft adm-btn-xs gue-quitar">Quitar</button></td>
+        </tr>`).join('')}</tbody></table>`;
+      listEl.querySelectorAll('.gue-quitar').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const row = /** @type {HTMLElement} */ (btn.closest('.gue-row'));
+          const memId = row.dataset.id || '';
+          const nombre = row.dataset.name || 'usuario';
+          const ok = await _modal({
+            title: `Quitar acceso a ${nombre}`,
+            desc: `Se revocará el acceso de ${_esc(nombre)} a «${_esc(org.name)}». No se borra su cuenta.`,
+            submit: 'Quitar acceso', danger: true,
+            onSubmit: async () => {
+              await _patch('org_memberships', { id: `eq.${memId}` }, { active: false });
+              await _audit(org.id, 'revocar_acceso', 'org_memberships', memId);
+            },
+          });
+          if (ok !== null) await renderLista();
+        });
+      });
+    };
+
+    renderLista();
+
+    dlg.querySelector('#gue-add')?.addEventListener('click', async () => {
+      const savedOrgId = S.orgId;
+      S.orgId = org.id;
+      await _invitar({ rol: 'miembro' });
+      S.orgId = savedOrgId;
+      await renderLista();
+    });
+
+    const _cerrar = () => { dlg.remove(); resolve(); };
+    dlg.querySelector('#gue-close')?.addEventListener('click', _cerrar);
+    dlg.addEventListener('cancel', _cerrar);
+  });
 }
 
 /**
@@ -1913,12 +1997,13 @@ async function _proyExternos(main) {
 // ============================================================
 
 /**
- * Abre una ventana de impresión/PDF para un reporte de administración.
+ * Renderiza un reporte de administración: en un iframe (vista previa inline) o en ventana nueva.
  * @param {string} title  Título del reporte
  * @param {string} html   Contenido HTML del reporte
  * @param {string} ctxName  Nombre de contexto (empresa o "Plataforma")
+ * @param {HTMLIFrameElement|null} [frame]  Si se provee, escribe en el iframe; si no, abre ventana nueva.
  */
-function _printAdmPdf(title, html, ctxName) {
+function _printAdmPdf(title, html, ctxName, frame = null) {
   const _d = new Date();
   const _dd = String(_d.getDate()).padStart(2, '0');
   const _mm = String(_d.getMonth() + 1).padStart(2, '0');
@@ -1934,9 +2019,12 @@ function _printAdmPdf(title, html, ctxName) {
   const PAPER_JS = "var PAPERS={A4:[210,297],A3:[297,420],Carta:[216,279],Oficio:[216,330],Tabloide:[279,432]};" +
     "function paperSize(o){var p=PAPERS[(document.getElementById('paper')||{}).value]||PAPERS.A4;" +
     "var a=Math.min(p[0],p[1]),b=Math.max(p[0],p[1]);return o==='landscape'?[b,a]:[a,b];}";
-  const w = window.open('', '_blank', 'width=1100,height=880');
-  if (!w) { _toast('El navegador bloqueó la ventana emergente. Permítala e intente de nuevo.'); return; }
-  w.document.write(`<!DOCTYPE html><html><head>
+  const _docTarget = frame
+    ? (frame.contentDocument || frame.contentWindow?.document || null)
+    : (() => { const w = window.open('', '_blank', 'width=1100,height=880'); if (!w) { _toast('El navegador bloqueó la ventana emergente. Permítala e intente de nuevo.'); } return w?.document || null; })();
+  if (!_docTarget) return;
+  _docTarget.open();
+  _docTarget.write(`<!DOCTYPE html><html><head>
 <meta charset="utf-8">
 <title>${titleFile}</title>
 <style>
@@ -2009,11 +2097,12 @@ ${html}</div></div>
   }
   setOri('portrait');
 <\/script></body></html>`);
-  w.document.close();
+  _docTarget.close();
 }
 
 /**
  * Página de reportes de administración (plataforma o empresa).
+ * Layout de dos paneles: lista de reportes a la izquierda, vista previa en iframe a la derecha.
  * @param {HTMLElement} main
  * @param {'plataforma'|'empresa'} scope
  */
@@ -2022,40 +2111,58 @@ async function _admReportes(main, scope) {
     ? (S.orgs.find(o => o.id === S.orgId)?.name || 'Empresa')
     : 'Plataforma';
 
+  const ITEMS = scope === 'plataforma' ? [
+    { ico: '📊', name: 'Resumen de plataforma', act: 'rptPlatResumen' },
+    { ico: '🏢', name: 'Lista de empresas', act: 'rptEmpresas' },
+    { ico: '🧾', name: 'Actividad reciente', act: 'rptActividad' },
+  ] : [
+    { ico: '📊', name: 'Resumen de empresa', act: 'rptEmpResumen' },
+    { ico: '👥', name: 'Miembros y roles', act: 'rptMiembros' },
+    { ico: '🌳', name: 'Estructura de proyectos', act: 'rptProyectos' },
+    { ico: '🧾', name: 'Auditoría de empresa', act: 'rptAuditoria' },
+  ];
+
   const body = _pagina(main, {
     title: 'Reportes',
     desc: scope === 'empresa'
-      ? 'Genera e imprime reportes de esta empresa en PDF.'
-      : 'Genera e imprime reportes de la plataforma en PDF.',
+      ? 'Selecciona un reporte para ver su vista previa e imprimirlo en PDF.'
+      : 'Selecciona un reporte para ver su vista previa e imprimirlo en PDF.',
+    actions: [
+      { label: '🖨 Imprimir / PDF (A4)', act: 'imprimir', primary: true },
+    ],
   });
 
-  const cards = scope === 'plataforma' ? [
-    { ico: '📊', title: 'Resumen de plataforma', desc: 'Estadísticas generales: empresas, usuarios, proyectos y actividad reciente.', act: 'rptPlatResumen' },
-    { ico: '🏢', title: 'Lista de empresas', desc: 'Todas las empresas, su estado, cantidad de miembros y proyectos.', act: 'rptEmpresas' },
-    { ico: '🧾', title: 'Actividad reciente', desc: 'Log de auditoría de las últimas 100 acciones en la plataforma.', act: 'rptActividad' },
-  ] : [
-    { ico: '📊', title: 'Resumen de empresa', desc: 'Estadísticas de la empresa: miembros activos, proyectos y áreas.', act: 'rptEmpResumen' },
-    { ico: '👥', title: 'Miembros y roles', desc: 'Listado de todos los miembros con su rol y estado de acceso.', act: 'rptMiembros' },
-    { ico: '🌳', title: 'Estructura de proyectos', desc: 'Portafolios, programas y proyectos de la empresa.', act: 'rptProyectos' },
-    { ico: '🧾', title: 'Auditoría de empresa', desc: 'Log de auditoría de las últimas 100 acciones de esta empresa.', act: 'rptAuditoria' },
-  ];
+  const printBtn = /** @type {HTMLButtonElement|null} */ (main.querySelector('[data-act="imprimir"]'));
+  if (printBtn) printBtn.disabled = true;
 
-  body.innerHTML = `<div class="adm-rpt-grid">${cards.map(c => `
-    <div class="adm-rpt-card">
-      <div class="adm-rpt-ico">${c.ico}</div>
-      <div class="adm-rpt-info">
-        <div class="adm-rpt-title">${_esc(c.title)}</div>
-        <div class="adm-rpt-desc">${_esc(c.desc)}</div>
-      </div>
-      <button type="button" class="adm-btn adm-btn-primary adm-rpt-btn" data-act="${c.act}">🖨 Generar e imprimir</button>
-    </div>`).join('')}
+  body.innerHTML = `<div class="adm-rpt-split">
+    <nav class="adm-rpt-tree" id="adm-rpt-tree"></nav>
+    <div class="adm-rpt-frame-wrap" id="adm-rpt-frame-wrap">
+      <div class="adm-rpt-msg">Seleccione un reporte de la lista para ver su vista previa.</div>
+    </div>
   </div>`;
 
-  /** @param {string} act @param {HTMLButtonElement} btn */
+  const tree = /** @type {HTMLElement} */ (body.querySelector('#adm-rpt-tree'));
+  const frameWrap = /** @type {HTMLElement} */ (body.querySelector('#adm-rpt-frame-wrap'));
+
+  ITEMS.forEach(item => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'adm-rpt-item';
+    btn.dataset.act = item.act;
+    btn.innerHTML = `<span class="adm-rpt-item-ico">${item.ico}</span><span>${_esc(item.name)}</span>`;
+    tree.appendChild(btn);
+  });
+
+  let _busy = false;
+
   const _generar = async (act, btn) => {
-    const prev = btn.textContent;
-    btn.disabled = true;
-    btn.textContent = 'Generando…';
+    if (_busy) return;
+    _busy = true;
+    tree.querySelectorAll('.adm-rpt-item').forEach(b => b.classList.remove('is-active'));
+    btn.classList.add('is-active');
+    frameWrap.innerHTML = '<div class="adm-rpt-msg adm-rpt-loading">⏳ Generando vista previa…</div>';
+    if (printBtn) printBtn.disabled = true;
     try {
       let html = '', titleRpt = '';
       if (act === 'rptPlatResumen') {
@@ -2145,19 +2252,42 @@ async function _admReportes(main, scope) {
           ${aud.map(/** @type {any} */ (a) => `<tr><td>${_esc(_fecha(a.created_at, true))}</td><td>${_esc(_nombre(pm.get(a.user_id)))}</td><td>${_esc(a.accion || '—')}</td></tr>`).join('') || '<tr><td colspan="3" style="color:#9ca3af">Sin registros</td></tr>'}
         </tbody></table>`;
       }
-      _printAdmPdf(titleRpt, html, orgName);
+      // Mostrar el reporte en un iframe inline
+      const frame = document.createElement('iframe');
+      frame.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;border:none;background:#f1f5f9';
+      frameWrap.innerHTML = '';
+      frameWrap.appendChild(frame);
+      _printAdmPdf(titleRpt, html, orgName, frame);
+      if (printBtn) {
+        const _enable = () => { if (printBtn) printBtn.disabled = false; };
+        frame.addEventListener('load', _enable, { once: true });
+        setTimeout(_enable, 900);
+      }
     } catch (e) {
-      _toast('Error al generar el reporte: ' + (e?.message || e));
+      frameWrap.innerHTML = `<div class="adm-rpt-msg">Error: ${_esc(e?.message || String(e))}</div>`;
+      tree.querySelectorAll('.adm-rpt-item').forEach(b => b.classList.remove('is-active'));
     } finally {
-      btn.disabled = false;
-      btn.textContent = prev;
+      _busy = false;
     }
   };
 
-  body.querySelectorAll('[data-act]').forEach(el => {
-    const btn = /** @type {HTMLButtonElement} */ (el);
-    btn.addEventListener('click', () => _generar(btn.dataset.act || '', btn));
+  tree.addEventListener('click', e => {
+    const btn = /** @type {HTMLElement} */ (e.target)?.closest?.('.adm-rpt-item');
+    if (!btn) return;
+    const act = /** @type {HTMLElement} */ (btn).dataset.act || '';
+    _generar(act, /** @type {any} */ (btn));
   });
+
+  S.acts.imprimir = () => {
+    const frame = /** @type {HTMLIFrameElement|null} */ (frameWrap.querySelector('iframe'));
+    const win = frame?.contentWindow;
+    if (!win) return;
+    const field = /** @type {HTMLInputElement|null} */ (win.document?.querySelector('#fn'));
+    const name = (field?.value || win.document?.title || 'ECM-Admin').replace(/\.pdf$/i, '').trim();
+    const prev = document.title;
+    document.title = name;
+    try { win.print(); } finally { setTimeout(() => { document.title = prev; }, 0); }
+  };
 }
 
 /** @type {Record<string, Record<string, (main:HTMLElement)=>Promise<void>>>} */
@@ -2218,7 +2348,9 @@ function _injectCss() {
 .adm-btn-danger:hover:not([disabled]){background:var(--clr-error-bg,#ffebee)}
 .adm-dlg .adm-btn-danger[type=submit]{background:var(--clr-error,#c62828);color:#fff;border-color:var(--clr-error,#c62828)}
 .adm-btn-sm{padding:5px 10px;font-size:12px}
+.adm-btn-xs{padding:3px 8px;font-size:11px}
 .adm-btn-primary-soft{background:var(--clr-primary-l,#ede9fe);border-color:transparent;color:var(--clr-primary,#4f46e5)}
+.adm-btn-danger-soft{color:var(--clr-error,#c62828);border-color:color-mix(in srgb,var(--clr-error,#c62828) 30%,transparent);background:var(--clr-error-bg,#ffebee)}
 .adm-cellact{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .adm-tree-cell{display:flex;align-items:center;gap:6px;min-width:260px}
 .adm-caret{border:none;background:none;color:var(--clr-text-3,#5b6270);cursor:pointer;width:20px;height:20px;border-radius:4px;font-size:12px;padding:0;flex-shrink:0}
@@ -2328,13 +2460,14 @@ function _injectCss() {
 .oct-node-edit{cursor:pointer}
 .oct-node-edit:hover{box-shadow:0 3px 12px rgba(0,0,0,.18)}
 .oct-node-edit:focus{outline:2px solid var(--clr-primary,#4f46e5);outline-offset:2px}
-.adm-rpt-grid{display:flex;flex-direction:column;gap:12px;max-width:760px}
-.adm-rpt-card{display:flex;align-items:center;gap:14px;padding:14px 16px;border:1px solid var(--clr-border,#d1d5db);border-radius:10px;background:var(--clr-surface,#fff)}
-.adm-rpt-ico{font-size:26px;flex-shrink:0;width:38px;text-align:center}
-.adm-rpt-info{flex:1;min-width:0}
-.adm-rpt-title{font-weight:700;font-size:14px;color:var(--clr-text,#111827);margin-bottom:2px}
-.adm-rpt-desc{font-size:12px;color:var(--clr-text-3,#5b6270);line-height:1.4}
-.adm-rpt-btn{flex-shrink:0;white-space:nowrap}
+.adm-rpt-split{display:flex;border:1px solid var(--clr-border,#d1d5db);border-radius:8px;overflow:hidden;height:calc(100vh - 240px);min-height:420px}
+.adm-rpt-tree{width:220px;flex-shrink:0;overflow-y:auto;padding:8px 6px;border-right:1px solid var(--clr-border,#d1d5db);background:var(--clr-surface,#fff)}
+.adm-rpt-item{display:flex;align-items:center;gap:9px;width:100%;text-align:left;border:none;background:none;border-radius:6px;padding:9px 10px;font:inherit;font-size:13px;color:var(--clr-text-2,#374151);cursor:pointer;margin-bottom:2px}
+.adm-rpt-item:hover{background:var(--clr-hover,rgba(0,0,0,.05))}
+.adm-rpt-item.is-active{background:var(--clr-primary-l,#ede9fe);color:var(--clr-primary,#4f46e5);font-weight:700}
+.adm-rpt-item-ico{font-size:16px;flex-shrink:0;width:20px;text-align:center}
+.adm-rpt-frame-wrap{flex:1;min-width:0;position:relative;background:#f1f5f9}
+.adm-rpt-msg{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--clr-text-3,#5b6270);font-size:13px;padding:24px;text-align:center}
 @media (max-width:760px){
   .adm-top{flex-wrap:wrap;padding:8px 16px}
   .adm-scope{order:3;flex-basis:100%}
@@ -2346,8 +2479,8 @@ function _injectCss() {
   .adm-search{width:100%}
   .adm-table{min-width:680px}
   .adm-matrix{min-width:900px}
-  .adm-rpt-card{flex-wrap:wrap}
-  .adm-rpt-btn{width:100%}
+  .adm-rpt-split{height:calc(100vh - 200px);min-height:320px}
+  .adm-rpt-tree{width:160px}
 }`;
   document.head.appendChild(st);
 }
