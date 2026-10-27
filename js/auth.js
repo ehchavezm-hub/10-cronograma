@@ -165,6 +165,22 @@ async function _applySession(data) {
   authState.perfil   = perfil;
   authState.empresas = empresas;
 
+  // Si no tiene rol propietario, verificar si hay que asignarlo (primer usuario)
+  if (perfil && perfil.platform_role === 'ninguno') {
+    try {
+      const existentes = await _restGet('profiles', { 'platform_role': 'eq.propietario', 'select': 'id' }, token);
+      if (existentes.length === 0) {
+        await fetch(`${REST}/profiles?id=eq.${userId}`, {
+          method: 'PATCH',
+          headers: { ..._hdrs(token), 'Prefer': 'return=minimal' },
+          body: JSON.stringify({ platform_role: 'propietario' }),
+        });
+        authState.perfil = await _loadPerfil(token, userId);
+      }
+    } catch {}
+    try { await _rpcPost('reclamar_propietario', {}, token); } catch {}
+  }
+
   // Empresa actual: la guardada o la primera disponible
   let stored = null;
   try { stored = JSON.parse(localStorage.getItem('ecm_empresa_actual') || 'null'); } catch {}
