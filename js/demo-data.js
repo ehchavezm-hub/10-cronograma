@@ -18,7 +18,7 @@ import { Calendar } from './calendar.js';
 import { computeCPM } from './cpm.js';
 
 /** Cambiar al modificar el contenido del DEMO: fuerza su regeneración. */
-export const DEMO_VERSION = 2;
+export const DEMO_VERSION = 3;
 
 export const ORG_ID   = '00000000-0000-0000-0000-000000000001';
 export const PROJ_ID  = '00000000-0000-0000-0000-000000000010';
@@ -82,6 +82,7 @@ function peruHolidays(y) {
 // ── Definición del proyecto ──────────────────────────────────
 // [n, padre, orden, nombre, tipo, duración plan, duración real (si difiere)]
 const TASKS = [
+  [60, null, 0, 'Inicio de Proyecto', 'milestone', 0],
   [1, null, 1, 'FASE 1 — Trabajos Preliminares', 'task', 0],
   [10, null, 2, 'FASE 2 — Cimentación', 'task', 0],
   [20, null, 3, 'FASE 3 — Estructura', 'task', 0],
@@ -121,6 +122,7 @@ const TASKS = [
   [53, 50, 3, 'Carpintería y aluminio', 'task', 6],
   [54, 50, 4, 'Limpieza final', 'task', 3],
   [55, 50, 5, 'Entrega de obra', 'milestone', 0],
+  [56, 50, 6, 'Acta de Entrega Final', 'milestone', 0],
 ];
 
 /** Ritmo de avance de las tareas en curso (1 = según plan, <1 = atrasada). */
@@ -140,6 +142,9 @@ const DEPS = [
   [37, 31, 32, 'FS', 0], [38, 33, 34, 'FS', 0],
   [40, 32, 51, 'FS', 0], [41, 34, 51, 'FS', 0], [42, 41, 51, 'FS', 0], [43, 42, 51, 'FS', 0], [44, 43, 51, 'FS', 0], [45, 44, 51, 'FS', 0],
   [46, 51, 52, 'SS', 3], [47, 51, 53, 'SS', 5], [48, 52, 54, 'FS', 0], [49, 53, 54, 'FS', 0], [50, 54, 55, 'FS', 0],
+  [51, 60, 2, 'FS', 0],
+  [52, 4, 5, 'FS', 0],
+  [53, 55, 56, 'FS', 0],
 ];
 
 // [n, nombre, tipo, máx. unidades, tarifa (S/ por hora o por unidad), unidad, rol]
