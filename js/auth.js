@@ -525,12 +525,13 @@ function _afterLogin() {
   }
 
   if (empresas.length === 0) {
-    // Propietario sin empresa aún: puede crear la primera desde el app
-    if (authState.perfil?.platform_role === 'propietario') {
+    // Sin empresa asignada: propietario y ninguno pueden usar el app (crearán su empresa)
+    const role = authState.perfil?.platform_role;
+    if (!role || role === 'propietario' || role === 'co_propietario' || role === 'ninguno') {
       _modalEl?.close();
       return;
     }
-    // Sin empresas asignadas — mostrar mensaje
+    // Rol específico sin empresa asignada — mostrar mensaje
     const el = document.getElementById('auth-step-login');
     if (el) el.innerHTML += `<p style="margin-top:16px;color:#92400e;background:#fef3c7;border-radius:8px;padding:10px 14px;font-size:.85rem">
       Tu cuenta no está asignada a ninguna empresa. Contacta al administrador.
