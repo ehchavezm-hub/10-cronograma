@@ -208,9 +208,18 @@ function _genTempPwd() {
 let _panelEl = null;
 
 export async function showUsuariosPanel() {
-  const rol = authState.empresaActual?.empresa_role;
-  if (!['super_admin','relevo'].includes(rol)) {
+  const rol        = authState.empresaActual?.empresa_role;
+  const platRol    = authState.perfil?.platform_role || '';
+  const sinEmpresa = authState.empresas.length === 0;
+  const esAdmin    = ['super_admin','relevo'].includes(rol)
+    || ['propietario','co_propietario'].includes(platRol)
+    || sinEmpresa;
+  if (!esAdmin) {
     alert('Solo el Super Admin o Relevo pueden gestionar usuarios.');
+    return;
+  }
+  if (sinEmpresa) {
+    alert('Primero debes crear tu empresa. Usa "Configurar empresa" en el menú.');
     return;
   }
 
