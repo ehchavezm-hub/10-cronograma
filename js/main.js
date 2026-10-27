@@ -38,7 +38,7 @@ import { pageHfCss, REPORT_TITLE_CSS, REPORT_FONT_CSS, normalizeReportBody, supp
 import { debouncedSave, queue } from './async-queue.js';
 import { initReports } from './reports.js';
 import { authInit, authState, showLoginModal, logout, seleccionarEmpresa } from './auth.js?v=194';
-import { showAdminConsole, updateAdminSectionVisibility } from './admin-console.js?v=196';
+import { showAdminConsole, updateAdminSectionVisibility } from './admin-console.js?v=197';
 
 // Precargar Manrope: los gráficos canvas de los reportes (DCMA, EVM, Histograma) la usan
 // y el canvas no dispara la descarga de la fuente por sí solo.

@@ -12,7 +12,7 @@ const SHELL = [
   './css/layout.css?v=100',
   './css/components.css?v=100',
   './css/print.css?v=102',
-  './js/main.js?v=196',
+  './js/main.js?v=197',
   './js/auth.js?v=194',
   './js/state.js',
   './js/storage.js',
