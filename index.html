@@ -114,7 +114,7 @@
     <nav id="explorer-panel" aria-label="Explorador de proyectos" style="display:flex;flex-direction:column;overflow:hidden">
 
       <!-- ── Administración (oculto hasta login admin) ── -->
-      <div id="admin-section" style="display:none;flex-direction:column;flex-shrink:0">
+      <div id="admin-section" style="display:none;flex-direction:column;flex:0 0 auto;min-height:28px">
         <div class="sb-section-hdr" data-target="sb-body-admin" aria-expanded="true" role="button" tabindex="0" style="margin-top:0;border-top:none">
           <span class="sb-hdr-chevron">▾</span>
           <span class="sb-hdr-label">Administración</span>
@@ -127,25 +127,30 @@
         </div>
       </div>
 
+      <!-- Handle resize Administración ↕ Proyectos -->
+      <div class="sb-resize-handle" data-between="admin-section,sb-panel-proyectos-wrap"></div>
+
       <!-- ── Proyectos ── -->
-      <div class="panel-header" style="display:flex;align-items:center;justify-content:space-between;flex-shrink:0">
-        <span>Proyectos</span>
-        <div style="display:flex;gap:4px">
-          <button id="btn-new-project" class="btn btn-primary btn-sm" title="Crear nuevo proyecto" aria-label="Crear nuevo proyecto" style="font-size:11px;padding:2px 8px;">＋ Nuevo</button>
-          <label id="btn-sidebar-import" class="btn btn-ghost btn-sm" title="Importar proyecto desde JSON" style="font-size:11px;padding:2px 8px;cursor:pointer">↩ Importar
-            <input type="file" id="sidebar-import-file" accept=".json,.xer" hidden aria-label="Importar proyecto desde JSON o XER">
-          </label>
-          <button id="btn-recover-projects-hdr" class="btn btn-ghost btn-sm" title="Recuperar proyectos eliminados" aria-label="Recuperar proyectos eliminados" style="font-size:11px;padding:2px 6px;">🗂</button>
+      <div id="sb-panel-proyectos-wrap" style="flex:1 1 120px;min-height:50px;overflow:hidden;display:flex;flex-direction:column">
+        <div class="panel-header" style="display:flex;align-items:center;justify-content:space-between;flex-shrink:0">
+          <span>Proyectos</span>
+          <div style="display:flex;gap:4px">
+            <button id="btn-new-project" class="btn btn-primary btn-sm" title="Crear nuevo proyecto" aria-label="Crear nuevo proyecto" style="font-size:11px;padding:2px 8px;">＋ Nuevo</button>
+            <label id="btn-sidebar-import" class="btn btn-ghost btn-sm" title="Importar proyecto desde JSON" style="font-size:11px;padding:2px 8px;cursor:pointer">↩ Importar
+              <input type="file" id="sidebar-import-file" accept=".json,.xer" hidden aria-label="Importar proyecto desde JSON o XER">
+            </label>
+            <button id="btn-recover-projects-hdr" class="btn btn-ghost btn-sm" title="Recuperar proyectos eliminados" aria-label="Recuperar proyectos eliminados" style="font-size:11px;padding:2px 6px;">🗂</button>
+          </div>
         </div>
-      </div>
-      <div id="sb-panel-proyectos" style="flex:1 1 120px;min-height:50px;overflow:hidden">
-        <div class="explorer-list" id="explorer-list" style="height:100%;overflow-y:auto">
-          <!-- Lista de proyectos generada por JS -->
+        <div id="sb-panel-proyectos" style="flex:1 1 0;min-height:0;overflow:hidden">
+          <div class="explorer-list" id="explorer-list" style="height:100%;overflow-y:auto">
+            <!-- Lista de proyectos generada por JS -->
+          </div>
         </div>
       </div>
 
       <!-- Handle resize Proyectos ↕ Vistas -->
-      <div class="sb-resize-handle" data-between="sb-panel-proyectos,sb-panel-vistas"></div>
+      <div class="sb-resize-handle" data-between="sb-panel-proyectos-wrap,sb-panel-vistas"></div>
 
       <!-- ── Vistas (colapsable) ── -->
       <div id="sb-panel-vistas" style="flex:0 0 auto;min-height:28px;overflow:hidden;display:flex;flex-direction:column">
