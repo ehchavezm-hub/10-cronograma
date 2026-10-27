@@ -18,7 +18,7 @@ import { Calendar } from './calendar.js';
 import { computeCPM } from './cpm.js';
 
 /** Cambiar al modificar el contenido del DEMO: fuerza su regeneración. */
-export const DEMO_VERSION = 4;
+export const DEMO_VERSION = 5;
 
 export const ORG_ID   = '00000000-0000-0000-0000-000000000001';
 export const PROJ_ID  = '00000000-0000-0000-0000-000000000010';
