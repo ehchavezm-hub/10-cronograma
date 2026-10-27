@@ -3485,8 +3485,13 @@ function _bindToolbar() {
   document.getElementById('btn-menu')?.addEventListener('click', () => {
     const panel = document.getElementById('explorer-panel');
     const overlay = document.getElementById('drawer-overlay');
-    panel?.classList.toggle('open');
-    overlay?.classList.toggle('visible');
+    if (window.innerWidth >= 600) {
+      const isIconOnly = panel?.classList.toggle('sb-icon-only');
+      try { localStorage.setItem('sb-icon-only', isIconOnly ? '1' : '0'); } catch {}
+    } else {
+      panel?.classList.toggle('open');
+      overlay?.classList.toggle('visible');
+    }
   });
   document.getElementById('drawer-overlay')?.addEventListener('click', () => {
     document.getElementById('explorer-panel')?.classList.remove('open');
@@ -5744,6 +5749,11 @@ document.addEventListener('DOMContentLoaded', () => {
   _bindLinkMode();
   _bindResizer();
   _bindResizerExplorer();
+  // Restaurar modo icono
+  try {
+    if (localStorage.getItem('sb-icon-only') === '1')
+      document.getElementById('explorer-panel')?.classList.add('sb-icon-only');
+  } catch {}
   document.getElementById('btn-orgchart-view')?.addEventListener('click', _showOrgChart);
   document.getElementById('btn-cpm-network')?.addEventListener('click', _showCpmNetwork);
   // Keyboard activation for static view items (role="button")
