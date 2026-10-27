@@ -6,7 +6,7 @@
  */
 
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
-import { authState } from './auth.js?v=180';
+import { authState } from './auth.js?v=181';
 
 const REST = `${SUPABASE_URL}/rest/v1`;
 
@@ -167,9 +167,11 @@ function _buildHTML(data) {
 }
 
 export async function showPlataformaAdminPanel() {
-  // Solo propietario / co_propietario
-  const platRol = authState.perfil?.platform_role || '';
-  if (!['propietario','co_propietario'].includes(platRol)) return;
+  // Propietario / co_propietario a nivel plataforma, o super_admin de empresa
+  const platRol  = authState.perfil?.platform_role || '';
+  const empRol   = authState.empresaActual?.empresa_role || '';
+  const esAdmin  = ['propietario','co_propietario'].includes(platRol) || empRol === 'super_admin';
+  if (!esAdmin) return;
 
   // Quitar panel anterior
   document.getElementById('dlg-plataforma-admin')?.remove();

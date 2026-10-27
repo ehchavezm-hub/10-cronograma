@@ -37,7 +37,7 @@ import { generatePdfReport } from './pdf-report.js';
 import { pageHfCss, REPORT_TITLE_CSS, REPORT_FONT_CSS, normalizeReportBody, supportsPageMarginBoxes, PAPER_SELECT_HTML, PAPER_JS, FONTS_LINK, installDesktopPrint } from './pdf-utils.js';
 import { debouncedSave, queue } from './async-queue.js';
 import { initReports } from './reports.js';
-import { authInit, authState, showLoginModal, logout, seleccionarEmpresa } from './auth.js?v=180';
+import { authInit, authState, showLoginModal, logout, seleccionarEmpresa } from './auth.js?v=181';
 import { showUsuariosPanel } from './usuarios.js';
 import { showEmpresaAdminPanel } from './empresa-admin.js';
 import { showPlataformaAdminPanel } from './plataforma-admin.js';
@@ -5965,7 +5965,7 @@ function _toggleAuthMenu() {
   const esAdmin = ['super_admin','relevo'].includes(rol)
     || ['propietario','co_propietario'].includes(platformRol)
     || authState.empresas.length === 0;
-  if (['propietario','co_propietario'].includes(platformRol)) {
+  if (['propietario','co_propietario'].includes(platformRol) || rol === 'super_admin') {
     addItem('Administración de Plataforma', () => showPlataformaAdminPanel());
   }
   if (esAdmin) {
@@ -5974,7 +5974,7 @@ function _toggleAuthMenu() {
   }
   addItem('Mis empresas', () => showEmpresasSwitcher());
   addItem('Cambiar contraseña', () => {
-    import('./auth.js?v=180').then(m => m.showLoginModal?.());
+    import('./auth.js?v=181').then(m => m.showLoginModal?.());
   });
   addItem('Cerrar sesión', () => logout());
 
