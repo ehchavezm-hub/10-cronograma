@@ -178,7 +178,10 @@ async function _applySession(data) {
         authState.perfil = await _loadPerfil(token, userId);
       }
     } catch {}
-    try { await _rpcPost('reclamar_propietario', {}, token); } catch {}
+    try {
+      await _rpcPost('reclamar_propietario', {}, token);
+      authState.perfil = await _loadPerfil(token, userId);
+    } catch {}
   }
 
   // Empresa actual: la guardada o la primera disponible

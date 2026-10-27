@@ -57,7 +57,8 @@ $$;
 CREATE OR REPLACE FUNCTION public.reclamar_propietario()
 RETURNS BOOLEAN
 LANGUAGE plpgsql
-SECURITY INVOKER AS $$
+SECURITY DEFINER
+SET search_path = public AS $$
 DECLARE
   v_uid UUID;
 BEGIN
