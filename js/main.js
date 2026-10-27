@@ -15,7 +15,7 @@ import { computeCPM }    from './cpm.js';
 import { openDB, listProjects, listAllProjects, loadProject, saveProjectSnapshot, putMany, put as dbPut, getByIndex, getAll, remove as dbRemove,
          listPortfolios, savePortfolio, deletePortfolio, listPrograms, saveProgram, deleteProgram, loadHierarchy } from './storage.js';
 import { t }             from './i18n.js';
-import { DEMO_DATA }     from './demo-data.js';
+import { ensureDemoData } from './demo-seed.js';
 import { exportJson, importJson, exportCsv, exportMspXml, exportSvg } from './io.js';
 import { printWbsTable, printGantt, getPrintCols, setPrintCols } from './print.js';
 import { SyncEngine }     from './sync.js';
@@ -1744,22 +1744,8 @@ function _updateUndoRedoBtns() {
 // ============================================================
 
 async function _ensureDemoData() {
-  const allProjects = await listAllProjects();
-  const DEMO_UUID = '00000000-0000-0000-0000-000000000010';
-  const demoRecord = allProjects.find(p => p.id === DEMO_UUID);
-  // Si no existe o fue eliminado accidentalmente, siempre lo restauramos
-  if (!demoRecord || demoRecord.deleted_at) {
-    await saveProjectSnapshot(DEMO_DATA);
-  }
-  // Siempre garantizar que los recursos demo existan
-  if (DEMO_DATA.resources?.length) {
-    const existingRes = await getAll('resources').then(r => r.filter(x => !x.deleted_at));
-    if (!existingRes.length) {
-      await putMany('resources',      DEMO_DATA.resources);
-      await putMany('task_resources', DEMO_DATA.task_resources);
-    }
-  }
-  return DEMO_DATA.project;
+  // Proyecto DEMO completo con fechas al día (ver demo-seed.js)
+  return ensureDemoData();
 }
 
 async function _loadProject(projectId) {
@@ -3060,11 +3046,19 @@ function _bindToolbar() {
     await _openBaselineCompareModal();
   });
 
+  let _blcAutoProject = null;
   async function _openBaselineCompareModal() {
     const { project, tasks, cpmResult } = appState.state;
     if (!project || !cpmResult) return;
 
     const baselines = await listBaselines(project.id);
+    // Primera vez en el proyecto: comparar con la línea base principal (o la más reciente)
+    if (_blcAutoProject !== project.id && baselines.length && !isBaselineCompareEnabled()) {
+      _blcAutoProject = project.id;
+      const def = baselines.find(b => b.is_primary) ?? baselines[0];
+      try { await enableBaselineCompare(def.id); } catch { /* sin datos de línea base */ }
+    }
+    _blcAutoProject = project.id;
 
     let dlg = /** @type {HTMLDialogElement|null} */ (document.getElementById('dlg-baseline-compare'));
     if (!dlg) {
@@ -3146,6 +3140,13 @@ function _bindToolbar() {
       })();
       const tbody = dlg.querySelector('#dlg-blc-tbody');
       if (!tbody || !cpmResult?.tasks) return;
+      // Índices laborables → fechas del calendario del proyecto
+      const { calendar: _bc, calExceptions: _bx } = appState.state;
+      const _bCal = new Calendar({ work_week: _bc?.work_week ?? [1,2,3,4,5], exceptions: (_bx ?? []).filter(e => !e.deleted_at) });
+      const _bStart = isoToDate(project.start_date || new Date().toISOString().slice(0, 10));
+      const _fd = (d) => `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`;
+      const _ds = (i) => _fd(_bCal.idxToDate(i, _bStart));
+      const _df = (ef, es) => ef <= es ? _ds(es) : _fd(_bCal.finishDate(ef, _bStart)); // hito: mismo día
       const rows = [];
       for (const [tid, cpm] of cpmResult.tasks) {
         const task = tasks.get(tid);
@@ -3160,11 +3161,11 @@ function _bindToolbar() {
         const clrD = dd === 0 ? '' : dd > 0 ? 'color:#D32F2F' : 'color:#388E3C';
         rows.push(`<tr style="border-bottom:1px solid var(--clr-border-2)">
           <td style="padding:6px 10px;font-size:12px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${_escHtml(task.name)}</td>
-          <td style="padding:6px 10px;text-align:center">${bl.es}</td>
-          <td style="padding:6px 10px;text-align:center">${cpm.es}</td>
+          <td style="padding:6px 10px;text-align:center">${_ds(bl.es)}</td>
+          <td style="padding:6px 10px;text-align:center">${_ds(cpm.es)}</td>
           <td style="padding:6px 10px;text-align:center;font-weight:600;${clrI}">${di >= 0 ? '+' : ''}${di}</td>
-          <td style="padding:6px 10px;text-align:center">${bl.ef}</td>
-          <td style="padding:6px 10px;text-align:center">${cpm.ef}</td>
+          <td style="padding:6px 10px;text-align:center">${_df(bl.ef, bl.es)}</td>
+          <td style="padding:6px 10px;text-align:center">${_df(cpm.ef, cpm.es)}</td>
           <td style="padding:6px 10px;text-align:center;font-weight:600;${clrF}">${df >= 0 ? '+' : ''}${df}</td>
           <td style="padding:6px 10px;text-align:center;font-weight:600;${clrD}">${dd >= 0 ? '+' : ''}${dd}</td>
         </tr>`);
@@ -3339,7 +3340,9 @@ function _bindToolbar() {
     const dlg = /** @type {HTMLDialogElement} */ (document.getElementById('dlg-monte-carlo'));
     dlg?.close?.() ?? (dlg && (dlg.style.display = 'none'));
   });
-  document.getElementById('dlg-mc-print')?.addEventListener('click', () => {
+  document.getElementById('dlg-mc-print')?.addEventListener('click', async () => {
+    // Sin simulación previa: ejecutarla con los valores por defecto antes de imprimir
+    if (_mcPanel && !_mcPanel._lastResult) await _mcPanel._runSimulation();
     const body = document.getElementById('monte-carlo-container');
     const _mcCss = document.getElementById('mc-styles')?.textContent ?? '';
     const _mcVars = ':root{--mc-accent:#2563eb;--mc-kpi-bg:#f3f4f6;--mc-hist-fill:#60a5fa;--mc-p80-color:#dc2626;--mc-fg:#333;--mc-border:#e5e7eb;--mc-warn:#b45309;--mc-surface:#f5f7ff;--mc-hist-axis-stroke:#aaa;--mc-tick-fill:#666}';
