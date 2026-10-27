@@ -184,7 +184,7 @@ export class LookaheadPanel {
 
     const cal = new Calendar({
       work_week: calendar?.work_week ?? [1,2,3,4,5],
-      exceptions: calExceptions ?? [],
+      exceptions: (calExceptions ?? []).filter(ex => !ex.deleted_at),
     });
     const startDate = isoToDate(project.start_date || new Date().toISOString().slice(0,10));
     const today = new Date();

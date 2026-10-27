@@ -213,6 +213,10 @@ export class CurvaSPanel {
     this._loadBaselines().then(() => this.refresh());
   }
 
+  destroy() {
+    this._ro?.disconnect();
+  }
+
   _updateLegend() {
     const items = [
       { key: 'planned',   color: '#1976D2', label: 'Planificado', dash: false },
@@ -256,7 +260,7 @@ export class CurvaSPanel {
 
     const cal = new Calendar({
       work_week: calendar?.work_week ?? [1,2,3,4,5],
-      exceptions: calExceptions ?? [],
+      exceptions: (calExceptions ?? []).filter(ex => !ex.deleted_at),
     });
     const startDate = isoToDate(project.start_date || new Date().toISOString().slice(0,10));
 
