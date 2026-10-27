@@ -109,13 +109,16 @@ function _mostrarFormCrearEmpresa() {
     if (loadEl) loadEl.style.display = '';
     if (submitEl) submitEl.disabled = true;
     try {
-      const token = authState.session?.access_token;
-      const res = await fetch(`${REST}/rpc/crear_empresa`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ nombre_empresa: nombre }),
-      });
-      if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.message || e.error || `HTTP ${res.status}`); }
+      const userId = authState.user?.id;
+      if (!userId) throw new Error('Usuario no autenticado');
+      // slug único
+      const slug = nombre.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') + '-' + Date.now();
+      // 1. Crear organización
+      const orgRows = await _insert('organizations', { name: nombre, slug, owner_id: userId });
+      const orgId = Array.isArray(orgRows) ? orgRows[0]?.id : orgRows?.id;
+      if (!orgId) throw new Error('No se pudo obtener el ID de la empresa creada');
+      // 2. Crear membresía como super_admin
+      await _insert('org_memberships', { org_id: orgId, user_id: userId, empresa_role: 'super_admin', active: true });
       window.location.reload();
     } catch (e) {
       if (errEl) { errEl.textContent = e.message || 'Error al crear empresa. Intenta de nuevo.'; errEl.style.display = ''; }
