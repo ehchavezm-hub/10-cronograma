@@ -114,7 +114,7 @@ function _mostrarFormCrearEmpresa() {
       // slug único
       const slug = nombre.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') + '-' + Date.now();
       // 1. Crear organización
-      const orgRows = await _insert('organizations', { name: nombre, slug, owner_id: userId });
+      const orgRows = await _insert('organizations', { name: nombre, slug });
       const orgId = Array.isArray(orgRows) ? orgRows[0]?.id : orgRows?.id;
       if (!orgId) throw new Error('No se pudo obtener el ID de la empresa creada');
       // 2. Crear membresía como super_admin
