@@ -137,7 +137,7 @@ export function importJson(file) {
     reader.onload  = e => {
       try {
         const data = JSON.parse(/** @type {string} */ (e.target.result));
-        if (!data.project || !Array.isArray(data.tasks)) {
+        if (!data.project || !Array.isArray(data.tasks) || (data.deps !== undefined && !Array.isArray(data.deps))) {
           reject(new Error('Formato de archivo no válido — falta project o tasks.'));
         } else {
           resolve(data);

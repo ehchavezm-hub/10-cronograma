@@ -35,6 +35,7 @@ export function logCommand(cmd) {
 }
 
 let _seeded = false;
+let _seededProjectId = /** @type {string|null} */ (null);
 
 /**
  * Agrega una sola vez el historial de ejemplo del proyecto DEMO.
@@ -42,8 +43,9 @@ let _seeded = false;
  * @param {string} projectId
  */
 export function seedChangeLog(entries, projectId) {
-  if (_seeded) return;
+  if (_seeded && _seededProjectId === projectId) return;
   _seeded = true;
+  _seededProjectId = projectId;
   for (const e of entries) _log.push({ ...e, projectId });
   _log.sort((a, b) => b.ts.getTime() - a.ts.getTime());
 }

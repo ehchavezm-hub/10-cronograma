@@ -108,6 +108,11 @@ export class ResourceHistogramPanel {
     document.addEventListener('gantt-viewport', this._onGanttVp);
   }
 
+  destroy() {
+    document.removeEventListener('gantt-viewport', this._onGanttVp);
+    this._resObs?.disconnect();
+  }
+
   async refresh() {
     const loading  = /** @type {HTMLElement} */ (this._el.querySelector('#rh-loading'));
     const empty    = /** @type {HTMLElement} */ (this._el.querySelector('#rh-empty'));
