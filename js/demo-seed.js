@@ -7,7 +7,7 @@
  * Solo toca registros del DEMO; nunca los proyectos del usuario.
  */
 
-import { buildDemoData, DEMO_VERSION, PROJ_ID, CAL_ID } from './demo-data.js';
+import { buildDemoData, DEMO_VERSION, PROJ_ID, CAL_ID } from './demo-data.js?v=5';
 import { listAllProjects, saveProjectSnapshot, getAll, put, putMany, remove, getMeta, setMeta,
   savePortfolio, saveProgram } from './storage.js';
 import { seedChangeLog } from './change-log.js';
@@ -40,7 +40,8 @@ export async function ensureDemoData() {
   const rec = all.find(p => p.id === PROJ_ID);
   const seed = await getMeta('demo-seed').catch(() => null);
   const ageDays = seed?.anchor ? (Date.now() - new Date(seed.anchor + 'T00:00:00').getTime()) / 86400000 : Infinity;
-  const stale = !rec || rec.deleted_at || seed?.version !== DEMO_VERSION || ageDays > DEMO_MAX_AGE_DAYS;
+  const taskCount = rec ? (await getAll('tasks').catch(() => [])).filter(t => t.project_id === PROJ_ID && !t.deleted_at).length : 0;
+  const stale = !rec || rec.deleted_at || seed?.version !== DEMO_VERSION || ageDays > DEMO_MAX_AGE_DAYS || taskCount !== demo.tasks.length;
 
   if (stale) {
     // Limpiar los registros anteriores del DEMO (las tareas y dependencias las reemplaza el snapshot)

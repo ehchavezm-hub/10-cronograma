@@ -15,7 +15,7 @@ import { computeCPM }    from './cpm.js';
 import { openDB, listProjects, listAllProjects, loadProject, saveProjectSnapshot, putMany, put as dbPut, getByIndex, getAll, remove as dbRemove,
          listPortfolios, savePortfolio, deletePortfolio, listPrograms, saveProgram, deleteProgram, loadHierarchy, outboxAdd } from './storage.js';
 import { t }             from './i18n.js';
-import { ensureDemoData } from './demo-seed.js';
+import { ensureDemoData } from './demo-seed.js?v=2';
 import { exportJson, importJson, exportCsv, exportMspXml, exportSvg } from './io.js';
 import { printWbsTable, printGantt, getPrintCols, setPrintCols } from './print.js';
 import { SyncEngine }     from './sync.js';
