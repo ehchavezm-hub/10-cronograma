@@ -130,10 +130,11 @@
       <div class="sb-resize-handle" data-between="admin-section,sb-panel-proyectos-wrap"></div>
 
       <!-- ── Proyectos ── -->
-      <div id="sb-panel-proyectos-wrap" style="flex:1 1 120px;min-height:50px;overflow:hidden;display:flex;flex-direction:column">
-        <div class="panel-header" style="display:flex;align-items:center;justify-content:space-between;flex-shrink:0;border-bottom:none">
-          <span>Proyectos</span>
-          <div style="display:flex;gap:4px">
+      <div id="sb-panel-proyectos-wrap" style="flex:1 1 120px;min-height:28px;overflow:hidden;display:flex;flex-direction:column">
+        <div class="sb-section-hdr" data-target="sb-panel-proyectos" aria-expanded="true" role="button" tabindex="0" style="flex-shrink:0;justify-content:flex-start">
+          <span class="sb-hdr-chevron">▾</span>
+          <span class="sb-hdr-label">Proyectos</span>
+          <div style="display:flex;gap:4px;padding-right:2px">
             <button id="btn-new-project" class="btn btn-primary btn-sm" title="Crear nuevo proyecto" aria-label="Crear nuevo proyecto" style="font-size:11px;padding:2px 8px;">＋ Nuevo</button>
             <label id="btn-sidebar-import" class="btn btn-ghost btn-sm" title="Importar proyecto desde JSON" style="font-size:11px;padding:2px 8px;cursor:pointer">↩ Importar
               <input type="file" id="sidebar-import-file" accept=".json,.xer" hidden aria-label="Importar proyecto desde JSON o XER">
@@ -247,7 +248,10 @@
             }
           }
         }
-        hdr.addEventListener('click', _toggle);
+        hdr.addEventListener('click', e => {
+          if (e.target.closest('button, label, input, a')) return;
+          _toggle();
+        });
         hdr.addEventListener('keydown', e => {
           if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); _toggle(); }
         });
