@@ -415,11 +415,32 @@ function _bindLoginEvents(dlg) {
       try {
         const data = await register(email, pwd);
         if (data.access_token) {
-          // Intentar reclamar rol propietario (solo funciona si es el primer usuario)
-          try { await _rpcPost('reclamar_propietario', {}, data.access_token); } catch {}
-          // Recargar perfil para reflejar platform_role actualizado
+          const _tok = data.access_token;
+          const _uid = data.user?.id;
+          // 1. Crear/asegurar fila en profiles
           try {
-            authState.perfil = await _loadPerfil(data.access_token, data.user?.id);
+            await fetch(`${REST}/profiles`, {
+              method: 'POST',
+              headers: { ..._hdrs(_tok), 'Prefer': 'resolution=merge-duplicates,return=minimal' },
+              body: JSON.stringify({ id: _uid, email, name: email.split('@')[0], platform_role: 'ninguno' }),
+            });
+          } catch {}
+          // 2. Si no existe ningún propietario, asignar este usuario
+          try {
+            const existentes = await _restGet('profiles', { 'platform_role': 'eq.propietario', 'select': 'id' }, _tok);
+            if (existentes.length === 0) {
+              await fetch(`${REST}/profiles?id=eq.${_uid}`, {
+                method: 'PATCH',
+                headers: { ..._hdrs(_tok), 'Prefer': 'return=minimal' },
+                body: JSON.stringify({ platform_role: 'propietario' }),
+              });
+            }
+          } catch {}
+          // 3. Intentar también vía RPC (si el SQL ya fue ejecutado)
+          try { await _rpcPost('reclamar_propietario', {}, _tok); } catch {}
+          // 4. Recargar perfil
+          try {
+            authState.perfil = await _loadPerfil(_tok, _uid);
             authState._notify();
           } catch {}
           _afterLogin();
