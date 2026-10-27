@@ -529,6 +529,7 @@ export function computeCPM(allTasks, allDeps, calendar, projectStart, dataDateId
 
     const es = Math.min(...childResults.map(c => c.es ?? Infinity));
     const ef = Math.max(...childResults.map(c => c.ef ?? -Infinity));
+    if (!isFinite(es) || !isFinite(ef)) continue; // todos los hijos tienen es/ef nulos
     const ls = allComplete ? es : Math.min(...activeChildren.map(c => c.ls ?? Infinity));
     const lf = allComplete ? ef : Math.max(...activeChildren.map(c => c.lf ?? -Infinity));
     const tf = allComplete ? null : Math.min(...activeChildren.map(c => c.tf ?? 0));
