@@ -13,7 +13,7 @@ import { printToPdf } from './pdf-utils.js';
 // Registro en memoria
 // ============================================================
 
-/** @type {{ts:Date, cmd:string, label:string, taskId:string|null}[]} */
+/** @type {{ts:Date, cmd:string, label:string, taskId:string|null, projectId?:string|null}[]} */
 const _log = [];
 const MAX_LOG = 200;
 
@@ -28,9 +28,24 @@ export function logCommand(cmd) {
     cmd:    cmd.type ?? '?',
     label:  _cmdLabel(cmd),
     taskId: cmd.payload?.task?.id ?? cmd.payload?.id ?? null,
+    projectId: appState.state.project?.id ?? null,
   };
   _log.unshift(entry);
   if (_log.length > MAX_LOG) _log.pop();
+}
+
+let _seeded = false;
+
+/**
+ * Agrega una sola vez el historial de ejemplo del proyecto DEMO.
+ * @param {{ts:Date, cmd:string, label:string, taskId:string|null}[]} entries
+ * @param {string} projectId
+ */
+export function seedChangeLog(entries, projectId) {
+  if (_seeded) return;
+  _seeded = true;
+  for (const e of entries) _log.push({ ...e, projectId });
+  _log.sort((a, b) => b.ts.getTime() - a.ts.getTime());
 }
 
 // ============================================================
@@ -80,14 +95,16 @@ export class ChangeLogPanel {
     const empty = this._container.querySelector('#changelog-empty');
     if (!tbody || !empty) return;
 
-    if (!_log.length) {
+    const projId = appState.state.project?.id ?? null;
+    const log = _log.filter(e => !e.projectId || e.projectId === projId);
+    if (!log.length) {
       tbody.innerHTML = '';
       empty.style.display = '';
       return;
     }
     empty.style.display = 'none';
 
-    tbody.innerHTML = _log.map(e => `
+    tbody.innerHTML = log.map(e => `
       <tr class="changelog-row">
         <td class="cl-time">${_fmtTime(e.ts)}</td>
         <td><span class="cl-badge cl-${_badgeClass(e.cmd)}">${_shortCmd(e.cmd)}</span></td>
@@ -144,7 +161,9 @@ function _badgeClass(type) {
 }
 
 function _fmtTime(d) {
-  return d.toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  const time = d.toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  // Entradas de días anteriores (historial de ejemplo del DEMO) muestran también la fecha
+  return d.toDateString() === new Date().toDateString() ? time : `${d.toLocaleDateString('es-PE')} ${time}`;
 }
 
 function _esc(s) {

@@ -20,7 +20,15 @@
  * @param {TaskResource[]} taskResources
  * @returns {{ overloaded: Array<{resource: Resource, day: number, load: number, capacity: number, taskIds: string[]}> }}
  */
+/** Solo mano de obra y equipos tienen capacidad diaria; materiales y costos no se nivelan. */
+function _withCapacity(resources, taskResources) {
+  const res = resources.filter(r => r.type !== 'material' && r.type !== 'cost');
+  const ids = new Set(res.map(r => r.id));
+  return { res, trs: taskResources.filter(tr => ids.has(tr.resource_id)) };
+}
+
 export function detectOverAllocation(tasks, cpmTasks, resources, taskResources) {
+  ({ res: resources, trs: taskResources } = _withCapacity(resources, taskResources));
   if (!cpmTasks || !resources.length || !taskResources.length) return { overloaded: [] };
 
   const resMap = new Map(resources.map(r => [r.id, r]));
@@ -75,6 +83,7 @@ export function detectOverAllocation(tasks, cpmTasks, resources, taskResources) 
  * @returns {{ taskId: string, delayDays: number }[]}
  */
 export function levelResources(tasks, cpmTasks, resources, taskResources) {
+  ({ res: resources, trs: taskResources } = _withCapacity(resources, taskResources));
   if (!cpmTasks || !resources.length || !taskResources.length) return [];
 
   const resMap = new Map(resources.map(r => [r.id, r]));
