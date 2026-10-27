@@ -1103,7 +1103,7 @@ async function _estructura(main, orgId) {
 
   const accionesDe = (f) => {
     const id = f.k;
-    if (f.tipo === 'org') return _btn('+ Portafolio', 'npf', id) + _btn('+ Programa', 'nprog', id) + _btn('+ Proyecto', 'nproj', id);
+    if (f.tipo === 'org') return _btn('+ Portafolio', 'npf', id) + _btn('+ Programa', 'nprog', id) + _btn('+ Proyecto', 'nproj', id) + _btn('Usuarios', 'uorg', id);
     if (f.tipo === 'pf') return _btn('+ Programa', 'nprog', id) + _btn('+ Proyecto', 'nproj', id) + _btn('Editar', 'ednodo', id) + _btn('Eliminar', 'delnodo', id, { tono: 'danger' });
     if (f.tipo === 'prog') return _btn('+ Proyecto', 'nproj', id) + _btn('Editar', 'ednodo', id) + _btn('Eliminar', 'delnodo', id, { tono: 'danger' });
     return _btn('Editar', 'edproj', id) + _btn('Miembros y permisos', 'gestionar', id) + _btn('Eliminar', 'delproj', id, { tono: 'danger' });
@@ -1189,6 +1189,11 @@ async function _estructura(main, orgId) {
     if (S.orgId !== p.org_id) { S.orgId = p.org_id; await _cargarProyectos(); }
     S.projId = p.id;
     await _ir('proyecto', 'miembros');
+  };
+  S.acts.uorg = async (k) => {
+    const f = byK.get(k);
+    if (S.orgId !== f.d.id) { S.orgId = f.d.id; await _cargarProyectos(); }
+    await _ir('empresa', 'usuarios');
   };
   S.acts.lienzo = () => {
     _cambios = false;
