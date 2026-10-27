@@ -39,6 +39,7 @@ import { debouncedSave, queue } from './async-queue.js';
 import { initReports } from './reports.js';
 import { authInit, authState, showLoginModal, logout, seleccionarEmpresa } from './auth.js?v=194';
 import { showAdminConsole, updateAdminSectionVisibility } from './admin-console.js?v=200';
+import { ConnectivityPanel } from './connectivity.js';
 
 // Precargar Manrope: los gráficos canvas de los reportes (DCMA, EVM, Histograma) la usan
 // y el canvas no dispara la descarga de la fuente por sí solo.
@@ -2372,6 +2373,7 @@ let _wbsTable       = null;
 let _ganttScene     = null;
 let _ganttCanvas    = null;
 let _dcmaPanel      = null;
+let _connPanel      = null;
 let _evmPanel       = null;
 let _changeLogPanel = null;
 let _rhPanel        = null;
@@ -2508,6 +2510,15 @@ async function init() {
     const dcmaEl = document.getElementById('dcma-panel');
     if (dcmaEl) {
       _dcmaPanel = new DcmaPanel(dcmaEl);
+    }
+
+    // ---- Inicializar panel Conectividad ----
+    const connEl = document.getElementById('connectivity-panel');
+    if (connEl) {
+      _connPanel = new ConnectivityPanel(connEl);
+      document.addEventListener('connectivity-closed', () => {
+        document.getElementById('btn-connectivity-view')?.classList.remove('active');
+      });
     }
 
     // Escuchar selección de tarea desde el panel DCMA
@@ -5757,7 +5768,7 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('btn-orgchart-view')?.addEventListener('click', _showOrgChart);
   document.getElementById('btn-cpm-network')?.addEventListener('click', _showCpmNetwork);
   // Keyboard activation for static view items (role="button")
-  ['btn-orgchart-view','btn-cpm-network','btn-edt-view','btn-gantt-view','btn-dcma-view','btn-sync-view','btn-evm-view','btn-resource-histogram-view'].forEach(id => {
+  ['btn-orgchart-view','btn-cpm-network','btn-edt-view','btn-gantt-view','btn-dcma-view','btn-connectivity-view','btn-sync-view','btn-evm-view','btn-resource-histogram-view'].forEach(id => {
     document.getElementById(id)?.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); document.getElementById(id)?.click(); } });
   });
 
@@ -5791,6 +5802,19 @@ document.addEventListener('DOMContentLoaded', () => {
       const isOpen = panel.classList.toggle('open');
       if (isOpen) _dcmaPanel?.refresh();
       document.getElementById('btn-dcma-view')?.classList.toggle('active', isOpen);
+    }
+  });
+  document.getElementById('btn-connectivity-view')?.addEventListener('click', () => {
+    _closeExplorer();
+    if (!_connPanel) return;
+    if (_connPanel.isOpen) {
+      _connPanel.close();
+      document.getElementById('btn-connectivity-view')?.classList.remove('active');
+    } else {
+      const { tasks, deps, project } = appState.state;
+      if (!tasks || !deps) { _showToast('Abra un proyecto primero.'); return; }
+      _connPanel.refresh({ tasks, deps, projectName: project?.name ?? '' });
+      document.getElementById('btn-connectivity-view')?.classList.add('active');
     }
   });
   document.getElementById('btn-sync-view')?.addEventListener('click', () => {

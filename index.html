@@ -198,6 +198,10 @@
             <span class="item-icon">✅</span>
             <span class="item-label">DCMA ✓</span>
           </div>
+          <div class="explorer-item" id="btn-connectivity-view" role="button" tabindex="0" style="cursor:pointer" title="Verificar conectividad lógica: predecesoras y sucesoras" aria-label="Verificación de conectividad lógica">
+            <span class="item-icon">🔗</span>
+            <span class="item-label">Conectividad ✓</span>
+          </div>
           <div class="explorer-item" id="btn-sync-view" role="button" tabindex="0" style="cursor:pointer" title="Estado de sincronización con Supabase" aria-label="Estado de sincronización con Supabase">
             <span class="item-icon">☁</span>
             <span class="item-label">Sync Supabase ✓</span>
@@ -730,6 +734,9 @@
           <!-- Panel DCMA (overlay sobre el área principal) -->
           <div id="dcma-panel" role="region" aria-label="Panel de evaluación DCMA 14 puntos"></div>
 
+          <!-- Panel Conectividad -->
+          <div id="connectivity-panel" role="region" aria-label="Panel de verificación de conectividad lógica"></div>
+
           <!-- Panel EVM — Valor Ganado (Fase 6) -->
           <div id="evm-panel" role="region" aria-label="Panel de Valor Ganado EVM"></div>
 
@@ -792,7 +799,7 @@
 <!-- ============================================================
      Módulo principal (ES Module)
      ============================================================ -->
-<script type="module" src="js/main.js?v=199"></script>
+<script type="module" src="js/main.js?v=200"></script>
 
 <!-- Atajos de teclado globales -->
 <script type="module">
