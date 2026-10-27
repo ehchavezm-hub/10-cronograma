@@ -1235,11 +1235,18 @@ function _renderOrgChartAdmin(container, filas, adminsDe) {
     const t = TIPO[f.tipo];
     const [bg, bd, fg] = COL[f.tipo] || ['#fff', '#888', '#000'];
     const admins = f.tipo === 'proj' ? adminsDe(f.d.id) : [];
-    cards += `<div class="oct-node" style="left:${p.x}px;top:${p.y}px;width:${CW}px;height:${CH}px;background:${bg};border-color:${bd};color:${fg}">
+    const id = _esc(f.k);
+    let acts = '';
+    if (f.tipo === 'org') acts = `<button class="oct-act-btn" data-act="npf" data-id="${id}">+PF</button><button class="oct-act-btn" data-act="nprog" data-id="${id}">+Prog</button><button class="oct-act-btn" data-act="nproj" data-id="${id}">+Proy</button>`;
+    else if (f.tipo === 'pf') acts = `<button class="oct-act-btn" data-act="ednodo" data-id="${id}">✏</button><button class="oct-act-btn" data-act="nprog" data-id="${id}">+Prog</button><button class="oct-act-btn" data-act="nproj" data-id="${id}">+Proy</button><button class="oct-act-btn oct-act-btn-d" data-act="delnodo" data-id="${id}">🗑</button>`;
+    else if (f.tipo === 'prog') acts = `<button class="oct-act-btn" data-act="ednodo" data-id="${id}">✏</button><button class="oct-act-btn" data-act="nproj" data-id="${id}">+Proy</button><button class="oct-act-btn oct-act-btn-d" data-act="delnodo" data-id="${id}">🗑</button>`;
+    else acts = `<button class="oct-act-btn" data-act="edproj" data-id="${id}">✏</button><button class="oct-act-btn oct-act-btn-d" data-act="delproj" data-id="${id}">🗑</button>`;
+    cards += `<div class="oct-node" style="left:${p.x}px;top:${p.y}px;width:${CW}px;height:${CH}px;background:${bg};border-color:${bd};color:${fg};overflow:visible">
       <div class="oct-node-ico">${t.ico}</div>
       <div class="oct-node-nm" title="${_esc(f.d.name)}">${_esc(f.d.name)}</div>
       <div class="oct-node-tp">${t.label}${f.d.code ? ` · ${_esc(f.d.code)}` : ''}</div>
       ${admins.length ? `<div class="oct-node-adm">${_esc(admins[0])}</div>` : ''}
+      <div class="oct-node-acts">${acts}</div>
     </div>`;
     const ch = kids.get(k) || [];
     ch.forEach(c => {
@@ -1975,6 +1982,11 @@ function _injectCss() {
 .oct-node-nm{font-weight:700;font-size:12px;text-align:center;line-height:1.3;max-width:100%;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;word-break:break-word}
 .oct-node-tp{font-size:10px;opacity:.7;text-align:center;margin-top:1px}
 .oct-node-adm{font-size:10px;text-align:center;opacity:.8;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:1px}
+.oct-node-acts{position:absolute;bottom:-34px;left:50%;transform:translateX(-50%);display:flex;gap:3px;padding:3px 5px;background:var(--clr-surface,#fff);border:1px solid var(--clr-border,#d1d5db);border-radius:6px;box-shadow:0 2px 8px rgba(0,0,0,.15);opacity:0;pointer-events:none;transition:opacity .15s;z-index:20;white-space:nowrap}
+.oct-node:hover .oct-node-acts,.oct-node:focus-within .oct-node-acts{opacity:1;pointer-events:auto}
+.oct-act-btn{background:transparent;border:1px solid rgba(0,0,0,.15);border-radius:4px;cursor:pointer;font-size:10px;padding:2px 5px;font-weight:600;line-height:1.4;color:var(--clr-text,#111827)}
+.oct-act-btn:hover{background:var(--clr-hover,rgba(0,0,0,.06))}
+.oct-act-btn-d{color:#b91c1c;border-color:rgba(185,28,28,.25)}
 @media (max-width:760px){
   .adm-top{flex-wrap:wrap;padding:8px 16px}
   .adm-scope{order:3;flex-basis:100%}
