@@ -5833,6 +5833,7 @@ function _renderAuthBtn(state) {
   }
 
   if (state.user) {
+    btn.onclick = null;
     const nombre  = state.perfil?.full_name || state.user.email?.split('@')[0] || 'Usuario';
     const initials = _getInitials(nombre);
     btn.title = nombre;
