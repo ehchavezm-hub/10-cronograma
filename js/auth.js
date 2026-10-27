@@ -124,7 +124,8 @@ async function _loadEmpresas(token, userId) {
   }, token);
   const orgMap = new Map(orgs.map(o => [o.id, o]));
 
-  return mems.map(r => ({
+  // Solo empresas que existen (las eliminadas no aparecen)
+  return mems.filter(r => orgMap.has(r.org_id)).map(r => ({
     mem_id:       r.id,
     org_id:       r.org_id,
     org_name:     orgMap.get(r.org_id)?.name ?? r.org_id,
@@ -174,7 +175,7 @@ async function _applySession(data) {
   ]);
 
   authState.perfil   = perfil;
-  authState.empresas = empresas;
+  authState.empresas = _filtrarSuspendidas(empresas, perfil);
 
   // Si no tiene rol propietario, verificar si hay que asignarlo (primer usuario)
   if (perfil && perfil.platform_role === 'ninguno') {
@@ -254,6 +255,25 @@ export async function cambiarPassword(newPassword) {
   authState.mustChangePwd = false;
   authState._notify();
   return true;
+}
+
+// Las empresas suspendidas solo las ve el propietario de la plataforma
+function _filtrarSuspendidas(empresas, perfil) {
+  const prop = ['propietario', 'co_propietario'].includes(perfil?.platform_role || '');
+  return prop ? empresas : empresas.filter(e => e.org_status !== 'suspended');
+}
+
+// ============================================================
+// Recargar empresas (tras crear, editar o eliminar desde Administración)
+// ============================================================
+export async function recargarEmpresas() {
+  const token = authState.session?.access_token;
+  const userId = authState.user?.id;
+  if (!token || !userId) return;
+  authState.empresas = _filtrarSuspendidas(await _loadEmpresas(token, userId), authState.perfil);
+  const actual = authState.empresas.find(e => e.org_id === authState.empresaActual?.org_id);
+  authState.empresaActual = actual || authState.empresas[0] || null;
+  authState._notify();
 }
 
 // ============================================================
