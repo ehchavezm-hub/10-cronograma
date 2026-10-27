@@ -5970,18 +5970,6 @@ function _toggleAuthMenu() {
     body.appendChild(el);
   };
 
-  const platformRol = authState.perfil?.platform_role || '';
-  const esAdmin = ['super_admin','relevo'].includes(rol)
-    || ['propietario','co_propietario'].includes(platformRol)
-    || authState.empresas.length === 0;
-  if (['propietario','co_propietario'].includes(platformRol) || rol === 'super_admin') {
-    addItem('Administración de Plataforma', () => showPlataformaAdminPanel());
-  }
-  if (esAdmin) {
-    addItem('Gestionar usuarios', () => showUsuariosPanel());
-    addItem('Configurar empresa',  () => showEmpresaAdminPanel());
-  }
-  addItem('Mis empresas', () => showEmpresasSwitcher());
   addItem('Cambiar contraseña', () => {
     import('./auth.js?v=181').then(m => m.showLoginModal?.());
   });
