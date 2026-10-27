@@ -1082,15 +1082,22 @@ async function _estructura(main, orgId) {
     ...(orgId ? [] : [[orgs.length, 'Empresas']]),
     [pfs.length, 'Portafolios'], [progs.length, 'Programas'], [proys.length, 'Proyectos'],
     [sinAdmin, 'Proyectos sin administrador', sinAdmin ? 'warn' : ''],
-  ]) + `<div class="adm-toolbar">
-      <input class="adm-in adm-search" type="search" placeholder="Buscar en la estructura…" aria-label="Buscar" data-q>
-      <select class="adm-in" data-ftipo aria-label="Mostrar"><option value="">Mostrar: todo</option><option value="sin">Solo proyectos sin administrador</option></select>
-      <button type="button" class="adm-btn adm-btn-sm" data-expand>Expandir todo</button>
-      <button type="button" class="adm-btn adm-btn-sm" data-collapse>Contraer todo</button>
+  ]) + `<div class="adm-tabs">
+      <button class="adm-tab-btn is-active" data-tab="tabla">Tabla</button>
+      <button class="adm-tab-btn" data-tab="org">Organigrama</button>
     </div>
-    <div class="adm-table-wrap"><table class="adm-table adm-tree"><thead><tr>
-      <th>Nombre</th><th>Tipo</th><th>Código</th><th>Administrador</th><th></th>
-    </tr></thead><tbody></tbody></table></div>`;
+    <div data-tabpanel="tabla">
+      <div class="adm-toolbar">
+        <input class="adm-in adm-search" type="search" placeholder="Buscar en la estructura…" aria-label="Buscar" data-q>
+        <select class="adm-in" data-ftipo aria-label="Mostrar"><option value="">Mostrar: todo</option><option value="sin">Solo proyectos sin administrador</option></select>
+        <button type="button" class="adm-btn adm-btn-sm" data-expand>Expandir todo</button>
+        <button type="button" class="adm-btn adm-btn-sm" data-collapse>Contraer todo</button>
+      </div>
+      <div class="adm-table-wrap"><table class="adm-table adm-tree"><thead><tr>
+        <th>Nombre</th><th>Tipo</th><th>Código</th><th>Administrador</th><th></th>
+      </tr></thead><tbody></tbody></table></div>
+    </div>
+    <div data-tabpanel="org" hidden></div>`;
   const tbody = /** @type {HTMLElement} */ (body.querySelector('tbody'));
   let q = '', soloSin = false;
 
@@ -1138,6 +1145,18 @@ async function _estructura(main, orgId) {
   body.querySelector('[data-collapse]')?.addEventListener('click', () => { filas.filter(f => f.hijos && f.tipo !== 'org').forEach(f => _plegados.add(f.k)); _guardarPlegados(); draw(); });
   draw();
 
+  // Tab switching
+  let _orgDrawn = false;
+  const _orgPanel = /** @type {HTMLElement} */ (body.querySelector('[data-tabpanel="org"]'));
+  body.querySelectorAll('.adm-tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const tab = /** @type {HTMLElement} */ (btn).dataset.tab;
+      body.querySelectorAll('.adm-tab-btn').forEach(b => b.classList.toggle('is-active', b === btn));
+      body.querySelectorAll('[data-tabpanel]').forEach(p => { /** @type {HTMLElement} */ (p).hidden = /** @type {HTMLElement} */ (p).dataset.tabpanel !== tab; });
+      if (tab === 'org' && !_orgDrawn) { _orgDrawn = true; _renderOrgChartAdmin(_orgPanel, filas, adminsDe); }
+    });
+  });
+
   // Contexto de una fila (empresa, portafolio y programa donde crear)
   const ctx = (k) => {
     const f = k ? byK.get(k) : null;
@@ -1169,6 +1188,72 @@ async function _estructura(main, orgId) {
     _cerrar();
     window.dispatchEvent(new CustomEvent('ecm:abrir-estructura', { detail: { orgId } }));
   };
+}
+
+function _renderOrgChartAdmin(container, filas, adminsDe) {
+  const CW = 160, CH = 88, HG = 28, VG = 56;
+  const kids = new Map();
+  filas.forEach(f => {
+    const p = f.padre ?? '__ROOT__';
+    if (!kids.has(p)) kids.set(p, []);
+    kids.get(p).push(f);
+  });
+  const roots = filas.filter(f => f.padre === null);
+
+  const subtreeW = new Map();
+  const getW = (f) => {
+    if (subtreeW.has(f.k)) return subtreeW.get(f.k);
+    const ch = kids.get(f.k) || [];
+    const w = ch.length ? ch.reduce((s, c) => s + getW(c) + HG, -HG) : CW;
+    subtreeW.set(f.k, Math.max(CW, w));
+    return subtreeW.get(f.k);
+  };
+  roots.forEach(getW);
+
+  const pos = new Map();
+  const place = (f, cx, y) => {
+    pos.set(f.k, { x: cx - CW / 2, y, cx });
+    const ch = kids.get(f.k) || [];
+    if (!ch.length) return;
+    const total = ch.reduce((s, c) => s + getW(c) + HG, -HG);
+    let lx = cx - total / 2;
+    ch.forEach(c => { const cw = getW(c); place(c, lx + cw / 2, y + CH + VG); lx += cw + HG; });
+  };
+
+  let sx = 20;
+  roots.forEach(r => { const rw = getW(r); place(r, sx + rw / 2, 20); sx += rw + HG * 3; });
+
+  let maxX = 0, maxY = 0;
+  pos.forEach(({ x, y }) => { maxX = Math.max(maxX, x + CW + 20); maxY = Math.max(maxY, y + CH + 20); });
+
+  const COL = { org: ['#e8f5e9', '#2e7d32', '#1b5e20'], pf: ['#e3f0fd', '#1976d2', '#0d47a1'], prog: ['#f3e8ff', '#7b1fa2', '#4a148c'], proj: ['#fff8e1', '#ef6c00', '#bf360c'] };
+
+  let lines = '', cards = '';
+  pos.forEach((p, k) => {
+    const f = filas.find(x => x.k === k);
+    if (!f) return;
+    const t = TIPO[f.tipo];
+    const [bg, bd, fg] = COL[f.tipo] || ['#fff', '#888', '#000'];
+    const admins = f.tipo === 'proj' ? adminsDe(f.d.id) : [];
+    cards += `<div class="oct-node" style="left:${p.x}px;top:${p.y}px;width:${CW}px;height:${CH}px;background:${bg};border-color:${bd};color:${fg}">
+      <div class="oct-node-ico">${t.ico}</div>
+      <div class="oct-node-nm" title="${_esc(f.d.name)}">${_esc(f.d.name)}</div>
+      <div class="oct-node-tp">${t.label}${f.d.code ? ` · ${_esc(f.d.code)}` : ''}</div>
+      ${admins.length ? `<div class="oct-node-adm">${_esc(admins[0])}</div>` : ''}
+    </div>`;
+    const ch = kids.get(k) || [];
+    ch.forEach(c => {
+      const cp = pos.get(c.k);
+      if (!cp) return;
+      const midY = p.y + CH + VG / 2;
+      lines += `<path d="M${p.cx} ${p.y + CH} L${p.cx} ${midY} L${cp.cx} ${midY} L${cp.cx} ${cp.y}" fill="none" stroke="var(--clr-border,#d1d5db)" stroke-width="2" stroke-linecap="round"/>`;
+    });
+  });
+
+  container.innerHTML = `<div class="oct-wrap"><div style="position:relative;width:${maxX}px;height:${maxY}px;min-width:100%">
+    <svg style="position:absolute;inset:0;width:${maxX}px;height:${maxY}px;pointer-events:none;overflow:visible" aria-hidden="true">${lines}</svg>
+    ${cards}
+  </div></div>`;
 }
 
 const _platProyectos = (main) => _estructura(main, '');
@@ -1876,6 +1961,16 @@ function _injectCss() {
 .adm-toast{position:fixed;right:20px;bottom:20px;padding:10px 16px;border-radius:10px;background:#1f2937;color:#fff;font-weight:600;opacity:0;transform:translateY(8px);transition:all .2s;pointer-events:none;z-index:1600;max-width:min(420px,calc(100vw - 40px))}
 .adm-toast.is-show{opacity:1;transform:none}
 .adm-toast-err{background:var(--clr-error,#c62828)}
+.adm-tabs{display:flex;gap:2px;margin-bottom:14px;border-bottom:2px solid var(--clr-border,#d1d5db)}
+.adm-tab-btn{background:none;border:none;border-bottom:2px solid transparent;margin-bottom:-2px;padding:8px 18px;font:inherit;font-size:13px;font-weight:600;color:var(--clr-text-3,#5b6270);cursor:pointer;border-radius:6px 6px 0 0}
+.adm-tab-btn:hover{color:var(--clr-text,#111827);background:var(--clr-hover,rgba(0,0,0,.04))}
+.adm-tab-btn.is-active{color:var(--clr-primary,#4f46e5);border-bottom-color:var(--clr-primary,#4f46e5)}
+.oct-wrap{overflow:auto;padding:8px 4px 16px}
+.oct-node{position:absolute;border:1.5px solid;border-radius:9px;padding:8px 10px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;box-shadow:0 1px 4px rgba(0,0,0,.09)}
+.oct-node-ico{font-size:18px;line-height:1}
+.oct-node-nm{font-weight:700;font-size:12px;text-align:center;line-height:1.3;max-width:100%;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;word-break:break-word}
+.oct-node-tp{font-size:10px;opacity:.7;text-align:center;margin-top:1px}
+.oct-node-adm{font-size:10px;text-align:center;opacity:.8;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:1px}
 @media (max-width:760px){
   .adm-top{flex-wrap:wrap;padding:8px 16px}
   .adm-scope{order:3;flex-basis:100%}
