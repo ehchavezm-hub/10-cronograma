@@ -172,11 +172,11 @@ let _cambios = false;
 
 const NAV = {
   plataforma: [
-    ['resumen', 'Resumen', '📊'], ['empresas', 'Empresas', '🏢'], ['proyectos', 'Proyectos', '📁'],
+    ['resumen', 'Resumen', '📊'], ['empresas', 'Empresas', '🏢'], ['proyectos', 'Estructura', '🌳'],
     ['propietarios', 'Propietarios', '👑'], ['auditoria', 'Auditoría', '🧾'],
   ],
   empresa: [
-    ['resumen', 'Resumen', '📊'], ['usuarios', 'Usuarios', '👥'], ['proyectos', 'Proyectos', '📁'],
+    ['resumen', 'Resumen', '📊'], ['usuarios', 'Usuarios', '👥'], ['proyectos', 'Estructura y proyectos', '🌳'],
     ['areas', 'Áreas', '🧩'], ['plantilla', 'Plantilla de permisos', '🔐'],
     ['auditoria', 'Auditoría', '🧾'], ['datos', 'Datos de la empresa', '📝'],
   ],
@@ -763,30 +763,158 @@ async function _asignarSuperAdmin(org) {
   return true;
 }
 
-/** Crea un proyecto en una empresa y, opcionalmente, le asigna administrador. */
-async function _crearProyecto(orgIdFijo = '') {
+// ============================================================
+// ESTRUCTURA: Empresa › Portafolio › Programa › Proyecto
+// Misma información que el lienzo «Estructura de Proyectos» (ambos leen la nube).
+// ============================================================
+const TIPO = {
+  org:  { label: 'Empresa',    ico: '🏢', tono: 'neutral' },
+  pf:   { label: 'Portafolio', ico: '📁', tono: 'info' },
+  prog: { label: 'Programa',   ico: '🗂', tono: 'violet' },
+  proj: { label: 'Proyecto',   ico: '📋', tono: 'ok' },
+};
+const _progDe = (p) => p.program_id || p.settings?.program_id || null;
+const _pfDe = (p, programas) => {
+  const prog = programas.find(g => g.id === _progDe(p));
+  return prog?.portfolio_id || p.settings?.portfolio_id || null;
+};
+
+/** Carga portafolios, programas, proyectos y administradores (de una empresa o de todas). */
+async function _cargarEstructura(orgId) {
+  const f = (extra) => ({ deleted_at: 'is.null', ...(orgId ? { org_id: `eq.${orgId}` } : {}), ...extra });
+  const [pfs, progs, proys, gms] = await Promise.all([
+    _get('portfolios', f({ select: 'id,org_id,name,code,description,settings,created_at', order: 'name.asc' })),
+    _get('programs', f({ select: 'id,org_id,portfolio_id,name,code,description,settings,created_at', order: 'name.asc' })),
+    _get('projects', f({ select: 'id,org_id,program_id,code,name,description,status,start_date,settings', order: 'name.asc' })),
+    _get('group_memberships', { ...(orgId ? { org_id: `eq.${orgId}` } : {}), group_role: 'eq.administrador', select: 'project_id,user_id' }).catch(() => []),
+  ]);
+  const orgs = new Set(S.orgs.map(o => o.id));
+  const dentro = (r) => orgs.has(r.org_id);
+  const pm = await _perfiles(gms.map(g => g.user_id));
+  return { pfs: pfs.filter(dentro), progs: progs.filter(dentro), proys: proys.filter(dentro), gms, pm };
+}
+
+/** Guarda (crea o edita) un portafolio o programa. */
+async function _guardarNodo(tipo, datos, orgIdFijo) {
+  const esPf = tipo === 'pf';
+  const nuevo = !datos?.id;
+  const orgId = datos?.org_id || orgIdFijo;
+  const pfsOrg = orgId ? await _get('portfolios', { org_id: `eq.${orgId}`, deleted_at: 'is.null', select: 'id,name,code', order: 'name.asc' }) : [];
+  const orgs = S.orgs.filter(o => o.status !== 'suspended');
+  const res = await _modal({
+    title: `${nuevo ? 'Nuevo' : 'Editar'} ${esPf ? 'portafolio' : 'programa'}`,
+    desc: esPf ? 'Un portafolio agrupa programas y proyectos de una línea de negocio (p. ej. Edificaciones).'
+      : 'Un programa agrupa proyectos relacionados dentro de un portafolio.',
+    fields: [
+      ...(orgId ? [] : [{ key: 'org', label: 'Empresa', type: 'select', required: true, options: [['', 'Elegir…'], ...orgs.map(o => [o.id, _orgLabel(o)])] }]),
+      { key: 'name', label: 'Nombre', required: true, value: datos?.name || '' },
+      { key: 'code', label: 'Código', value: datos?.code || '', placeholder: esPf ? 'Ej: P01' : 'Ej: Pg01' },
+      { key: 'desc', label: 'Descripción', value: datos?.description || '' },
+      ...(!esPf && orgId ? [{ key: 'pf', label: 'Portafolio', type: 'select', value: datos?.portfolio_id || '',
+        options: [['', '(Ninguno, cuelga de la empresa)'], ...pfsOrg.map(p => [p.id, `${p.code ? p.code + ' · ' : ''}${p.name}`])] }] : []),
+    ],
+    submit: nuevo ? 'Crear' : 'Guardar',
+    onSubmit: async ({ org, name, code, desc, pf }) => {
+      const tabla = esPf ? 'portfolios' : 'programs';
+      const fila = { name, code: code || null, description: desc || null, updated_at: new Date().toISOString(), ...(!esPf ? { portfolio_id: pf || null } : {}) };
+      const oid = orgId || org;
+      if (nuevo) {
+        const [r] = await _post(tabla, { id: crypto.randomUUID(), org_id: oid, settings: {}, ...fila });
+        await _audit(oid, esPf ? 'crear_portafolio' : 'crear_programa', tabla, r.id, { nombre: name });
+      } else {
+        await _patch(tabla, { id: `eq.${datos.id}` }, fila);
+        await _audit(oid, esPf ? 'editar_portafolio' : 'editar_programa', tabla, datos.id, { nombre: name });
+      }
+      return true;
+    },
+  });
+  if (res) { _cambios = true; _toast(nuevo ? 'Creado' : 'Guardado'); }
+  return !!res;
+}
+
+/** Elimina (lógicamente) un portafolio o programa; sus hijos quedan colgando del nivel superior. */
+async function _eliminarNodo(tipo, nodo, est) {
+  const esPf = tipo === 'pf';
+  const hijosProg = esPf ? est.progs.filter(g => g.portfolio_id === nodo.id) : [];
+  const hijosProj = est.proys.filter(p => esPf ? (p.settings?.portfolio_id === nodo.id && !_progDe(p)) : _progDe(p) === nodo.id);
+  const ok = await _modal({
+    title: `Eliminar ${esPf ? 'el portafolio' : 'el programa'} «${nodo.name}»`,
+    desc: (hijosProg.length || hijosProj.length)
+      ? `Sus ${hijosProg.length ? `${hijosProg.length} programa(s) y ` : ''}${hijosProj.length} proyecto(s) <b>no se borran</b>: pasan a colgar del nivel superior.`
+      : 'No tiene programas ni proyectos.',
+    submit: 'Eliminar', danger: true,
+    onSubmit: async () => {
+      const now = new Date().toISOString();
+      for (const g of hijosProg) await _patch('programs', { id: `eq.${g.id}` }, { portfolio_id: null, updated_at: now });
+      for (const p of hijosProj) {
+        const settings = { ...(p.settings || {}), ...(esPf ? { portfolio_id: null } : { program_id: null, portfolio_id: nodo.portfolio_id || null }) };
+        await _patch('projects', { id: `eq.${p.id}` }, { settings, ...(esPf ? {} : { program_id: null }), updated_at: now });
+      }
+      await _patch(esPf ? 'portfolios' : 'programs', { id: `eq.${nodo.id}` }, { deleted_at: now, updated_at: now });
+      await _audit(nodo.org_id, esPf ? 'eliminar_portafolio' : 'eliminar_programa', esPf ? 'portfolios' : 'programs', nodo.id, { nombre: nodo.name });
+    },
+  });
+  if (ok) { _cambios = true; _toast('Eliminado'); }
+  return !!ok;
+}
+
+/** Campos de ubicación (portafolio y programa) de un proyecto dentro de su empresa. */
+async function _camposUbicacion(orgId, actual = {}) {
+  const [pfs, progs] = await Promise.all([
+    _get('portfolios', { org_id: `eq.${orgId}`, deleted_at: 'is.null', select: 'id,name,code', order: 'name.asc' }),
+    _get('programs', { org_id: `eq.${orgId}`, deleted_at: 'is.null', select: 'id,name,code,portfolio_id', order: 'name.asc' }),
+  ]);
+  const lbl = (x) => `${x.code ? x.code + ' · ' : ''}${x.name}`;
+  return {
+    progs,
+    fields: [
+      { key: 'pf', label: 'Portafolio', type: 'select', value: actual.pf || '', options: [['', '(Ninguno)'], ...pfs.map(p => [p.id, lbl(p)])] },
+      { key: 'prog', label: 'Programa', type: 'select', value: actual.prog || '', options: [['', '(Ninguno)'], ...progs.map(g => [g.id, lbl(g)])],
+        hint: 'Si eliges un programa, el proyecto queda en el portafolio de ese programa.' },
+    ],
+  };
+}
+const _ubicacion = (progs, pf, prog) => {
+  const g = progs.find(x => x.id === prog);
+  return { program_id: prog || null, portfolio_id: g ? (g.portfolio_id || null) : (pf || null) };
+};
+
+/** Crea un proyecto en una empresa (opcionalmente dentro de un portafolio/programa) y le asigna administrador. */
+async function _crearProyecto(orgIdFijo = '', ubic = {}) {
   const orgs = S.orgs.filter(o => o.status !== 'suspended');
   if (!orgs.length) { _toast('Primero crea una empresa', 'err'); return null; }
-  const mems = orgIdFijo ? await _get('org_memberships', { org_id: `eq.${orgIdFijo}`, active: 'eq.true', select: 'user_id' }) : [];
+  let orgId = orgIdFijo;
+  if (!orgId) {
+    const r = await _modal({
+      title: 'Nuevo proyecto', desc: '¿En qué empresa?',
+      fields: [{ key: 'org', label: 'Empresa', type: 'select', required: true, options: [['', 'Elegir…'], ...orgs.map(o => [o.id, _orgLabel(o)])] }],
+      submit: 'Continuar',
+    });
+    if (!r) return null;
+    orgId = r.org;
+  }
+  const [mems, ub] = await Promise.all([
+    _get('org_memberships', { org_id: `eq.${orgId}`, active: 'eq.true', select: 'user_id' }),
+    _camposUbicacion(orgId, ubic),
+  ]);
   const pm = await _perfiles(mems.map(m => m.user_id));
   const res = await _modal({
     title: 'Nuevo proyecto',
-    desc: 'El proyecto queda guardado en la nube dentro de la empresa y aparece en el explorador de todos sus miembros.',
+    desc: `En <b>${_esc(S.orgs.find(o => o.id === orgId)?.name || '')}</b>. Queda en la nube y aparece en el explorador y en la Estructura de Proyectos de sus miembros.`,
     fields: [
-      ...(orgIdFijo ? [] : [{ key: 'org', label: 'Empresa', type: 'select', required: true, options: [['', 'Elegir…'], ...orgs.map(o => [o.id, _orgLabel(o)])] }]),
       { key: 'name', label: 'Nombre del proyecto', required: true, placeholder: 'Ej: Edificio Residencial Las Palmas' },
       { key: 'code', label: 'Código (opcional)', placeholder: 'Ej: LP-2026' },
       { key: 'start', label: 'Fecha de inicio', type: 'date', value: new Date().toISOString().slice(0, 10), required: true },
-      ...(orgIdFijo ? [{ key: 'admin', label: 'Administrador del proyecto', type: 'select',
-        options: [['', 'Asignar después'], ...mems.map(m => [m.user_id, _nombre(pm.get(m.user_id))])],
-        hint: 'Puedes asignarlo o cambiarlo luego desde la lista de proyectos.' }] : []),
+      ...ub.fields,
+      { key: 'admin', label: 'Administrador del proyecto', type: 'select',
+        options: [['', 'Asignar después'], ...mems.map(m => [m.user_id, _nombre(pm.get(m.user_id))])] },
     ],
     submit: 'Crear proyecto',
-    onSubmit: async ({ org, name, code, start, admin }) => {
-      const orgId = orgIdFijo || org;
+    onSubmit: async ({ name, code, start, pf, prog, admin }) => {
+      const u = _ubicacion(ub.progs, pf, prog);
       const [p] = await _post('projects', {
         id: crypto.randomUUID(), org_id: orgId, name, code: code || null, start_date: start,
-        status: 'active', is_template: false, settings: {},
+        status: 'active', is_template: false, program_id: u.program_id, settings: u,
       });
       if (admin) await _post('group_memberships', { org_id: orgId, project_id: p.id, user_id: admin, group_role: 'administrador' });
       await _audit(orgId, 'crear_proyecto', 'projects', p.id, { proyecto: name });
@@ -851,17 +979,23 @@ async function _asignarAdminProyecto(proy) {
   return true;
 }
 
-/** Editar nombre, código y fecha de inicio de un proyecto. */
+/** Editar nombre, código, fecha de inicio y ubicación (portafolio/programa) de un proyecto. */
 async function _editarProyecto(proy) {
+  const ub = await _camposUbicacion(proy.org_id, { pf: proy.settings?.portfolio_id || '', prog: _progDe(proy) || '' });
   const ok = await _modal({
     title: 'Editar proyecto',
     fields: [
       { key: 'name', label: 'Nombre', required: true, value: proy.name },
       { key: 'code', label: 'Código', value: proy.code || '' },
       { key: 'start', label: 'Fecha de inicio', type: 'date', value: proy.start_date || '' },
+      ...ub.fields,
     ],
-    onSubmit: async ({ name, code, start }) => {
-      await _patch('projects', { id: `eq.${proy.id}` }, { name, code: code || null, start_date: start || null, updated_at: new Date().toISOString() });
+    onSubmit: async ({ name, code, start, pf, prog }) => {
+      const u = _ubicacion(ub.progs, pf, prog);
+      await _patch('projects', { id: `eq.${proy.id}` }, {
+        name, code: code || null, start_date: start || null, program_id: u.program_id,
+        settings: { ...(proy.settings || {}), ...u }, updated_at: new Date().toISOString(),
+      });
       await _audit(proy.org_id, 'editar_proyecto', 'projects', proy.id, { antes: proy.name, ahora: name });
     },
   });
@@ -872,66 +1006,172 @@ async function _editarProyecto(proy) {
   return true;
 }
 
+async function _eliminarProyecto(proy) {
+  const ok = await _modal({
+    title: `Eliminar el proyecto «${proy.name}»`,
+    desc: 'Desaparece para todos los miembros de la empresa. Se puede recuperar desde Supabase si te equivocas.',
+    confirmWord: proy.name.trim(), submit: 'Eliminar proyecto', danger: true,
+    onSubmit: async () => {
+      const now = new Date().toISOString();
+      await _patch('projects', { id: `eq.${proy.id}` }, { deleted_at: now, updated_at: now });
+      await _audit(proy.org_id, 'eliminar_proyecto', 'projects', proy.id, { proyecto: proy.name });
+    },
+  });
+  if (!ok) return false;
+  _cambios = true;
+  if (proy.org_id === S.orgId) await _cargarProyectos();
+  _toast('Proyecto eliminado');
+  return true;
+}
+
+/** Nodos plegados del árbol (se recuerdan entre visitas). */
+const _plegados = (() => { try { return new Set(JSON.parse(localStorage.getItem('ecm_admin_plegados') || '[]')); } catch { return new Set(); } })();
+const _guardarPlegados = () => { try { localStorage.setItem('ecm_admin_plegados', JSON.stringify([..._plegados])); } catch {} };
+
 /**
- * Tabla de proyectos con administrador. Si orgId es '' muestra los de todas las empresas.
+ * Árbol Empresa › Portafolio › Programa › Proyecto. Si orgId es '' muestra todas las empresas.
  * @param {HTMLElement} main
  * @param {string} orgId
  */
-async function _listaProyectos(main, orgId) {
-  const filtroP = { deleted_at: 'is.null', select: 'id,org_id,code,name,status,start_date', order: 'name.asc' };
-  const filtroG = { select: 'project_id,user_id,group_role' };
-  if (orgId) { filtroP.org_id = `eq.${orgId}`; filtroG.org_id = `eq.${orgId}`; }
-  const [proys, gms] = await Promise.all([_get('projects', filtroP), _get('group_memberships', filtroG).catch(() => [])]);
-  const om = new Map(S.orgs.map(o => [o.id, o]));
-  const visibles = orgId ? proys : proys.filter(p => om.has(p.org_id));
-  const pm = await _perfiles(gms.filter(g => g.group_role === 'administrador').map(g => g.user_id));
-  const rows = visibles.map(p => ({
-    ...p,
-    empresa: om.get(p.org_id)?.name || '—',
-    miembros: gms.filter(g => g.project_id === p.id).length,
-    admins: gms.filter(g => g.project_id === p.id && g.group_role === 'administrador').map(g => _nombre(pm.get(g.user_id))),
-  }));
-  const body = _pagina(main, orgId ? {
-    title: 'Proyectos',
-    desc: 'Proyectos de la empresa y quién los administra. Crea proyectos aquí o desde el explorador; luego decide quién entra y con qué área.',
-    actions: [{ label: '+ Nuevo proyecto', act: 'nuevo', primary: true }],
-  } : {
-    title: 'Proyectos',
-    desc: 'Todos los proyectos de todas las empresas, con su administrador. Filtra por empresa para encontrarlos rápido.',
-    actions: [{ label: '+ Nuevo proyecto', act: 'nuevo', primary: true }],
-  });
-  const sinAdmin = rows.filter(r => !r.admins.length).length;
-  if (sinAdmin) body.insertAdjacentHTML('beforebegin', `<div class="adm-alert adm-alert-warn">${sinAdmin} proyecto(s) sin administrador. Asígnalo con el botón «Asignar».</div>`);
-  _tabla(body, {
-    rows, empty: orgId ? 'Esta empresa aún no tiene proyectos. Crea el primero.' : 'Aún no hay proyectos.',
-    search: p => `${p.code || ''} ${p.name} ${p.empresa} ${p.admins.join(' ')}`,
-    filters: [
-      ...(orgId ? [] : [{ label: 'Empresa', options: S.orgs.map(o => [o.id, _orgLabel(o)]), get: p => p.org_id }]),
-      { label: 'Administrador', options: [['con', 'Con administrador'], ['sin', 'Sin administrador']], get: p => p.admins.length ? 'con' : 'sin' },
+async function _estructura(main, orgId) {
+  const est = await _cargarEstructura(orgId);
+  const { pfs, progs, proys, gms, pm } = est;
+  const adminsDe = (pid) => gms.filter(g => g.project_id === pid).map(g => _nombre(pm.get(g.user_id)));
+  const orgs = orgId ? S.orgs.filter(o => o.id === orgId) : S.orgs;
+
+  // Construir filas del árbol en orden
+  /** @type {{k:string, tipo:string, nivel:number, d:any, padre:string|null, hijos:number}[]} */
+  const filas = [];
+  const add = (tipo, d, nivel, padre) => { const f = { k: `${tipo}:${d.id}`, tipo, nivel, d, padre, hijos: 0 }; filas.push(f); return f; };
+  const proyEn = (pred) => proys.filter(pred);
+  for (const o of orgs) {
+    const fo = add('org', o, 0, null);
+    const pfsO = pfs.filter(p => p.org_id === o.id);
+    const progsO = progs.filter(g => g.org_id === o.id);
+    const proysO = proys.filter(p => p.org_id === o.id);
+    const progValido = (id) => progsO.some(g => g.id === id);
+    const pfValido = (id) => pfsO.some(p => p.id === id);
+    for (const pf of pfsO) {
+      const fpf = add('pf', pf, 1, fo.k); fo.hijos++;
+      for (const g of progsO.filter(g => g.portfolio_id === pf.id)) {
+        const fg = add('prog', g, 2, fpf.k); fpf.hijos++;
+        for (const p of proysO.filter(p => _progDe(p) === g.id)) { add('proj', p, 3, fg.k); fg.hijos++; }
+      }
+      for (const p of proysO.filter(p => !progValido(_progDe(p)) && p.settings?.portfolio_id === pf.id)) { add('proj', p, 2, fpf.k); fpf.hijos++; }
+    }
+    for (const g of progsO.filter(g => !pfValido(g.portfolio_id))) {
+      const fg = add('prog', g, 1, fo.k); fo.hijos++;
+      for (const p of proysO.filter(p => _progDe(p) === g.id)) { add('proj', p, 2, fg.k); fg.hijos++; }
+    }
+    for (const p of proysO.filter(p => !progValido(_progDe(p)) && !pfValido(p.settings?.portfolio_id))) { add('proj', p, 1, fo.k); fo.hijos++; }
+  }
+  const byK = new Map(filas.map(f => [f.k, f]));
+
+  const body = _pagina(main, {
+    title: orgId ? 'Estructura y proyectos' : 'Estructura de todas las empresas',
+    desc: 'Empresa › Portafolio › Programa › Proyecto. Es la misma estructura que ves en el lienzo «Estructura de Proyectos»: lo que cambies aquí se refleja allá.',
+    actions: [
+      ...(orgId ? [{ label: 'Ver en lienzo', act: 'lienzo' }] : []),
+      { label: '+ Portafolio', act: 'npf' },
+      { label: '+ Programa', act: 'nprog' },
+      { label: '+ Proyecto', act: 'nproj', primary: true },
     ],
-    columns: [
-      { label: 'Proyecto', html: p => `<div class="adm-strong">${_esc(p.name)}</div>${p.code ? `<div class="adm-sub">${_esc(p.code)}</div>` : ''}` },
-      ...(orgId ? [] : [{ label: 'Empresa', html: p => _esc(p.empresa) }]),
-      { label: 'Administrador', html: p => `<div class="adm-cellact">${p.admins.length ? `<span>${_esc(p.admins.join(', '))}</span>` : _badge('Sin asignar', 'warn')}
-          ${_btn(p.admins.length ? 'Cambiar' : 'Asignar', 'padmin', p.id, { tono: p.admins.length ? '' : 'primary-soft' })}</div>` },
-      { label: 'Miembros', html: p => String(p.miembros), cls: 'adm-num' },
-      { label: 'Inicio', html: p => _esc(_fecha(p.start_date)), cls: 'adm-nowrap' },
-      { label: '', cls: 'adm-actions', html: p => _btn('Editar', 'editar', p.id) + _btn('Miembros y permisos', 'gestionar', p.id) },
-    ],
   });
-  const byId = (id) => rows.find(p => p.id === id);
-  S.acts.nuevo = async () => { if (await _crearProyecto(orgId)) await _renderPage(); };
-  S.acts.padmin = async (id) => { if (await _asignarAdminProyecto(byId(id))) await _renderPage(); };
-  S.acts.editar = async (id) => { if (await _editarProyecto(byId(id))) await _renderPage(); };
-  S.acts.gestionar = async (id) => {
-    const p = byId(id);
+  const sinAdmin = proys.filter(p => !adminsDe(p.id).length).length;
+  body.innerHTML = _kpis([
+    ...(orgId ? [] : [[orgs.length, 'Empresas']]),
+    [pfs.length, 'Portafolios'], [progs.length, 'Programas'], [proys.length, 'Proyectos'],
+    [sinAdmin, 'Proyectos sin administrador', sinAdmin ? 'warn' : ''],
+  ]) + `<div class="adm-toolbar">
+      <input class="adm-in adm-search" type="search" placeholder="Buscar en la estructura…" aria-label="Buscar" data-q>
+      <select class="adm-in" data-ftipo aria-label="Mostrar"><option value="">Mostrar: todo</option><option value="sin">Solo proyectos sin administrador</option></select>
+      <button type="button" class="adm-btn adm-btn-sm" data-expand>Expandir todo</button>
+      <button type="button" class="adm-btn adm-btn-sm" data-collapse>Contraer todo</button>
+    </div>
+    <div class="adm-table-wrap"><table class="adm-table adm-tree"><thead><tr>
+      <th>Nombre</th><th>Tipo</th><th>Código</th><th>Administrador</th><th></th>
+    </tr></thead><tbody></tbody></table></div>`;
+  const tbody = /** @type {HTMLElement} */ (body.querySelector('tbody'));
+  let q = '', soloSin = false;
+
+  const accionesDe = (f) => {
+    const id = f.k;
+    if (f.tipo === 'org') return _btn('+ Portafolio', 'npf', id) + _btn('+ Programa', 'nprog', id) + _btn('+ Proyecto', 'nproj', id);
+    if (f.tipo === 'pf') return _btn('+ Programa', 'nprog', id) + _btn('+ Proyecto', 'nproj', id) + _btn('Editar', 'ednodo', id) + _btn('Eliminar', 'delnodo', id, { tono: 'danger' });
+    if (f.tipo === 'prog') return _btn('+ Proyecto', 'nproj', id) + _btn('Editar', 'ednodo', id) + _btn('Eliminar', 'delnodo', id, { tono: 'danger' });
+    return _btn('Editar', 'edproj', id) + _btn('Miembros y permisos', 'gestionar', id) + _btn('Eliminar', 'delproj', id, { tono: 'danger' });
+  };
+  const visible = (f) => { for (let p = f.padre; p; p = byK.get(p)?.padre || null) if (_plegados.has(p)) return false; return true; };
+  const coincide = (f) => {
+    if (soloSin) return f.tipo === 'proj' && !adminsDe(f.d.id).length;
+    return !q || `${f.d.name} ${f.d.code || ''}`.toLowerCase().includes(q);
+  };
+  const draw = () => {
+    let lista;
+    if (q || soloSin) {
+      // Mostrar las coincidencias y sus ancestros
+      const keep = new Set();
+      filas.filter(coincide).forEach(f => { for (let k = f.k; k; k = byK.get(k)?.padre || null) keep.add(k); });
+      lista = filas.filter(f => keep.has(f.k));
+    } else lista = filas.filter(visible);
+    tbody.innerHTML = lista.length ? lista.map(f => {
+      const t = TIPO[f.tipo];
+      const pleg = _plegados.has(f.k) && !(q || soloSin);
+      const caret = f.hijos ? `<button type="button" class="adm-caret" data-act="toggle" data-id="${_esc(f.k)}" aria-expanded="${!pleg}" aria-label="${pleg ? 'Expandir' : 'Contraer'}">${pleg ? '▸' : '▾'}</button>` : '<span class="adm-caret-sp"></span>';
+      const admins = f.tipo === 'proj' ? adminsDe(f.d.id) : [];
+      const adminHtml = f.tipo === 'proj'
+        ? `<div class="adm-cellact">${admins.length ? `<span>${_esc(admins.join(', '))}</span>` : _badge('Sin asignar', 'warn')}${_btn(admins.length ? 'Cambiar' : 'Asignar', 'padmin', f.k, { tono: admins.length ? '' : 'primary-soft' })}</div>`
+        : f.tipo === 'org' ? '<span class="adm-sub">Super admin: ver Usuarios</span>' : '';
+      return `<tr class="adm-tree-${f.tipo}">
+        <td><div class="adm-tree-cell" style="padding-left:${f.nivel * 22}px">${caret}<span class="adm-tree-ico" aria-hidden="true">${t.ico}</span>
+          <span class="adm-strong">${_esc(f.d.name)}</span>${f.hijos && pleg ? ` <span class="adm-sub">(${f.hijos})</span>` : ''}</div></td>
+        <td>${_badge(t.label, t.tono)}</td>
+        <td class="adm-sub">${_esc(f.d.code || (f.tipo === 'org' ? _short(f.d.id) : '—'))}</td>
+        <td>${adminHtml}</td>
+        <td class="adm-actions">${accionesDe(f)}</td>
+      </tr>`;
+    }).join('') : `<tr><td colspan="5" class="adm-empty">${q || soloSin ? 'Sin resultados.' : 'Aún no hay estructura. Empieza con «+ Portafolio» o «+ Proyecto».'}</td></tr>`;
+  };
+  body.querySelector('[data-q]')?.addEventListener('input', (e) => { q = /** @type {HTMLInputElement} */ (e.target).value.trim().toLowerCase(); draw(); });
+  body.querySelector('[data-ftipo]')?.addEventListener('change', (e) => { soloSin = /** @type {HTMLSelectElement} */ (e.target).value === 'sin'; draw(); });
+  body.querySelector('[data-expand]')?.addEventListener('click', () => { filas.forEach(f => _plegados.delete(f.k)); _guardarPlegados(); draw(); });
+  body.querySelector('[data-collapse]')?.addEventListener('click', () => { filas.filter(f => f.hijos && f.tipo !== 'org').forEach(f => _plegados.add(f.k)); _guardarPlegados(); draw(); });
+  draw();
+
+  // Contexto de una fila (empresa, portafolio y programa donde crear)
+  const ctx = (k) => {
+    const f = k ? byK.get(k) : null;
+    if (!f) return { org: orgId, pf: '', prog: '' };
+    const d = f.d;
+    if (f.tipo === 'org') return { org: d.id, pf: '', prog: '' };
+    if (f.tipo === 'pf') return { org: d.org_id, pf: d.id, prog: '' };
+    if (f.tipo === 'prog') return { org: d.org_id, pf: d.portfolio_id || '', prog: d.id };
+    return { org: d.org_id, pf: d.settings?.portfolio_id || '', prog: _progDe(d) || '' };
+  };
+  const recargar = async (hecho) => { if (hecho) await _renderPage(); };
+  S.acts.toggle = (k) => { _plegados.has(k) ? _plegados.delete(k) : _plegados.add(k); _guardarPlegados(); draw(); };
+  S.acts.npf = async (k) => recargar(await _guardarNodo('pf', null, ctx(k).org));
+  S.acts.nprog = async (k) => { const c = ctx(k); recargar(await _guardarNodo('prog', c.pf ? { org_id: c.org, portfolio_id: c.pf } : null, c.org)); };
+  S.acts.nproj = async (k) => { const c = ctx(k); recargar(!!(await _crearProyecto(c.org, { pf: c.pf, prog: c.prog }))); };
+  S.acts.ednodo = async (k) => { const f = byK.get(k); recargar(await _guardarNodo(f.tipo, f.d, f.d.org_id)); };
+  S.acts.delnodo = async (k) => { const f = byK.get(k); recargar(await _eliminarNodo(f.tipo, f.d, est)); };
+  S.acts.edproj = async (k) => recargar(await _editarProyecto(byK.get(k).d));
+  S.acts.delproj = async (k) => recargar(await _eliminarProyecto(byK.get(k).d));
+  S.acts.padmin = async (k) => recargar(await _asignarAdminProyecto(byK.get(k).d));
+  S.acts.gestionar = async (k) => {
+    const p = byK.get(k).d;
     if (S.orgId !== p.org_id) { S.orgId = p.org_id; await _cargarProyectos(); }
-    S.projId = id;
+    S.projId = p.id;
     await _ir('proyecto', 'miembros');
+  };
+  S.acts.lienzo = () => {
+    _cambios = false;
+    _cerrar();
+    window.dispatchEvent(new CustomEvent('ecm:abrir-estructura', { detail: { orgId } }));
   };
 }
 
-const _platProyectos = (main) => _listaProyectos(main, '');
+const _platProyectos = (main) => _estructura(main, '');
 
 async function _platPropietarios(main) {
   const rows = await _get('profiles', { platform_role: 'in.(propietario,co_propietario)', select: 'id,full_name,email,platform_role,created_at' });
@@ -987,7 +1227,9 @@ const ACCIONES = {
   agregar_miembro: 'Agregó un miembro al proyecto', quitar_miembro: 'Quitó un miembro del proyecto',
   cambiar_miembro: 'Cambió rol o área de un miembro', invitar_externo: 'Invitó a un externo',
   asignar_super_admin: 'Asignó super admin', crear_proyecto: 'Creó un proyecto', editar_proyecto: 'Editó un proyecto',
-  asignar_admin_proyecto: 'Asignó administrador de proyecto',
+  asignar_admin_proyecto: 'Asignó administrador de proyecto', eliminar_proyecto: 'Eliminó un proyecto',
+  crear_portafolio: 'Creó un portafolio', editar_portafolio: 'Editó un portafolio', eliminar_portafolio: 'Eliminó un portafolio',
+  crear_programa: 'Creó un programa', editar_programa: 'Editó un programa', eliminar_programa: 'Eliminó un programa',
 };
 const _accion = (a) => ACCIONES[a] || a;
 
@@ -1202,7 +1444,7 @@ async function _invitar({ rol }) {
   await _renderPage();
 }
 
-const _empProyectos = (main) => _listaProyectos(main, S.orgId);
+const _empProyectos = (main) => _estructura(main, S.orgId);
 
 async function _empAreas(main) {
   const [areas, gms] = await Promise.all([
@@ -1548,6 +1790,15 @@ function _injectCss() {
 .adm-btn-sm{padding:5px 10px;font-size:12px}
 .adm-btn-primary-soft{background:var(--clr-primary-l,#ede9fe);border-color:transparent;color:var(--clr-primary,#4f46e5)}
 .adm-cellact{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.adm-tree-cell{display:flex;align-items:center;gap:6px;min-width:260px}
+.adm-caret{border:none;background:none;color:var(--clr-text-3,#5b6270);cursor:pointer;width:20px;height:20px;border-radius:4px;font-size:12px;padding:0;flex-shrink:0}
+.adm-caret:hover{background:var(--clr-hover,rgba(0,0,0,.05))}
+.adm-caret-sp{display:inline-block;width:20px;flex-shrink:0}
+.adm-tree-ico{width:20px;text-align:center;flex-shrink:0}
+.adm-tree tr.adm-tree-org td{background:var(--clr-surface-2,#f0f2f5);font-size:15px}
+.adm-tree tr.adm-tree-pf td:first-child .adm-strong{color:#1976D2}
+.adm-tree tr.adm-tree-prog td:first-child .adm-strong{color:#7B1FA2}
+.adm-tree tr.adm-tree-proj td:first-child .adm-strong{color:#2E7D32;font-weight:600}
 .adm-link{border:none;background:none;color:var(--clr-primary,#4f46e5);font:inherit;font-weight:700;cursor:pointer;padding:0}
 .adm-toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px}
 .adm-in{border:1px solid var(--clr-border,#d1d5db);background:var(--clr-surface,#fff);color:var(--clr-text,#111827);border-radius:8px;padding:8px 10px;font:inherit;max-width:100%}

@@ -38,7 +38,7 @@ import { pageHfCss, REPORT_TITLE_CSS, REPORT_FONT_CSS, normalizeReportBody, supp
 import { debouncedSave, queue } from './async-queue.js';
 import { initReports } from './reports.js';
 import { authInit, authState, showLoginModal, logout, seleccionarEmpresa } from './auth.js?v=194';
-import { showAdminConsole, updateAdminSectionVisibility } from './admin-console.js?v=195';
+import { showAdminConsole, updateAdminSectionVisibility } from './admin-console.js?v=196';
 
 // Precargar Manrope: los gráficos canvas de los reportes (DCMA, EVM, Histograma) la usan
 // y el canvas no dispara la descarga de la fuente por sí solo.
@@ -1986,7 +1986,9 @@ async function _deleteProject(projectId) {
     return all.find(p => p.id === projectId);
   })();
   if (!proj) return;
-  await dbPut('projects', { ...proj, deleted_at: new Date().toISOString() });
+  const borrado = { ...proj, deleted_at: new Date().toISOString(), updated_at: new Date().toISOString() };
+  await dbPut('projects', borrado);
+  await _nubeGuardar('projects', borrado);
   // If this was the active project, clear it
   if (appState.state.project?.id === projectId) {
     appState._applyRemote({ project: null, tasks: new Map(), deps: new Map(), cpmResult: null, cpmDirty: false });
@@ -2317,11 +2319,16 @@ function _bindNewProject() {
     if (parentVal.startsWith('program:'))   program_id   = parentVal.slice(8);
 
     try {
+      const org_id = !IS_LOCAL_MODE ? authState.empresaActual?.org_id || null : null;
       if (type === 'portfolio') {
-        await savePortfolio({ id, name, code: code || null, settings: {}, created_at: now, updated_at: now, deleted_at: null });
+        const pf = { id, org_id, name, code: code || null, settings: {}, created_at: now, updated_at: now, deleted_at: null };
+        await savePortfolio(pf);
+        await _nubeGuardar('portfolios', pf);
         _showToast('Portafolio creado: ' + name, 'success');
       } else if (type === 'program') {
-        await saveProgram({ id, name, code: code || null, portfolio_id, settings: {}, created_at: now, updated_at: now, deleted_at: null });
+        const pg = { id, org_id, name, code: code || null, portfolio_id, settings: {}, created_at: now, updated_at: now, deleted_at: null };
+        await saveProgram(pg);
+        await _nubeGuardar('programs', pg);
         _showToast('Programa creado: ' + name, 'success');
       } else {
         const newProject = {
@@ -2333,9 +2340,7 @@ function _bindNewProject() {
         };
         await saveProjectSnapshot({ project: newProject, tasks: [], deps: [], calendar: null, calExceptions: [] });
         // Subir el proyecto a la nube para que lo vean los demás miembros de la empresa
-        if (!IS_LOCAL_MODE && newProject.org_id) {
-          await outboxAdd({ id: crypto.randomUUID(), tabla: 'projects', fila: id, tipo: 'INSERT', campos: newProject, baseUpdatedAt: null });
-        }
+        await _nubeGuardar('projects', newProject);
         await _loadProject(id);
         _showToast('Proyecto creado: ' + name, 'success');
       }
@@ -3897,6 +3902,8 @@ function _bindResizerExplorer() {
 // Estructura de Proyectos — canvas libre
 // ============================================================
 
+const _ocPrefix = (type) => ({ org: 'org', portfolio: 'pf', program: 'prog' })[type] || 'proj';
+
 /** Lee posiciones guardadas del lienzo */
 function _ocGetPos() { try { return JSON.parse(localStorage.getItem('oc-pos') || '{}'); } catch { return {}; } }
 function _getCpmNodePos() { const k='cpm-pos-'+(appState.state.project?.id??'x'); try{return JSON.parse(localStorage.getItem(k)||'{}')}catch{return{}} }
@@ -3921,6 +3928,7 @@ function _showOrgChart() {
             <button id="oc-add-pf"   class="btn btn-primary btn-sm">＋ Portafolio</button>
             <button id="oc-add-prog" class="btn btn-ghost btn-sm">＋ Programa</button>
             <button id="oc-add-proj" class="btn btn-ghost btn-sm">＋ Proyecto</button>
+            <button id="oc-subir" class="btn btn-ghost btn-sm" style="display:none;color:#b45309" title="Asignar a la empresa activa y guardar en la nube los elementos que aún no tienen empresa">☁ Subir</button>
             <span style="width:1px;height:18px;background:var(--clr-border)"></span>
             <button id="oc-reset-layout" class="btn btn-ghost btn-sm" title="Restablecer posiciones" aria-label="Restablecer posiciones">↺ Organizar</button>
             <button id="oc-fit-view" class="btn btn-ghost btn-sm" title="Ajustar todo el contenido en la ventana" aria-label="Ajustar vista">⊞ Ajustar</button>
@@ -4018,6 +4026,7 @@ function _showOrgChart() {
       _renderOrgChart();
     });
     dlg.querySelector('#oc-print')?.addEventListener('click', _printOrgChart);
+    dlg.querySelector('#oc-subir')?.addEventListener('click', _ocSubirSinEmpresa);
   }
   _renderOrgChart();
   if (!dlg.open) dlg.showModal();
@@ -4304,8 +4313,9 @@ function _ocOpenForm(dlg, type, data) {
   });
   box.querySelector('#ocf-del-confirm')?.addEventListener('click', async () => {
     try {
-      if (type === 'portfolio') await deletePortfolio(data.id);
-      else if (type === 'program') await deleteProgram(data.id);
+      const borrado = { ...data, deleted_at: new Date().toISOString(), updated_at: new Date().toISOString() };
+      if (type === 'portfolio') { await deletePortfolio(data.id); await _nubeGuardar('portfolios', borrado); }
+      else if (type === 'program') { await deleteProgram(data.id); await _nubeGuardar('programs', borrado); }
       else await _deleteProject(data.id);
       overlay.style.display = 'none';
       await _renderOrgChart();
@@ -4328,36 +4338,46 @@ function _ocOpenForm(dlg, type, data) {
     const pct      = parseInt(box.querySelector('#ocf-pct')?.value || '0', 10) || 0;
     const now      = new Date().toISOString();
     const newId    = data?.id || crypto.randomUUID();
+    // Lo nuevo pertenece a la empresa activa
+    const orgId    = data?.org_id ?? (!IS_LOCAL_MODE ? authState.empresaActual?.org_id ?? null : null);
 
     try {
       if (type === 'portfolio') {
-        await savePortfolio({
-          id: newId, name, code, description: desc,
+        const pf = {
+          ...(data ?? {}), id: newId, org_id: orgId, name, code, description: desc,
           settings: data?.settings ?? {},
           created_at: data?.created_at ?? now,
           updated_at: now, deleted_at: null,
-        });
+        };
+        await savePortfolio(pf);
+        await _nubeGuardar('portfolios', pf);
       } else if (type === 'program') {
-        await saveProgram({
-          id: newId, name, code, description: desc,
+        const pg = {
+          ...(data ?? {}), id: newId, org_id: orgId, name, code, description: desc,
           portfolio_id: pfId,
           settings: data?.settings ?? {},
           created_at: data?.created_at ?? now,
           updated_at: now, deleted_at: null,
-        });
+        };
+        await saveProgram(pg);
+        await _nubeGuardar('programs', pg);
       } else {
         const projSettings = {
           ...(data?.settings ?? {}),
           portfolio_id: pfId,
           program_id: progId,
         };
-        await dbPut('projects', {
-          id: newId, name, code, description: desc,
+        // Conservar los demás datos del proyecto (estado, fecha de corte, empresa…)
+        const pj = {
+          status: 'active', is_template: false,
+          ...(data ?? {}), id: newId, org_id: orgId, name, code, description: desc,
           start_date: startDate, percent_complete: pct,
           settings: projSettings,
           created_at: data?.created_at ?? now,
           updated_at: now, deleted_at: null,
-        });
+        };
+        await dbPut('projects', pj);
+        await _nubeGuardar('projects', pj);
       }
       overlay.style.display = 'none';
       await _renderOrgChart();
@@ -4407,10 +4427,26 @@ async function _renderOrgChart() {
   const svg = canvas.querySelector('#oc-svg-lines');
   if (svg) svg.innerHTML = '';
 
-  const { portfolios, programs, projects } = await loadHierarchy();
+  let { portfolios, programs, projects } = await loadHierarchy();
   const currentId = appState.state.project?.id;
 
   const dlg = document.getElementById('dlg-org-chart');
+
+  // La empresa activa es la raíz: se muestran sus elementos y los que aún no tienen empresa
+  const empresa = !IS_LOCAL_MODE ? authState.empresaActual : null;
+  if (empresa) {
+    const deEmpresa = (x) => !x.org_id || x.org_id === empresa.org_id;
+    portfolios = portfolios.filter(deEmpresa);
+    programs   = programs.filter(deEmpresa);
+    projects   = projects.filter(deEmpresa);
+  }
+  const sinEmpresa = empresa ? [...portfolios, ...programs, ...projects].filter(x => !x.org_id) : [];
+  const btnSubir = /** @type {HTMLButtonElement|null} */ (dlg?.querySelector('#oc-subir'));
+  if (btnSubir) {
+    btnSubir.style.display = sinEmpresa.length ? '' : 'none';
+    btnSubir.textContent = `☁ Subir ${sinEmpresa.length} sin empresa`;
+  }
+  const rootKey = empresa ? `org:${empresa.org_id}` : null;
 
   // ---- Calcular posiciones por defecto si no hay guardadas ----
   const savedPos = _ocGetPos();
@@ -4461,7 +4497,7 @@ async function _renderOrgChart() {
 
     const pfCenterCol = pfFirstCol + (pfSpan - 1) / 2;
     const pfPos = defaultPos('pf', pf.id, pfCenterCol, 0);
-    cardList.push({ type: 'portfolio', data: pf, pos: pfPos, parentKey: null });
+    cardList.push({ type: 'portfolio', data: pf, pos: pfPos, parentKey: pf.org_id ? rootKey : null });
 
     _col += 0.5; // separación visual entre portafolios
   });
@@ -4479,7 +4515,7 @@ async function _renderOrgChart() {
     });
 
     const progPos = defaultPos('prog', prog.id, progFirstCol + (numCols - 1) / 2, 0);
-    cardList.push({ type: 'program', data: prog, pos: progPos, parentKey: null });
+    cardList.push({ type: 'program', data: prog, pos: progPos, parentKey: prog.org_id ? rootKey : null });
     _col += numCols + 0.5;
   });
 
@@ -4510,13 +4546,38 @@ async function _renderOrgChart() {
     } else {
       projPos = defaultPos('proj', proj.id, _col + i, orphanProgs.length > 0 ? 2 : 1);
     }
-    cardList.push({ type: 'project', data: proj, pos: projPos, parentKey: null });
+    cardList.push({ type: 'project', data: proj, pos: projPos, parentKey: proj.org_id ? rootKey : null });
   });
 
+  // Tarjeta raíz de la empresa, centrada encima; si choca con tarjetas guardadas, éstas bajan una fila
+  if (empresa) {
+    const rk = rootKey || '';
+    let rootPos = savedPos[rk];
+    if (!rootPos) {
+      const xs = cardList.map(c => c.pos.x);
+      const minX = xs.length ? Math.min(...xs) : 60, maxX = xs.length ? Math.max(...xs) : 60;
+      const minY = cardList.length ? Math.min(...cardList.map(c => c.pos.y)) : 60 + CARD_H + ROW_GAP;
+      const need = 60 + CARD_H + 60;
+      if (minY < need) {
+        const delta = need - minY;
+        cardList.forEach(c => {
+          c.pos.y += delta;
+          const k = `${_ocPrefix(c.type)}:${c.data.id}`;
+          if (savedPos[k]) savedPos[k] = { ...c.pos };
+        });
+      }
+      rootPos = { x: Math.round((minX + maxX) / 2), y: 60 };
+      savedPos[rk] = rootPos;
+      _ocSetPos(savedPos);
+    }
+    cardList.push({ type: 'org', data: { id: empresa.org_id, name: empresa.org_name, code: 'Empresa' }, pos: { ...rootPos }, parentKey: null });
+  }
+
   // ---- Crear tarjetas en el canvas ----
-  const colors = { portfolio: '#1976D2', program: '#7B1FA2', project: '#2E7D32' };
-  const bgCol  = { portfolio: 'rgba(25,118,210,0.06)', program: 'rgba(123,31,162,0.06)', project: 'rgba(46,125,50,0.06)' };
+  const colors = { org: '#334155', portfolio: '#1976D2', program: '#7B1FA2', project: '#2E7D32' };
+  const bgCol  = { org: 'rgba(51,65,85,0.10)', portfolio: 'rgba(25,118,210,0.06)', program: 'rgba(123,31,162,0.06)', project: 'rgba(46,125,50,0.06)' };
   const icons  = {
+    org:       `<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24"><path d="M12 7V3H2v18h20V7H12zM6 19H4v-2h2v2zm0-4H4v-2h2v2zm0-4H4V9h2v2zm0-4H4V5h2v2zm4 12H8v-2h2v2zm0-4H8v-2h2v2zm0-4H8V9h2v2zm0-4H8V5h2v2zm10 12h-8v-2h2v-2h-2v-2h2v-2h-2V9h8v10zm-2-8h-2v2h2v-2zm0 4h-2v2h2v-2z" fill="${colors.org}"/></svg>`,
     portfolio: `<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24"><path d="M10 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z" fill="${colors.portfolio}"/></svg>`,
     program:   `<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24"><path d="M11.99 18.54l-7.37-5.73L3 14.07l9 7 9-7-1.63-1.27-7.38 5.74zM12 16l7.36-5.73L21 9l-9-7-9 7 1.63 1.27L12 16z" fill="${colors.program}"/></svg>`,
     project:   `<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24"><path d="M19 3h-4.18C14.4 1.84 13.3 1 12 1c-1.3 0-2.4.84-2.82 2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 0c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm2 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z" fill="${colors.project}"/></svg>`,
@@ -4526,7 +4587,7 @@ async function _renderOrgChart() {
     const isActive = type === 'project' && data.id === currentId;
     const card = document.createElement('div');
     card.className = 'oc-card';
-    const ocKey = `${type === 'portfolio' ? 'pf' : type === 'program' ? 'prog' : 'proj'}:${data.id}`;
+    const ocKey = `${_ocPrefix(type)}:${data.id}`;
     card.dataset.ocKey = ocKey;
     card.style.cssText = `
       position:absolute;left:${pos.x}px;top:${pos.y}px;
@@ -4546,10 +4607,17 @@ async function _renderOrgChart() {
       <div style="font-size:11px;font-weight:700;word-break:break-word;text-align:center;line-height:1.3;color:${colors[type]};margin-top:2px">${_escHtml(data.name)}</div>
       ${data.code ? `<div style="font-size:9px;opacity:0.55;background:rgba(0,0,0,0.06);border-radius:4px;padding:1px 6px;margin-top:1px">${_escHtml(data.code)}</div>` : ''}
       ${type === 'project' && data.start_date ? `<div style="font-size:9px;opacity:0.4;margin-top:2px">📅 ${data.start_date}</div>` : ''}
-      ${type === 'project' && data.percent_complete ? `<div style="font-size:9px;color:${colors[type]};margin-top:1px">▓ ${data.percent_complete}%</div>` : ''}`;
+      ${type === 'project' && data.percent_complete ? `<div style="font-size:9px;color:${colors[type]};margin-top:1px">▓ ${data.percent_complete}%</div>` : ''}
+      ${empresa && type !== 'org' && !data.org_id ? `<div style="font-size:9px;font-weight:700;color:#b45309;background:#fef3c7;border-radius:4px;padding:1px 6px;margin-top:2px">Sin empresa</div>` : ''}`;
+    if (type === 'org') {
+      card.style.width = (CARD_W + 40) + 'px';
+      card.style.borderWidth = '3px';
+      card.title = 'Empresa activa. Cambia de empresa desde el menú de tu nombre.';
+      card.querySelector('.oc-btn-edit')?.remove();
+    }
 
     // Hover reveal buttons
-    const editBtn = card.querySelector('.oc-btn-edit');
+    const editBtn = card.querySelector('.oc-btn-edit') || document.createElement('button');
     const addBtn  = card.querySelector('.oc-btn-add');
     card.addEventListener('mouseenter', () => {
       editBtn.style.opacity = '0.65'; addBtn.style.opacity = '0.65';
@@ -4570,7 +4638,8 @@ async function _renderOrgChart() {
     addBtn.addEventListener('click', e => {
       e.stopPropagation();
       if (!dlg) return;
-      if (type === 'portfolio') _ocOpenForm(dlg, 'program', { settings: {}, portfolio_id: data.id });
+      if (type === 'org') _ocOpenForm(dlg, 'portfolio', null);
+      else if (type === 'portfolio') _ocOpenForm(dlg, 'program', { settings: {}, portfolio_id: data.id });
       else if (type === 'program') _ocOpenForm(dlg, 'project', { settings: { program_id: data.id, portfolio_id: data.portfolio_id } });
     });
 
@@ -4585,11 +4654,11 @@ async function _renderOrgChart() {
     // ---- Drag: reposicionar + reasignar padre ----
     let dragging = false, dx = 0, dy = 0, moved = false;
 
-    const keyOf = c => `${c.type === 'portfolio' ? 'pf' : c.type === 'program' ? 'prog' : 'proj'}:${c.data.id}`;
+    const keyOf = c => `${_ocPrefix(c.type)}:${c.data.id}`;
 
     // Resalta o quita resaltado de drop targets compatibles
     const setDropHighlight = (on) => {
-      const accepts = type === 'project' ? ['prog', 'pf'] : type === 'program' ? ['pf'] : [];
+      const accepts = type === 'project' ? ['prog', 'pf', 'org'] : type === 'program' ? ['pf', 'org'] : [];
       canvas.querySelectorAll('.oc-card').forEach(c => {
         const k = c.dataset.ocKey ?? '';
         const prefix = k.split(':')[0];
@@ -4663,7 +4732,8 @@ async function _renderOrgChart() {
               const prog = programs.find(p => p.id === tId);
               if (proj && prog) {
                 const ns = { ...(proj.settings ?? {}), program_id: prog.id, portfolio_id: prog.portfolio_id ?? null };
-                dbPut('projects', { ...proj, settings: ns, updated_at: new Date().toISOString() })
+                const np = { ...proj, settings: ns, updated_at: new Date().toISOString() };
+                dbPut('projects', np).then(() => _nubeGuardar('projects', np))
                   .then(() => { _showToast(`Proyecto asignado a ${prog.name}`, 'success'); _renderOrgChart(); _renderProjectList(); });
                 dropped = true;
               }
@@ -4673,7 +4743,8 @@ async function _renderOrgChart() {
               const pf = portfolios.find(p => p.id === tId);
               if (proj && pf) {
                 const ns = { ...(proj.settings ?? {}), program_id: null, portfolio_id: pf.id };
-                dbPut('projects', { ...proj, settings: ns, updated_at: new Date().toISOString() })
+                const np = { ...proj, settings: ns, updated_at: new Date().toISOString() };
+                dbPut('projects', np).then(() => _nubeGuardar('projects', np))
                   .then(() => { _showToast(`Proyecto asignado a ${pf.name}`, 'success'); _renderOrgChart(); _renderProjectList(); });
                 dropped = true;
               }
@@ -4682,10 +4753,21 @@ async function _renderOrgChart() {
               const prog = programs.find(p => p.id === data.id);
               const pf = portfolios.find(p => p.id === tId);
               if (prog && pf) {
-                saveProgram({ ...prog, portfolio_id: pf.id, updated_at: new Date().toISOString() })
+                const ng = { ...prog, portfolio_id: pf.id, updated_at: new Date().toISOString() };
+                saveProgram(ng).then(() => _nubeGuardar('programs', ng))
                   .then(() => { _showToast(`Programa asignado a ${pf.name}`, 'success'); _renderOrgChart(); _renderProjectList(); });
                 dropped = true;
               }
+            } else if (tPrefix === 'org' && (type === 'project' || type === 'program')) {
+              // Soltar sobre la empresa: cuelga directamente de ella
+              const now = new Date().toISOString();
+              const tarea = type === 'project'
+                ? (() => { const np = { ...data, org_id: data.org_id || tId, settings: { ...(data.settings ?? {}), program_id: null, portfolio_id: null }, updated_at: now };
+                    return dbPut('projects', np).then(() => _nubeGuardar('projects', np)); })()
+                : (() => { const ng = { ...data, org_id: data.org_id || tId, portfolio_id: null, updated_at: now };
+                    return saveProgram(ng).then(() => _nubeGuardar('programs', ng)); })();
+              tarea.then(() => { _showToast('Ahora cuelga directamente de la empresa', 'success'); _renderOrgChart(); _renderProjectList(); });
+              dropped = true;
             }
           }
         });
@@ -4704,7 +4786,7 @@ async function _renderOrgChart() {
 
   // ---- Dibujar líneas ----
   _ocDrawLines(canvas, cardList.map(c => ({
-    el: canvas.querySelector(`[data-oc-key="${c.type === 'portfolio' ? 'pf' : c.type === 'program' ? 'prog' : 'proj'}:${c.data.id}"]`),
+    el: canvas.querySelector(`[data-oc-key="${_ocPrefix(c.type)}:${c.data.id}"]`),
     parentKey: c.parentKey,
   })));
 }
@@ -5826,6 +5908,12 @@ async function _initAuthUI() {
   // Suscribir a cambios de estado
   authState.subscribe(s => { _renderAuthBtn(s); updateAdminSectionVisibility(); _traerProyectosEmpresa(); });
   window.addEventListener('ecm:proyectos-cambiados', () => _traerProyectosEmpresa(true));
+  window.addEventListener('ecm:abrir-estructura', async (e) => {
+    const orgId = /** @type {CustomEvent} */ (e).detail?.orgId;
+    if (orgId && orgId !== authState.empresaActual?.org_id && authState.empresas.some(x => x.org_id === orgId)) seleccionarEmpresa(orgId);
+    await _traerProyectosEmpresa(true);
+    _showOrgChart();
+  });
   _renderAuthBtn(authState);
   updateAdminSectionVisibility();
   _traerProyectosEmpresa();
@@ -5836,8 +5924,42 @@ async function _initAuthUI() {
   }
 }
 
-// Proyectos de la empresa activa guardados en la nube (creados desde Administración o en otra laptop):
-// se copian al almacenamiento local para que aparezcan en el explorador. Las tareas llegan al abrirlos.
+// ---- Estructura en la nube (Empresa › Portafolio › Programa › Proyecto) ----
+// Columnas que existen en Supabase para cada tabla de la estructura
+const _NUBE_COLS = {
+  portfolios: ['id', 'org_id', 'name', 'code', 'description', 'settings', 'deleted_at'],
+  programs:   ['id', 'org_id', 'portfolio_id', 'name', 'code', 'description', 'settings', 'deleted_at'],
+  projects:   ['id', 'org_id', 'program_id', 'code', 'name', 'description', 'status', 'start_date', 'data_date', 'is_template', 'settings', 'deleted_at'],
+};
+const _ES_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Guarda en la nube un portafolio, programa o proyecto que ya tiene empresa. Si no hay conexión, queda en cola. */
+async function _nubeGuardar(tabla, fila) {
+  if (IS_LOCAL_MODE || !fila?.org_id || !_ES_UUID.test(fila.id) || !_ES_UUID.test(fila.org_id)) return false;
+  const campos = Object.fromEntries(_NUBE_COLS[tabla].filter(c => c in fila).map(c => [c, fila[c]]));
+  if (tabla === 'projects') campos.program_id = fila.settings?.program_id ?? fila.program_id ?? null;
+  for (const c of ['portfolio_id', 'program_id']) if (campos[c] && !_ES_UUID.test(campos[c])) campos[c] = null;
+  campos.settings = campos.settings ?? {};
+  const token = authState.session?.access_token;
+  try {
+    if (!token || !navigator.onLine) throw new Error('sin conexión');
+    const { SUPABASE_URL, SUPABASE_ANON_KEY } = await import('./config.js');
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/${tabla}?on_conflict=id`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${token}`, Prefer: 'resolution=merge-duplicates,return=minimal' },
+      body: JSON.stringify(campos),
+    });
+    if (!res.ok) throw new Error((await res.json().catch(() => ({}))).message || `HTTP ${res.status}`);
+    return true;
+  } catch (e) {
+    console.warn(`[Nube] ${tabla} quedó en cola:`, e.message);
+    await outboxAdd({ id: crypto.randomUUID(), tabla, fila: fila.id, tipo: 'INSERT', campos, baseUpdatedAt: null }).catch(() => {});
+    return false;
+  }
+}
+
+// Trae de la nube la estructura de la empresa activa (creada desde Administración, el lienzo u otra laptop)
+// y la copia al almacenamiento local. Las tareas de cada proyecto llegan al abrirlo.
 let _ultimaTraida = { org: '', t: 0 };
 async function _traerProyectosEmpresa(forzar = false) {
   const orgId = authState.empresaActual?.org_id;
@@ -5847,21 +5969,56 @@ async function _traerProyectosEmpresa(forzar = false) {
   _ultimaTraida = { org: orgId, t: Date.now() };
   try {
     const { SUPABASE_URL, SUPABASE_ANON_KEY } = await import('./config.js');
-    const qs = new URLSearchParams({ select: '*', org_id: `eq.${orgId}` });
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/projects?${qs}`, { headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${token}` } });
-    if (!res.ok) return;
-    const remotos = await res.json();
-    const locales = new Map((await getAll('projects')).map(p => [p.id, p]));
+    const traer = async (tabla) => {
+      const qs = new URLSearchParams({ select: '*', org_id: `eq.${orgId}` });
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/${tabla}?${qs}`, { headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${token}` } });
+      return res.ok ? res.json() : [];
+    };
+    const [pfs, progs, proys] = await Promise.all([traer('portfolios'), traer('programs'), traer('projects')]);
     let cambios = 0;
-    for (const r of remotos) {
-      const l = locales.get(r.id);
-      if (!l ? !r.deleted_at : new Date(r.updated_at) > new Date(l.updated_at || 0)) {
-        await dbPut('projects', { ...l, ...r, settings: { ...(l?.settings || {}), ...(r.settings || {}) } });
+    for (const [store, remotos] of [['portfolios', pfs], ['programs', progs], ['projects', proys]]) {
+      const locales = new Map((await getAll(store)).map(p => [p.id, p]));
+      for (const r of remotos) {
+        const l = locales.get(r.id);
+        if (!l ? r.deleted_at : new Date(r.updated_at) <= new Date(l.updated_at || 0)) continue;
+        const fila = { ...l, ...r, settings: { ...(l?.settings || {}), ...(r.settings || {}) } };
+        if (store === 'projects' && r.program_id) fila.settings.program_id = r.program_id;
+        await dbPut(store, fila);
         cambios++;
       }
     }
-    if (cambios) await _renderProjectList();
-  } catch (e) { console.warn('[Proyectos] No se pudieron traer de la nube:', e); }
+    if (cambios) {
+      await _renderProjectList();
+      if (/** @type {HTMLDialogElement|null} */ (document.getElementById('dlg-org-chart'))?.open) await _renderOrgChart();
+    }
+  } catch (e) { console.warn('[Estructura] No se pudo traer de la nube:', e); }
+}
+
+/** Asigna a la empresa activa (y sube a la nube) los portafolios, programas y proyectos que aún no tienen empresa. */
+async function _ocSubirSinEmpresa() {
+  const empresa = authState.empresaActual;
+  if (!empresa) { _showToast('Elige una empresa primero', 'warn'); return; }
+  const { portfolios, programs, projects } = await loadHierarchy();
+  const pend = { portfolios: portfolios.filter(x => !x.org_id), programs: programs.filter(x => !x.org_id), projects: projects.filter(x => !x.org_id) };
+  const total = pend.portfolios.length + pend.programs.length + pend.projects.length;
+  if (!total) return;
+  if (!confirm(`Se asignarán a «${empresa.org_name}» y se guardarán en la nube:\n\n` +
+    `• ${pend.portfolios.length} portafolio(s)\n• ${pend.programs.length} programa(s)\n• ${pend.projects.length} proyecto(s)\n\n` +
+    `Si alguno pertenece a otra empresa, cancela, cambia de empresa (menú de tu nombre) y súbelo desde allí.\n¿Continuar?`)) return;
+  const now = new Date().toISOString();
+  let enCola = 0, omitidos = 0;
+  // Orden: primero los padres, para que los programas y proyectos encuentren su portafolio/programa en la nube
+  for (const tabla of ['portfolios', 'programs', 'projects']) {
+    for (const x of pend[tabla]) {
+      if (!_ES_UUID.test(x.id)) { omitidos++; continue; }
+      const fila = { ...x, org_id: empresa.org_id, updated_at: now };
+      await dbPut(tabla, fila);
+      if (!(await _nubeGuardar(tabla, fila))) enCola++;
+    }
+  }
+  await _renderOrgChart();
+  await _renderProjectList();
+  _showToast(`${total - omitidos} elemento(s) asignados a ${empresa.org_name}` + (enCola ? ` · ${enCola} en cola hasta que haya conexión` : '') + (omitidos ? ` · ${omitidos} de ejemplo no se suben` : ''), enCola ? 'warn' : 'success');
 }
 
 function _getInitials(nombre) {
