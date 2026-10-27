@@ -38,6 +38,8 @@ import { generatePdfReport } from './pdf-report.js';
 import { pageHfCss, REPORT_TITLE_CSS, REPORT_FONT_CSS, normalizeReportBody, supportsPageMarginBoxes, PAPER_SELECT_HTML, PAPER_JS, FONTS_LINK, installDesktopPrint } from './pdf-utils.js';
 import { debouncedSave, queue } from './async-queue.js';
 import { initReports } from './reports.js';
+import { authInit, authState, showLoginModal, logout } from './auth.js';
+import { showUsuariosPanel } from './usuarios.js';
 
 // Precargar Manrope: los gráficos canvas de los reportes (DCMA, EVM, Histograma) la usan
 // y el canvas no dispara la descarga de la fuente por sí solo.
@@ -5757,5 +5759,115 @@ document.addEventListener('DOMContentLoaded', () => {
 
   installDesktopPrint();
   initReports();
+  _initAuthUI();
   init();
 });
+
+// ============================================================
+// Auth UI: botón usuario en toolbar + reactividad
+// ============================================================
+async function _initAuthUI() {
+  if (IS_LOCAL_MODE) return;
+
+  // Inicializar sesión guardada
+  await authInit();
+
+  // Suscribir a cambios de estado
+  authState.subscribe(_renderAuthBtn);
+  _renderAuthBtn(authState);
+}
+
+function _renderAuthBtn(state) {
+  let btn = document.getElementById('btn-auth-user');
+  if (!btn) {
+    // Crear botón junto al toggle de tema
+    const themeBtn = document.getElementById('btn-theme');
+    if (!themeBtn) return;
+    btn = document.createElement('button');
+    btn.id = 'btn-auth-user';
+    btn.style.cssText = 'font-size:11px;padding:3px 10px;border-radius:6px;border:1.5px solid var(--clr-border,#d1d5db);background:none;cursor:pointer;color:var(--clr-text,#111);font-family:var(--font-ui,system-ui);white-space:nowrap;max-width:160px;overflow:hidden;text-overflow:ellipsis';
+    themeBtn.insertAdjacentElement('beforebegin', btn);
+
+    // Menú desplegable al hacer clic
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      _toggleAuthMenu();
+    });
+    document.addEventListener('click', () => {
+      document.getElementById('auth-menu')?.remove();
+    });
+  }
+
+  if (state.user) {
+    const nombre = state.perfil?.full_name || state.user.email?.split('@')[0] || 'Usuario';
+    const empresa = state.empresaActual?.org_name || '';
+    btn.title = `${nombre}\n${empresa}`;
+    btn.textContent = `👤 ${nombre}`;
+  } else {
+    btn.textContent = 'Ingresar';
+    btn.onclick = () => showLoginModal();
+  }
+}
+
+function _toggleAuthMenu() {
+  const existing = document.getElementById('auth-menu');
+  if (existing) { existing.remove(); return; }
+  if (!authState.user) { showLoginModal(); return; }
+
+  const btn = document.getElementById('btn-auth-user');
+  if (!btn) return;
+  const rect = btn.getBoundingClientRect();
+
+  const menu = document.createElement('div');
+  menu.id = 'auth-menu';
+  menu.style.cssText = `
+    position:fixed;top:${rect.bottom + 4}px;right:${window.innerWidth - rect.right}px;
+    background:var(--clr-surface,#fff);border:1.5px solid var(--clr-border,#e2e8f0);
+    border-radius:10px;box-shadow:0 6px 24px rgba(0,0,0,.14);
+    padding:6px;z-index:1000;min-width:190px;
+    font-family:var(--font-ui,system-ui);font-size:.85rem;
+  `;
+
+  const nombre  = authState.perfil?.full_name || authState.user?.email || 'Usuario';
+  const empresa = authState.empresaActual?.org_name || '—';
+  const rol     = authState.empresaActual?.empresa_role || '';
+  const rolLabel = { super_admin:'Super Admin', relevo:'Relevo', miembro:'Miembro', invitado_externo:'Invitado' };
+
+  const items = [
+    { html: `<div style="padding:8px 10px;border-bottom:1px solid var(--clr-border,#e2e8f0);margin-bottom:4px">
+      <div style="font-weight:600;color:var(--clr-text,#111)">${_escHtml(nombre)}</div>
+      <div style="font-size:.78rem;color:var(--clr-text-3,#666)">${_escHtml(empresa)} · ${rolLabel[rol]||rol}</div>
+    </div>`, action: null },
+  ];
+
+  if (['super_admin','relevo'].includes(rol)) {
+    items.push({ label: '👥 Gestionar usuarios', action: () => showUsuariosPanel() });
+  }
+
+  // Cambiar empresa si hay más de una
+  if (authState.empresas.length > 1) {
+    items.push({ label: '🏢 Cambiar empresa', action: () => {
+      menu.remove();
+      showLoginModal();
+    }});
+  }
+
+  items.push({ label: '🚪 Cerrar sesión', action: () => logout() });
+
+  items.forEach(item => {
+    if (item.html) { menu.insertAdjacentHTML('beforeend', item.html); return; }
+    const el = document.createElement('button');
+    el.style.cssText = 'display:block;width:100%;padding:7px 10px;text-align:left;border:none;background:none;border-radius:6px;cursor:pointer;color:var(--clr-text,#111)';
+    el.textContent = item.label;
+    el.addEventListener('mouseenter', () => { el.style.background = 'var(--clr-surface-2,#f5f5f5)'; });
+    el.addEventListener('mouseleave', () => { el.style.background = 'none'; });
+    el.addEventListener('click', (e) => { e.stopPropagation(); menu.remove(); item.action?.(); });
+    menu.appendChild(el);
+  });
+
+  document.body.appendChild(menu);
+}
+
+function _escHtml(s) {
+  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
