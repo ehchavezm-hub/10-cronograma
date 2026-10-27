@@ -31,8 +31,6 @@
       text-transform: uppercase;
       letter-spacing: .06em;
       color: var(--clr-text-3);
-      border-top: 1px solid var(--clr-border);
-      margin-top: 4px;
     }
     .sb-section-hdr:hover { background: var(--clr-hover, rgba(0,0,0,.05)); }
     .sb-hdr-chevron {
@@ -44,13 +42,14 @@
     .sb-hdr-label { flex: 1; }
     /* ── Sidebar: handle de resize ── */
     .sb-resize-handle {
-      height: 4px;
+      height: 5px;
       flex-shrink: 0;
       cursor: ns-resize;
       background: transparent;
+      border-top: 1px solid var(--clr-border-2, #e5e7eb);
     }
     .sb-resize-handle:hover,
-    .sb-resize-handle:active { background: var(--clr-accent, #4f46e5); opacity: .3; }
+    .sb-resize-handle:active { border-top: 2px solid var(--clr-primary, #4f46e5); }
   </style>
 </head>
 <body>
@@ -132,7 +131,7 @@
 
       <!-- ── Proyectos ── -->
       <div id="sb-panel-proyectos-wrap" style="flex:1 1 120px;min-height:50px;overflow:hidden;display:flex;flex-direction:column">
-        <div class="panel-header" style="display:flex;align-items:center;justify-content:space-between;flex-shrink:0">
+        <div class="panel-header" style="display:flex;align-items:center;justify-content:space-between;flex-shrink:0;border-bottom:none">
           <span>Proyectos</span>
           <div style="display:flex;gap:4px">
             <button id="btn-new-project" class="btn btn-primary btn-sm" title="Crear nuevo proyecto" aria-label="Crear nuevo proyecto" style="font-size:11px;padding:2px 8px;">＋ Nuevo</button>
