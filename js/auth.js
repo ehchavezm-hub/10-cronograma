@@ -60,6 +60,19 @@ async function _restGet(tabla, filter, token) {
   return res.json().catch(() => []);
 }
 
+async function _rpcPost(fn, args, token) {
+  const res = await fetch(`${REST}/rpc/${fn}`, {
+    method: 'POST',
+    headers: _hdrs(token),
+    body: JSON.stringify(args),
+  });
+  if (!res.ok) {
+    const d = await res.json().catch(() => ({}));
+    throw new Error(d.message || d.error || `HTTP ${res.status}`);
+  }
+  return res.json().catch(() => null);
+}
+
 async function _restPatch(tabla, id, campos, token) {
   const res = await fetch(`${REST}/${tabla}?id=eq.${id}`, {
     method: 'PATCH',
@@ -402,6 +415,13 @@ function _bindLoginEvents(dlg) {
       try {
         const data = await register(email, pwd);
         if (data.access_token) {
+          // Intentar reclamar rol propietario (solo funciona si es el primer usuario)
+          try { await _rpcPost('reclamar_propietario', {}, data.access_token); } catch {}
+          // Recargar perfil para reflejar platform_role actualizado
+          try {
+            authState.perfil = await _loadPerfil(data.access_token, data.user?.id);
+            authState._notify();
+          } catch {}
           _afterLogin();
         } else {
           // Supabase requiere confirmación de email
@@ -411,7 +431,7 @@ function _bindLoginEvents(dlg) {
             errEl.style.background = '#f0fdf4';
             errEl.style.borderColor = '#86efac';
             errEl.style.color = '#15803d';
-            errEl.textContent = 'Cuenta creada. Revisa tu correo para confirmar tu cuenta.';
+            errEl.textContent = 'Cuenta creada. Revisa tu correo para confirmar tu cuenta antes de iniciar sesión.';
             errEl.style.display = '';
           }
           submitEl.disabled = true;
