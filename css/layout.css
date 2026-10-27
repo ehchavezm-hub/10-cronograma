@@ -416,3 +416,9 @@ html, body {
   padding: 2px 6px;
   font-size: var(--text-sm);
 }
+
+/* Ocultar contenido principal mientras no hay sesión activa */
+body.app--noauth #main-area {
+  visibility: hidden;
+  pointer-events: none;
+}

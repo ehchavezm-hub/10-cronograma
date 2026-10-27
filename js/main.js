@@ -5796,6 +5796,9 @@ async function _initAuthUI() {
   // Inicializar sesión guardada
   await authInit();
 
+  // Ocultar contenido mientras no hay sesión
+  document.body.classList.toggle('app--noauth', !authState.user);
+
   // Suscribir a cambios de estado
   authState.subscribe(_renderAuthBtn);
   _renderAuthBtn(authState);
@@ -5807,6 +5810,7 @@ async function _initAuthUI() {
 }
 
 function _renderAuthBtn(state) {
+  document.body.classList.toggle('app--noauth', !state.user);
   let btn = document.getElementById('btn-auth-user');
   if (!btn) {
     // Crear botón junto al toggle de tema
