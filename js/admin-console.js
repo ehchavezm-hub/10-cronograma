@@ -1167,7 +1167,14 @@ async function _estructura(main, orgId) {
     if (f.tipo === 'prog') return { org: d.org_id, pf: d.portfolio_id || '', prog: d.id };
     return { org: d.org_id, pf: d.settings?.portfolio_id || '', prog: _progDe(d) || '' };
   };
-  const recargar = async (hecho) => { if (hecho) await _renderPage(); };
+  const recargar = async (hecho) => {
+    if (!hecho) return;
+    const activeTab = /** @type {HTMLElement|null} */ (_root?.querySelector('.adm-tab-btn.is-active'))?.dataset?.tab || 'tabla';
+    await _renderPage();
+    if (activeTab !== 'tabla') {
+      /** @type {HTMLElement|null} */ (_root?.querySelector(`.adm-tab-btn[data-tab="${activeTab}"]`))?.click();
+    }
+  };
   S.acts.toggle = (k) => { _plegados.has(k) ? _plegados.delete(k) : _plegados.add(k); _guardarPlegados(); draw(); };
   S.acts.npf = async (k) => recargar(await _guardarNodo('pf', null, ctx(k).org));
   S.acts.nprog = async (k) => { const c = ctx(k); recargar(await _guardarNodo('prog', c.pf ? { org_id: c.org, portfolio_id: c.pf } : null, c.org)); };

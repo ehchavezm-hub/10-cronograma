@@ -38,7 +38,7 @@ import { pageHfCss, REPORT_TITLE_CSS, REPORT_FONT_CSS, normalizeReportBody, supp
 import { debouncedSave, queue } from './async-queue.js';
 import { initReports } from './reports.js';
 import { authInit, authState, showLoginModal, logout, seleccionarEmpresa } from './auth.js?v=194';
-import { showAdminConsole, updateAdminSectionVisibility } from './admin-console.js?v=202';
+import { showAdminConsole, updateAdminSectionVisibility } from './admin-console.js?v=203';
 import { ConnectivityPanel } from './connectivity.js';
 
 // Precargar Manrope: los gráficos canvas de los reportes (DCMA, EVM, Histograma) la usan
