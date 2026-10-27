@@ -154,6 +154,10 @@ export class MonteCarloPanel {
 
   // ─── API pública ───────────────────────────────────────────────────────────
 
+  destroy() {
+    if (this._worker) { this._worker.terminate(); this._worker = null; }
+  }
+
   /**
    * Actualiza el panel con un nuevo resultado CPM y lista de tareas.
    * @param {object|null} cpmResult
