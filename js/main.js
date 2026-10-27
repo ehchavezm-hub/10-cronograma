@@ -5893,7 +5893,3 @@ function _toggleAuthMenu() {
 
   document.body.appendChild(menu);
 }
-
-function _escHtml(s) {
-  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-}
