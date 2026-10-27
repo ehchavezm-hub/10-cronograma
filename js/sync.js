@@ -249,6 +249,10 @@ export class SyncEngine {
 
     for (const op of ops) {
       try {
+        // Parchar org_id nulo en task_dependencies (deps creadas antes de asignar empresa)
+        if (op.tabla === 'task_dependencies' && op.campos && !op.campos.org_id && this._orgId) {
+          op.campos = { ...op.campos, org_id: this._orgId };
+        }
         await _pushOp(op);
         await outboxRemove(op.id);
       } catch (err) {
