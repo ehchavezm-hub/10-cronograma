@@ -251,8 +251,8 @@ export async function saveProjectSnapshot({ project, tasks, deps, calendar, calE
       for (const d of deps) depsStore.put(d);
     };
   } else {
-    for (const t of tasks) tx.objectStore('tasks').put(t);
-    for (const d of deps)  tx.objectStore('task_dependencies').put(d);
+    for (const t of tasks) if (!t.deleted_at) tx.objectStore('tasks').put(t);
+    for (const d of deps)  if (!d.deleted_at) tx.objectStore('task_dependencies').put(d);
   }
 
   return new Promise((res, rej) => { tx.oncomplete = res; tx.onerror = () => rej(tx.error); });
@@ -323,5 +323,13 @@ export async function deleteProject(projectId) {
     new Promise((res, rej) => { trReq.onsuccess = () => { trReq.result.forEach(k => trStore.delete(k)); res(null); }; trReq.onerror = () => rej(trReq.error); }),
   ]);
 
-  return new Promise((res, rej) => { tx.oncomplete = () => res(undefined); tx.onerror = () => rej(tx.error); });
+  await new Promise((res, rej) => { tx.oncomplete = () => res(undefined); tx.onerror = () => rej(tx.error); });
+
+  // Limpiar entradas del outbox relacionadas con este proyecto
+  const outboxEntries = await getAll('outbox');
+  await Promise.all(
+    outboxEntries
+      .filter(e => e.fila === projectId || e.campos?.project_id === projectId)
+      .map(e => remove('outbox', e.id))
+  );
 }

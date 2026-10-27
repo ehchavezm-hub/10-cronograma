@@ -142,6 +142,7 @@ export async function authInit() {
     await _applySession(data);
   } catch {
     _clearSession();
+    authState._notify();
   }
 }
 
@@ -407,11 +408,12 @@ function _bindLoginEvents(dlg) {
 
     if (_mode === 'register') {
       const confirm = confirmEl?.value;
-      if (pwd.length < 6) { _err('auth-error', 'La contraseña debe tener al menos 6 caracteres'); return; }
+      if (pwd.length < 8) { _err('auth-error', 'La contraseña debe tener al menos 8 caracteres'); return; }
       if (pwd !== confirm) { _err('auth-error', 'Las contraseñas no coinciden'); return; }
 
       submitEl.disabled = true;
       if (loadEl) loadEl.style.display = '';
+      let keepDisabled = false;
       try {
         const data = await register(email, pwd);
         if (data.access_token) {
@@ -455,12 +457,12 @@ function _bindLoginEvents(dlg) {
             errEl.textContent = 'Cuenta creada. Revisa tu correo para confirmar tu cuenta antes de iniciar sesión.';
             errEl.style.display = '';
           }
-          submitEl.disabled = true;
+          keepDisabled = true;
         }
       } catch (e) {
         _err('auth-error', e.message || 'Error al crear cuenta');
       } finally {
-        submitEl.disabled = false;
+        if (!keepDisabled) submitEl.disabled = false;
         if (loadEl) loadEl.style.display = 'none';
       }
       return;

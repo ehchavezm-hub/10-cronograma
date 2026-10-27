@@ -206,15 +206,15 @@ export class AppStateManager {
   loadProject(data) {
     const s = this._state;
     s.project       = data.project;
-    s.tasks         = new Map(data.tasks.map(t => [t.id, t]));
-    s.deps          = new Map(data.deps.map(d => [d.id, d]));
+    s.tasks         = new Map(data.tasks.map(task => [task.id, task]));
+    s.deps          = new Map(data.deps.map(dep => [dep.id, dep]));
     s.calendar      = data.calendar;
     s.calExceptions = data.calExceptions ?? [];
     s.cpmDirty      = true;
     s.cpmResult     = null;
     s.selectedTaskId = null;
     // Auto-expandir nivel 1
-    s.expandedIds   = new Set(data.tasks.filter(t => !t.parent_id && !t.deleted_at).map(t => t.id));
+    s.expandedIds   = new Set(data.tasks.filter(task => !task.parent_id && !task.deleted_at).map(task => task.id));
     s.baselineData  = null;
     s.baselineMeta  = null;
     this._past   = [];

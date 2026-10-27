@@ -283,7 +283,7 @@ export class SyncEngine {
 
     // Ignorar si el cambio viene de esta sesión (updated_by podría verificarlo, pero
     // como no tenemos userId en el cliente, simplemente fusionamos por updated_at)
-    _mergeRemote(tabla, [record]);
+    _mergeRemote(tabla, [record]).catch(e => console.warn('[Sync] mergeRemote failed:', e));
     // 'projects' usa clave singular 'project' y espera el objeto, no un array
     if (tabla === 'projects') {
       _applyRemoteToState({ project: record });
@@ -334,7 +334,7 @@ async function _pushOp(op) {
       // Verificar conflicto: leer updated_at remoto
       const rows = await sb.select(op.tabla, { id: `eq.${op.fila}` }, 'id,updated_at');
       const remote = rows[0];
-      if (remote && op.baseUpdatedAt && remote.updated_at > op.baseUpdatedAt) {
+      if (remote && op.baseUpdatedAt && new Date(remote.updated_at) > new Date(op.baseUpdatedAt)) {
         // Conflicto: versión remota es más nueva — aplica last-write-wins
         // El cambio local aún se envía (override), pero registramos advertencia
         console.warn('[Sync] Conflicto last-write-wins en', op.tabla, op.fila);
