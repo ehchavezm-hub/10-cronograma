@@ -5800,6 +5800,11 @@ async function _initAuthUI() {
   // Suscribir a cambios de estado
   authState.subscribe(_renderAuthBtn);
   _renderAuthBtn(authState);
+
+  // Mostrar login automáticamente si no hay sesión
+  if (!authState.user) {
+    setTimeout(() => showLoginModal(), 300);
+  }
 }
 
 function _renderAuthBtn(state) {
