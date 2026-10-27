@@ -5902,7 +5902,9 @@ function _toggleAuthMenu() {
     body.appendChild(el);
   };
 
-  if (['super_admin','relevo'].includes(rol)) {
+  const platformRol = authState.perfil?.platform_role || '';
+  const esAdmin = ['super_admin','relevo'].includes(rol) || ['propietario','co_propietario'].includes(platformRol);
+  if (esAdmin) {
     addItem('Gestionar usuarios', () => showUsuariosPanel());
     addItem('Configurar empresa',  () => showEmpresaAdminPanel());
   }
