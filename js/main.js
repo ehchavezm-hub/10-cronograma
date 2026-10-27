@@ -37,7 +37,7 @@ import { generatePdfReport } from './pdf-report.js';
 import { pageHfCss, REPORT_TITLE_CSS, REPORT_FONT_CSS, normalizeReportBody, supportsPageMarginBoxes, PAPER_SELECT_HTML, PAPER_JS, FONTS_LINK, installDesktopPrint } from './pdf-utils.js';
 import { debouncedSave, queue } from './async-queue.js';
 import { initReports } from './reports.js';
-import { authInit, authState, showLoginModal, logout } from './auth.js?v=180';
+import { authInit, authState, showLoginModal, logout, seleccionarEmpresa } from './auth.js?v=180';
 import { showUsuariosPanel } from './usuarios.js';
 import { showEmpresaAdminPanel } from './empresa-admin.js';
 
@@ -1902,16 +1902,31 @@ async function _renderProjectList() {
 
   list.innerHTML = rows.join('');
 
-  // Empresa badge en el explorador
+  // Panel empresa en el explorador
   let empresaBadge = document.getElementById('explorer-empresa-badge');
   if (!empresaBadge) {
     empresaBadge = document.createElement('div');
     empresaBadge.id = 'explorer-empresa-badge';
-    empresaBadge.style.cssText = 'padding:4px 8px 0;font-size:10px;color:var(--clr-text-3,#888);overflow:hidden;text-overflow:ellipsis;white-space:nowrap';
     list.parentElement?.insertBefore(empresaBadge, list);
   }
-  if (!IS_LOCAL_MODE && authState.empresaActual) {
-    empresaBadge.textContent = '🏢 ' + (authState.empresaActual.org_name || '');
+  if (!IS_LOCAL_MODE && authState.user) {
+    const platRol    = authState.perfil?.platform_role || '';
+    const rolLabel   = { super_admin:'Super Admin', relevo:'Relevo', miembro:'Miembro', propietario:'Propietario', co_propietario:'Co-propietario' };
+    const empNombre  = authState.empresaActual?.org_name || (authState.empresas.length === 0 ? 'Sin empresa' : '');
+    const empRol     = authState.empresaActual?.empresa_role || '';
+    const multiEmp   = authState.empresas.length > 1;
+    empresaBadge.innerHTML = `
+      <div style="margin:6px 6px 4px;padding:8px 10px;background:var(--clr-surface-2,#f0f0ff);border-radius:10px;border:1px solid var(--clr-border,#e2e8f0)">
+        ${platRol ? `<div style="font-size:10px;font-weight:700;color:var(--clr-accent,#4f46e5);letter-spacing:.04em;text-transform:uppercase;margin-bottom:4px">${_escHtml(rolLabel[platRol]||platRol)}</div>` : ''}
+        <div style="display:flex;align-items:center;gap:6px;justify-content:space-between">
+          <div style="font-size:11px;font-weight:600;color:var(--clr-text,#111);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0">
+            🏢 ${empNombre ? _escHtml(empNombre) : '<span style="color:var(--clr-text-3,#aaa);font-weight:400">Sin empresa</span>'}
+            ${empRol ? `<span style="font-weight:400;color:var(--clr-text-3,#888)"> · ${_escHtml(empRol)}</span>` : ''}
+          </div>
+          <button id="btn-mis-empresas" title="Ver / cambiar empresa" style="flex-shrink:0;border:1px solid var(--clr-border,#e2e8f0);border-radius:6px;background:var(--clr-surface,#fff);cursor:pointer;font-size:10px;padding:2px 6px;color:var(--clr-text-2,#555)">${multiEmp ? 'Cambiar' : 'Empresas'}</button>
+        </div>
+      </div>`;
+    document.getElementById('btn-mis-empresas')?.addEventListener('click', () => showEmpresasSwitcher());
     empresaBadge.style.display = '';
   } else {
     empresaBadge.style.display = 'none';
@@ -5848,6 +5863,47 @@ function _renderAuthBtn(state) {
   }
 }
 
+function showEmpresasSwitcher() {
+  document.getElementById('dlg-empresas-switcher')?.remove();
+  const dlg = document.createElement('dialog');
+  dlg.id = 'dlg-empresas-switcher';
+  const empresas = authState.empresas;
+  const actualId = authState.empresaActual?.org_id;
+  const items = empresas.map(e => `
+    <button data-org="${_escHtml(e.org_id)}" style="
+      display:flex;align-items:center;gap:12px;width:100%;padding:12px 14px;
+      border:1.5px solid ${e.org_id === actualId ? 'var(--clr-accent,#4f46e5)' : 'var(--clr-border,#e2e8f0)'};
+      border-radius:10px;background:${e.org_id === actualId ? 'var(--clr-accent-light,#eef2ff)' : 'none'};
+      cursor:pointer;font-family:inherit;text-align:left;margin-bottom:8px">
+      <div style="width:36px;height:36px;border-radius:8px;background:var(--clr-accent,#4f46e5);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.85rem;flex-shrink:0">
+        ${_escHtml((e.org_name||'?').substring(0,2).toUpperCase())}
+      </div>
+      <div>
+        <div style="font-weight:600;font-size:.9rem;color:var(--clr-text,#111)">${_escHtml(e.org_name||e.org_id)}</div>
+        <div style="font-size:.75rem;color:var(--clr-text-3,#888)">${e.empresa_role||''}</div>
+      </div>
+      ${e.org_id === actualId ? '<div style="margin-left:auto;font-size:.75rem;color:var(--clr-accent,#4f46e5);font-weight:600">Activa</div>' : ''}
+    </button>`).join('');
+  dlg.innerHTML = `
+<div style="background:var(--clr-surface,#fff);border-radius:16px;padding:28px;width:min(400px,90vw);font-family:var(--font-ui,system-ui)">
+  <h2 style="margin:0 0 18px;font-size:1.1rem;font-weight:700;color:var(--clr-text,#111)">Mis empresas</h2>
+  ${items || '<p style="color:var(--clr-text-3,#888);font-size:.9rem">No tienes empresas aún.</p>'}
+  <div style="display:flex;justify-content:flex-end;margin-top:8px">
+    <button id="sw-cancel" style="padding:9px 18px;border:1.5px solid var(--clr-border,#e2e8f0);border-radius:8px;background:none;cursor:pointer;font-size:.88rem">Cerrar</button>
+  </div>
+</div>`;
+  document.body.appendChild(dlg);
+  dlg.querySelector('#sw-cancel')?.addEventListener('click', () => dlg.close());
+  dlg.querySelectorAll('button[data-org]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const orgId = btn.getAttribute('data-org');
+      seleccionarEmpresa(orgId);
+      dlg.close();
+    });
+  });
+  dlg.showModal();
+}
+
 function _toggleAuthMenu() {
   const existing = document.getElementById('auth-menu');
   if (existing) { existing.remove(); return; }
@@ -5885,6 +5941,7 @@ function _toggleAuthMenu() {
       <div style="font-weight:700;font-size:.95rem;color:var(--clr-text,#111);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${_escHtml(nombre)}</div>
       <div style="font-size:.78rem;color:var(--clr-text-3,#888);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${_escHtml(email)}</div>
       ${rolLabel[rol] ? `<div style="font-size:.75rem;color:var(--clr-accent,#4f46e5);font-weight:500;margin-top:1px">${_escHtml(rolLabel[rol])}</div>` : ''}
+      ${empresa ? `<div style="font-size:.75rem;color:var(--clr-text-3,#888);margin-top:2px">🏢 ${_escHtml(empresa)}</div>` : ''}
     </div>
   `;
   menu.appendChild(header);
@@ -5911,9 +5968,7 @@ function _toggleAuthMenu() {
     addItem('Gestionar usuarios', () => showUsuariosPanel());
     addItem('Configurar empresa',  () => showEmpresaAdminPanel());
   }
-  if (authState.empresas.length > 1) {
-    addItem('Cambiar empresa', () => showLoginModal());
-  }
+  addItem('Mis empresas', () => showEmpresasSwitcher());
   addItem('Cambiar contraseña', () => {
     import('./auth.js?v=180').then(m => m.showLoginModal?.());
   });
