@@ -38,7 +38,7 @@ import { pageHfCss, REPORT_TITLE_CSS, REPORT_FONT_CSS, normalizeReportBody, supp
 import { debouncedSave, queue } from './async-queue.js';
 import { initReports } from './reports.js';
 import { authInit, authState, showLoginModal, logout, seleccionarEmpresa } from './auth.js?v=194';
-import { showAdminConsole, updateAdminSectionVisibility } from './admin-console.js?v=194';
+import { showAdminConsole, updateAdminSectionVisibility } from './admin-console.js?v=195';
 
 // Precargar Manrope: los gráficos canvas de los reportes (DCMA, EVM, Histograma) la usan
 // y el canvas no dispara la descarga de la fuente por sí solo.
@@ -2332,6 +2332,10 @@ function _bindNewProject() {
           created_at: now, updated_at: now, deleted_at: null,
         };
         await saveProjectSnapshot({ project: newProject, tasks: [], deps: [], calendar: null, calExceptions: [] });
+        // Subir el proyecto a la nube para que lo vean los demás miembros de la empresa
+        if (!IS_LOCAL_MODE && newProject.org_id) {
+          await outboxAdd({ id: crypto.randomUUID(), tabla: 'projects', fila: id, tipo: 'INSERT', campos: newProject, baseUpdatedAt: null });
+        }
         await _loadProject(id);
         _showToast('Proyecto creado: ' + name, 'success');
       }
@@ -5820,14 +5824,44 @@ async function _initAuthUI() {
   document.body.classList.toggle('app--noauth', !authState.user);
 
   // Suscribir a cambios de estado
-  authState.subscribe(s => { _renderAuthBtn(s); updateAdminSectionVisibility(); });
+  authState.subscribe(s => { _renderAuthBtn(s); updateAdminSectionVisibility(); _traerProyectosEmpresa(); });
+  window.addEventListener('ecm:proyectos-cambiados', () => _traerProyectosEmpresa(true));
   _renderAuthBtn(authState);
   updateAdminSectionVisibility();
+  _traerProyectosEmpresa();
 
   // Mostrar login automáticamente si no hay sesión
   if (!authState.user) {
     setTimeout(() => showLoginModal(), 300);
   }
+}
+
+// Proyectos de la empresa activa guardados en la nube (creados desde Administración o en otra laptop):
+// se copian al almacenamiento local para que aparezcan en el explorador. Las tareas llegan al abrirlos.
+let _ultimaTraida = { org: '', t: 0 };
+async function _traerProyectosEmpresa(forzar = false) {
+  const orgId = authState.empresaActual?.org_id;
+  const token = authState.session?.access_token;
+  if (IS_LOCAL_MODE || !orgId || !token) return;
+  if (!forzar && _ultimaTraida.org === orgId && Date.now() - _ultimaTraida.t < 60000) return;
+  _ultimaTraida = { org: orgId, t: Date.now() };
+  try {
+    const { SUPABASE_URL, SUPABASE_ANON_KEY } = await import('./config.js');
+    const qs = new URLSearchParams({ select: '*', org_id: `eq.${orgId}` });
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/projects?${qs}`, { headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${token}` } });
+    if (!res.ok) return;
+    const remotos = await res.json();
+    const locales = new Map((await getAll('projects')).map(p => [p.id, p]));
+    let cambios = 0;
+    for (const r of remotos) {
+      const l = locales.get(r.id);
+      if (!l ? !r.deleted_at : new Date(r.updated_at) > new Date(l.updated_at || 0)) {
+        await dbPut('projects', { ...l, ...r, settings: { ...(l?.settings || {}), ...(r.settings || {}) } });
+        cambios++;
+      }
+    }
+    if (cambios) await _renderProjectList();
+  } catch (e) { console.warn('[Proyectos] No se pudieron traer de la nube:', e); }
 }
 
 function _getInitials(nombre) {

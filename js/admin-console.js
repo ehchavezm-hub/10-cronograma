@@ -167,10 +167,12 @@ const S = {
 };
 /** @type {HTMLElement|null} */
 let _root = null;
+/** true si se crearon o editaron proyectos: el explorador debe refrescarse al cerrar. */
+let _cambios = false;
 
 const NAV = {
   plataforma: [
-    ['resumen', 'Resumen', '📊'], ['empresas', 'Empresas', '🏢'],
+    ['resumen', 'Resumen', '📊'], ['empresas', 'Empresas', '🏢'], ['proyectos', 'Proyectos', '📁'],
     ['propietarios', 'Propietarios', '👑'], ['auditoria', 'Auditoría', '🧾'],
   ],
   empresa: [
@@ -248,6 +250,8 @@ function _cerrar() {
   _root?.remove();
   _root = null;
   document.body.style.overflow = '';
+  if (_cambios) window.dispatchEvent(new CustomEvent('ecm:proyectos-cambiados'));
+  _cambios = false;
 }
 
 async function _cargarOrgs() {
@@ -626,7 +630,8 @@ async function _platEmpresas(main) {
     ],
     columns: [
       { label: 'Empresa', html: o => `<div class="adm-strong">${_esc(o.name)} ${o.dup ? _badge('Repetida', 'warn') : ''} ${o.actual ? _badge('En uso ahora', 'info') : ''}</div><div class="adm-sub">Código ${_esc(_short(o.id))}</div>` },
-      { label: 'Super admin', html: o => o.admins.length ? _esc(o.admins.join(', ')) : '<span class="adm-sub">Sin asignar</span>' },
+      { label: 'Super admin', html: o => `<div class="adm-cellact">${o.admins.length ? `<span>${_esc(o.admins.join(', '))}</span>` : _badge('Sin asignar', 'warn')}
+          ${_btn(o.admins.length ? 'Cambiar' : 'Asignar', 'superadmin', o.id, { tono: o.admins.length ? '' : 'primary-soft' })}</div>` },
       { label: 'Usuarios', html: o => String(o.usuarios), cls: 'adm-num' },
       { label: 'Proyectos', html: o => String(o.proyectos), cls: 'adm-num' },
       { label: 'Estado', html: o => _badge(...(ESTADO_ORG[o.status] || ESTADO_ORG.active)) },
@@ -641,6 +646,7 @@ async function _platEmpresas(main) {
   syncBulk();
   const byId = (id) => rows.find(o => o.id === id);
   S.acts.nueva = () => _crearEmpresa();
+  S.acts.superadmin = async (id) => { if (await _asignarSuperAdmin(byId(id))) await _renderPage(); };
   S.acts.abrir = async (id) => { S.orgId = id; S.projId = ''; await _cargarProyectos(); await _ir('empresa', 'resumen'); };
   S.acts.suspender = async (id) => {
     const o = byId(id);
@@ -702,6 +708,231 @@ async function _eliminarEmpresas(lista) {
   await _renderPage();
 }
 
+/**
+ * Asigna (o cambia) el super admin de una empresa: una persona con cuenta o una invitación por correo.
+ * @param {{id:string, name:string}} org
+ */
+async function _asignarSuperAdmin(org) {
+  const [mems, perfiles] = await Promise.all([
+    _get('org_memberships', { org_id: `eq.${org.id}`, select: 'id,user_id,empresa_role,active' }),
+    _get('profiles', { select: 'id,full_name,email', order: 'full_name.asc' }),
+  ]);
+  const actuales = mems.filter(m => m.empresa_role === 'super_admin' && m.active);
+  const pm = new Map(perfiles.map(p => [p.id, p]));
+  const yo = authState.user?.id;
+  const opciones = [
+    ['', 'Elegir…'],
+    ...perfiles.filter(p => !actuales.some(a => a.user_id === p.id))
+      .map(p => [p.id, `${p.id === yo ? 'Yo · ' : ''}${_nombre(p)}${p.email ? ` (${p.email})` : ''}`]),
+    ['__email', '+ Invitar por correo a alguien nuevo…'],
+  ];
+  const res = await _modal({
+    title: `Super admin de «${org.name}»`,
+    desc: 'El super admin administra toda la empresa: usuarios, proyectos, áreas y permisos.'
+      + (actuales.length ? `<br>Actual: <b>${_esc(actuales.map(a => _nombre(pm.get(a.user_id))).join(', '))}</b>` : ''),
+    fields: [
+      { key: 'user', label: 'Persona', type: 'select', required: true, options: opciones },
+      { key: 'email', label: 'Correo de la persona', type: 'email', placeholder: 'nombre@empresa.com', showIf: ['user', '__email'], required: true },
+      ...(actuales.length ? [{ key: 'modo', label: '¿Qué pasa con el super admin actual?', type: 'select', value: 'agregar',
+        options: [['agregar', 'Se mantiene (habrá más de un super admin)'], ['reemplazar', 'Pasa a ser miembro (reemplazar)']] }] : []),
+    ],
+    submit: 'Asignar super admin',
+    onSubmit: async ({ user, email, modo }) => {
+      let userId = user;
+      let pwd = null;
+      if (user === '__email') {
+        const inv = await _invitarPersona(email, { rol: 'super_admin', orgId: org.id, siYaEsMiembro: 'reusar' });
+        userId = inv.user_id; pwd = inv.pwd;
+      }
+      const mem = mems.find(m => m.user_id === userId);
+      if (user !== '__email') {
+        if (mem) await _patch('org_memberships', { id: `eq.${mem.id}` }, { empresa_role: 'super_admin', active: true });
+        else await _post('org_memberships', { org_id: org.id, user_id: userId, empresa_role: 'super_admin', active: true, invited_by: yo });
+      }
+      if (modo === 'reemplazar') {
+        for (const a of actuales.filter(a => a.user_id !== userId)) await _patch('org_memberships', { id: `eq.${a.id}` }, { empresa_role: 'miembro' });
+      }
+      await _audit(org.id, 'asignar_super_admin', 'org_memberships', userId, { empresa: org.name, persona: _nombre(pm.get(userId)) || email });
+      return { pwd };
+    },
+  });
+  if (!res) return false;
+  if (res.pwd) await _mostrarClave('', res.pwd);
+  _toast('Super admin asignado');
+  await recargarEmpresas();
+  return true;
+}
+
+/** Crea un proyecto en una empresa y, opcionalmente, le asigna administrador. */
+async function _crearProyecto(orgIdFijo = '') {
+  const orgs = S.orgs.filter(o => o.status !== 'suspended');
+  if (!orgs.length) { _toast('Primero crea una empresa', 'err'); return null; }
+  const mems = orgIdFijo ? await _get('org_memberships', { org_id: `eq.${orgIdFijo}`, active: 'eq.true', select: 'user_id' }) : [];
+  const pm = await _perfiles(mems.map(m => m.user_id));
+  const res = await _modal({
+    title: 'Nuevo proyecto',
+    desc: 'El proyecto queda guardado en la nube dentro de la empresa y aparece en el explorador de todos sus miembros.',
+    fields: [
+      ...(orgIdFijo ? [] : [{ key: 'org', label: 'Empresa', type: 'select', required: true, options: [['', 'Elegir…'], ...orgs.map(o => [o.id, _orgLabel(o)])] }]),
+      { key: 'name', label: 'Nombre del proyecto', required: true, placeholder: 'Ej: Edificio Residencial Las Palmas' },
+      { key: 'code', label: 'Código (opcional)', placeholder: 'Ej: LP-2026' },
+      { key: 'start', label: 'Fecha de inicio', type: 'date', value: new Date().toISOString().slice(0, 10), required: true },
+      ...(orgIdFijo ? [{ key: 'admin', label: 'Administrador del proyecto', type: 'select',
+        options: [['', 'Asignar después'], ...mems.map(m => [m.user_id, _nombre(pm.get(m.user_id))])],
+        hint: 'Puedes asignarlo o cambiarlo luego desde la lista de proyectos.' }] : []),
+    ],
+    submit: 'Crear proyecto',
+    onSubmit: async ({ org, name, code, start, admin }) => {
+      const orgId = orgIdFijo || org;
+      const [p] = await _post('projects', {
+        id: crypto.randomUUID(), org_id: orgId, name, code: code || null, start_date: start,
+        status: 'active', is_template: false, settings: {},
+      });
+      if (admin) await _post('group_memberships', { org_id: orgId, project_id: p.id, user_id: admin, group_role: 'administrador' });
+      await _audit(orgId, 'crear_proyecto', 'projects', p.id, { proyecto: name });
+      return p;
+    },
+  });
+  if (!res) return null;
+  if (res.org_id === S.orgId) await _cargarProyectos();
+  _cambios = true;
+  _toast('Proyecto creado');
+  return res;
+}
+
+/**
+ * Asigna el administrador de un proyecto entre los usuarios de su empresa (o invitando a alguien nuevo).
+ * @param {{id:string, org_id:string, name:string}} proy
+ */
+async function _asignarAdminProyecto(proy) {
+  const [mems, gms, areas] = await Promise.all([
+    _get('org_memberships', { org_id: `eq.${proy.org_id}`, active: 'eq.true', select: 'user_id,empresa_role' }),
+    _get('group_memberships', { project_id: `eq.${proy.id}`, select: 'id,user_id,group_role,area_id' }),
+    _get('areas', { org_id: `eq.${proy.org_id}`, deleted_at: 'is.null', select: 'id,name', order: 'sort_order.asc' }),
+  ]);
+  const pm = await _perfiles([...mems.map(m => m.user_id), ...gms.map(g => g.user_id)]);
+  const actuales = gms.filter(g => g.group_role === 'administrador');
+  const res = await _modal({
+    title: `Administrador de «${proy.name}»`,
+    desc: 'El administrador gestiona el proyecto: su equipo, su cronograma y sus permisos.'
+      + (actuales.length ? `<br>Actual: <b>${_esc(actuales.map(a => _nombre(pm.get(a.user_id))).join(', '))}</b>` : ''),
+    fields: [
+      { key: 'user', label: 'Persona', type: 'select', required: true, options: [
+        ['', 'Elegir…'],
+        ...mems.filter(m => !actuales.some(a => a.user_id === m.user_id)).map(m => [m.user_id, `${_nombre(pm.get(m.user_id))} · ${ROL_EMP[m.empresa_role] || ''}`]),
+        ['__email', '+ Invitar por correo a alguien nuevo…'],
+      ] },
+      { key: 'email', label: 'Correo de la persona', type: 'email', placeholder: 'nombre@empresa.com', showIf: ['user', '__email'], required: true },
+      { key: 'area', label: 'Área', type: 'select', options: [['', 'Sin área'], ...areas.map(a => [a.id, a.name])] },
+      ...(actuales.length ? [{ key: 'modo', label: '¿Qué pasa con el administrador actual?', type: 'select', value: 'reemplazar',
+        options: [['reemplazar', 'Pasa a ser miembro (reemplazar)'], ['agregar', 'Se mantiene (habrá dos administradores)']] }] : []),
+    ],
+    submit: 'Asignar administrador',
+    onSubmit: async ({ user, email, area, modo }) => {
+      let userId = user;
+      let pwd = null;
+      if (user === '__email') {
+        const inv = await _invitarPersona(email, { rol: 'miembro', orgId: proy.org_id, siYaEsMiembro: 'reusar' });
+        userId = inv.user_id; pwd = inv.pwd;
+      }
+      const g = gms.find(x => x.user_id === userId);
+      if (g) await _patch('group_memberships', { id: `eq.${g.id}` }, { group_role: 'administrador', ...(area ? { area_id: area } : {}) });
+      else await _post('group_memberships', { org_id: proy.org_id, project_id: proy.id, user_id: userId, group_role: 'administrador', area_id: area || null });
+      if (modo === 'reemplazar') {
+        for (const a of actuales.filter(a => a.user_id !== userId)) await _patch('group_memberships', { id: `eq.${a.id}` }, { group_role: 'miembro' });
+      }
+      await _audit(proy.org_id, 'asignar_admin_proyecto', 'group_memberships', userId, { proyecto: proy.name, persona: _nombre(pm.get(userId)) || email });
+      return { pwd };
+    },
+  });
+  if (!res) return false;
+  if (res.pwd) await _mostrarClave('', res.pwd);
+  _toast('Administrador asignado');
+  return true;
+}
+
+/** Editar nombre, código y fecha de inicio de un proyecto. */
+async function _editarProyecto(proy) {
+  const ok = await _modal({
+    title: 'Editar proyecto',
+    fields: [
+      { key: 'name', label: 'Nombre', required: true, value: proy.name },
+      { key: 'code', label: 'Código', value: proy.code || '' },
+      { key: 'start', label: 'Fecha de inicio', type: 'date', value: proy.start_date || '' },
+    ],
+    onSubmit: async ({ name, code, start }) => {
+      await _patch('projects', { id: `eq.${proy.id}` }, { name, code: code || null, start_date: start || null, updated_at: new Date().toISOString() });
+      await _audit(proy.org_id, 'editar_proyecto', 'projects', proy.id, { antes: proy.name, ahora: name });
+    },
+  });
+  if (!ok) return false;
+  _cambios = true;
+  if (proy.org_id === S.orgId) await _cargarProyectos();
+  _toast('Proyecto actualizado');
+  return true;
+}
+
+/**
+ * Tabla de proyectos con administrador. Si orgId es '' muestra los de todas las empresas.
+ * @param {HTMLElement} main
+ * @param {string} orgId
+ */
+async function _listaProyectos(main, orgId) {
+  const filtroP = { deleted_at: 'is.null', select: 'id,org_id,code,name,status,start_date', order: 'name.asc' };
+  const filtroG = { select: 'project_id,user_id,group_role' };
+  if (orgId) { filtroP.org_id = `eq.${orgId}`; filtroG.org_id = `eq.${orgId}`; }
+  const [proys, gms] = await Promise.all([_get('projects', filtroP), _get('group_memberships', filtroG).catch(() => [])]);
+  const om = new Map(S.orgs.map(o => [o.id, o]));
+  const visibles = orgId ? proys : proys.filter(p => om.has(p.org_id));
+  const pm = await _perfiles(gms.filter(g => g.group_role === 'administrador').map(g => g.user_id));
+  const rows = visibles.map(p => ({
+    ...p,
+    empresa: om.get(p.org_id)?.name || '—',
+    miembros: gms.filter(g => g.project_id === p.id).length,
+    admins: gms.filter(g => g.project_id === p.id && g.group_role === 'administrador').map(g => _nombre(pm.get(g.user_id))),
+  }));
+  const body = _pagina(main, orgId ? {
+    title: 'Proyectos',
+    desc: 'Proyectos de la empresa y quién los administra. Crea proyectos aquí o desde el explorador; luego decide quién entra y con qué área.',
+    actions: [{ label: '+ Nuevo proyecto', act: 'nuevo', primary: true }],
+  } : {
+    title: 'Proyectos',
+    desc: 'Todos los proyectos de todas las empresas, con su administrador. Filtra por empresa para encontrarlos rápido.',
+    actions: [{ label: '+ Nuevo proyecto', act: 'nuevo', primary: true }],
+  });
+  const sinAdmin = rows.filter(r => !r.admins.length).length;
+  if (sinAdmin) body.insertAdjacentHTML('beforebegin', `<div class="adm-alert adm-alert-warn">${sinAdmin} proyecto(s) sin administrador. Asígnalo con el botón «Asignar».</div>`);
+  _tabla(body, {
+    rows, empty: orgId ? 'Esta empresa aún no tiene proyectos. Crea el primero.' : 'Aún no hay proyectos.',
+    search: p => `${p.code || ''} ${p.name} ${p.empresa} ${p.admins.join(' ')}`,
+    filters: [
+      ...(orgId ? [] : [{ label: 'Empresa', options: S.orgs.map(o => [o.id, _orgLabel(o)]), get: p => p.org_id }]),
+      { label: 'Administrador', options: [['con', 'Con administrador'], ['sin', 'Sin administrador']], get: p => p.admins.length ? 'con' : 'sin' },
+    ],
+    columns: [
+      { label: 'Proyecto', html: p => `<div class="adm-strong">${_esc(p.name)}</div>${p.code ? `<div class="adm-sub">${_esc(p.code)}</div>` : ''}` },
+      ...(orgId ? [] : [{ label: 'Empresa', html: p => _esc(p.empresa) }]),
+      { label: 'Administrador', html: p => `<div class="adm-cellact">${p.admins.length ? `<span>${_esc(p.admins.join(', '))}</span>` : _badge('Sin asignar', 'warn')}
+          ${_btn(p.admins.length ? 'Cambiar' : 'Asignar', 'padmin', p.id, { tono: p.admins.length ? '' : 'primary-soft' })}</div>` },
+      { label: 'Miembros', html: p => String(p.miembros), cls: 'adm-num' },
+      { label: 'Inicio', html: p => _esc(_fecha(p.start_date)), cls: 'adm-nowrap' },
+      { label: '', cls: 'adm-actions', html: p => _btn('Editar', 'editar', p.id) + _btn('Miembros y permisos', 'gestionar', p.id) },
+    ],
+  });
+  const byId = (id) => rows.find(p => p.id === id);
+  S.acts.nuevo = async () => { if (await _crearProyecto(orgId)) await _renderPage(); };
+  S.acts.padmin = async (id) => { if (await _asignarAdminProyecto(byId(id))) await _renderPage(); };
+  S.acts.editar = async (id) => { if (await _editarProyecto(byId(id))) await _renderPage(); };
+  S.acts.gestionar = async (id) => {
+    const p = byId(id);
+    if (S.orgId !== p.org_id) { S.orgId = p.org_id; await _cargarProyectos(); }
+    S.projId = id;
+    await _ir('proyecto', 'miembros');
+  };
+}
+
+const _platProyectos = (main) => _listaProyectos(main, '');
+
 async function _platPropietarios(main) {
   const rows = await _get('profiles', { platform_role: 'in.(propietario,co_propietario)', select: 'id,full_name,email,platform_role,created_at' });
   rows.sort((a, b) => (a.platform_role === 'propietario' ? -1 : 1) - (b.platform_role === 'propietario' ? -1 : 1));
@@ -755,6 +986,8 @@ const ACCIONES = {
   cambiar_permiso: 'Cambió un permiso', ajustar_permiso_proyecto: 'Ajustó un permiso del proyecto',
   agregar_miembro: 'Agregó un miembro al proyecto', quitar_miembro: 'Quitó un miembro del proyecto',
   cambiar_miembro: 'Cambió rol o área de un miembro', invitar_externo: 'Invitó a un externo',
+  asignar_super_admin: 'Asignó super admin', crear_proyecto: 'Creó un proyecto', editar_proyecto: 'Editó un proyecto',
+  asignar_admin_proyecto: 'Asignó administrador de proyecto',
 };
 const _accion = (a) => ACCIONES[a] || a;
 
@@ -803,20 +1036,21 @@ async function _empResumen(main) {
   });
   S.acts.invitar = async () => { await _ir('empresa', 'usuarios'); S.acts.invitar?.(''); };
   S.acts.go = (page) => _ir('empresa', page);
+  S.acts.superadmin = async () => { if (await _asignarSuperAdmin({ id: S.orgId, name: org?.name || '' })) await _renderPage(); };
   body.innerHTML = _kpis([
     [mems.filter(m => m.active).length, 'Usuarios activos'],
     [S.projs.length, 'Proyectos'],
     [areas.length, 'Áreas'],
   ]) + `
     <div class="adm-cards">
-      <div class="adm-card"><div class="adm-card-k">Super admin</div><div class="adm-strong">${_esc(nombresDe('super_admin'))}</div></div>
+      <div class="adm-card"><div class="adm-card-k">Super admin</div><div class="adm-cellact"><span class="adm-strong">${_esc(nombresDe('super_admin'))}</span>${_esPropietario() ? _btn(nombresDe('super_admin') === 'Sin asignar' ? 'Asignar' : 'Cambiar', 'superadmin', S.orgId) : ''}</div></div>
       <div class="adm-card"><div class="adm-card-k">Relevo (reemplaza al super admin)</div><div class="adm-strong">${_esc(nombresDe('relevo'))}</div></div>
       <div class="adm-card"><div class="adm-card-k">Estado</div>${_badge(...(ESTADO_ORG[org?.status] || ESTADO_ORG.active))}</div>
     </div>
     <h2 class="adm-h2">Accesos rápidos</h2>
     <div class="adm-quick">
       <button type="button" class="adm-quick-item" data-act="go" data-id="usuarios">👥 Gestionar usuarios y roles</button>
-      <button type="button" class="adm-quick-item" data-act="go" data-id="proyectos">📁 Asignar personas a proyectos</button>
+      <button type="button" class="adm-quick-item" data-act="go" data-id="proyectos">📁 Proyectos y sus administradores</button>
       <button type="button" class="adm-quick-item" data-act="go" data-id="plantilla">🔐 Ajustar permisos por área</button>
     </div>`;
 }
@@ -918,11 +1152,11 @@ function _mostrarClave(email, pwd) {
 }
 
 /**
- * Invita a una persona a la empresa actual. Si ya tiene cuenta, solo la agrega.
- * @param {{rol:string, empresaExt?:string, expira?:string|null}} opts
+ * Invita a una persona a una empresa (por defecto la del alcance actual). Si ya tiene cuenta, solo la agrega.
+ * @param {{rol:string, empresaExt?:string, expira?:string|null, orgId?:string, siYaEsMiembro?:'error'|'reusar'}} opts
  * @returns {Promise<{mem_id:string, user_id:string, pwd:string|null}>}
  */
-async function _invitarPersona(email, { rol, empresaExt = '', expira = null }) {
+async function _invitarPersona(email, { rol, empresaExt = '', expira = null, orgId = S.orgId, siYaEsMiembro = 'error' }) {
   email = email.toLowerCase();
   let [perfil] = await _get('profiles', { email: `eq.${email}`, select: 'id' });
   let pwd = null;
@@ -937,17 +1171,17 @@ async function _invitarPersona(email, { rol, empresaExt = '', expira = null }) {
     if (!uid) throw new Error(data?.msg || data?.message || data?.error_description || 'No se pudo crear la cuenta.');
     perfil = { id: uid };
   }
-  const [existe] = await _get('org_memberships', { org_id: `eq.${S.orgId}`, user_id: `eq.${perfil.id}`, select: 'id,active' });
+  const [existe] = await _get('org_memberships', { org_id: `eq.${orgId}`, user_id: `eq.${perfil.id}`, select: 'id,active' });
   if (existe) {
-    if (existe.active) throw new Error('Esa persona ya es usuario de esta empresa.');
+    if (existe.active && siYaEsMiembro === 'error') throw new Error('Esa persona ya es usuario de esta empresa.');
     await _patch('org_memberships', { id: `eq.${existe.id}` }, { active: true, empresa_role: rol, empresa_ext: empresaExt || null, expires_at: expira });
     return { mem_id: existe.id, user_id: perfil.id, pwd: null };
   }
   const [mem] = await _post('org_memberships', {
-    org_id: S.orgId, user_id: perfil.id, empresa_role: rol, empresa_ext: empresaExt || null,
+    org_id: orgId, user_id: perfil.id, empresa_role: rol, empresa_ext: empresaExt || null,
     active: true, temp_password: pwd, invited_by: authState.user?.id, expires_at: expira,
   });
-  await _audit(S.orgId, rol === 'invitado_externo' ? 'invitar_externo' : 'invitar_usuario', 'org_memberships', mem?.id, { email, rol: ROL_EMP[rol] });
+  await _audit(orgId, rol === 'invitado_externo' ? 'invitar_externo' : 'invitar_usuario', 'org_memberships', mem?.id, { email, rol: ROL_EMP[rol] });
   return { mem_id: mem?.id, user_id: perfil.id, pwd };
 }
 
@@ -968,31 +1202,7 @@ async function _invitar({ rol }) {
   await _renderPage();
 }
 
-async function _empProyectos(main) {
-  const gms = await _get('group_memberships', { org_id: `eq.${S.orgId}`, select: 'project_id,user_id,group_role' }).catch(() => []);
-  const pm = await _perfiles(gms.filter(g => g.group_role === 'administrador').map(g => g.user_id));
-  const rows = S.projs.map(p => ({
-    ...p,
-    miembros: gms.filter(g => g.project_id === p.id).length,
-    admins: gms.filter(g => g.project_id === p.id && g.group_role === 'administrador').map(g => _nombre(pm.get(g.user_id))),
-  }));
-  const body = _pagina(main, {
-    title: 'Proyectos',
-    desc: 'Proyectos de la empresa y quién los administra. Los proyectos se crean desde el explorador; aquí decides quién entra y con qué área.',
-  });
-  _tabla(body, {
-    rows, empty: 'Esta empresa aún no tiene proyectos.',
-    search: p => `${p.code || ''} ${p.name} ${p.admins.join(' ')}`,
-    columns: [
-      { label: 'Proyecto', html: p => `<div class="adm-strong">${_esc(p.name)}</div>${p.code ? `<div class="adm-sub">${_esc(p.code)}</div>` : ''}` },
-      { label: 'Administrador', html: p => p.admins.length ? _esc(p.admins.join(', ')) : '<span class="adm-sub">Sin asignar</span>' },
-      { label: 'Miembros', html: p => String(p.miembros), cls: 'adm-num' },
-      { label: 'Inicio', html: p => _esc(_fecha(p.start_date)), cls: 'adm-nowrap' },
-      { label: '', cls: 'adm-actions', html: p => _btn('Gestionar acceso', 'gestionar', p.id) },
-    ],
-  });
-  S.acts.gestionar = (id) => { S.projId = id; return _ir('proyecto', 'miembros'); };
-}
+const _empProyectos = (main) => _listaProyectos(main, S.orgId);
 
 async function _empAreas(main) {
   const [areas, gms] = await Promise.all([
@@ -1282,7 +1492,7 @@ async function _proyExternos(main) {
 /** @type {Record<string, Record<string, (main:HTMLElement)=>Promise<void>>>} */
 const PAGES = {
   plataforma: {
-    resumen: _platResumen, empresas: _platEmpresas, propietarios: _platPropietarios,
+    resumen: _platResumen, empresas: _platEmpresas, proyectos: _platProyectos, propietarios: _platPropietarios,
     auditoria: (m) => _auditoria(m, ''),
   },
   empresa: {
@@ -1336,6 +1546,8 @@ function _injectCss() {
 .adm-btn-danger:hover:not([disabled]){background:var(--clr-error-bg,#ffebee)}
 .adm-dlg .adm-btn-danger[type=submit]{background:var(--clr-error,#c62828);color:#fff;border-color:var(--clr-error,#c62828)}
 .adm-btn-sm{padding:5px 10px;font-size:12px}
+.adm-btn-primary-soft{background:var(--clr-primary-l,#ede9fe);border-color:transparent;color:var(--clr-primary,#4f46e5)}
+.adm-cellact{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .adm-link{border:none;background:none;color:var(--clr-primary,#4f46e5);font:inherit;font-weight:700;cursor:pointer;padding:0}
 .adm-toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px}
 .adm-in{border:1px solid var(--clr-border,#d1d5db);background:var(--clr-surface,#fff);color:var(--clr-text,#111827);border-radius:8px;padding:8px 10px;font:inherit;max-width:100%}
