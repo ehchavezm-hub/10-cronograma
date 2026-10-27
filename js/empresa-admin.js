@@ -108,20 +108,24 @@ function _mostrarFormCrearEmpresa() {
     if (errEl) errEl.style.display = 'none';
     if (loadEl) loadEl.style.display = '';
     if (submitEl) submitEl.disabled = true;
+    let orgIdCreado = null;
     try {
       const userId = authState.user?.id;
       if (!userId) throw new Error('Usuario no autenticado');
-      // slug único
       const slug = nombre.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') + '-' + Date.now();
       // 1. Crear organización
       const orgRows = await _insert('organizations', { name: nombre, slug });
-      const orgId = Array.isArray(orgRows) ? orgRows[0]?.id : orgRows?.id;
-      if (!orgId) throw new Error('No se pudo obtener el ID de la empresa creada');
+      orgIdCreado = Array.isArray(orgRows) ? orgRows[0]?.id : orgRows?.id;
+      if (!orgIdCreado) throw new Error('No se pudo obtener el ID de la empresa');
       // 2. Crear membresía como super_admin
-      await _insert('org_memberships', { org_id: orgId, user_id: userId, empresa_role: 'super_admin', active: true });
+      await _insert('org_memberships', { org_id: orgIdCreado, user_id: userId, empresa_role: 'super_admin', active: true });
       window.location.reload();
     } catch (e) {
-      if (errEl) { errEl.textContent = e.message || 'Error al crear empresa. Intenta de nuevo.'; errEl.style.display = ''; }
+      // Limpiar org huérfana si el paso 2 falló
+      if (orgIdCreado) {
+        fetch(`${REST}/organizations?id=eq.${orgIdCreado}`, { method: 'DELETE', headers: _hdrs() }).catch(() => {});
+      }
+      if (errEl) { errEl.textContent = e.message || 'Error al crear empresa.'; errEl.style.display = ''; }
       if (loadEl) loadEl.style.display = 'none';
       if (submitEl) submitEl.disabled = false;
     }
