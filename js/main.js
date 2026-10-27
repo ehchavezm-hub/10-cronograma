@@ -40,7 +40,7 @@ import { initReports } from './reports.js';
 import { authInit, authState, showLoginModal, logout, seleccionarEmpresa } from './auth.js?v=181';
 import { showUsuariosPanel } from './usuarios.js';
 import { showEmpresaAdminPanel } from './empresa-admin.js';
-import { showPlataformaAdminPanel, updateAdminSectionVisibility } from './plataforma-admin.js';
+import { showPlataformaAdminPanel, updateAdminSectionVisibility } from './plataforma-admin.js?v=192';
 
 // Precargar Manrope: los gráficos canvas de los reportes (DCMA, EVM, Histograma) la usan
 // y el canvas no dispara la descarga de la fuente por sí solo.
