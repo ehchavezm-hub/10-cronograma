@@ -172,7 +172,7 @@ let _cambios = false;
 
 const NAV = {
   plataforma: [
-    ['resumen', 'Resumen', '📊'], ['empresas', 'Empresas', '🏢'], ['proyectos', 'Estructura', '🌳'],
+    ['resumen', 'Resumen', '📊'], ['empresas', 'Empresas', '🏢'], ['proyectos', 'Estructura de todas las empresas', '🌳'],
     ['propietarios', 'Propietarios', '👑'], ['auditoria', 'Auditoría', '🧾'],
   ],
   empresa: [
@@ -1083,7 +1083,7 @@ async function _estructura(main, orgId) {
     [pfs.length, 'Portafolios'], [progs.length, 'Programas'], [proys.length, 'Proyectos'],
     [sinAdmin, 'Proyectos sin administrador', sinAdmin ? 'warn' : ''],
   ]) + `<div class="adm-tabs">
-      <button class="adm-tab-btn is-active" data-tab="tabla">Tabla</button>
+      <button class="adm-tab-btn is-active" data-tab="tabla">${orgId ? 'Tabla' : 'Estructura de todas las empresas'}</button>
       <button class="adm-tab-btn" data-tab="org">Organigrama</button>
     </div>
     <div data-tabpanel="tabla">
