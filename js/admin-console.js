@@ -2088,7 +2088,7 @@ function _printAdmPdf(title, html, ctxName, frame = null) {
   .tb select{font-size:12px;padding:3px 6px;border:1px solid #d1d5db;border-radius:4px;background:#fff;color:#374151}
   .tb input[type=text]{font-size:12px;padding:3px 8px;border:1px solid #d1d5db;border-radius:4px;background:#f8fafc;color:#374151;width:300px}
   .pv{padding:20px;display:flex;flex-direction:column;align-items:center;gap:16px;min-height:calc(100vh - 52px)}
-  .a4{background:#fff;box-shadow:0 4px 14px rgba(0,0,0,.4);padding:14mm 15mm;width:var(--pw,210mm);min-height:var(--ph,297mm);overflow:hidden}
+  .a4{background:#fff;box-shadow:0 4px 14px rgba(0,0,0,.4);padding:14mm 15mm;width:var(--pw,210mm);min-height:var(--ph,297mm);overflow:auto}
   h1{font-size:15px;margin:0 0 4mm;text-align:center;color:#1a365d;font-weight:700}
   h2{font-size:13px;margin:10px 0 5px;color:#1f2937}
   .subtitle{font-size:10px;text-align:center;color:#4a5568;margin:-1mm 0 7mm}
@@ -2381,7 +2381,7 @@ async function _admReportes(main, scope) {
         const om = new Map(orgs.map(o => [o.id, o.name]));
         titleRpt = 'Actividad reciente';
         html = `<table><thead><tr><th>Fecha</th><th>Usuario</th><th>Empresa</th><th>Acción</th></tr></thead><tbody>
-          ${aud.map(/** @type {any} */ (a) => `<tr><td>${_esc(_fecha(a.created_at, true))}</td><td>${_esc(_nombre(pm.get(a.user_id)))}</td><td>${_esc(om.get(a.org_id) || '—')}</td><td>${_esc(a.accion || '—')}</td></tr>`).join('')}
+          ${aud.map(/** @type {any} */ (a) => `<tr><td>${_esc(_fecha(a.created_at, true))}</td><td>${_esc(_nombre(pm.get(a.user_id)))}</td><td>${_esc(om.get(a.org_id) || '—')}</td><td>${_esc(a.accion || '—')}</td></tr>`).join('') || '<tr><td colspan="4" style="color:#9ca3af">Sin actividad registrada.</td></tr>'}
         </tbody></table>`;
       } else if (act === 'rptEmpResumen') {
         const [mems, proys, areas] = await Promise.all([
@@ -2412,15 +2412,12 @@ async function _admReportes(main, scope) {
           }).join('') || '<tr><td colspan="5" style="color:#9ca3af">Sin miembros</td></tr>'}
         </tbody></table>`;
       } else if (act === 'rptEmpUsuarios') {
-        const [mems, profs] = await Promise.all([
-          _get('org_memberships', { org_id: `eq.${S.orgId}`, select: 'id,user_id,empresa_role,active,created_at', order: 'created_at.asc' }),
-          _get('profiles', { select: 'id,full_name,email' }),
-        ]);
-        const pm = new Map(profs.map(p => [p.id, p]));
+        const mems = await _get('org_memberships', { org_id: `eq.${S.orgId}`, select: 'id,user_id,empresa_role,active,created_at', order: 'created_at.asc' });
+        const pm = await _perfiles(mems.map(m => m.user_id));
         titleRpt = 'Usuarios';
         html = `<table><thead><tr><th>Usuario</th><th>Correo</th><th>Rol</th><th>Estado</th><th>Desde</th></tr></thead><tbody>
           ${mems.map(m => {
-            const p = pm.get(m.user_id);
+            const p = pm.get(m.user_id) || {};
             return `<tr><td>${_esc(_nombre(p))}</td><td>${_esc(p?.email || '—')}</td><td>${_esc(ROL_EMP[m.empresa_role] || m.empresa_role)}</td><td>${_esc(m.active ? 'Activo' : 'Revocado')}</td><td>${_esc(_fecha(m.created_at))}</td></tr>`;
           }).join('') || '<tr><td colspan="5" style="color:#9ca3af">Sin usuarios</td></tr>'}
         </tbody></table>`;
@@ -2446,6 +2443,12 @@ async function _admReportes(main, scope) {
         html = `<table><thead><tr><th>Fecha</th><th>Usuario</th><th>Acción</th></tr></thead><tbody>
           ${aud.map(/** @type {any} */ (a) => `<tr><td>${_esc(_fecha(a.created_at, true))}</td><td>${_esc(_nombre(pm.get(a.user_id)))}</td><td>${_esc(a.accion || '—')}</td></tr>`).join('') || '<tr><td colspan="3" style="color:#9ca3af">Sin registros</td></tr>'}
         </tbody></table>`;
+      }
+      if (!html) {
+        frameWrap.innerHTML = '<div class="adm-rpt-msg">Reporte no disponible.</div>';
+        if (printBtn) printBtn.disabled = false;
+        tree.querySelectorAll('.adm-rpt-item').forEach(b => b.classList.remove('is-active'));
+        return;
       }
       const frame = document.createElement('iframe');
       frame.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;border:none;background:#f1f5f9';
@@ -2654,7 +2657,7 @@ function _injectCss() {
 .oct-node-edit{cursor:pointer}
 .oct-node-edit:hover{box-shadow:0 3px 12px rgba(0,0,0,.18)}
 .oct-node-edit:focus{outline:2px solid var(--clr-primary,#4f46e5);outline-offset:2px}
-.adm-rpt-split{display:flex;border:1px solid var(--clr-border,#d1d5db);border-radius:8px;overflow:hidden;height:calc(100vh - 240px);min-height:420px}
+.adm-rpt-split{display:flex;border:1px solid var(--clr-border,#d1d5db);border-radius:8px;overflow:hidden;height:calc(100dvh - 240px);min-height:420px}
 .adm-rpt-tree{width:220px;flex-shrink:0;overflow-y:auto;padding:8px 6px;border-right:1px solid var(--clr-border,#d1d5db);background:var(--clr-surface,#fff)}
 .adm-rpt-item{display:flex;align-items:center;gap:9px;width:100%;text-align:left;border:none;background:none;border-radius:6px;padding:9px 10px;font:inherit;font-size:13px;color:var(--clr-text-2,#374151);cursor:pointer;margin-bottom:2px}
 .adm-rpt-item:hover{background:var(--clr-hover,rgba(0,0,0,.05))}
@@ -2673,8 +2676,9 @@ function _injectCss() {
   .adm-search{width:100%}
   .adm-table{min-width:680px}
   .adm-matrix{min-width:900px}
-  .adm-rpt-split{height:calc(100vh - 200px);min-height:320px}
+  .adm-rpt-split{height:calc(100dvh - 200px);min-height:320px}
   .adm-rpt-tree{width:160px}
 }`;
-  document.head.appendChild(st);
+  st.id = 'ecm-adm-styles';
+  if (!document.getElementById('ecm-adm-styles')) document.head.appendChild(st);
 }
