@@ -2160,6 +2160,7 @@ ${html}</div></div>
     document.getElementById('bl').classList.toggle('act',o==='landscape');
     var s=document.getElementById('_ps')||document.createElement('style');
     s.id='_ps';s.textContent='@page{size:'+sz[0]+'mm '+sz[1]+'mm}';document.head.appendChild(s);
+    if(typeof fitJer==='function')setTimeout(fitJer,80);
   }
   setOri('portrait');
 <\/script></body></html>`);
@@ -2391,12 +2392,40 @@ async function _admReportes(main, scope) {
             <div style="display:flex;flex-direction:column;align-items:center">
               ${_card(o.name, 'org', '', [])}
               ${branch ? `<div style="width:2px;height:16px;background:#d1d5db"></div>
-              <div style="overflow-x:auto;width:100%"><div style="display:flex;justify-content:center">${branch}</div></div>` : '<p style="color:#9ca3af;font-size:11px;margin-top:8px">Sin proyectos</p>'}
+              <div style="overflow:visible"><div style="display:flex;justify-content:center">${branch}</div></div>` : '<p style="color:#9ca3af;font-size:11px;margin-top:8px">Sin proyectos</p>'}
             </div>
           </div>`;
         }).join('');
-        html = `<style>.jer-root{page-break-inside:avoid}</style>` +
-          (_orgsHtml ? `<div style="display:flex;flex-direction:column;gap:32px">${_orgsHtml}</div>` : '<p style="color:#9ca3af">Sin empresas registradas.</p>');
+        html = `<style>
+  .jer-root{page-break-inside:avoid}
+  .jer-outer{width:100%;overflow:hidden}
+  .jer-inner{display:inline-block;min-width:100%;transform-origin:top left}
+  @media print{.jer-outer{overflow:visible}}
+</style>
+<div class="jer-outer" id="jer-outer">
+  <div class="jer-inner" id="jer-inner">
+    ${_orgsHtml ? `<div style="display:flex;flex-direction:column;gap:32px">${_orgsHtml}</div>` : '<p style="color:#9ca3af">Sin empresas registradas.</p>'}
+  </div>
+</div>
+<script>
+window.fitJer=function(){
+  var outer=document.getElementById('jer-outer');
+  var inner=document.getElementById('jer-inner');
+  if(!outer||!inner)return;
+  inner.style.transform='none';
+  outer.style.height='';
+  var avail=outer.clientWidth;
+  var w=inner.scrollWidth;
+  if(w>avail&&avail>0){
+    var sc=avail/w;
+    inner.style.transform='scale('+sc+')';
+    outer.style.height=Math.ceil(inner.scrollHeight*sc)+'px';
+  }
+};
+if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',function(){setTimeout(window.fitJer,100);});}
+else{setTimeout(window.fitJer,100);}
+window.addEventListener('resize',window.fitJer);
+<\/script>`;
       } else if (act === 'rptActividad') {
         const aud = await _get('auditoria', { select: 'id,org_id,user_id,accion,created_at', order: 'created_at.desc', limit: '100' }).catch(() => []);
         const orgs = await _get('organizations', { deleted_at: 'is.null', select: 'id,name' });

@@ -1,6 +1,6 @@
 // sw.js — Service Worker para cache-first offline
 // Versión: incrementar al desplegar cambios a assets
-const CACHE = 'cronogramas-v227';
+const CACHE = 'cronogramas-v228';
 
 // Assets del shell de la app que siempre se cachean en la instalación
 const SHELL = [
@@ -52,7 +52,7 @@ const SHELL = [
   './js/workers/monte-carlo.worker.js',
   './js/cache.js',
   './js/async-queue.js',
-  './js/admin-console.js?v=218',
+  './js/admin-console.js?v=219',
   './js/vendor/xlsx.full.min.js',
 ];
 
