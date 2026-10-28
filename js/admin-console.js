@@ -2120,7 +2120,10 @@ function _printAdmPdf(title, html, ctxName, frame = null) {
   .stat-lbl{font-size:9px;color:#64748b;margin-top:2px}
   .print-header{position:fixed;top:0;left:0;right:0;height:26px;display:none;align-items:center;justify-content:space-between;padding:0 10mm;border-bottom:0.5pt solid #CBD5E0;font-size:6pt;color:#4A5568;background:#fff;z-index:9999}
   .print-footer{position:fixed;bottom:0;left:0;right:0;height:22px;display:none;align-items:center;justify-content:space-between;padding:0 10mm;border-top:0.5pt solid #CBD5E0;font-size:6pt;color:#718096;background:#fff;z-index:9999}
+  ::-webkit-scrollbar{display:none!important}
+  *{scrollbar-width:none!important}
   @media print{
+    html,body{overflow:hidden!important}
     body{background:#fff}
     .tb{display:none!important}
     .pv{padding:0;min-height:0}
