@@ -2126,6 +2126,7 @@ function _printAdmPdf(title, html, ctxName, frame = null) {
     .pv{padding:0;min-height:0}
     .a4{box-shadow:none;width:100%;min-height:0;padding:1.5mm 0 0!important}
     .print-header,.print-footer{display:flex!important}
+    *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
     @page{margin:10mm}
   }
 </style></head><body>
@@ -2353,8 +2354,8 @@ async function _admReportes(main, scope) {
             ${admins.length ? `<div style="font-size:9px;color:#475569;margin-top:3px;border-top:1px solid ${c.bd};padding-top:2px">${_esc(admins[0])}</div>` : ''}
           </div>`;
         };
-        const _jerWrap = (items) => items.length ? `<div style="display:flex;flex-direction:row;align-items:flex-start;position:relative"><div style="position:absolute;top:0;left:0;right:0;height:2px;background:#d1d5db"></div>${items.join('')}</div>` : '';
-        const _jerConn = (inner) => `<div style="display:inline-flex;flex-direction:column;align-items:center;padding:0 6px"><div style="width:2px;height:16px;background:#d1d5db"></div>${inner}</div>`;
+        const _jerWrap = (items) => items.length ? `<div style="display:flex;flex-direction:row;align-items:flex-start;position:relative"><div style="position:absolute;top:0;left:0;right:0;height:0;border-top:2px solid #9ca3af"></div>${items.join('')}</div>` : '';
+        const _jerConn = (inner) => `<div style="display:inline-flex;flex-direction:column;align-items:center;padding:0 6px"><div style="width:0;height:16px;border-left:2px solid #9ca3af;align-self:center"></div>${inner}</div>`;
         const _branchOrg = (orgId) => {
           const oPfs = pfsAllJ.filter(p => p.org_id === orgId);
           const oProgs = progsAllJ.filter(g => g.org_id === orgId);
@@ -2372,16 +2373,16 @@ async function _admReportes(main, scope) {
               const progProjs = oProys.filter(p => progOf(p) === prog.id);
               const ppItems = progProjs.map(proj => { usedJ.add(proj.id); return _jerConn(_card(proj.name, 'proj', proj.code, adminsDe(proj.id))); });
               const progSub = _jerWrap(ppItems);
-              pfItems.push(_jerConn(_card(prog.name, 'prog', prog.code, []) + (progSub ? `<div style="width:2px;height:16px;background:#d1d5db"></div>${progSub}` : '')));
+              pfItems.push(_jerConn(_card(prog.name, 'prog', prog.code, []) + (progSub ? `<div style="width:0;height:16px;border-left:2px solid #9ca3af;margin:0 auto"></div>${progSub}` : '')));
             }
             for (const proj of pfProjsD) { usedJ.add(proj.id); pfItems.push(_jerConn(_card(proj.name, 'proj', proj.code, adminsDe(proj.id)))); }
             const pfSub = _jerWrap(pfItems);
-            items.push(_jerConn(_card(pf.name, 'pf', pf.code, []) + (pfSub ? `<div style="width:2px;height:16px;background:#d1d5db"></div>${pfSub}` : '')));
+            items.push(_jerConn(_card(pf.name, 'pf', pf.code, []) + (pfSub ? `<div style="width:0;height:16px;border-left:2px solid #9ca3af;margin:0 auto"></div>${pfSub}` : '')));
           }
           for (const prog of oProgs.filter(g => !usedP.has(g.id))) {
             const ppItems = oProys.filter(p => progOf(p) === prog.id).map(proj => { usedJ.add(proj.id); return _jerConn(_card(proj.name, 'proj', proj.code, adminsDe(proj.id))); });
             const progSub = _jerWrap(ppItems);
-            items.push(_jerConn(_card(prog.name, 'prog', prog.code, []) + (progSub ? `<div style="width:2px;height:16px;background:#d1d5db"></div>${progSub}` : '')));
+            items.push(_jerConn(_card(prog.name, 'prog', prog.code, []) + (progSub ? `<div style="width:0;height:16px;border-left:2px solid #9ca3af;margin:0 auto"></div>${progSub}` : '')));
           }
           for (const proj of oProys.filter(p => !usedJ.has(p.id))) items.push(_jerConn(_card(proj.name, 'proj', proj.code, adminsDe(proj.id))));
           return _jerWrap(items);
@@ -2391,7 +2392,7 @@ async function _admReportes(main, scope) {
           return `<div class="jer-root">
             <div style="display:flex;flex-direction:column;align-items:center">
               ${_card(o.name, 'org', '', [])}
-              ${branch ? `<div style="width:2px;height:16px;background:#d1d5db"></div>
+              ${branch ? `<div style="width:0;height:16px;border-left:2px solid #9ca3af;margin:0 auto"></div>
               <div style="overflow:visible"><div style="display:flex;justify-content:center">${branch}</div></div>` : '<p style="color:#9ca3af;font-size:11px;margin-top:8px">Sin proyectos</p>'}
             </div>
           </div>`;
