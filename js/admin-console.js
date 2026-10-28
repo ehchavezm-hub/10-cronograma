@@ -2265,43 +2265,65 @@ async function _admReportes(main, scope) {
           }).join('') || '<tr><td colspan="5" style="color:#9ca3af">Sin usuarios</td></tr>'}
         </tbody></table>`;
       } else if (act === 'rptEstructuraPlat') {
-        const [orgs, proys] = await Promise.all([
+        const [orgs, pfsAll, progsAll, proysAll] = await Promise.all([
           _get('organizations', { deleted_at: 'is.null', select: 'id,name,status', order: 'name.asc' }),
-          _get('projects', { deleted_at: 'is.null', select: 'id,org_id,name,tipo,code,parent_id', order: 'name.asc' }),
+          _get('portfolios', { deleted_at: 'is.null', select: 'id,org_id,name,code', order: 'name.asc' }),
+          _get('programs', { deleted_at: 'is.null', select: 'id,org_id,portfolio_id,name,code', order: 'name.asc' }),
+          _get('projects', { deleted_at: 'is.null', select: 'id,org_id,program_id,name,code,settings', order: 'name.asc' }),
         ]);
         titleRpt = 'Estructura de todas las empresas';
-        const tipoLabel = /** @type {Record<string,string>} */ ({ org: 'Empresa', portafolio: 'Portafolio', programa: 'Programa', proyecto: 'Proyecto' });
-        const tipoColor = /** @type {Record<string,string>} */ ({ portafolio: '#f59e0b', programa: '#8b5cf6', proyecto: '#3b82f6' });
-        const _indent = (nivel) => nivel > 0 ? `<span style="display:inline-block;width:${nivel * 20}px"></span>` : '';
-        const _buildRows = (orgId, parentId, nivel) => {
-          const children = proys.filter(p => p.org_id === orgId && (p.parent_id || null) === (parentId || null) && p.tipo !== 'org');
-          return children.flatMap(p => {
-            const color = tipoColor[p.tipo] || '#6b7280';
-            const row = `<tr><td>${_indent(nivel)}<span style="display:inline-block;background:${color};color:#fff;font-size:10px;padding:1px 6px;border-radius:3px;margin-right:6px">${_esc(tipoLabel[p.tipo] || p.tipo)}</span>${_esc(p.name)}</td><td style="font-size:11px;color:#6b7280">${_esc(p.code || '—')}</td></tr>`;
-            return [row, ..._buildRows(orgId, p.id, nivel + 1)];
-          });
+        const _tColor = { pf: '#f59e0b', prog: '#8b5cf6', proj: '#3b82f6' };
+        const _tLabel = { pf: 'Portafolio', prog: 'Programa', proj: 'Proyecto' };
+        const _indent = (n) => n > 0 ? `<span style="display:inline-block;width:${n * 20}px"></span>` : '';
+        const _erow = (name, code, tipo, nivel) => {
+          const color = _tColor[tipo]; const label = _tLabel[tipo];
+          return `<tr><td>${_indent(nivel)}<span style="display:inline-block;background:${color};color:#fff;font-size:10px;padding:1px 6px;border-radius:3px;margin-right:6px">${label}</span>${_esc(name)}</td><td style="font-size:11px;color:#6b7280">${_esc(code || '—')}</td></tr>`;
+        };
+        const _buildEst = (orgId) => {
+          const oPfs = pfsAll.filter(p => p.org_id === orgId);
+          const oProgs = progsAll.filter(g => g.org_id === orgId);
+          const oProys = proysAll.filter(p => p.org_id === orgId);
+          const progOf = (p) => p.program_id || p.settings?.program_id || null;
+          const pfOf = (p) => { const gid = progOf(p); if (gid) { const g = oProgs.find(x => x.id === gid); return g?.portfolio_id || p.settings?.portfolio_id || null; } return p.settings?.portfolio_id || null; };
+          const rows = [];
+          const usedProgs = new Set(); const usedProys = new Set();
+          for (const pf of oPfs) {
+            rows.push(_erow(pf.name, pf.code, 'pf', 1));
+            for (const prog of oProgs.filter(g => g.portfolio_id === pf.id)) {
+              rows.push(_erow(prog.name, prog.code, 'prog', 2)); usedProgs.add(prog.id);
+              for (const proj of oProys.filter(p => progOf(p) === prog.id)) { rows.push(_erow(proj.name, proj.code, 'proj', 3)); usedProys.add(proj.id); }
+            }
+            for (const proj of oProys.filter(p => !progOf(p) && pfOf(p) === pf.id && !usedProys.has(p.id))) { rows.push(_erow(proj.name, proj.code, 'proj', 2)); usedProys.add(proj.id); }
+          }
+          for (const prog of oProgs.filter(g => !usedProgs.has(g.id))) {
+            rows.push(_erow(prog.name, prog.code, 'prog', 1));
+            for (const proj of oProys.filter(p => progOf(p) === prog.id)) { rows.push(_erow(proj.name, proj.code, 'proj', 2)); usedProys.add(proj.id); }
+          }
+          for (const proj of oProys.filter(p => !usedProys.has(p.id))) rows.push(_erow(proj.name, proj.code, 'proj', 1));
+          return rows;
         };
         html = orgs.map(o => {
-          const orgProys = proys.filter(p => p.org_id === o.id);
-          const rows = _buildRows(o.id, null, 1);
+          const rows = _buildEst(o.id);
           return `<h2 style="margin-top:20px;margin-bottom:4px">🏢 ${_esc(o.name)}</h2>
             ${rows.length
               ? `<table><thead><tr><th>Nombre</th><th>Código</th></tr></thead><tbody>${rows.join('')}</tbody></table>`
               : `<p style="color:#9ca3af;font-size:12px;padding-left:12px">Sin proyectos.</p>`}`;
         }).join('') || '<p style="color:#9ca3af">Sin empresas registradas.</p>';
       } else if (act === 'rptEstructuraJer') {
-        const [orgs, proys, gms] = await Promise.all([
+        const [orgs, pfsAllJ, progsAllJ, proysAllJ, gms] = await Promise.all([
           _get('organizations', { deleted_at: 'is.null', select: 'id,name', order: 'name.asc' }),
-          _get('projects', { deleted_at: 'is.null', select: 'id,org_id,name,tipo,code,parent_id', order: 'name.asc' }),
-          _get('group_memberships', { group_role: 'administrador', select: 'project_id,user_id' }).catch(() => []),
+          _get('portfolios', { deleted_at: 'is.null', select: 'id,org_id,name,code', order: 'name.asc' }),
+          _get('programs', { deleted_at: 'is.null', select: 'id,org_id,portfolio_id,name,code', order: 'name.asc' }),
+          _get('projects', { deleted_at: 'is.null', select: 'id,org_id,program_id,name,code,settings', order: 'name.asc' }),
+          _get('group_memberships', { group_role: 'eq.administrador', select: 'project_id,user_id' }).catch(() => []),
         ]);
         const profIds = [...new Set(gms.map(g => g.user_id))];
         const pm = profIds.length ? await _perfiles(profIds) : new Map();
         const adminsDe = (pid) => gms.filter(g => g.project_id === pid).map(g => _nombre(pm.get(g.user_id))).filter(Boolean);
         titleRpt = 'Estructura Jerárquica';
-        const COL = { org: { bg: '#e8f5e9', bd: '#2e7d32', fg: '#1b5e20', lbl: 'Empresa' }, portafolio: { bg: '#e3f0fd', bd: '#1976d2', fg: '#0d47a1', lbl: 'Portafolio' }, programa: { bg: '#f3e8ff', bd: '#7b1fa2', fg: '#4a148c', lbl: 'Programa' }, proyecto: { bg: '#fff8e1', bd: '#ef6c00', fg: '#bf360c', lbl: 'Proyecto' } };
+        const COL = { org: { bg: '#e8f5e9', bd: '#2e7d32', fg: '#1b5e20', lbl: 'Empresa' }, pf: { bg: '#e3f0fd', bd: '#1976d2', fg: '#0d47a1', lbl: 'Portafolio' }, prog: { bg: '#f3e8ff', bd: '#7b1fa2', fg: '#4a148c', lbl: 'Programa' }, proj: { bg: '#fff8e1', bd: '#ef6c00', fg: '#bf360c', lbl: 'Proyecto' } };
         const _card = (name, tipo, code, admins) => {
-          const c = COL[tipo] || COL.proyecto;
+          const c = COL[tipo] || COL.proj;
           return `<div style="display:inline-block;min-width:130px;max-width:160px;border:2px solid ${c.bd};border-radius:8px;background:${c.bg};padding:6px 8px;font-size:11px;vertical-align:top;text-align:center">
             <div style="font-size:9px;font-weight:700;letter-spacing:.06em;color:${c.fg};text-transform:uppercase;margin-bottom:3px">${c.lbl}</div>
             <div style="font-weight:600;color:#1e293b;margin-bottom:2px;word-break:break-word">${_esc(name)}</div>
@@ -2309,24 +2331,41 @@ async function _admReportes(main, scope) {
             ${admins.length ? `<div style="font-size:9px;color:#475569;margin-top:3px;border-top:1px solid ${c.bd};padding-top:2px">${_esc(admins[0])}</div>` : ''}
           </div>`;
         };
-        const _branch = (orgId, parentId, depth) => {
-          const children = proys.filter(p => p.org_id === orgId && (p.parent_id || null) === (parentId || null) && p.tipo !== 'org');
-          if (!children.length) return '';
-          const items = children.map(p => {
-            const sub = _branch(orgId, p.id, depth + 1);
-            return `<div style="display:inline-flex;flex-direction:column;align-items:center;padding:0 6px">
-              <div style="width:2px;height:16px;background:#d1d5db"></div>
-              ${_card(p.name, p.tipo, p.code, adminsDe(p.id))}
-              ${sub ? `<div style="width:2px;height:16px;background:#d1d5db"></div><div style="display:flex;flex-direction:row;align-items:flex-start;position:relative">
-                <div style="position:absolute;top:0;left:0;right:0;height:2px;background:#d1d5db"></div>${sub}</div>` : ''}
-            </div>`;
-          });
-          return `<div style="display:flex;flex-direction:row;align-items:flex-start;position:relative">
-            <div style="position:absolute;top:0;left:0;right:0;height:2px;background:#d1d5db"></div>
-            ${items.join('')}</div>`;
+        const _jerWrap = (items) => items.length ? `<div style="display:flex;flex-direction:row;align-items:flex-start;position:relative"><div style="position:absolute;top:0;left:0;right:0;height:2px;background:#d1d5db"></div>${items.join('')}</div>` : '';
+        const _jerConn = (inner) => `<div style="display:inline-flex;flex-direction:column;align-items:center;padding:0 6px"><div style="width:2px;height:16px;background:#d1d5db"></div>${inner}</div>`;
+        const _branchOrg = (orgId) => {
+          const oPfs = pfsAllJ.filter(p => p.org_id === orgId);
+          const oProgs = progsAllJ.filter(g => g.org_id === orgId);
+          const oProys = proysAllJ.filter(p => p.org_id === orgId);
+          const progOf = (p) => p.program_id || p.settings?.program_id || null;
+          const pfOf = (p) => { const gid = progOf(p); if (gid) { const g = oProgs.find(x => x.id === gid); return g?.portfolio_id || p.settings?.portfolio_id || null; } return p.settings?.portfolio_id || null; };
+          const usedP = new Set(); const usedJ = new Set();
+          const items = [];
+          for (const pf of oPfs) {
+            const pfProgs = oProgs.filter(g => g.portfolio_id === pf.id);
+            const pfProjsD = oProys.filter(p => !progOf(p) && pfOf(p) === pf.id);
+            const pfItems = [];
+            for (const prog of pfProgs) {
+              usedP.add(prog.id);
+              const progProjs = oProys.filter(p => progOf(p) === prog.id);
+              const ppItems = progProjs.map(proj => { usedJ.add(proj.id); return _jerConn(_card(proj.name, 'proj', proj.code, adminsDe(proj.id))); });
+              const progSub = _jerWrap(ppItems);
+              pfItems.push(_jerConn(_card(prog.name, 'prog', prog.code, []) + (progSub ? `<div style="width:2px;height:16px;background:#d1d5db"></div>${progSub}` : '')));
+            }
+            for (const proj of pfProjsD) { usedJ.add(proj.id); pfItems.push(_jerConn(_card(proj.name, 'proj', proj.code, adminsDe(proj.id)))); }
+            const pfSub = _jerWrap(pfItems);
+            items.push(_jerConn(_card(pf.name, 'pf', pf.code, []) + (pfSub ? `<div style="width:2px;height:16px;background:#d1d5db"></div>${pfSub}` : '')));
+          }
+          for (const prog of oProgs.filter(g => !usedP.has(g.id))) {
+            const ppItems = oProys.filter(p => progOf(p) === prog.id).map(proj => { usedJ.add(proj.id); return _jerConn(_card(proj.name, 'proj', proj.code, adminsDe(proj.id))); });
+            const progSub = _jerWrap(ppItems);
+            items.push(_jerConn(_card(prog.name, 'prog', prog.code, []) + (progSub ? `<div style="width:2px;height:16px;background:#d1d5db"></div>${progSub}` : '')));
+          }
+          for (const proj of oProys.filter(p => !usedJ.has(p.id))) items.push(_jerConn(_card(proj.name, 'proj', proj.code, adminsDe(proj.id))));
+          return _jerWrap(items);
         };
         html = `<style>.jer-root{page-break-inside:avoid}</style>` + orgs.map(o => {
-          const branch = _branch(o.id, null, 0);
+          const branch = _branchOrg(o.id);
           return `<div class="jer-root" style="margin-bottom:32px">
             <div style="display:flex;flex-direction:column;align-items:center">
               ${_card(o.name, 'org', '', [])}
@@ -2386,11 +2425,19 @@ async function _admReportes(main, scope) {
           }).join('') || '<tr><td colspan="5" style="color:#9ca3af">Sin usuarios</td></tr>'}
         </tbody></table>`;
       } else if (act === 'rptProyectos') {
-        const proys = await _get('projects', { org_id: `eq.${S.orgId}`, deleted_at: 'is.null', select: 'id,name,tipo,parent_id,created_at', order: 'created_at.asc' });
+        const [pfsE, progsE, proysE] = await Promise.all([
+          _get('portfolios', { org_id: `eq.${S.orgId}`, deleted_at: 'is.null', select: 'id,name,code,created_at', order: 'name.asc' }),
+          _get('programs', { org_id: `eq.${S.orgId}`, deleted_at: 'is.null', select: 'id,name,code,created_at', order: 'name.asc' }),
+          _get('projects', { org_id: `eq.${S.orgId}`, deleted_at: 'is.null', select: 'id,name,code,created_at', order: 'name.asc' }),
+        ]);
         titleRpt = 'Estructura de proyectos';
-        const tipoLabel = /** @type {Record<string,string>} */ ({ org: 'Empresa', portafolio: 'Portafolio', programa: 'Programa', proyecto: 'Proyecto' });
+        const rowsE = [
+          ...pfsE.map(p => `<tr><td>${_esc(p.name)}</td><td>Portafolio</td><td>${_esc(_fecha(p.created_at))}</td></tr>`),
+          ...progsE.map(p => `<tr><td>${_esc(p.name)}</td><td>Programa</td><td>${_esc(_fecha(p.created_at))}</td></tr>`),
+          ...proysE.map(p => `<tr><td>${_esc(p.name)}</td><td>Proyecto</td><td>${_esc(_fecha(p.created_at))}</td></tr>`),
+        ];
         html = `<table><thead><tr><th>Nombre</th><th>Tipo</th><th>Creado</th></tr></thead><tbody>
-          ${proys.map(p => `<tr><td>${_esc(p.name)}</td><td>${_esc(tipoLabel[p.tipo] || p.tipo)}</td><td>${_esc(_fecha(p.created_at))}</td></tr>`).join('') || '<tr><td colspan="3" style="color:#9ca3af">Sin proyectos</td></tr>'}
+          ${rowsE.join('') || '<tr><td colspan="3" style="color:#9ca3af">Sin proyectos</td></tr>'}
         </tbody></table>`;
       } else if (act === 'rptAuditoria') {
         const aud = await _get('auditoria', { org_id: `eq.${S.orgId}`, select: 'id,user_id,accion,created_at', order: 'created_at.desc', limit: '100' }).catch(() => []);
