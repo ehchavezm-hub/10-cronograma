@@ -16,6 +16,7 @@
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
 import { authState, recargarEmpresas } from './auth.js?v=194';
 import { getAll, put } from './storage.js';
+import { TREE as REPORTS_TREE, runReportInFrame } from './reports.js';
 
 const REST = `${SUPABASE_URL}/rest/v1`;
 const AUTH = `${SUPABASE_URL}/auth/v1`;
@@ -173,7 +174,8 @@ let _cambios = false;
 
 const NAV = {
   plataforma: [
-    ['resumen', 'Resumen', '📊'], ['empresas', 'Empresas', '🏢'], ['proyectos', 'Estructura de todas las empresas', '🌳'],
+    ['resumen', 'Resumen', '📊'], ['empresas', 'Empresas', '🏢'], ['usuarios', 'Usuarios', '👥'],
+    ['proyectos', 'Estructura de todas las empresas', '🌳'],
     ['propietarios', 'Propietarios', '👑'], ['auditoria', 'Auditoría', '🧾'], ['reportes', 'Reportes', '📑'],
   ],
   empresa: [
@@ -555,6 +557,51 @@ async function _crearEmpresa() {
 // ============================================================
 // PLATAFORMA
 // ============================================================
+
+async function _platUsuarios(main) {
+  const body = _pagina(main, {
+    title: 'Usuarios',
+    desc: 'Todos los usuarios con acceso a la plataforma y sus membresías activas.',
+  });
+  body.innerHTML = '<div style="padding:32px;color:var(--clr-text-3)">Cargando…</div>';
+  try {
+    const [mems, profs, orgs] = await Promise.all([
+      _get('org_memberships', { select: 'id,user_id,org_id,empresa_role,active,created_at', order: 'created_at.desc' }),
+      _get('profiles', { select: 'id,username,email,display_name' }),
+      _get('organizations', { deleted_at: 'is.null', select: 'id,name' }),
+    ]);
+    const pm = new Map(profs.map(p => [p.id, p]));
+    const om = new Map(orgs.map(o => [o.id, o.name]));
+    const rows = mems.map(m => ({
+      ...m,
+      _nombre: _nombre(pm.get(m.user_id)),
+      _email: pm.get(m.user_id)?.email || '',
+      _empresa: om.get(m.org_id) || '—',
+      _rol: ROL_EMP[m.empresa_role] || m.empresa_role || '—',
+      _perfil: pm.get(m.user_id),
+    }));
+    _tabla(body, {
+      rows,
+      columns: [
+        { label: 'Usuario', html: r => _persona(r._perfil || { username: r._nombre, email: r._email }, r.user_id) },
+        { label: 'Empresa', html: r => `<span style="font-size:12px">${_esc(r._empresa)}</span>` },
+        { label: 'Rol', html: r => _badge(r._rol, r.empresa_role === 'super_admin' ? 'ok' : r.empresa_role === 'relevo' ? 'warn' : '') },
+        { label: 'Estado', html: r => _badge(r.active ? 'Activo' : 'Revocado', r.active ? 'ok' : 'err') },
+        { label: 'Desde', html: r => `<span style="font-size:11px;color:var(--clr-text-3)">${_esc(_fecha(r.created_at))}</span>` },
+      ],
+      search: r => `${r._nombre} ${r._email} ${r._empresa}`,
+      filters: [
+        { label: 'Empresa', options: [['', 'Todas las empresas'], ...orgs.map(o => [o.id, o.name])], get: r => r.org_id },
+        { label: 'Rol', options: [['', 'Todos los roles'], ...Object.entries(ROL_EMP).map(([k, v]) => [k, v])], get: r => r.empresa_role },
+        { label: 'Estado', options: [['', 'Todos'], ['true', 'Activo'], ['false', 'Revocado']], get: r => String(r.active) },
+      ],
+      empty: 'No hay usuarios registrados en la plataforma.',
+    });
+  } catch (e) {
+    body.innerHTML = `<p style="padding:24px;color:var(--clr-err)">Error: ${_esc(e?.message || String(e))}</p>`;
+  }
+}
+
 async function _platResumen(main) {
   const [orgs, perfiles, proys, aud] = await Promise.all([
     _get('organizations', { deleted_at: 'is.null', select: 'id,name,status' }),
@@ -2111,25 +2158,22 @@ async function _admReportes(main, scope) {
     ? (S.orgs.find(o => o.id === S.orgId)?.name || 'Empresa')
     : 'Plataforma';
 
-  const ITEMS = scope === 'plataforma' ? [
+  const ADM_ITEMS = scope === 'plataforma' ? [
     { ico: '📊', name: 'Resumen de plataforma', act: 'rptPlatResumen' },
-    { ico: '🏢', name: 'Lista de empresas', act: 'rptEmpresas' },
-    { ico: '🧾', name: 'Actividad reciente', act: 'rptActividad' },
+    { ico: '🏢', name: 'Lista de empresas',      act: 'rptEmpresas' },
+    { ico: '👥', name: 'Usuarios de la plataforma', act: 'rptUsuarios' },
+    { ico: '🧾', name: 'Actividad reciente',     act: 'rptActividad' },
   ] : [
-    { ico: '📊', name: 'Resumen de empresa', act: 'rptEmpResumen' },
-    { ico: '👥', name: 'Miembros y roles', act: 'rptMiembros' },
+    { ico: '📊', name: 'Resumen de empresa',     act: 'rptEmpResumen' },
+    { ico: '👥', name: 'Miembros y roles',        act: 'rptMiembros' },
     { ico: '🌳', name: 'Estructura de proyectos', act: 'rptProyectos' },
-    { ico: '🧾', name: 'Auditoría de empresa', act: 'rptAuditoria' },
+    { ico: '🧾', name: 'Auditoría de empresa',    act: 'rptAuditoria' },
   ];
 
   const body = _pagina(main, {
     title: 'Reportes',
-    desc: scope === 'empresa'
-      ? 'Selecciona un reporte para ver su vista previa e imprimirlo en PDF.'
-      : 'Selecciona un reporte para ver su vista previa e imprimirlo en PDF.',
-    actions: [
-      { label: '🖨 Imprimir / PDF (A4)', act: 'imprimir', primary: true },
-    ],
+    desc: 'Vista previa e impresión PDF de todos los reportes de administración y del proyecto.',
+    actions: [{ label: '🖨 Imprimir / PDF (A4)', act: 'imprimir', primary: true }],
   });
 
   const printBtn = /** @type {HTMLButtonElement|null} */ (main.querySelector('[data-act="imprimir"]'));
@@ -2145,13 +2189,41 @@ async function _admReportes(main, scope) {
   const tree = /** @type {HTMLElement} */ (body.querySelector('#adm-rpt-tree'));
   const frameWrap = /** @type {HTMLElement} */ (body.querySelector('#adm-rpt-frame-wrap'));
 
-  ITEMS.forEach(item => {
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'adm-rpt-item';
-    btn.dataset.act = item.act;
-    btn.innerHTML = `<span class="adm-rpt-item-ico">${item.ico}</span><span>${_esc(item.name)}</span>`;
-    tree.appendChild(btn);
+  // ── Helper: crear un grupo <details> en el árbol ───────────────────────────
+  const _addGroup = (label, items) => {
+    const det = document.createElement('details');
+    det.open = true;
+    det.style.cssText = 'margin-bottom:4px';
+    const sum = document.createElement('summary');
+    sum.textContent = label;
+    sum.style.cssText = 'cursor:pointer;padding:5px 8px;font-weight:600;font-size:11px;letter-spacing:.04em;text-transform:uppercase;color:var(--clr-text-3,#64748b);border-radius:6px;user-select:none';
+    det.appendChild(sum);
+    const ul = document.createElement('ul');
+    ul.style.cssText = 'list-style:none;margin:0;padding:0 0 0 10px;border-left:2px solid var(--clr-border,#e2e8f0);margin-left:12px;margin-top:2px';
+    items.forEach(({ ico, name, act }) => {
+      const li = document.createElement('li');
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'adm-rpt-item';
+      btn.dataset.act = act;
+      btn.innerHTML = ico ? `<span class="adm-rpt-item-ico">${ico}</span><span>${_esc(name)}</span>` : `<span>${_esc(name)}</span>`;
+      li.appendChild(btn);
+      ul.appendChild(li);
+    });
+    det.appendChild(ul);
+    tree.appendChild(det);
+  };
+
+  // ── Grupo de reportes de administración ────────────────────────────────────
+  _addGroup('Administración', ADM_ITEMS);
+
+  // ── Grupos de reportes del proyecto (desde REPORTS_TREE) ──────────────────
+  REPORTS_TREE.forEach((grp, gi) => {
+    _addGroup(grp.group, grp.reports.map((r, ri) => ({
+      ico: '',
+      name: r.name,
+      act: `app:${gi}:${ri}`,
+    })));
   });
 
   let _busy = false;
@@ -2164,6 +2236,37 @@ async function _admReportes(main, scope) {
     frameWrap.innerHTML = '<div class="adm-rpt-msg adm-rpt-loading">⏳ Generando vista previa…</div>';
     if (printBtn) printBtn.disabled = true;
     try {
+      // ── Reportes del proyecto (delegados a reports.js) ──────────────────
+      if (act.startsWith('app:')) {
+        const [, gi, ri] = act.split(':');
+        const rep = REPORTS_TREE[+gi]?.reports[+ri];
+        if (!rep) { frameWrap.innerHTML = '<div class="adm-rpt-msg">Reporte no encontrado.</div>'; return; }
+        const frame = document.createElement('iframe');
+        frame.title = 'Vista previa: ' + rep.name;
+        frame.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;border:none;background:#f1f5f9';
+        frameWrap.innerHTML = '';
+        frameWrap.appendChild(frame);
+        const { opened, alertMsg } = await runReportInFrame(rep, frame);
+        if (opened) {
+          await new Promise(res => {
+            if (frame.contentDocument?.readyState === 'complete') { res(null); return; }
+            frame.addEventListener('load', () => res(null), { once: true });
+            setTimeout(() => res(null), 4000);
+          });
+          const st = frame.contentDocument?.createElement('style');
+          if (st && frame.contentDocument?.head) {
+            st.textContent = 'button[onclick="window.close()"]{display:none!important}';
+            frame.contentDocument.head.appendChild(st);
+          }
+          if (printBtn) printBtn.disabled = false;
+        } else {
+          frame.remove();
+          frameWrap.innerHTML = `<div class="adm-rpt-msg">${_esc(alertMsg || 'No se pudo generar el reporte. Asegúrese de tener un proyecto abierto en la aplicación principal.')}</div>`;
+        }
+        return;
+      }
+
+      // ── Reportes de administración (HTML inline) ─────────────────────────
       let html = '', titleRpt = '';
       if (act === 'rptPlatResumen') {
         const [orgs, perfiles, proys, aud] = await Promise.all([
@@ -2199,6 +2302,21 @@ async function _admReportes(main, scope) {
             const st = o.status === 'suspended' ? 'Suspendida' : o.status === 'deleted' ? 'Eliminada' : 'Activa';
             return `<tr><td>${_esc(o.name)}</td><td>${_esc(st)}</td><td style="text-align:right">${memCount}</td><td style="text-align:right">${pryCount}</td><td>${_esc(_fecha(o.created_at))}</td></tr>`;
           }).join('')}
+        </tbody></table>`;
+      } else if (act === 'rptUsuarios') {
+        const [mems, profs, orgs] = await Promise.all([
+          _get('org_memberships', { active: 'eq.true', select: 'id,user_id,org_id,empresa_role,created_at', order: 'created_at.asc' }),
+          _get('profiles', { select: 'id,username,email,display_name' }),
+          _get('organizations', { deleted_at: 'is.null', select: 'id,name' }),
+        ]);
+        const pm = new Map(profs.map(p => [p.id, p]));
+        const om = new Map(orgs.map(o => [o.id, o.name]));
+        titleRpt = 'Usuarios de la plataforma';
+        html = `<table><thead><tr><th>Usuario</th><th>Correo</th><th>Empresa</th><th>Rol</th><th>Desde</th></tr></thead><tbody>
+          ${mems.map(m => {
+            const p = pm.get(m.user_id) || {};
+            return `<tr><td>${_esc(_nombre(p))}</td><td>${_esc(/** @type {any} */ (p).email || '—')}</td><td>${_esc(om.get(m.org_id) || '—')}</td><td>${_esc(ROL_EMP[m.empresa_role] || m.empresa_role)}</td><td>${_esc(_fecha(m.created_at))}</td></tr>`;
+          }).join('') || '<tr><td colspan="5" style="color:#9ca3af">Sin usuarios</td></tr>'}
         </tbody></table>`;
       } else if (act === 'rptActividad') {
         const aud = await _get('auditoria', { select: 'id,org_id,user_id,accion,created_at', order: 'created_at.desc', limit: '100' }).catch(() => []);
@@ -2252,7 +2370,6 @@ async function _admReportes(main, scope) {
           ${aud.map(/** @type {any} */ (a) => `<tr><td>${_esc(_fecha(a.created_at, true))}</td><td>${_esc(_nombre(pm.get(a.user_id)))}</td><td>${_esc(a.accion || '—')}</td></tr>`).join('') || '<tr><td colspan="3" style="color:#9ca3af">Sin registros</td></tr>'}
         </tbody></table>`;
       }
-      // Mostrar el reporte en un iframe inline
       const frame = document.createElement('iframe');
       frame.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;border:none;background:#f1f5f9';
       frameWrap.innerHTML = '';
@@ -2282,7 +2399,7 @@ async function _admReportes(main, scope) {
     const frame = /** @type {HTMLIFrameElement|null} */ (frameWrap.querySelector('iframe'));
     const win = frame?.contentWindow;
     if (!win) return;
-    const field = /** @type {HTMLInputElement|null} */ (win.document?.querySelector('#fn'));
+    const field = /** @type {HTMLInputElement|null} */ (win.document?.querySelector('#fn, #fn-inp'));
     const name = (field?.value || win.document?.title || 'ECM-Admin').replace(/\.pdf$/i, '').trim();
     const prev = document.title;
     document.title = name;
@@ -2293,7 +2410,7 @@ async function _admReportes(main, scope) {
 /** @type {Record<string, Record<string, (main:HTMLElement)=>Promise<void>>>} */
 const PAGES = {
   plataforma: {
-    resumen: _platResumen, empresas: _platEmpresas, proyectos: _platProyectos, propietarios: _platPropietarios,
+    resumen: _platResumen, empresas: _platEmpresas, usuarios: _platUsuarios, proyectos: _platProyectos, propietarios: _platPropietarios,
     auditoria: (m) => _auditoria(m, ''), reportes: (m) => _admReportes(m, 'plataforma'),
   },
   empresa: {
