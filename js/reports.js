@@ -351,3 +351,38 @@ async function _until(fn, ms) {
   }
   return null;
 }
+
+// ─── Exports para uso externo (admin-console) ─────────────────────────────────
+
+export { TREE };
+
+/**
+ * Ejecuta un reporte e intercepta window.open para escribir en frameEl.
+ * Devuelve { opened, alertMsg }.
+ * @param {{ name:string, steps?:Step[], run?:()=>void }} rep
+ * @param {HTMLIFrameElement} frameEl
+ * @returns {Promise<{opened:boolean, alertMsg:string}>}
+ */
+export async function runReportInFrame(rep, frameEl) {
+  const snap = _snapshot();
+  const realOpen = window.open, realAlert = window.alert;
+  let opened = false, alertMsg = '';
+  window.open = /** @type {any} */ (() => {
+    if (opened) return null;
+    opened = true;
+    return frameEl.contentWindow;
+  });
+  window.alert = (m) => { alertMsg = String(m ?? ''); };
+  try {
+    if (rep.run) rep.run();
+    else await _runSteps(rep.steps ?? []);
+    await _until(() => opened || !!alertMsg, 8000);
+  } catch (err) {
+    console.error('[Reportes]', rep.name, err);
+  } finally {
+    window.open = realOpen;
+    window.alert = realAlert;
+    _restore(snap);
+  }
+  return { opened, alertMsg };
+}
