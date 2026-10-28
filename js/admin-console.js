@@ -2087,7 +2087,7 @@ function _printAdmPdf(title, html, ctxName, frame = null) {
   .tb .lbl{font-size:11px;color:#64748b;white-space:nowrap}
   .tb select{font-size:12px;padding:3px 6px;border:1px solid #d1d5db;border-radius:4px;background:#fff;color:#374151}
   .tb input[type=text]{font-size:12px;padding:3px 8px;border:1px solid #d1d5db;border-radius:4px;background:#f8fafc;color:#374151;width:300px}
-  .pv{padding:20px;display:flex;flex-direction:column;align-items:center;gap:16px;min-height:calc(100vh - 52px)}
+  .pv{padding:20px;display:flex;flex-direction:column;align-items:center;gap:16px;min-height:calc(100dvh - 52px)}
   .a4{background:#fff;box-shadow:0 4px 14px rgba(0,0,0,.4);padding:14mm 15mm;width:var(--pw,210mm);min-height:var(--ph,297mm);overflow:auto}
   h1{font-size:15px;margin:0 0 4mm;text-align:center;color:#1a365d;font-weight:700}
   h2{font-size:13px;margin:10px 0 5px;color:#1f2937}
@@ -2663,7 +2663,7 @@ function _injectCss() {
 .adm-rpt-item:hover{background:var(--clr-hover,rgba(0,0,0,.05))}
 .adm-rpt-item.is-active{background:var(--clr-primary-l,#ede9fe);color:var(--clr-primary,#4f46e5);font-weight:700}
 .adm-rpt-item-ico{font-size:16px;flex-shrink:0;width:20px;text-align:center}
-.adm-rpt-frame-wrap{flex:1;min-width:0;position:relative;background:#f1f5f9}
+.adm-rpt-frame-wrap{flex:1;min-width:0;position:relative;background:var(--clr-surface-2,#f1f5f9)}
 .adm-rpt-msg{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--clr-text-3,#5b6270);font-size:13px;padding:24px;text-align:center}
 @media (max-width:760px){
   .adm-top{flex-wrap:wrap;padding:8px 16px}
