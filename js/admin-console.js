@@ -2239,7 +2239,7 @@ async function _admReportes(main, scope) {
           _get('organizations', { deleted_at: 'is.null', select: 'id,name,status' }),
           _get('profiles', { select: 'id' }),
           _get('projects', { deleted_at: 'is.null', select: 'id' }),
-          _get('auditoria', { select: 'id,org_id,user_id,accion,created_at', order: 'created_at.desc', limit: '50' }).catch(() => []),
+          _get('auditoria', { select: 'id,org_id,user_id,accion,created_at', order: 'created_at.desc' }).catch(() => []),
         ]);
         const pm = await _perfiles(aud.map(/** @type {any} */ (a) => a.user_id));
         const om = new Map(orgs.map(o => [o.id, o.name]));
@@ -2427,7 +2427,7 @@ else{setTimeout(window.fitJer,100);}
 window.addEventListener('resize',window.fitJer);
 <\/script>`;
       } else if (act === 'rptActividad') {
-        const aud = await _get('auditoria', { select: 'id,org_id,user_id,accion,created_at', order: 'created_at.desc', limit: '100' }).catch(() => []);
+        const aud = await _get('auditoria', { select: 'id,org_id,user_id,accion,created_at', order: 'created_at.desc' }).catch(() => []);
         const orgs = await _get('organizations', { deleted_at: 'is.null', select: 'id,name' });
         const pm = await _perfiles(aud.map(/** @type {any} */ (a) => a.user_id));
         const om = new Map(orgs.map(o => [o.id, o.name]));
@@ -2436,20 +2436,46 @@ window.addEventListener('resize',window.fitJer);
           ${aud.map(/** @type {any} */ (a) => `<tr><td>${_esc(_fecha(a.created_at, true))}</td><td>${_esc(_nombre(pm.get(a.user_id)))}</td><td>${_esc(om.get(a.org_id) || '—')}</td><td>${_esc(a.accion || '—')}</td></tr>`).join('') || '<tr><td colspan="4" style="color:#9ca3af">Sin actividad registrada.</td></tr>'}
         </tbody></table>`;
       } else if (act === 'rptEmpResumen') {
-        const [mems, proys, areas] = await Promise.all([
+        const [mems, pfsR, progsR, proysR, gmsR, areas] = await Promise.all([
           _get('org_memberships', { org_id: `eq.${S.orgId}`, active: 'eq.true', select: 'id,empresa_role' }),
-          _get('projects', { org_id: `eq.${S.orgId}`, deleted_at: 'is.null', select: 'id,name' }),
+          _get('portfolios', { org_id: `eq.${S.orgId}`, deleted_at: 'is.null', select: 'id,name,code', order: 'name.asc' }),
+          _get('programs', { org_id: `eq.${S.orgId}`, deleted_at: 'is.null', select: 'id,portfolio_id,name,code', order: 'name.asc' }),
+          _get('projects', { org_id: `eq.${S.orgId}`, deleted_at: 'is.null', select: 'id,program_id,name,code,settings', order: 'name.asc' }),
+          _get('group_memberships', { group_role: 'eq.administrador', select: 'project_id,user_id' }).catch(() => []),
           _get('areas', { org_id: `eq.${S.orgId}`, select: 'id' }).catch(() => []),
         ]);
+        const gmsOrgR = gmsR.filter(g => proysR.some(p => p.id === g.project_id));
+        const pmIdsR = [...new Set(gmsOrgR.map(g => g.user_id))];
+        const pmR = pmIdsR.length ? await _perfiles(pmIdsR) : new Map();
+        const _adminR = (pid) => { const gs = gmsOrgR.filter(x => x.project_id === pid); return gs.map(g => _nombre(pmR.get(g.user_id))).filter(Boolean).join(', ') || 'Sin asignar'; };
         titleRpt = 'Resumen de empresa';
+        const _tCR = { pf: '#f59e0b', prog: '#8b5cf6', proj: '#3b82f6' };
+        const _tLR = { pf: 'Portafolio', prog: 'Programa', proj: 'Proyecto' };
+        const _erowR = (name, code, tipo, nivel, admin) => `<tr><td><span style="display:inline-block;width:${nivel*20}px"></span>${_esc(name)}</td><td><span style="display:inline-block;background:${_tCR[tipo]};color:#fff;font-size:10px;padding:1px 7px;border-radius:3px">${_tLR[tipo]}</span></td><td style="font-size:11px;color:#6b7280">${_esc(code||'—')}</td><td style="font-size:11px">${_esc(admin)}</td></tr>`;
+        const progOfR = (p) => p.program_id || p.settings?.program_id || null;
+        const pfOfR = (p) => { const gid = progOfR(p); if (gid) { const g = progsR.find(x => x.id === gid); return g?.portfolio_id || p.settings?.portfolio_id || null; } return p.settings?.portfolio_id || null; };
+        const rowsR = []; const usedPgR = new Set(); const usedPyR = new Set();
+        for (const pf of pfsR) {
+          rowsR.push(_erowR(pf.name, pf.code, 'pf', 0, ''));
+          for (const prog of progsR.filter(g => g.portfolio_id === pf.id)) {
+            rowsR.push(_erowR(prog.name, prog.code, 'prog', 1, '')); usedPgR.add(prog.id);
+            for (const proj of proysR.filter(p => progOfR(p) === prog.id)) { rowsR.push(_erowR(proj.name, proj.code, 'proj', 2, _adminR(proj.id))); usedPyR.add(proj.id); }
+          }
+          for (const proj of proysR.filter(p => !progOfR(p) && pfOfR(p) === pf.id && !usedPyR.has(p.id))) { rowsR.push(_erowR(proj.name, proj.code, 'proj', 1, _adminR(proj.id))); usedPyR.add(proj.id); }
+        }
+        for (const prog of progsR.filter(g => !usedPgR.has(g.id))) {
+          rowsR.push(_erowR(prog.name, prog.code, 'prog', 0, ''));
+          for (const proj of proysR.filter(p => progOfR(p) === prog.id)) { rowsR.push(_erowR(proj.name, proj.code, 'proj', 1, _adminR(proj.id))); usedPyR.add(proj.id); }
+        }
+        for (const proj of proysR.filter(p => !usedPyR.has(p.id))) rowsR.push(_erowR(proj.name, proj.code, 'proj', 0, _adminR(proj.id)));
         html = `<div class="stat-row">
           <div class="stat"><div class="stat-val">${mems.length}</div><div class="stat-lbl">Miembros activos</div></div>
-          <div class="stat"><div class="stat-val">${proys.length}</div><div class="stat-lbl">Proyectos</div></div>
+          <div class="stat"><div class="stat-val">${proysR.length}</div><div class="stat-lbl">Proyectos</div></div>
           <div class="stat"><div class="stat-val">${areas.length}</div><div class="stat-lbl">Áreas</div></div>
         </div>
-        <h2>Proyectos</h2>
-        <table><thead><tr><th>#</th><th>Proyecto</th></tr></thead><tbody>
-          ${proys.map((p, i) => `<tr><td style="text-align:right;width:40px">${i + 1}</td><td>${_esc(p.name)}</td></tr>`).join('') || '<tr><td colspan="2" style="color:#9ca3af">Sin proyectos</td></tr>'}
+        <h2>Estructura de proyectos</h2>
+        <table><thead><tr><th>Nombre</th><th>Tipo</th><th>Código</th><th>Administrador</th></tr></thead><tbody>
+          ${rowsR.join('') || '<tr><td colspan="4" style="color:#9ca3af">Sin proyectos</td></tr>'}
         </tbody></table>`;
       } else if (act === 'rptMiembros') {
         const mems = await _get('org_memberships', { org_id: `eq.${S.orgId}`, select: 'id,user_id,empresa_role,active,created_at', order: 'created_at.asc' });
@@ -2510,7 +2536,7 @@ window.addEventListener('resize',window.fitJer);
           ${rowsE.join('') || '<tr><td colspan="4" style="color:#9ca3af">Sin proyectos</td></tr>'}
         </tbody></table>`;
       } else if (act === 'rptAuditoria') {
-        const aud = await _get('auditoria', { org_id: `eq.${S.orgId}`, select: 'id,user_id,accion,created_at', order: 'created_at.desc', limit: '100' }).catch(() => []);
+        const aud = await _get('auditoria', { org_id: `eq.${S.orgId}`, select: 'id,user_id,accion,created_at', order: 'created_at.desc' }).catch(() => []);
         const pm = await _perfiles(aud.map(/** @type {any} */ (a) => a.user_id));
         titleRpt = 'Auditoría de empresa';
         html = `<table><thead><tr><th>Fecha</th><th>Usuario</th><th>Acción</th></tr></thead><tbody>
