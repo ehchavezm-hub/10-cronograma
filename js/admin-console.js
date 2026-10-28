@@ -2344,68 +2344,72 @@ async function _admReportes(main, scope) {
         const pm = profIds.length ? await _perfiles(profIds) : new Map();
         const adminsDe = (pid) => gms.filter(g => g.project_id === pid).map(g => _nombre(pm.get(g.user_id))).filter(Boolean);
         titleRpt = 'Estructura Jerárquica';
-        const COL = { org: { bg: '#e8f5e9', bd: '#2e7d32', fg: '#1b5e20', lbl: 'Empresa' }, pf: { bg: '#e3f0fd', bd: '#1976d2', fg: '#0d47a1', lbl: 'Portafolio' }, prog: { bg: '#f3e8ff', bd: '#7b1fa2', fg: '#4a148c', lbl: 'Programa' }, proj: { bg: '#fff8e1', bd: '#ef6c00', fg: '#bf360c', lbl: 'Proyecto' } };
-        const _card = (name, tipo, code, admins) => {
-          const c = COL[tipo] || COL.proj;
-          return `<div style="display:inline-block;min-width:130px;max-width:160px;border:2px solid ${c.bd};border-radius:8px;background:${c.bg};padding:6px 8px;font-size:11px;vertical-align:top;text-align:center">
-            <div style="font-size:9px;font-weight:700;letter-spacing:.06em;color:${c.fg};text-transform:uppercase;margin-bottom:3px">${c.lbl}</div>
-            <div style="font-weight:600;color:#1e293b;margin-bottom:2px;word-break:break-word">${_esc(name)}</div>
-            ${code ? `<div style="font-size:9px;color:#64748b">${_esc(code)}</div>` : ''}
-            ${admins.length ? `<div style="font-size:9px;color:#475569;margin-top:3px;border-top:1px solid ${c.bd};padding-top:2px">${_esc(admins[0])}</div>` : ''}
-          </div>`;
-        };
-        const _jerWrap = (items) => items.length ? `<div style="display:flex;flex-direction:row;align-items:flex-start;position:relative"><div style="position:absolute;top:0;left:0;right:0;height:0;border-top:2px solid #9ca3af"></div>${items.join('')}</div>` : '';
-        const _jerConn = (inner) => `<div style="display:inline-flex;flex-direction:column;align-items:center;padding:0 6px"><div style="width:0;height:16px;border-left:2px solid #9ca3af;align-self:center"></div>${inner}</div>`;
-        const _branchOrg = (orgId) => {
+        const JCW = 150, JCH = 72, JHG = 24, JVG = 36, JM = 10;
+        const JCOL = { org:{bg:'#e8f5e9',bd:'#2e7d32',fg:'#1b5e20',lbl:'Empresa'}, pf:{bg:'#e3f0fd',bd:'#1976d2',fg:'#0d47a1',lbl:'Portafolio'}, prog:{bg:'#f3e8ff',bd:'#7b1fa2',fg:'#4a148c',lbl:'Programa'}, proj:{bg:'#fff8e1',bd:'#ef6c00',fg:'#bf360c',lbl:'Proyecto'} };
+        const _buildJer = (orgId, orgName) => {
+          const nodes = [], kids = new Map();
+          const add = (n, pid) => { nodes.push(n); kids.set(n.id, []); if (pid) kids.get(pid).push(n.id); };
+          add({ id:'org', name:orgName, tipo:'org', code:'', admins:[] }, null);
           const oPfs = pfsAllJ.filter(p => p.org_id === orgId);
           const oProgs = progsAllJ.filter(g => g.org_id === orgId);
           const oProys = proysAllJ.filter(p => p.org_id === orgId);
           const progOf = (p) => p.program_id || p.settings?.program_id || null;
           const pfOf = (p) => { const gid = progOf(p); if (gid) { const g = oProgs.find(x => x.id === gid); return g?.portfolio_id || p.settings?.portfolio_id || null; } return p.settings?.portfolio_id || null; };
-          const usedP = new Set(); const usedJ = new Set();
-          const items = [];
+          const usedP = new Set(), usedJ = new Set();
           for (const pf of oPfs) {
-            const pfProgs = oProgs.filter(g => g.portfolio_id === pf.id);
-            const pfProjsD = oProys.filter(p => !progOf(p) && pfOf(p) === pf.id);
-            const pfItems = [];
-            for (const prog of pfProgs) {
+            add({ id:`pf_${pf.id}`, name:pf.name, tipo:'pf', code:pf.code, admins:[] }, 'org');
+            for (const prog of oProgs.filter(g => g.portfolio_id === pf.id)) {
               usedP.add(prog.id);
-              const progProjs = oProys.filter(p => progOf(p) === prog.id);
-              const ppItems = progProjs.map(proj => { usedJ.add(proj.id); return _jerConn(_card(proj.name, 'proj', proj.code, adminsDe(proj.id))); });
-              const progSub = _jerWrap(ppItems);
-              pfItems.push(_jerConn(_card(prog.name, 'prog', prog.code, []) + (progSub ? `<div style="width:0;height:16px;border-left:2px solid #9ca3af;margin:0 auto"></div>${progSub}` : '')));
+              add({ id:`pg_${prog.id}`, name:prog.name, tipo:'prog', code:prog.code, admins:[] }, `pf_${pf.id}`);
+              for (const proj of oProys.filter(p => progOf(p) === prog.id)) { usedJ.add(proj.id); add({ id:`pj_${proj.id}`, name:proj.name, tipo:'proj', code:proj.code, admins:adminsDe(proj.id) }, `pg_${prog.id}`); }
             }
-            for (const proj of pfProjsD) { usedJ.add(proj.id); pfItems.push(_jerConn(_card(proj.name, 'proj', proj.code, adminsDe(proj.id)))); }
-            const pfSub = _jerWrap(pfItems);
-            items.push(_jerConn(_card(pf.name, 'pf', pf.code, []) + (pfSub ? `<div style="width:0;height:16px;border-left:2px solid #9ca3af;margin:0 auto"></div>${pfSub}` : '')));
+            for (const proj of oProys.filter(p => !progOf(p) && pfOf(p) === pf.id && !usedJ.has(p.id))) { usedJ.add(proj.id); add({ id:`pj_${proj.id}`, name:proj.name, tipo:'proj', code:proj.code, admins:adminsDe(proj.id) }, `pf_${pf.id}`); }
           }
           for (const prog of oProgs.filter(g => !usedP.has(g.id))) {
-            const ppItems = oProys.filter(p => progOf(p) === prog.id).map(proj => { usedJ.add(proj.id); return _jerConn(_card(proj.name, 'proj', proj.code, adminsDe(proj.id))); });
-            const progSub = _jerWrap(ppItems);
-            items.push(_jerConn(_card(prog.name, 'prog', prog.code, []) + (progSub ? `<div style="width:0;height:16px;border-left:2px solid #9ca3af;margin:0 auto"></div>${progSub}` : '')));
+            add({ id:`pg_${prog.id}`, name:prog.name, tipo:'prog', code:prog.code, admins:[] }, 'org');
+            for (const proj of oProys.filter(p => progOf(p) === prog.id)) { usedJ.add(proj.id); add({ id:`pj_${proj.id}`, name:proj.name, tipo:'proj', code:proj.code, admins:adminsDe(proj.id) }, `pg_${prog.id}`); }
           }
-          for (const proj of oProys.filter(p => !usedJ.has(p.id))) items.push(_jerConn(_card(proj.name, 'proj', proj.code, adminsDe(proj.id))));
-          return _jerWrap(items);
+          for (const proj of oProys.filter(p => !usedJ.has(p.id))) { usedJ.add(proj.id); add({ id:`pj_${proj.id}`, name:proj.name, tipo:'proj', code:proj.code, admins:adminsDe(proj.id) }, 'org'); }
+          const sw = new Map();
+          const getW = (id) => { if (sw.has(id)) return sw.get(id); const ch = kids.get(id)||[]; const w = ch.length ? ch.reduce((s,c)=>s+getW(c)+JHG,-JHG) : JCW; sw.set(id,Math.max(JCW,w)); return sw.get(id); };
+          const pos = new Map();
+          const place = (id, cx, y) => { pos.set(id,{cx,y}); const ch=kids.get(id)||[]; if(!ch.length)return; const tot=ch.reduce((s,c)=>s+getW(c)+JHG,-JHG); let lx=cx-tot/2; for(const cid of ch){const cw=getW(cid);place(cid,lx+cw/2,y+JCH+JVG);lx+=cw+JHG;} };
+          const getDepth = (id) => { const ch=kids.get(id)||[]; return ch.length?1+Math.max(...ch.map(getDepth)):1; };
+          const tW=getW('org'), tH=getDepth('org')*(JCH+JVG)-JVG+2*JM;
+          place('org', JM+tW/2, JM);
+          let lines='', cards='';
+          for (const n of nodes) {
+            const p=pos.get(n.id), ch=kids.get(n.id)||[], c=JCOL[n.tipo]||JCOL.proj;
+            cards += `<div style="position:absolute;left:${p.cx-JCW/2}px;top:${p.y}px;width:${JCW}px;height:${JCH}px;box-sizing:border-box;border:2px solid ${c.bd};border-radius:8px;background:${c.bg};padding:4px 6px;font-size:11px;text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px">
+              <div style="font-size:9px;font-weight:700;color:${c.fg};text-transform:uppercase;letter-spacing:.05em">${c.lbl}</div>
+              <div style="font-weight:600;color:#1e293b;word-break:break-word;line-height:1.2">${_esc(n.name)}</div>
+              ${n.code?`<div style="font-size:9px;color:#64748b">${_esc(n.code)}</div>`:''}
+              ${n.admins.length?`<div style="font-size:9px;color:#475569;border-top:1px solid ${c.bd};padding-top:1px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${_esc(n.admins[0])}</div>`:''}
+            </div>`;
+            if (!ch.length) continue;
+            const px=p.cx, py=p.y+JCH;
+            if (ch.length===1) {
+              const cp=pos.get(ch[0]);
+              lines += `<line x1="${px}" y1="${py}" x2="${cp.cx}" y2="${cp.y}" stroke="#9ca3af" stroke-width="1.5"/>`;
+            } else {
+              const midY=py+JVG/2;
+              lines += `<line x1="${px}" y1="${py}" x2="${px}" y2="${midY}" stroke="#9ca3af" stroke-width="1.5"/>`;
+              lines += `<line x1="${pos.get(ch[0]).cx}" y1="${midY}" x2="${pos.get(ch[ch.length-1]).cx}" y2="${midY}" stroke="#9ca3af" stroke-width="1.5"/>`;
+              for (const cid of ch) { const cp=pos.get(cid); lines += `<line x1="${cp.cx}" y1="${midY}" x2="${cp.cx}" y2="${cp.y}" stroke="#9ca3af" stroke-width="1.5"/>`; }
+            }
+          }
+          return `<div style="position:relative;width:${tW+2*JM}px;height:${tH}px"><svg style="position:absolute;top:0;left:0;overflow:visible" width="${tW+2*JM}" height="${tH}">${lines}</svg>${cards}</div>`;
         };
-        const _orgsHtml = orgs.map(o => {
-          const branch = _branchOrg(o.id);
-          return `<div class="jer-root">
-            <div style="display:flex;flex-direction:column;align-items:center">
-              ${_card(o.name, 'org', '', [])}
-              ${branch ? `<div style="width:0;height:16px;border-left:2px solid #9ca3af;margin:0 auto"></div>
-              <div style="overflow:visible"><div style="display:flex;justify-content:center">${branch}</div></div>` : '<p style="color:#9ca3af;font-size:11px;margin-top:8px">Sin proyectos</p>'}
-            </div>
-          </div>`;
-        }).join('');
+        const _orgsHtml = orgs.map(o => `<div class="jer-root">${_buildJer(o.id, o.name)}</div>`).join('');
         html = `<style>
-  .jer-root{page-break-inside:avoid}
+  .jer-root{page-break-inside:avoid;margin-bottom:32px}
   .jer-outer{width:100%;overflow:hidden}
   .jer-inner{display:inline-block;min-width:100%;transform-origin:top left}
   @media print{.jer-outer{overflow:visible}}
 </style>
 <div class="jer-outer" id="jer-outer">
   <div class="jer-inner" id="jer-inner">
-    ${_orgsHtml ? `<div style="display:flex;flex-direction:column;gap:32px">${_orgsHtml}</div>` : '<p style="color:#9ca3af">Sin empresas registradas.</p>'}
+    ${_orgsHtml || '<p style="color:#9ca3af">Sin empresas registradas.</p>'}
   </div>
 </div>
 <script>
