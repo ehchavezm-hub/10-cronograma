@@ -2080,9 +2080,10 @@ function _printAdmPdf(title, html, ctxName, frame = null) {
   const ctxEsc = _esc(ctxName);
   const titleEsc = _esc(title);
   const PAPER_SEL = '<span class="lbl">Papel:</span><select id="paper" onchange="setOri()" title="Tamaño de papel">' +
-    '<option value="A4" selected>A4</option><option value="A3">A3</option><option value="Carta">Carta</option>' +
-    '<option value="Oficio">Oficio</option><option value="Tabloide">Tabloide</option></select><div class="sep"></div>';
-  const PAPER_JS = "var PAPERS={A4:[210,297],A3:[297,420],Carta:[216,279],Oficio:[216,330],Tabloide:[279,432]};" +
+    '<option value="A0">A0</option><option value="A1">A1</option><option value="A2">A2</option>' +
+    '<option value="A3">A3</option><option value="A4" selected>A4</option><option value="A5">A5</option><option value="A6">A6</option>' +
+    '</select><div class="sep"></div>';
+  const PAPER_JS = "var PAPERS={A0:[841,1189],A1:[594,841],A2:[420,594],A3:[297,420],A4:[210,297],A5:[148,210],A6:[105,148]};" +
     "function paperSize(o){var p=PAPERS[(document.getElementById('paper')||{}).value]||PAPERS.A4;" +
     "var a=Math.min(p[0],p[1]),b=Math.max(p[0],p[1]);return o==='landscape'?[b,a]:[a,b];}";
   const _docTarget = frame
