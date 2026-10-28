@@ -2188,7 +2188,7 @@ async function _admReportes(main, scope) {
     { ico: '👥', name: 'Usuarios de la plataforma',       act: 'rptUsuarios' },
     { ico: '🌳', name: 'Estructura de todas las empresas', act: 'rptEstructuraPlat' },
     { ico: '🗂', name: 'Estructura Jerárquica',           act: 'rptEstructuraJer' },
-    { ico: '🧾', name: 'Actividad reciente',              act: 'rptActividad' },
+    { ico: '🧾', name: 'Reporte de auditoría',             act: 'rptActividad' },
   ] : [
     { ico: '📊', name: 'Resumen de empresa',     act: 'rptEmpResumen' },
     { ico: '👥', name: 'Miembros y roles',        act: 'rptMiembros' },
@@ -2439,7 +2439,7 @@ window.addEventListener('resize',window.fitJer);
         const orgs = await _get('organizations', { deleted_at: 'is.null', select: 'id,name' });
         const pm = await _perfiles(aud.map(/** @type {any} */ (a) => a.user_id));
         const om = new Map(orgs.map(o => [o.id, o.name]));
-        titleRpt = 'Actividad reciente';
+        titleRpt = 'Reporte de auditoría';
         html = `<table><thead><tr><th>Fecha</th><th>Usuario</th><th>Empresa</th><th>Acción</th></tr></thead><tbody>
           ${aud.map(/** @type {any} */ (a) => `<tr><td>${_esc(_fecha(a.created_at, true))}</td><td>${_esc(_nombre(pm.get(a.user_id)))}</td><td>${_esc(om.get(a.org_id) || '—')}</td><td>${_esc(a.accion || '—')}</td></tr>`).join('') || '<tr><td colspan="4" style="color:#9ca3af">Sin actividad registrada.</td></tr>'}
         </tbody></table>`;
