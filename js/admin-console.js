@@ -1335,7 +1335,7 @@ async function _estructura(main, orgId) {
 }
 
 function _renderOrgChartAdmin(container, filas, adminsDe) {
-  const CW = 120, CH = 66, HG = 14, VG = 28;
+  const CW = 120, CH = 66, HG = 7, VG = 14;
   const kids = new Map();
   filas.forEach(f => {
     const p = f.padre ?? '__ROOT__';
@@ -1348,7 +1348,11 @@ function _renderOrgChartAdmin(container, filas, adminsDe) {
   const getW = (f) => {
     if (subtreeW.has(f.k)) return subtreeW.get(f.k);
     const ch = kids.get(f.k) || [];
-    const w = ch.length ? ch.reduce((s, c) => s + getW(c) + HG, -HG) : CW;
+    const otherKids = ch.filter(c => c.tipo !== 'proj');
+    let w;
+    if (!ch.length) { w = CW; }
+    else if (!otherKids.length) { w = CW; } // solo proyectos → apilan vertical, ancho = CW
+    else { w = otherKids.reduce((s, c) => s + getW(c) + HG, -HG); }
     subtreeW.set(f.k, Math.max(CW, w));
     return subtreeW.get(f.k);
   };
@@ -1359,12 +1363,27 @@ function _renderOrgChartAdmin(container, filas, adminsDe) {
     pos.set(f.k, { x: cx - CW / 2, y, cx });
     const ch = kids.get(f.k) || [];
     if (!ch.length) return;
-    const total = ch.reduce((s, c) => s + getW(c) + HG, -HG);
-    let lx = cx - total / 2;
-    ch.forEach(c => { const cw = getW(c); place(c, lx + cw / 2, y + CH + VG); lx += cw + HG; });
+    const projKids = ch.filter(c => c.tipo === 'proj');
+    const otherKids = ch.filter(c => c.tipo !== 'proj');
+    if (otherKids.length) {
+      const total = otherKids.reduce((s, c) => s + getW(c) + HG, -HG);
+      let lx = cx - total / 2;
+      otherKids.forEach(c => { const cw = getW(c); place(c, lx + cw / 2, y + CH + VG); lx += cw + HG; });
+    }
+    if (projKids.length) {
+      let ly = y + CH + VG;
+      projKids.forEach(c => { place(c, cx, ly); ly += CH + VG; });
+    }
   };
 
-  const getDepth = (f) => { const ch = kids.get(f.k) || []; return ch.length ? 1 + Math.max(...ch.map(getDepth)) : 1; };
+  const getDepth = (f) => {
+    const ch = kids.get(f.k) || [];
+    if (!ch.length) return 1;
+    const projKids = ch.filter(c => c.tipo === 'proj');
+    const otherKids = ch.filter(c => c.tipo !== 'proj');
+    const maxOther = otherKids.length ? Math.max(...otherKids.map(getDepth)) : 0;
+    return 1 + Math.max(projKids.length, maxOther);
+  };
   let sy = 20;
   roots.forEach(r => { const rw = getW(r); place(r, 20 + rw / 2, sy); sy += getDepth(r) * (CH + VG) - VG + VG * 3; });
 
@@ -1389,7 +1408,6 @@ function _renderOrgChartAdmin(container, filas, adminsDe) {
     const editAct = f.tipo === 'proj' ? 'edproj' : f.tipo !== 'org' ? 'ednodo' : '';
     const nodeEdit = editAct ? `data-act="${editAct}" data-id="${id}" tabindex="0" role="button" aria-label="Editar ${_esc(f.d.name)}"` : '';
     cards += `<div class="oct-node${editAct ? ' oct-node-edit' : ''}" style="left:${p.x}px;top:${p.y}px;width:${CW}px;height:${CH}px;background:${bg};border-color:${bd};color:${fg};overflow:visible" ${nodeEdit}>
-      <div class="oct-node-ico">${t.ico}</div>
       <div class="oct-node-nm" title="${_esc(f.d.name)}">${_esc(f.d.name)}</div>
       <div class="oct-node-tp">${t.label}${f.d.code ? ` · ${_esc(f.d.code)}` : ''}</div>
       ${admins.length ? `<div class="oct-node-adm">${_esc(admins[0])}</div>` : ''}
@@ -2670,11 +2688,10 @@ function _injectCss() {
 .adm-tab-btn:hover{color:var(--clr-text,#111827);background:var(--clr-hover,rgba(0,0,0,.04))}
 .adm-tab-btn.is-active{color:var(--clr-primary,#4f46e5);border-bottom-color:var(--clr-primary,#4f46e5)}
 .oct-wrap{overflow:auto;padding:8px 4px 16px}
-.oct-node{position:absolute;border:1.5px solid;border-radius:7px;padding:5px 7px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;box-shadow:0 1px 4px rgba(0,0,0,.09)}
-.oct-node-ico{font-size:14px;line-height:1}
-.oct-node-nm{font-weight:700;font-size:10px;text-align:center;line-height:1.3;max-width:100%;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;word-break:break-word}
-.oct-node-tp{font-size:9px;opacity:.7;text-align:center;margin-top:1px}
-.oct-node-adm{font-size:9px;text-align:center;opacity:.8;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:1px}
+.oct-node{position:absolute;border:1.5px solid;border-radius:9px;padding:6px 8px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;box-shadow:0 1px 4px rgba(0,0,0,.09)}
+.oct-node-nm{font-weight:700;font-size:12px;text-align:center;line-height:1.3;max-width:100%;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;word-break:break-word}
+.oct-node-tp{font-size:10px;opacity:.7;text-align:center;margin-top:1px}
+.oct-node-adm{font-size:10px;text-align:center;opacity:.8;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:1px}
 .oct-node-acts{position:absolute;bottom:-34px;left:50%;transform:translateX(-50%);display:flex;gap:3px;padding:3px 5px;background:var(--clr-surface,#fff);border:1px solid var(--clr-border,#d1d5db);border-radius:6px;box-shadow:0 2px 8px rgba(0,0,0,.15);opacity:0;pointer-events:none;transition:opacity .15s;z-index:20;white-space:nowrap}
 .oct-node:hover .oct-node-acts,.oct-node:focus-within .oct-node-acts{opacity:1;pointer-events:auto}
 .oct-act-btn{background:transparent;border:1px solid rgba(0,0,0,.15);border-radius:4px;cursor:pointer;font-size:10px;padding:2px 5px;font-weight:600;line-height:1.4;color:var(--clr-text,#111827)}
