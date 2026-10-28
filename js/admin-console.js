@@ -1335,7 +1335,7 @@ async function _estructura(main, orgId) {
 }
 
 function _renderOrgChartAdmin(container, filas, adminsDe) {
-  const CW = 160, CH = 88, HG = 28, VG = 56;
+  const CW = 120, CH = 66, HG = 14, VG = 28;
   const kids = new Map();
   filas.forEach(f => {
     const p = f.padre ?? '__ROOT__';
@@ -2670,11 +2670,11 @@ function _injectCss() {
 .adm-tab-btn:hover{color:var(--clr-text,#111827);background:var(--clr-hover,rgba(0,0,0,.04))}
 .adm-tab-btn.is-active{color:var(--clr-primary,#4f46e5);border-bottom-color:var(--clr-primary,#4f46e5)}
 .oct-wrap{overflow:auto;padding:8px 4px 16px}
-.oct-node{position:absolute;border:1.5px solid;border-radius:9px;padding:8px 10px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;box-shadow:0 1px 4px rgba(0,0,0,.09)}
-.oct-node-ico{font-size:18px;line-height:1}
-.oct-node-nm{font-weight:700;font-size:12px;text-align:center;line-height:1.3;max-width:100%;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;word-break:break-word}
-.oct-node-tp{font-size:10px;opacity:.7;text-align:center;margin-top:1px}
-.oct-node-adm{font-size:10px;text-align:center;opacity:.8;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:1px}
+.oct-node{position:absolute;border:1.5px solid;border-radius:7px;padding:5px 7px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;box-shadow:0 1px 4px rgba(0,0,0,.09)}
+.oct-node-ico{font-size:14px;line-height:1}
+.oct-node-nm{font-weight:700;font-size:10px;text-align:center;line-height:1.3;max-width:100%;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;word-break:break-word}
+.oct-node-tp{font-size:9px;opacity:.7;text-align:center;margin-top:1px}
+.oct-node-adm{font-size:9px;text-align:center;opacity:.8;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:1px}
 .oct-node-acts{position:absolute;bottom:-34px;left:50%;transform:translateX(-50%);display:flex;gap:3px;padding:3px 5px;background:var(--clr-surface,#fff);border:1px solid var(--clr-border,#d1d5db);border-radius:6px;box-shadow:0 2px 8px rgba(0,0,0,.15);opacity:0;pointer-events:none;transition:opacity .15s;z-index:20;white-space:nowrap}
 .oct-node:hover .oct-node-acts,.oct-node:focus-within .oct-node-acts{opacity:1;pointer-events:auto}
 .oct-act-btn{background:transparent;border:1px solid rgba(0,0,0,.15);border-radius:4px;cursor:pointer;font-size:10px;padding:2px 5px;font-weight:600;line-height:1.4;color:var(--clr-text,#111827)}
