@@ -2163,10 +2163,12 @@ async function _admReportes(main, scope) {
     { ico: '🏢', name: 'Lista de empresas',               act: 'rptEmpresas' },
     { ico: '👥', name: 'Usuarios de la plataforma',       act: 'rptUsuarios' },
     { ico: '🌳', name: 'Estructura de todas las empresas', act: 'rptEstructuraPlat' },
+    { ico: '🗂', name: 'Estructura Jerárquica',           act: 'rptEstructuraJer' },
     { ico: '🧾', name: 'Actividad reciente',              act: 'rptActividad' },
   ] : [
     { ico: '📊', name: 'Resumen de empresa',     act: 'rptEmpResumen' },
     { ico: '👥', name: 'Miembros y roles',        act: 'rptMiembros' },
+    { ico: '👤', name: 'Usuarios',               act: 'rptEmpUsuarios' },
     { ico: '🌳', name: 'Estructura de proyectos', act: 'rptProyectos' },
     { ico: '🧾', name: 'Auditoría de empresa',    act: 'rptAuditoria' },
   ];
@@ -2287,6 +2289,52 @@ async function _admReportes(main, scope) {
               ? `<table><thead><tr><th>Nombre</th><th>Código</th></tr></thead><tbody>${rows.join('')}</tbody></table>`
               : `<p style="color:#9ca3af;font-size:12px;padding-left:12px">Sin proyectos.</p>`}`;
         }).join('') || '<p style="color:#9ca3af">Sin empresas registradas.</p>';
+      } else if (act === 'rptEstructuraJer') {
+        const [orgs, proys, gms] = await Promise.all([
+          _get('organizations', { deleted_at: 'is.null', select: 'id,name', order: 'name.asc' }),
+          _get('projects', { deleted_at: 'is.null', select: 'id,org_id,name,tipo,code,parent_id', order: 'name.asc' }),
+          _get('group_memberships', { group_role: 'administrador', select: 'project_id,user_id' }).catch(() => []),
+        ]);
+        const profIds = [...new Set(gms.map(g => g.user_id))];
+        const pm = profIds.length ? await _perfiles(profIds) : new Map();
+        const adminsDe = (pid) => gms.filter(g => g.project_id === pid).map(g => _nombre(pm.get(g.user_id))).filter(Boolean);
+        titleRpt = 'Estructura Jerárquica';
+        const COL = { org: { bg: '#e8f5e9', bd: '#2e7d32', fg: '#1b5e20', lbl: 'Empresa' }, portafolio: { bg: '#e3f0fd', bd: '#1976d2', fg: '#0d47a1', lbl: 'Portafolio' }, programa: { bg: '#f3e8ff', bd: '#7b1fa2', fg: '#4a148c', lbl: 'Programa' }, proyecto: { bg: '#fff8e1', bd: '#ef6c00', fg: '#bf360c', lbl: 'Proyecto' } };
+        const _card = (name, tipo, code, admins) => {
+          const c = COL[tipo] || COL.proyecto;
+          return `<div style="display:inline-block;min-width:130px;max-width:160px;border:2px solid ${c.bd};border-radius:8px;background:${c.bg};padding:6px 8px;font-size:11px;vertical-align:top;text-align:center">
+            <div style="font-size:9px;font-weight:700;letter-spacing:.06em;color:${c.fg};text-transform:uppercase;margin-bottom:3px">${c.lbl}</div>
+            <div style="font-weight:600;color:#1e293b;margin-bottom:2px;word-break:break-word">${_esc(name)}</div>
+            ${code ? `<div style="font-size:9px;color:#64748b">${_esc(code)}</div>` : ''}
+            ${admins.length ? `<div style="font-size:9px;color:#475569;margin-top:3px;border-top:1px solid ${c.bd};padding-top:2px">${_esc(admins[0])}</div>` : ''}
+          </div>`;
+        };
+        const _branch = (orgId, parentId, depth) => {
+          const children = proys.filter(p => p.org_id === orgId && (p.parent_id || null) === (parentId || null) && p.tipo !== 'org');
+          if (!children.length) return '';
+          const items = children.map(p => {
+            const sub = _branch(orgId, p.id, depth + 1);
+            return `<div style="display:inline-flex;flex-direction:column;align-items:center;padding:0 6px">
+              <div style="width:2px;height:16px;background:#d1d5db"></div>
+              ${_card(p.name, p.tipo, p.code, adminsDe(p.id))}
+              ${sub ? `<div style="width:2px;height:16px;background:#d1d5db"></div><div style="display:flex;flex-direction:row;align-items:flex-start;position:relative">
+                <div style="position:absolute;top:0;left:0;right:0;height:2px;background:#d1d5db"></div>${sub}</div>` : ''}
+            </div>`;
+          });
+          return `<div style="display:flex;flex-direction:row;align-items:flex-start;position:relative">
+            <div style="position:absolute;top:0;left:0;right:0;height:2px;background:#d1d5db"></div>
+            ${items.join('')}</div>`;
+        };
+        html = `<style>.jer-root{page-break-inside:avoid}</style>` + orgs.map(o => {
+          const branch = _branch(o.id, null, 0);
+          return `<div class="jer-root" style="margin-bottom:32px">
+            <div style="display:flex;flex-direction:column;align-items:center">
+              ${_card(o.name, 'org', '', [])}
+              ${branch ? `<div style="width:2px;height:16px;background:#d1d5db"></div>
+              <div style="overflow-x:auto;width:100%"><div style="display:flex;justify-content:center">${branch}</div></div>` : '<p style="color:#9ca3af;font-size:11px;margin-top:8px">Sin proyectos</p>'}
+            </div>
+          </div>`;
+        }).join('') || '<p style="color:#9ca3af">Sin empresas registradas.</p>';
       } else if (act === 'rptActividad') {
         const aud = await _get('auditoria', { select: 'id,org_id,user_id,accion,created_at', order: 'created_at.desc', limit: '100' }).catch(() => []);
         const orgs = await _get('organizations', { deleted_at: 'is.null', select: 'id,name' });
@@ -2323,6 +2371,19 @@ async function _admReportes(main, scope) {
             const est = m.active ? 'Activo' : 'Revocado';
             return `<tr><td>${_esc(_nombre(p))}</td><td>${_esc(p?.email || '—')}</td><td>${_esc(rol)}</td><td>${_esc(est)}</td><td>${_esc(_fecha(m.created_at))}</td></tr>`;
           }).join('') || '<tr><td colspan="5" style="color:#9ca3af">Sin miembros</td></tr>'}
+        </tbody></table>`;
+      } else if (act === 'rptEmpUsuarios') {
+        const [mems, profs] = await Promise.all([
+          _get('org_memberships', { org_id: `eq.${S.orgId}`, select: 'id,user_id,empresa_role,active,created_at', order: 'created_at.asc' }),
+          _get('profiles', { select: 'id,full_name,email' }),
+        ]);
+        const pm = new Map(profs.map(p => [p.id, p]));
+        titleRpt = 'Usuarios';
+        html = `<table><thead><tr><th>Usuario</th><th>Correo</th><th>Rol</th><th>Estado</th><th>Desde</th></tr></thead><tbody>
+          ${mems.map(m => {
+            const p = pm.get(m.user_id);
+            return `<tr><td>${_esc(_nombre(p))}</td><td>${_esc(p?.email || '—')}</td><td>${_esc(ROL_EMP[m.empresa_role] || m.empresa_role)}</td><td>${_esc(m.active ? 'Activo' : 'Revocado')}</td><td>${_esc(_fecha(m.created_at))}</td></tr>`;
+          }).join('') || '<tr><td colspan="5" style="color:#9ca3af">Sin usuarios</td></tr>'}
         </tbody></table>`;
       } else if (act === 'rptProyectos') {
         const proys = await _get('projects', { org_id: `eq.${S.orgId}`, deleted_at: 'is.null', select: 'id,name,tipo,parent_id,created_at', order: 'created_at.asc' });
