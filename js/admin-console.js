@@ -2159,10 +2159,11 @@ async function _admReportes(main, scope) {
     : 'Plataforma';
 
   const ADM_ITEMS = scope === 'plataforma' ? [
-    { ico: '📊', name: 'Resumen de plataforma', act: 'rptPlatResumen' },
-    { ico: '🏢', name: 'Lista de empresas',      act: 'rptEmpresas' },
-    { ico: '👥', name: 'Usuarios de la plataforma', act: 'rptUsuarios' },
-    { ico: '🧾', name: 'Actividad reciente',     act: 'rptActividad' },
+    { ico: '📊', name: 'Resumen de plataforma',           act: 'rptPlatResumen' },
+    { ico: '🏢', name: 'Lista de empresas',               act: 'rptEmpresas' },
+    { ico: '👥', name: 'Usuarios de la plataforma',       act: 'rptUsuarios' },
+    { ico: '🌳', name: 'Estructura de todas las empresas', act: 'rptEstructuraPlat' },
+    { ico: '🧾', name: 'Actividad reciente',              act: 'rptActividad' },
   ] : [
     { ico: '📊', name: 'Resumen de empresa',     act: 'rptEmpResumen' },
     { ico: '👥', name: 'Miembros y roles',        act: 'rptMiembros' },
@@ -2261,6 +2262,31 @@ async function _admReportes(main, scope) {
             return `<tr><td>${_esc(_nombre(p))}</td><td>${_esc(/** @type {any} */ (p).email || '—')}</td><td>${_esc(om.get(m.org_id) || '—')}</td><td>${_esc(ROL_EMP[m.empresa_role] || m.empresa_role)}</td><td>${_esc(_fecha(m.created_at))}</td></tr>`;
           }).join('') || '<tr><td colspan="5" style="color:#9ca3af">Sin usuarios</td></tr>'}
         </tbody></table>`;
+      } else if (act === 'rptEstructuraPlat') {
+        const [orgs, proys] = await Promise.all([
+          _get('organizations', { deleted_at: 'is.null', select: 'id,name,status', order: 'name.asc' }),
+          _get('projects', { deleted_at: 'is.null', select: 'id,org_id,name,tipo,code,parent_id', order: 'name.asc' }),
+        ]);
+        titleRpt = 'Estructura de todas las empresas';
+        const tipoLabel = /** @type {Record<string,string>} */ ({ org: 'Empresa', portafolio: 'Portafolio', programa: 'Programa', proyecto: 'Proyecto' });
+        const tipoColor = /** @type {Record<string,string>} */ ({ portafolio: '#f59e0b', programa: '#8b5cf6', proyecto: '#3b82f6' });
+        const _indent = (nivel) => nivel > 0 ? `<span style="display:inline-block;width:${nivel * 20}px"></span>` : '';
+        const _buildRows = (orgId, parentId, nivel) => {
+          const children = proys.filter(p => p.org_id === orgId && (p.parent_id || null) === (parentId || null) && p.tipo !== 'org');
+          return children.flatMap(p => {
+            const color = tipoColor[p.tipo] || '#6b7280';
+            const row = `<tr><td>${_indent(nivel)}<span style="display:inline-block;background:${color};color:#fff;font-size:10px;padding:1px 6px;border-radius:3px;margin-right:6px">${_esc(tipoLabel[p.tipo] || p.tipo)}</span>${_esc(p.name)}</td><td style="font-size:11px;color:#6b7280">${_esc(p.code || '—')}</td></tr>`;
+            return [row, ..._buildRows(orgId, p.id, nivel + 1)];
+          });
+        };
+        html = orgs.map(o => {
+          const orgProys = proys.filter(p => p.org_id === o.id);
+          const rows = _buildRows(o.id, null, 1);
+          return `<h2 style="margin-top:20px;margin-bottom:4px">🏢 ${_esc(o.name)}</h2>
+            ${rows.length
+              ? `<table><thead><tr><th>Nombre</th><th>Código</th></tr></thead><tbody>${rows.join('')}</tbody></table>`
+              : `<p style="color:#9ca3af;font-size:12px;padding-left:12px">Sin proyectos.</p>`}`;
+        }).join('') || '<p style="color:#9ca3af">Sin empresas registradas.</p>';
       } else if (act === 'rptActividad') {
         const aud = await _get('auditoria', { select: 'id,org_id,user_id,accion,created_at', order: 'created_at.desc', limit: '100' }).catch(() => []);
         const orgs = await _get('organizations', { deleted_at: 'is.null', select: 'id,name' });
