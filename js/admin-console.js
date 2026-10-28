@@ -2364,16 +2364,18 @@ async function _admReportes(main, scope) {
           for (const proj of oProys.filter(p => !usedJ.has(p.id))) items.push(_jerConn(_card(proj.name, 'proj', proj.code, adminsDe(proj.id))));
           return _jerWrap(items);
         };
-        html = `<style>.jer-root{page-break-inside:avoid}</style>` + orgs.map(o => {
+        const _orgsHtml = orgs.map(o => {
           const branch = _branchOrg(o.id);
-          return `<div class="jer-root" style="margin-bottom:32px">
+          return `<div class="jer-root">
             <div style="display:flex;flex-direction:column;align-items:center">
               ${_card(o.name, 'org', '', [])}
               ${branch ? `<div style="width:2px;height:16px;background:#d1d5db"></div>
               <div style="overflow-x:auto;width:100%"><div style="display:flex;justify-content:center">${branch}</div></div>` : '<p style="color:#9ca3af;font-size:11px;margin-top:8px">Sin proyectos</p>'}
             </div>
           </div>`;
-        }).join('') || '<p style="color:#9ca3af">Sin empresas registradas.</p>';
+        }).join('');
+        html = `<style>.jer-root{page-break-inside:avoid}</style>` +
+          (_orgsHtml ? `<div style="display:flex;flex-direction:column;gap:32px">${_orgsHtml}</div>` : '<p style="color:#9ca3af">Sin empresas registradas.</p>');
       } else if (act === 'rptActividad') {
         const aud = await _get('auditoria', { select: 'id,org_id,user_id,accion,created_at', order: 'created_at.desc', limit: '100' }).catch(() => []);
         const orgs = await _get('organizations', { deleted_at: 'is.null', select: 'id,name' });
