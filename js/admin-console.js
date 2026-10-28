@@ -2620,7 +2620,7 @@ function _injectCss() {
 .adm-matrix td{padding:6px 8px}
 .adm-matrix th:not(:first-child){white-space:normal;min-width:110px}
 .adm-matrix td.is-override .adm-lvsel{outline:2px solid var(--clr-primary,#4f46e5);outline-offset:1px}
-.adm-dlg{position:fixed;inset:0;margin:auto;height:fit-content;max-height:calc(100vh - 32px);overflow:auto;border:none;border-radius:14px;padding:0;box-shadow:0 12px 48px rgba(0,0,0,.28);width:min(520px,calc(100vw - 32px));background:var(--clr-surface,#fff);color:var(--clr-text,#111827)}
+.adm-dlg{position:fixed;inset:0;margin:auto;height:fit-content;max-height:calc(100dvh - 32px);overflow:auto;border:none;border-radius:14px;padding:0;box-shadow:0 12px 48px rgba(0,0,0,.28);width:min(520px,calc(100vw - 32px));background:var(--clr-surface,#fff);color:var(--clr-text,#111827)}
 .adm-dlg::backdrop{background:rgba(15,23,42,.45)}
 .adm-dlg-body{padding:22px 24px;font-family:var(--font-data,system-ui);font-size:14px}
 .adm-dlg-body .adm-h2{margin:0 0 6px;font-size:18px}
