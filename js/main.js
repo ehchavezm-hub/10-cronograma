@@ -4162,8 +4162,8 @@ function _printOrgChart() {
     </label>
     <div class="sep"></div>
     <label>Papel: <select id="paper" onchange="setOrient()" title="Tamaño del papel del PDF">
-      <option value="A4" selected>A4</option><option value="A3">A3</option><option value="A2">A2</option><option value="A1">A1</option>
-      <option value="Carta">Carta</option><option value="Oficio">Oficio</option><option value="Legal">Legal</option><option value="Tabloide">Tabloide</option>
+      <option value="A0">A0</option><option value="A1">A1</option><option value="A2">A2</option><option value="A3">A3</option>
+      <option value="A4" selected>A4</option><option value="A5">A5</option><option value="A6">A6</option>
     </select></label>
     <div class="sep"></div>
     <span class="lbl-sm">Orientaci&#243;n:</span>
@@ -5201,8 +5201,8 @@ function _exportCpmNetwork(fmt, dlg) {
 </head><body>
   <div class="controls">
     <label>Papel: <select id="paper" onchange="autoPages();renderTiles()" title="Tamaño del papel del PDF">
-      <option value="A4" selected>A4</option><option value="A3">A3</option><option value="A2">A2</option><option value="A1">A1</option>
-      <option value="Carta">Carta</option><option value="Oficio">Oficio</option><option value="Legal">Legal</option><option value="Tabloide">Tabloide</option>
+      <option value="A0">A0</option><option value="A1">A1</option><option value="A2">A2</option><option value="A3">A3</option>
+      <option value="A4" selected>A4</option><option value="A5">A5</option><option value="A6">A6</option>
     </select></label>
     <div class="sep"></div>
     <span class="lbl-sm">Orientaci&#243;n:</span>
@@ -5246,8 +5246,8 @@ function _exportCpmNetwork(fmt, dlg) {
     let _orient = 'landscape';
 
     /** Tamaños de papel (mm, vertical). */
-    const PAPERS = { A4: [210, 297], A3: [297, 420], A2: [420, 594], A1: [594, 841],
-                     Carta: [216, 279], Oficio: [216, 330], Legal: [216, 356], Tabloide: [279, 432] };
+    const PAPERS = { A0: [841, 1189], A1: [594, 841], A2: [420, 594], A3: [297, 420],
+                     A4: [210, 297], A5: [148, 210], A6: [105, 148] };
 
     /** Hoja (mm) y área útil: márgenes de 10mm, banda del título y, sin margin boxes, encabezado/pie. */
     function layout() {

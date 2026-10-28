@@ -71,13 +71,13 @@ export function pageHfCss({ proj, date, footRight }) {
 /** Selector de tamaño de papel para la barra de las ventanas de impresión (llama a setOri()). */
 export const PAPER_SELECT_HTML =
   '<span class="lbl">Papel:</span><select id="paper" onchange="setOri()" title="Tamaño del papel del PDF">' +
-  '<option value="A4" selected>A4</option><option value="A3">A3</option><option value="A2">A2</option><option value="A1">A1</option>' +
-  '<option value="Carta">Carta</option><option value="Oficio">Oficio</option><option value="Legal">Legal</option><option value="Tabloide">Tabloide</option>' +
+  '<option value="A0">A0</option><option value="A1">A1</option><option value="A2">A2</option><option value="A3">A3</option>' +
+  '<option value="A4" selected>A4</option><option value="A5">A5</option><option value="A6">A6</option>' +
   '</select><div class="sep"></div>';
 
 /** Script de las ventanas de impresión: tamaños de papel (mm) y medida de la hoja según orientación. */
 export const PAPER_JS =
-  "var PAPERS={A4:[210,297],A3:[297,420],A2:[420,594],A1:[594,841],Carta:[216,279],Oficio:[216,330],Legal:[216,356],Tabloide:[279,432]};" +
+  "var PAPERS={A0:[841,1189],A1:[594,841],A2:[420,594],A3:[297,420],A4:[210,297],A5:[148,210],A6:[105,148]};" +
   "function paperSize(o){var p=PAPERS[(document.getElementById('paper')||{}).value]||PAPERS.A4;" +
   "var a=Math.min(p[0],p[1]),b=Math.max(p[0],p[1]);return o==='landscape'?[b,a]:[a,b];}";
 
