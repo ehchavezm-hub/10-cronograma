@@ -37,8 +37,8 @@ import { generatePdfReport } from './pdf-report.js';
 import { pageHfCss, REPORT_TITLE_CSS, REPORT_FONT_CSS, normalizeReportBody, supportsPageMarginBoxes, PAPER_SELECT_HTML, PAPER_JS, FONTS_LINK, installDesktopPrint } from './pdf-utils.js';
 import { debouncedSave, queue } from './async-queue.js';
 import { initReports } from './reports.js';
-import { authInit, authState, showLoginModal, logout, seleccionarEmpresa } from './auth.js?v=194';
-import { showAdminConsole, updateAdminSectionVisibility } from './admin-console.js?v=207';
+import { authInit, authState, showLoginModal, logout, seleccionarEmpresa } from './auth.js?v=195';
+import { showAdminConsole, updateAdminSectionVisibility } from './admin-console.js?v=226';
 import { ConnectivityPanel } from './connectivity.js';
 
 // Precargar Manrope: los gráficos canvas de los reportes (DCMA, EVM, Histograma) la usan
@@ -6192,7 +6192,7 @@ function _toggleAuthMenu() {
 
   addItem(authState.empresas.length > 1 ? 'Mis empresas · cambiar' : 'Mis empresas', () => showEmpresasSwitcher());
   addItem('Cambiar contraseña', () => {
-    import('./auth.js?v=194').then(m => m.showLoginModal?.());
+    import('./auth.js?v=195').then(m => m.showLoginModal?.());
   });
   addItem('Cerrar sesión', () => logout());
 

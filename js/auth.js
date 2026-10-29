@@ -49,8 +49,20 @@ async function _authFetch(path, body, token) {
     body: JSON.stringify(body),
   });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error_description || data.message || data.error || `HTTP ${res.status}`);
+  if (!res.ok) throw new Error(_mensajeAuth(data, res.status));
   return data;
+}
+
+// Mensajes de Supabase Auth en lenguaje claro para el usuario
+function _mensajeAuth(data, status) {
+  const code = data.error_code || data.code || '';
+  const raw  = data.error_description || data.msg || data.message || data.error || '';
+  if (code === 'invalid_credentials' || /invalid login credentials/i.test(raw)) return 'Correo o contraseña incorrectos. Revisa mayúsculas y minúsculas, y que no haya espacios de más.';
+  if (code === 'email_not_confirmed' || /email not confirmed/i.test(raw)) return 'Tu correo aún no está confirmado. Revisa tu bandeja de entrada.';
+  if (code === 'user_already_exists' || /already registered/i.test(raw)) return 'Ese correo ya tiene una cuenta. Usa «Iniciar sesión».';
+  if (code === 'over_request_rate_limit' || status === 429) return 'Demasiados intentos. Espera unos minutos y vuelve a intentar.';
+  if (code === 'weak_password') return 'La contraseña es muy débil. Usa al menos 8 caracteres.';
+  return raw || `No se pudo completar (código ${status}).`;
 }
 
 async function _restGet(tabla, filter, token) {
@@ -245,7 +257,7 @@ export async function cambiarPassword(newPassword) {
     body: JSON.stringify({ password: newPassword }),
   });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error_description || data.message || `HTTP ${res.status}`);
+  if (!res.ok) throw new Error(_mensajeAuth(data, res.status));
 
   // Limpiar temp_password en org_memberships
   const mem = authState.empresas.find(e => e.org_id === authState.empresaActual?.org_id);
