@@ -14,7 +14,7 @@
  */
 
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
-import { authState, recargarEmpresas } from './auth.js?v=194';
+import { authState, recargarEmpresas } from './auth.js?v=195';
 import { getAll, put } from './storage.js';
 import { TREE as REPORTS_TREE } from './reports.js';
 
@@ -73,6 +73,7 @@ async function _req(method, path, body, prefer = 'return=representation') {
 function _traducirError(msg) {
   if (/row-level security/i.test(msg)) return 'No tienes permiso para esta acción en esta empresa.';
   if (/duplicate key/i.test(msg)) return 'Ya existe un registro con esos datos.';
+  if (/Could not find the function/i.test(msg)) return 'Falta aplicar una actualización de la base de datos. Avisa al propietario de la plataforma.';
   return msg;
 }
 
@@ -1649,7 +1650,7 @@ async function _empUsuarios(main) {
       { label: 'Clave', html: r => r.temp_password ? _badge('Temporal, sin cambiar', 'warn') : '<span class="adm-sub">Propia</span>' },
       { label: 'Desde', html: r => _esc(_fecha(r.created_at)), cls: 'adm-nowrap' },
       { label: '', cls: 'adm-actions', html: r => r.user_id === yo ? '<span class="adm-sub">Tú</span>' : [
-        r.temp_password ? _btn('Nueva clave', 'clave', r.id, { title: 'Generar otra clave temporal' }) : '',
+        _btn('Nueva clave', 'clave', r.id, { title: 'Generar una clave temporal nueva (por ejemplo, si la olvidó)' }),
         r.active ? _btn('Revocar', 'revocar', r.id, { tono: 'danger' }) : _btn('Reactivar', 'reactivar', r.id),
       ].join('') },
     ],
@@ -1695,10 +1696,20 @@ async function _empUsuarios(main) {
     await _renderPage();
   };
   S.acts.clave = async (id) => {
+    const r = byId(id);
     const pwd = _genClave();
-    await _patch('org_memberships', { id: `eq.${id}` }, { temp_password: pwd });
-    await _audit(S.orgId, 'regenerar_clave_temporal', 'org_memberships', id);
-    await _mostrarClave(byId(id).perfil?.email || '', pwd);
+    const ok = await _modal({
+      title: `Nueva clave para ${_nombre(r.perfil)}`,
+      desc: 'Su contraseña actual deja de funcionar y se reemplaza por una clave temporal. Al entrar se le pedirá cambiarla.',
+      submit: 'Generar clave',
+      onSubmit: async () => {
+        // Cambia la contraseña real de la cuenta (no solo la guardada en la empresa)
+        await _rpc('restablecer_clave_temporal', { p_mem_id: id, p_clave: pwd });
+        await _audit(S.orgId, 'regenerar_clave_temporal', 'org_memberships', id, { usuario: _nombre(r.perfil) });
+      },
+    });
+    if (!ok) return;
+    await _mostrarClave(r.perfil?.email || '', pwd);
     await _renderPage();
   };
 }
