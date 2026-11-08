@@ -40,10 +40,10 @@ jobs:
             codes=""
             for t in organizations projects profiles; do
               c=$(curl -s -m 20 -o /dev/null -w '%{http_code}' -H "apikey: $KEY" -H "Authorization: Bearer $KEY" \
-                "$URL/rest/v1/$t?select=id&limit=1")
+                "$URL/rest/v1/$t?select=id&limit=1" || true)
               codes="$codes $t=$c"
             done
-            auth=$(curl -s -m 20 -o /dev/null -w '%{http_code}' -H "apikey: $KEY" "$URL/auth/v1/health")
+            auth=$(curl -s -m 20 -o /dev/null -w '%{http_code}' -H "apikey: $KEY" "$URL/auth/v1/health" || true)
             echo "intento $i →$codes auth=$auth"
             if [ "$auth" = "200" ] && ! echo "$codes" | grep -qvE '^( [a-z_]+=200)+$'; then ok=1; break; fi
             sleep 20

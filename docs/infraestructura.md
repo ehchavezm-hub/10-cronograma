@@ -33,9 +33,10 @@ Credenciales: solo la URL y la anon key de `js/config.js` (públicas por diseño
 
 | Plataforma | Acción | Verificación | Estado | Evidencia |
 |---|---|---|---|---|
-| Supabase | Restaurado de pausa (con autorización); keep-alive diario | Ejecución manual del workflow | ACTIVE_HEALTHY | Ver sección 6 |
-| GitHub Actions | Auto re-habilitación vía API | Paso `enable` en verde | Activo | Ver sección 6 |
-| GitHub Pages | Monitor diario | Paso `Verificar GitHub Pages` | En línea | Ver sección 6 |
+| Supabase | Restaurado de pausa (con autorización); keep-alive diario | Ejecución real: 3 tablas + auth = 200 | ACTIVE_HEALTHY | [run 42492081037](https://github.com/ehchavezm-hub/10-cronograma/actions/runs/42492081037) |
+| GitHub Actions | Auto re-habilitación vía API | `supabase-keepalive.yml habilitado`, `infra-review.yml habilitado` | Activo | mismo run |
+| GitHub Pages | Monitor diario | `https://ehchavezm-hub.github.io/10-cronograma/ → 200` | En línea | mismo run |
+| Revisión trimestral | Issue automático | Issue creado | Activo | [issue #251](https://github.com/ehchavezm-hub/10-cronograma/issues/251) |
 
 ## 4. Límites residuales
 
@@ -70,4 +71,9 @@ Credenciales: solo la URL y la anon key de `js/config.js` (públicas por diseño
 
 ## 6. Evidencia de verificación (2026-11-08)
 
-_Ver PR de esta auditoría y las ejecuciones enlazadas allí._
+- **Camino de éxito** — [run 42492081037](https://github.com/ehchavezm-hub/10-cronograma/actions/runs/42492081037):
+  `intento 1 → organizations=200 projects=200 profiles=200 auth=200` · `GitHub Pages → 200` · ambos workflows re-habilitados.
+- **Camino de fallo, 1.ª prueba** — [run 42492083068](https://github.com/ehchavezm-hub/10-cronograma/actions/runs/42492083068): el job falló (la alerta se dispara), pero con `exit code 6` de curl, sin reintentos ni mensaje de restauración. **Bug corregido** (`|| true` en las llamadas curl).
+- **Camino de fallo, 2.ª prueba** — ver la ejecución con `probar_fallo: true` posterior a la corrección en Actions.
+- **Supabase** — estado `ACTIVE_HEALTHY`; BD 13 MB (2,6 % de 500 MB); 9 usuarios.
+- **Pendiente de confirmar por el propietario**: que el correo de fallo de GitHub llegó a su bandeja.
