@@ -1,0 +1,33 @@
+name: Revisión trimestral de infraestructura
+
+# Los proveedores cambian sus políticas de inactividad y cuotas; esta tarea abre un issue de recordatorio
+# cada trimestre para volver a verificarlas (GitHub notifica al propietario por correo).
+on:
+  schedule:
+    - cron: '23 14 1 1,4,7,10 *'   # 1 de ene/abr/jul/oct, 14:23 UTC
+  workflow_dispatch:
+
+permissions:
+  issues: write
+
+jobs:
+  recordatorio:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Abrir issue de revisión
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh issue create --repo "${{ github.repository }}" \
+            --title "Revisión trimestral de infraestructura — $(date -u +%Y-%m)" \
+            --body "Revisar y actualizar \`docs/infraestructura.md\`:
+
+          - [ ] Supabase: política de pausa por inactividad (umbral y qué cuenta como actividad) sin cambios
+          - [ ] Supabase: uso de base de datos, egress y usuarios frente a las cuotas del plan gratuito (< 80 %)
+          - [ ] GitHub Actions: regla de desactivación de workflows programados sin cambios
+          - [ ] Últimas ejecuciones de **Supabase keep-alive** en verde
+          - [ ] GitHub Pages: sitio en línea
+          - [ ] Respaldo de datos: estado según el documento
+
+          Si alguna política cambió, actualizar el workflow y el documento."

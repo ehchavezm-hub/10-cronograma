@@ -1,15 +1,20 @@
 name: Supabase keep-alive
 
-# El plan gratuito de Supabase pausa el proyecto tras ~7 días sin actividad.
-# Esta consulta periódica a la base de datos cuenta como actividad y lo mantiene activo.
+# El plan gratuito de Supabase pausa el proyecto si no recibe suficiente actividad de base de datos
+# en 7 días; según su documentación "normalmente bastan unas pocas solicitudes al día". Por eso: diario y 3 consultas.
 on:
   schedule:
-    - cron: '17 9 */2 * *'   # cada 2 días, 09:17 UTC
+    - cron: '17 9 * * *'   # diario, 09:17 UTC
   workflow_dispatch:
+    inputs:
+      probar_fallo:
+        description: 'Usar una URL inválida para comprobar que la alerta de fallo llega'
+        type: boolean
+        default: false
 
 permissions:
   contents: read
-  actions: write   # para re-habilitar este mismo workflow (ver último paso)
+  actions: write   # para re-habilitar los workflows programados (ver último paso)
 
 jobs:
   ping:
@@ -22,29 +27,47 @@ jobs:
           sparse-checkout-cone-mode: false
 
       - name: Consultar Supabase (REST + Auth)
+        env:
+          PROBAR_FALLO: ${{ inputs.probar_fallo }}
         run: |
           URL=$(grep -oP "SUPABASE_URL\s*=\s*'\K[^']+" js/config.js)
           KEY=$(grep -oP "SUPABASE_ANON_KEY\s*=\s*'\K[^']+" js/config.js)
           test -n "$URL" && test -n "$KEY"
+          REF=$(echo "$URL" | sed -E 's#https://([^.]+).*#\1#')
+          if [ "$PROBAR_FALLO" = "true" ]; then URL="https://ecm-prueba-fallo.invalid"; echo "Modo prueba de fallo: $URL"; fi
           ok=0
           for i in 1 2 3; do
-            rest=$(curl -s -o /dev/null -w '%{http_code}' \
-              -H "apikey: $KEY" -H "Authorization: Bearer $KEY" \
-              "$URL/rest/v1/organizations?select=id&limit=1")
-            auth=$(curl -s -o /dev/null -w '%{http_code}' -H "apikey: $KEY" "$URL/auth/v1/health")
-            echo "intento $i → rest=$rest auth=$auth"
-            if [ "$rest" -lt 500 ] && [ "$rest" -ge 200 ] && [ "$auth" = "200" ]; then ok=1; break; fi
+            codes=""
+            for t in organizations projects profiles; do
+              c=$(curl -s -m 20 -o /dev/null -w '%{http_code}' -H "apikey: $KEY" -H "Authorization: Bearer $KEY" \
+                "$URL/rest/v1/$t?select=id&limit=1")
+              codes="$codes $t=$c"
+            done
+            auth=$(curl -s -m 20 -o /dev/null -w '%{http_code}' -H "apikey: $KEY" "$URL/auth/v1/health")
+            echo "intento $i →$codes auth=$auth"
+            if [ "$auth" = "200" ] && ! echo "$codes" | grep -qvE '^( [a-z_]+=200)+$'; then ok=1; break; fi
             sleep 20
           done
           if [ "$ok" != 1 ]; then
-            echo "::error::Supabase no responde — el proyecto puede estar pausado. Restáuralo en https://supabase.com/dashboard/project/$(echo "$URL" | sed -E 's#https://([^.]+).*#\1#')"
+            echo "::error::Supabase no responde (posible pausa). Restaurar: https://supabase.com/dashboard/project/$REF — ver docs/infraestructura.md (Runbook)"
             exit 1
           fi
 
-      # GitHub desactiva los workflows programados tras 60 días sin commits en el repo.
-      # Re-habilitar el workflow vía API reinicia ese contador sin generar commits.
-      - name: Mantener el workflow activo en GitHub
+      - name: Verificar GitHub Pages
+        run: |
+          OWNER="${{ github.repository_owner }}"; REPO="${{ github.event.repository.name }}"
+          PAGES="https://${OWNER,,}.github.io/$REPO/"
+          code=$(curl -s -m 20 -L -o /dev/null -w '%{http_code}' "$PAGES")
+          echo "$PAGES → $code"
+          [ "$code" = "200" ] || { echo "::error::GitHub Pages no responde ($code). Ver docs/infraestructura.md (Runbook)"; exit 1; }
+
+      # GitHub desactiva los workflows programados tras 60 días sin actividad en el repo.
+      # Re-habilitarlos vía API reinicia ese contador sin generar commits de relleno.
+      - name: Mantener activos los workflows programados
         if: always()
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh api -X PUT "repos/${{ github.repository }}/actions/workflows/supabase-keepalive.yml/enable"
+        run: |
+          for wf in supabase-keepalive.yml infra-review.yml; do
+            gh api -X PUT "repos/${{ github.repository }}/actions/workflows/$wf/enable" && echo "$wf habilitado"
+          done
