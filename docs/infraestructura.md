@@ -74,6 +74,7 @@ Credenciales: solo la URL y la anon key de `js/config.js` (públicas por diseño
 - **Camino de éxito** — [run 42492081037](https://github.com/ehchavezm-hub/10-cronograma/actions/runs/42492081037):
   `intento 1 → organizations=200 projects=200 profiles=200 auth=200` · `GitHub Pages → 200` · ambos workflows re-habilitados.
 - **Camino de fallo, 1.ª prueba** — [run 42492083068](https://github.com/ehchavezm-hub/10-cronograma/actions/runs/42492083068): el job falló (la alerta se dispara), pero con `exit code 6` de curl, sin reintentos ni mensaje de restauración. **Bug corregido** (`|| true` en las llamadas curl).
-- **Camino de fallo, 2.ª prueba** — ver la ejecución con `probar_fallo: true` posterior a la corrección en Actions.
+- **Camino de fallo, 2.ª prueba (tras la corrección)** — [run 42492162548](https://github.com/ehchavezm-hub/10-cronograma/actions/runs/42492162548): 3 intentos `organizations=000 projects=000 profiles=000 auth=000` con 20 s de espera → `::error::Supabase no responde (posible pausa). Restaurar: https://supabase.com/dashboard/project/rduzdeojbcelfjqsuvht` → job en rojo (GitHub envía correo). Workflows re-habilitados igualmente.
+- **Camino de éxito tras la corrección** — [run 42492164738](https://github.com/ehchavezm-hub/10-cronograma/actions/runs/42492164738): en verde.
 - **Supabase** — estado `ACTIVE_HEALTHY`; BD 13 MB (2,6 % de 500 MB); 9 usuarios.
 - **Pendiente de confirmar por el propietario**: que el correo de fallo de GitHub llegó a su bandeja.
