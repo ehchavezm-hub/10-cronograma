@@ -9,6 +9,7 @@ on:
 
 permissions:
   contents: read
+  actions: write   # para re-habilitar este mismo workflow (ver último paso)
 
 jobs:
   ping:
@@ -39,3 +40,11 @@ jobs:
             echo "::error::Supabase no responde — el proyecto puede estar pausado. Restáuralo en https://supabase.com/dashboard/project/$(echo "$URL" | sed -E 's#https://([^.]+).*#\1#')"
             exit 1
           fi
+
+      # GitHub desactiva los workflows programados tras 60 días sin commits en el repo.
+      # Re-habilitar el workflow vía API reinicia ese contador sin generar commits.
+      - name: Mantener el workflow activo en GitHub
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api -X PUT "repos/${{ github.repository }}/actions/workflows/supabase-keepalive.yml/enable"
