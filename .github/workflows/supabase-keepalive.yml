@@ -1,0 +1,41 @@
+name: Supabase keep-alive
+
+# El plan gratuito de Supabase pausa el proyecto tras ~7 días sin actividad.
+# Esta consulta periódica a la base de datos cuenta como actividad y lo mantiene activo.
+on:
+  schedule:
+    - cron: '17 9 */2 * *'   # cada 2 días, 09:17 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: js/config.js
+          sparse-checkout-cone-mode: false
+
+      - name: Consultar Supabase (REST + Auth)
+        run: |
+          URL=$(grep -oP "SUPABASE_URL\s*=\s*'\K[^']+" js/config.js)
+          KEY=$(grep -oP "SUPABASE_ANON_KEY\s*=\s*'\K[^']+" js/config.js)
+          test -n "$URL" && test -n "$KEY"
+          ok=0
+          for i in 1 2 3; do
+            rest=$(curl -s -o /dev/null -w '%{http_code}' \
+              -H "apikey: $KEY" -H "Authorization: Bearer $KEY" \
+              "$URL/rest/v1/organizations?select=id&limit=1")
+            auth=$(curl -s -o /dev/null -w '%{http_code}' -H "apikey: $KEY" "$URL/auth/v1/health")
+            echo "intento $i → rest=$rest auth=$auth"
+            if [ "$rest" -lt 500 ] && [ "$rest" -ge 200 ] && [ "$auth" = "200" ]; then ok=1; break; fi
+            sleep 20
+          done
+          if [ "$ok" != 1 ]; then
+            echo "::error::Supabase no responde — el proyecto puede estar pausado. Restáuralo en https://supabase.com/dashboard/project/$(echo "$URL" | sed -E 's#https://([^.]+).*#\1#')"
+            exit 1
+          fi
